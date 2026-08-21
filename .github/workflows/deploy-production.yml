@@ -2,6 +2,14 @@ name: Deploy Production
 
 on:
   workflow_dispatch:
+    inputs:
+      skip_test_gate:
+        description: >-
+          Deploy without requiring a green Deploy Test for this commit. Recovery
+          path for when the Test environment itself is unavailable.
+        required: false
+        default: false
+        type: boolean
 
 concurrency:
   group: deploy-production
@@ -19,7 +27,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # Normally production may only ship a commit that is already green on
+      # Test. That gate is unusable while Test cannot deploy at all (the alias
+      # step needs a domain the CI token's scope does not own), so it can be
+      # skipped deliberately from the dispatch form. Skipping it means this
+      # commit reaches production having passed CI but never having run against
+      # a real database.
       - name: Require this commit to be live on Test
+        if: ${{ !inputs.skip_test_gate }}
         run: |
           TESTED_SHA=$(gh run list \
             --workflow "Deploy Test" \
@@ -40,6 +55,15 @@ jobs:
 
       - name: Install
         run: npm ci
+
+      # The Test gate was this workflow's only proof that the commit was sound.
+      # When it is skipped, run the checks here instead of shipping unverified.
+      - name: Checks
+        if: ${{ inputs.skip_test_gate }}
+        env:
+          DATABASE_URL: postgresql://user:password@localhost:5432/db
+          DIRECT_URL: postgresql://user:password@localhost:5432/db
+        run: npm run check
 
       - name: Install Vercel CLI
         run: npm install --global vercel@58.1.0 --no-audit --no-fund
