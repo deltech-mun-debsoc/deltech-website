@@ -79,9 +79,20 @@ async function authorize(kind: MediaKindName, ownerId?: string) {
     })
     if (!candidate) return null
     // Recruitment authority is per-cycle, resolved the same way as everywhere else.
-    const { resolveCycleContext } = await import("@/lib/recruitment/authz")
+    const { resolveCycleContext, visibleGroupIds } = await import("@/lib/recruitment/authz")
     const ctx = await resolveCycleContext(candidate.cycleId)
     if (!ctx) return null
+    // A cycle role is not enough: candidate documents are personal data, so the
+    // same scoping as every other candidate surface applies. `null` means no
+    // restriction (maintainers and admins); a JC gets only the candidates seated
+    // in a group they staff.
+    const groupIds = await visibleGroupIds(ctx)
+    if (groupIds) {
+      const seated = await prisma.recruitmentGroupMember.count({
+        where: { candidateId: ownerId, groupId: { in: groupIds } },
+      })
+      if (seated === 0) return null
+    }
     return { userId: user.id, email: user.email, role }
   }
 

@@ -103,6 +103,15 @@ const read = (p: string) => readFileSync(p, "utf8")
     "finalize must re-validate against the object's actual content type",
   )
 
+  // Candidate documents are personal data. A cycle role alone must not reach
+  // them: the JC group scoping used by every other candidate surface applies
+  // here too, or a JC could read the whole cycle's uploads.
+  assert.match(
+    actions,
+    /visibleGroupIds\(ctx\)/,
+    "CANDIDATE_DOC access must be scoped to the caller's visible groups",
+  )
+
   // And the old Supabase upload paths must stay gone, or they would reintroduce
   // an unverified public-bucket write alongside the hardened one.
   for (const f of ["src/app/(author)/write/[id]/actions.ts", "src/app/(admin)/admin/team/actions.ts"]) {
