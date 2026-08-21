@@ -19,6 +19,12 @@ jobs:
       # Lets check-env-isolation.ts query Vercel. Absent on fork and Dependabot
       # PRs, where that check skips itself rather than failing.
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      # Without these the script falls back to .vercel/project.json, which is
+      # gitignored and therefore never present on a PR runner: the project half
+      # of the check silently did nothing. Same two secrets the deploy
+      # workflows use.
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
     steps:
       - uses: actions/checkout@v7
 

@@ -36,6 +36,27 @@ database secrets before any Test migration or destructive reset.
 Deployments are queued rather than cancelled while a migration may be running.
 Vercel uploads use `--archive=tgz`.
 
+### Vercel scope
+
+`.vercel/` is gitignored, so a runner has no project link of its own. Three
+secrets pin every Vercel command to one project:
+
+| Secret | Where to get it |
+| --- | --- |
+| `VERCEL_TOKEN` | Issued from the account or team that owns the project **and** the domains. |
+| `VERCEL_ORG_ID` | `vercel link`, then read `orgId` from `.vercel/project.json`. |
+| `VERCEL_PROJECT_ID` | The same file's `projectId`. |
+
+Omit the last two and `vercel pull --yes` links to whatever scope the token
+defaults to. Everything downstream follows it there, so the deploy succeeds
+into the wrong account and only `vercel alias set` fails, with a message about
+domain access that does not mention the scope. If that step fails, check which
+account the deployment URL names before touching DNS.
+
+A domain can only be aliased to a deployment in the same scope. `dig +short
+<host> CNAME` returns a per-account `*.vercel-dns-*.com` target: two hosts with
+different hashes are in different accounts and no single token can alias both.
+
 ## Database isolation
 
 Test application data lives only in Neon. Production application data lives

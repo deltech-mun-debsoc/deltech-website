@@ -16,6 +16,10 @@ jobs:
     env:
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
       GH_TOKEN: ${{ github.token }}
+      # See deploy-test.yml: without these the CLI links to the token's default
+      # scope rather than the project that owns the production domain.
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
     steps:
       - uses: actions/checkout@v7
 

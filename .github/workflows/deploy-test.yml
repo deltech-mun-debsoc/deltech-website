@@ -18,6 +18,14 @@ jobs:
       DATABASE_URL: postgresql://user:password@localhost:5432/db
       DIRECT_URL: postgresql://user:password@localhost:5432/db
       VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      # Pin the scope and project. .vercel/ is gitignored, so without these
+      # `vercel pull --yes` silently links to whatever scope the token defaults
+      # to, and every later command (build, deploy, alias, and the env-isolation
+      # scripts, which already read these two variables) follows it there. That
+      # is how deployments landed in a personal scope while test.deltechmun.in
+      # lives somewhere else, making `vercel alias set` fail on every run.
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
     steps:
       - uses: actions/checkout@v7
 
