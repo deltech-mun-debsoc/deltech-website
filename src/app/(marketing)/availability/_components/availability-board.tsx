@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react"
 import { AnimatePresence, motion } from "framer-motion"
-import { supabase } from "@/lib/supabase"
+import { getSupabase } from "@/lib/supabase"
 import { t } from "@/content/strings"
 
 export interface CommitteeAvailability {
@@ -55,6 +55,9 @@ export function AvailabilityBoard({ initial }: Props) {
   const [committees, setCommittees] = useState(initial)
 
   useEffect(() => {
+    const supabase = getSupabase()
+    if (!supabase) return
+
     const channel = supabase
       .channel("portfolio-availability")
       .on(

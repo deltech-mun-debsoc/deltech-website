@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { supabase } from "@/lib/supabase"
+import { getSupabase } from "@/lib/supabase"
 import { t } from "@/content/strings"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -59,11 +59,14 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
   // Open text state
   const [openText, setOpenText] = useState("")
 
-  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
+  const channelRef = useRef<ReturnType<NonNullable<ReturnType<typeof getSupabase>>["channel"]> | null>(null)
   const userIdRef = useRef(randomUserId())
   const submittedRef = useRef(false)
 
   const joinChannel = useCallback((nick: string, ava: string) => {
+    const supabase = getSupabase()
+    if (!supabase) return
+
     const channel = supabase.channel(`quiz:${roomCode}`)
 
     channel
@@ -133,7 +136,8 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
 
   useEffect(() => {
     return () => {
-      if (channelRef.current) supabase.removeChannel(channelRef.current)
+      const supabase = getSupabase()
+      if (supabase && channelRef.current) supabase.removeChannel(channelRef.current)
     }
   }, [])
 
