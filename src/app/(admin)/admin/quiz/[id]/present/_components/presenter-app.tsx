@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useCallback } from "react"
 import { AnimatePresence, motion } from "framer-motion"
-import { supabase } from "@/lib/supabase"
+import { getSupabase } from "@/lib/supabase"
 import { LobbyScreen } from "./lobby-screen"
 import { QuestionScreen } from "./question-screen"
 import { LeaderboardScreen } from "./leaderboard-screen"
@@ -41,7 +41,7 @@ export function PresenterApp({ session, presentation, slides }: Props) {
   const [lbEntries, setLbEntries] = useState<LBEntry[]>([])
   const [lbFinal, setLbFinal] = useState(false)
 
-  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
+  const channelRef = useRef<ReturnType<NonNullable<ReturnType<typeof getSupabase>>["channel"]> | null>(null)
   const tallyIntervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined)
   const prevRanksRef = useRef<Map<string, number>>(new Map())
 
@@ -68,6 +68,9 @@ export function PresenterApp({ session, presentation, slides }: Props) {
 
   // ── Supabase presence ──────────────────────────────────────────────────────
   useEffect(() => {
+    const supabase = getSupabase()
+    if (!supabase) return
+
     const channel = supabase.channel(`quiz:${session.roomCode}`, {
       config: { presence: { key: "host" } },
     })

@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { motion, useReducedMotion } from "framer-motion"
-import { supabase } from "@/lib/supabase"
+import { getSupabase } from "@/lib/supabase"
 import { t } from "@/content/strings"
 
 export type PortfolioState = "available" | "allotted" | "paid" | "blocked"
@@ -52,6 +52,9 @@ export function MatrixBoard({ committees }: { committees: MatrixCommittee[] }) {
       if (refreshTimer.current) clearTimeout(refreshTimer.current)
       refreshTimer.current = setTimeout(() => router.refresh(), 800)
     }
+
+    const supabase = getSupabase()
+    if (!supabase) return
 
     const channel = supabase
       .channel("portfolio-matrix")

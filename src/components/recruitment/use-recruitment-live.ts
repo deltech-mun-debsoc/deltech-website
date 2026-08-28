@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { supabase } from "@/lib/supabase"
+import { getSupabase } from "@/lib/supabase"
 
 // Realtime for the recruitment surfaces.
 //
@@ -21,17 +21,22 @@ export function useRecruitmentLive(
   { pollMs = 15000 }: { pollMs?: number } = {},
 ): { notify: (topic: RecruitmentTopic) => void } {
   const router = useRouter()
-  const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null)
+  const channelRef = useRef<ReturnType<NonNullable<ReturnType<typeof getSupabase>>["channel"]> | null>(null)
 
   useEffect(() => {
     if (!cycleId) return
 
+    // Realtime is a progressive enhancement: when it is unconfigured the polling
+    // fallback below still keeps the screen current, so this must not bail out.
+    const supabase = getSupabase()
     const channel = supabase
-      .channel(`recruitment:${cycleId}`)
-      .on("broadcast", { event: "changed" }, () => {
-        router.refresh()
-      })
-      .subscribe()
+      ? supabase
+          .channel(`recruitment:${cycleId}`)
+          .on("broadcast", { event: "changed" }, () => {
+            router.refresh()
+          })
+          .subscribe()
+      : null
     channelRef.current = channel
 
     // Fallback: refresh on a slow cadence regardless. Costs one RSC request per
@@ -48,7 +53,7 @@ export function useRecruitmentLive(
     return () => {
       clearInterval(interval)
       document.removeEventListener("visibilitychange", onVisible)
-      void supabase.removeChannel(channel)
+      if (supabase && channel) void supabase.removeChannel(channel)
       channelRef.current = null
     }
   }, [cycleId, pollMs, router])
