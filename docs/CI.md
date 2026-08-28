@@ -1,127 +1,71 @@
 # CI and deployments
 
-## The small-team flow
+Vercel's Git integration deploys. GitHub Actions only runs checks.
 
 ```text
-Pull request → CI → merge to main → automatic Test deploy
-                                      ↓
-                              inspect Test manually
-                                      ↓
-                          click Deploy Production
+pull request     → Validate (Actions) + a Vercel Preview URL
+push to main     → Production
 ```
 
-There are no pull-request deployments.
-
-| Environment | Vercel scope | Database | URL |
-| --- | --- | --- | --- |
-| Test | Preview | Neon Test database | `test.deltechmun.in` |
-| Production | Production | Supabase Production database | `deltechmun.in` |
-
-Both environments use one Vercel project with separate Preview and Production
-variables. `scripts/check-env-isolation.ts` verifies the Vercel scopes.
-`scripts/verify-database-isolation.ts` independently verifies the GitHub
-database secrets before any Test migration or destructive reset.
+There is one workflow, `.github/workflows/check.yml`. No workflow deploys, and
+none needs a Vercel token.
 
 ## Workflows
 
 | Name | Trigger | Purpose |
 | --- | --- | --- |
-| **CI** | Pull request or manual | Run the checks and a production build. |
-| **Deploy Test** | Push to `main` or manual | Check, migrate Neon, deploy Test, and smoke-test it. |
-| **Deploy Production** | Manual | Require current `main` to be live on Test, then build, migrate, deploy, and smoke-test Production. |
-| **Reset Test Data** | Manual with confirmation | Recreate Neon and seed complete fake product data. |
-| **Set up Test Environment** | Manual | Repair the Vercel Preview variables and stable Test domain. |
-| **Run Test Crons** | Daily or manual | Run the protected cron routes against Neon-backed Test. |
+| **CI** | Pull request or manual | `npm run check` and a production build. |
 
-Deployments are queued rather than cancelled while a migration may be running.
-Vercel uploads use `--archive=tgz`.
+## Deployments
 
-### Vercel scope
+Vercel builds every push. `vercel.json` points `buildCommand` at
+`npm run build:vercel`, which runs `prisma migrate deploy` on Production and on
+the `development` branch, then `next build`.
 
-`.vercel/` is gitignored, so a runner has no project link of its own. Three
-secrets pin every Vercel command to one project:
+Pull-request previews deliberately do NOT migrate: a PR carrying a migration
+would otherwise apply it before anyone reviewed it.
 
-| Secret | Where to get it |
-| --- | --- |
-| `VERCEL_TOKEN` | Issued from the account or team that owns the project **and** the domains. |
-| `VERCEL_ORG_ID` | `vercel link`, then read `orgId` from `.vercel/project.json`. |
-| `VERCEL_PROJECT_ID` | The same file's `projectId`. |
+A failed migration fails the build, so no deployment is created and the previous
+one keeps serving.
 
-Omit the last two and `vercel pull --yes` links to whatever scope the token
-defaults to. Everything downstream follows it there, so the deploy succeeds
-into the wrong account and only `vercel alias set` fails, with a message about
-domain access that does not mention the scope. If that step fails, check which
-account the deployment URL names before touching DNS.
+## Migrations
 
-A domain can only be aliased to a deployment in the same scope. `dig +short
-<host> CNAME` returns a per-account `*.vercel-dns-*.com` target: two hosts with
-different hashes are in different accounts and no single token can alias both.
+Applied by the Vercel build. To run one by hand:
 
-## Database isolation
+```bash
+DIRECT_URL='<session pooler, port 5432>' npm run db:deploy
+DIRECT_URL='<same>' npx prisma migrate status
+```
 
-Test application data lives only in Neon. Production application data lives
-only in Supabase. A Test deployment or reset fails before touching a database
-unless all of these are true:
+Use the Supabase SESSION pooler on port 5432. `db.<ref>.supabase.co` is
+IPv6-only and unreachable from CI runners, and port 6543 is the transaction
+pooler, which cannot run DDL.
 
-- both Test URLs point at Neon;
-- the Test runtime URL is pooled;
-- the Test migration URL is unpooled;
-- both Test URLs identify the same Neon database;
-- neither Test URL identifies either Production database endpoint.
+There is a window of a few minutes between the migration finishing and the new
+deployment being promoted, during which the OLD code runs against the NEW
+schema. Additive migrations are unaffected; for a drop or a rename use
+expand/contract (add column → deploy → backfill → drop in a later release).
 
-The Test and Production `AUTH_SECRET` values are also different, so sessions
-cannot cross environments.
+Vercel's Instant Rollback reverts code only. It does not revert the schema.
 
-Integration credentials are deliberately shared as requested: Resend,
-Razorpay, Google Forms, public-sheet sync, cron, Supabase Realtime/Storage, and
-Groq. Test emails are redirected to `ADMIN_EMAIL` rather than delivered to
-fixture recipients.
+## Environment variables
 
-## Test data
+Set on the Vercel project, not in this repo. Two rules that have each caused an
+outage:
 
-**Reset Test Data** requires the exact confirmation `reset test data`. It
-replays migrations and seeds every meaningful product area:
+- `NEXT_PUBLIC_*` values are inlined at BUILD time. Changing one requires a
+  redeploy; editing it alone does nothing.
+- Do not set `AUTH_URL`. Auth.js rewrites every request's origin to match it, so
+  any deployment on a different hostname fails with `error=Configuration`.
+  `VERCEL=1` already makes `trustHost` true, so each deployment self-names.
 
-- the requested admin, maintainer, and registerer accounts;
-- Event Control and public-site settings;
-- committees, fees, available/held/blocked/allotted portfolios;
-- delegates covering every application source and status;
-- double delegations, allotments, every payment status, check-in, and email history;
-- import presets and quarantined rows;
-- recruitment applicants covering every pipeline state and interview slots;
-- active and archived team members;
-- reversible and view-only audit entries;
-- posts covering every editorial state;
-- a live quiz, slides, responses, and leaderboard data;
-- a harmless expired rate-limit fixture.
+`DIRECT_URL` must exist on the Production scope: the build container needs it,
+not just the runtime.
 
-Authentication accounts, sessions, and verification tokens are not fabricated.
-They are runtime security records, not product test data. Sign in to Test as
-`arnavsinghal06@gmail.com`; the real authentication flow creates those records.
+## Crons
 
-Production rows are never copied into Test. Only Google Form, public-sheet, and
-import mapping configuration is synchronized.
-
-## Daily use
-
-1. Merge a PR.
-2. Wait for **Deploy Test** to turn green.
-3. Test at <https://test.deltechmun.in>.
-4. Run **Deploy Production** from GitHub Actions.
-
-If fixtures become messy, run **Reset Test Data**. Production deployment is
-deliberately a separate button, so inspecting Test remains useful without
-adding approval environments or release bureaucracy.
-
-## Connection details
-
-- `STAGING_DIRECT_URL`: Neon unpooled endpoint used for migrations.
-- `STAGING_DATABASE_URL`: Neon pooled endpoint used by the Test website.
-- `PROD_DIRECT_URL`: Supabase session pooler on port 5432 used for migrations.
-- `PROD_DATABASE_URL`: Production runtime connection.
-
-`NEXT_PUBLIC_APP_URL` must be `https://test.deltechmun.in` for Preview and
-`https://deltechmun.in` for Production.
+`vercel.json`, Production deployments only. Vercel does not run crons for
+Preview deployments.
 
 ## Recruitment checks
 
