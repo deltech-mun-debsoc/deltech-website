@@ -71,10 +71,32 @@ function advanceTargetFor(c: {
   return { to, label: t(key as Parameters<typeof t>[0]) }
 }
 
+
+// Candidates whose stored form response mentions `q` anywhere.
+//
+// The response is a JSONB document of every sheet column, and Prisma cannot search
+// across a whole document: `string_contains` targets a value at a known path, which
+// silently matched nothing. Casting to text and using ILIKE does what an operator
+// means by "search the answers", and the GIN/trigram indexes added alongside this
+// keep it off a sequential scan.
+//
+// ponytail: two round trips (ids, then rows). Fine at a few hundred candidates per
+// cycle; fold into one raw query if a cycle ever gets large enough to notice.
+async function formAnswerMatches(cycleId: string, q: string): Promise<string[]> {
+  if (!q) return []
+  const rows = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT "id" FROM "RecruitmentCandidate"
+    WHERE "cycleId" = ${cycleId}
+      AND "formAnswers"::text ILIKE ${"%" + q + "%"}
+    LIMIT 500
+  `
+  return rows.map((r) => r.id)
+}
+
 export default async function CandidatesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; stage?: string; result?: string }>
+  searchParams: Promise<{ q?: string; stage?: string; result?: string; page?: string }>
 }) {
   const { cycle } = await requireRecruitmentAccess()
   if (!cycle) return null
@@ -83,11 +105,17 @@ export default async function CandidatesPage({
   if (!ctx) return null
 
   const sp = await searchParams
+  // The list used to `take: 200` while displaying the true count, so past 200
+  // candidates it silently hid the rest with no indication.
+  const PAGE_SIZE = 100
+  const page = Math.max(1, Number(sp.page) || 1)
   const q = sp.q?.trim() ?? ""
 
   // A JC only sees candidates in groups they staff: a capability check alone would
   // still hand them the whole cycle's candidate list.
   const scopedGroups = await visibleGroupIds(ctx)
+
+  const answerMatchIds = await formAnswerMatches(cycle.id, q)
 
   const where: Prisma.RecruitmentCandidateWhereInput = {
     cycleId: cycle.id,
@@ -106,6 +134,14 @@ export default async function CandidatesPage({
             { fullName: { contains: q, mode: "insensitive" } },
             { email: { contains: q, mode: "insensitive" } },
             { branch: { contains: q, mode: "insensitive" } },
+            { phone: { contains: q, mode: "insensitive" } },
+            { year: { contains: q, mode: "insensitive" } },
+            // Answers that are not promoted to columns (prior experience,
+            // department preference, portfolio links) live in formAnswers. Prisma's
+            // `string_contains` matches a string VALUE at a path, not anywhere in
+            // the document, so it silently returned nothing for these; the ids come
+            // from a raw text search instead. See formAnswerMatches below.
+            ...(answerMatchIds.length > 0 ? [{ id: { in: answerMatchIds } }] : []),
           ],
         }
       : {}),
@@ -115,7 +151,8 @@ export default async function CandidatesPage({
     prisma.recruitmentCandidate.findMany({
       where,
       orderBy: [{ fullName: "asc" }],
-      take: 200,
+      take: PAGE_SIZE,
+      skip: (page - 1) * PAGE_SIZE,
       select: {
         id: true,
         fullName: true,
@@ -132,6 +169,7 @@ export default async function CandidatesPage({
     prisma.recruitmentCandidate.count({ where }),
   ])
 
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
   const canBypass = mayPerform(ctx, "candidate.bypassGd")
   const canAdvance = mayPerform(ctx, "candidate.advance")
 
@@ -193,6 +231,32 @@ export default async function CandidatesPage({
       <p className="text-xs text-muted-foreground">
         {t("recruitment.candidates.count", { count: total })}
       </p>
+
+      {totalPages > 1 && (
+        <nav className="flex items-center justify-between gap-3 text-sm" aria-label={t("recruitment.candidates.pagination")}>
+          <span className="text-muted-foreground">
+            {t("recruitment.candidates.pageOf", { page, pages: totalPages })}
+          </span>
+          <span className="flex gap-2">
+            {page > 1 && (
+              <Link
+                href={`?${new URLSearchParams({ ...sp, page: String(page - 1) }).toString()}`}
+                className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+              >
+                {t("common.back")}
+              </Link>
+            )}
+            {page < totalPages && (
+              <Link
+                href={`?${new URLSearchParams({ ...sp, page: String(page + 1) }).toString()}`}
+                className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+              >
+                {t("common.next")}
+              </Link>
+            )}
+          </span>
+        </nav>
+      )}
 
       {candidates.length === 0 ? (
         <p className="text-sm text-muted-foreground">
