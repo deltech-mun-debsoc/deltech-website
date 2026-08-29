@@ -428,7 +428,7 @@ export const STRINGS = {
     },
     result: {
       PENDING: "Pending",
-      ON_HOLD: "On hold",
+      ON_HOLD: "Under consideration",
       SELECTED: "Selected",
       REJECTED: "Not selected",
       WITHDRAWN: "Withdrawn",

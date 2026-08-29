@@ -289,7 +289,7 @@ export function SessionConsole({
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-medium">{m.candidate.fullName}</p>
                       <StageBadge stage={m.candidate.stage} />
-                      <AttendanceBadge attendance={m.attendance} />
+                      {group.kind === "GD" && <AttendanceBadge attendance={m.attendance} />}
                       {group.kind === "GD" && m.previousGdAttempts > 0 && (
                         <span className="inline-flex items-center gap-1 rounded-full bg-[var(--signal-soft)] px-2 py-0.5 text-xs text-[var(--ink-soft)]">
                           <TriangleAlert className="size-3" />
@@ -307,36 +307,36 @@ export function SessionConsole({
                   </div>
 
                   <div className="flex shrink-0 items-center gap-2">
-                    {/* EXPECTED is deliberately explicit: finishing the session
-                        must never advance somebody whose arrival was not confirmed. */}
-                    <Select
-                      value={m.attendance}
-                      disabled={pending}
-                      onValueChange={(value) =>
-                        startTransition(async () => {
-                          const result = await setAttendance({
-                            groupMemberId: m.id,
-                            attendance: value as "EXPECTED" | "PRESENT" | "LATE" | "ABSENT",
+                    {group.kind === "GD" && (
+                      <Select
+                        value={m.attendance}
+                        disabled={pending}
+                        onValueChange={(value) =>
+                          startTransition(async () => {
+                            const result = await setAttendance({
+                              groupMemberId: m.id,
+                              attendance: value as "EXPECTED" | "PRESENT" | "LATE" | "ABSENT",
+                            })
+                            if (!result.ok) toast.error(result.error ?? t("recruitment.errors.generic"))
+                            else {
+                              notify("candidate")
+                              router.refresh()
+                            }
                           })
-                          if (!result.ok) toast.error(result.error ?? t("recruitment.errors.generic"))
-                          else {
-                            notify("candidate")
-                            router.refresh()
-                          }
-                        })
-                      }
-                    >
-                      <SelectTrigger className="h-8 w-[8.5rem] text-xs">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {["EXPECTED", "PRESENT", "LATE", "ABSENT"].map((a) => (
-                          <SelectItem key={a} value={a}>
-                            {t(`recruitment.attendance.${a}` as StringKey)}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                        }
+                      >
+                        <SelectTrigger className="h-8 w-[8.5rem] text-xs">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {["EXPECTED", "PRESENT", "LATE", "ABSENT"].map((a) => (
+                            <SelectItem key={a} value={a}>
+                              {t(`recruitment.attendance.${a}` as StringKey)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
 
                     <Link
                       href={`/recruitment/candidates/${m.candidate.id}`}

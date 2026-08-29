@@ -11,6 +11,7 @@ import { t, type StringKey } from "@/content/strings"
 import { ResultBadge, StageBadge } from "../../_components/status-badges"
 import { BypassGdButton } from "./bypass-gd-button"
 import { AdvanceCandidateButton } from "./advance-candidate-button"
+import { PostInterviewDecision } from "./post-interview-decision"
 import {
   nextNaturalStage,
   type CandidateResultName,
@@ -28,6 +29,8 @@ export interface CandidateRow {
   result: string
   gdRequired: boolean
   piRequired: boolean
+  version: number
+  hasCompletedPi: boolean
 }
 
 // Where the "advance" button would send this candidate, or null when there is no
@@ -72,6 +75,8 @@ export function CandidatesList({
   answersQuery,
   canBypass,
   canAdvance,
+  canHold,
+  canFinalise,
 }: {
   candidates: CandidateRow[]
   cycleId: string
@@ -80,6 +85,8 @@ export function CandidatesList({
   answersQuery: string
   canBypass: boolean
   canAdvance: boolean
+  canHold: boolean
+  canFinalise: boolean
 }) {
   const router = useRouter()
   const [query, setQuery] = useState("")
@@ -214,6 +221,16 @@ export function CandidatesList({
                 </div>
 
                 <div className="flex shrink-0 items-center gap-2">
+                  {c.hasCompletedPi && (canHold || canFinalise) && (
+                    <PostInterviewDecision
+                      cycleId={cycleId}
+                      candidateId={c.id}
+                      currentResult={c.result}
+                      version={c.version}
+                      canHold={canHold}
+                      canFinalise={canFinalise}
+                    />
+                  )}
                   {canBypass && c.gdRequired && (c.stage === "INTAKE" || c.stage === "GD_PENDING") && (
                     <BypassGdButton candidateId={c.id} candidateName={c.fullName} cycleId={cycleId} />
                   )}
