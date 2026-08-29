@@ -16,7 +16,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog"
-import { createMember, updateMember, deleteMember } from "../actions"
+import { createMember, updateMember } from "../actions"
 import { uploadToS3 } from "@/lib/media/upload-client"
 import { t } from "@/content/strings"
 
@@ -108,7 +108,15 @@ export function TeamManager({ members, isAdmin }: { members: MemberRow[]; isAdmi
   const remove = (m: MemberRow) => {
     if (!window.confirm(`Remove ${m.name} from the team?`)) return
     startTransition(async () => {
-      const result = await deleteMember(m.id)
+      let result: { success: boolean; error?: string }
+      try {
+        const response = await fetch(`/api/admin/team/${encodeURIComponent(m.id)}`, {
+          method: "DELETE",
+        })
+        result = (await response.json()) as { success: boolean; error?: string }
+      } catch {
+        result = { success: false, error: "Could not reach the server. Try again." }
+      }
       if (result.success) {
         toast.success("Member removed.")
         router.refresh()
