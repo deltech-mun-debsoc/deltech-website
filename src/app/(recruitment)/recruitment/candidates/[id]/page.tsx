@@ -110,6 +110,7 @@ export default async function CandidateDossierPage({
               evaluations={dossier.piEvaluations}
               aggregate={dossier.piAggregate}
               ownOnly={!canViewOthers}
+              showRecommendations={false}
             />
           </section>
 
@@ -261,10 +262,12 @@ function EvaluationList({
   evaluations,
   aggregate,
   ownOnly,
+  showRecommendations = true,
 }: {
   evaluations: DossierEvaluation[]
   aggregate: number | null
   ownOnly: boolean
+  showRecommendations?: boolean
 }) {
   if (evaluations.length === 0) {
     return <p className="text-sm text-muted-foreground">{t("recruitment.evaluation.noneYet")}</p>
@@ -336,7 +339,7 @@ function EvaluationList({
                   .join(" · ")}
               </p>
             )}
-            {e.recommendation && (
+            {showRecommendations && e.recommendation && (
               <p className="text-xs">
                 {t(`recruitment.recommendation.${e.recommendation}` as StringKey)}
               </p>

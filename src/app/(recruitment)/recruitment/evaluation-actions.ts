@@ -100,7 +100,7 @@ async function saveEvaluation(
   const target = await resolveTarget(data)
   if (!target) return { ok: false, error: "Could not find the session or candidate." }
 
-  const action = mode === "draft" ? "evaluation.draft" : "evaluation.submit"
+    const action = mode === "draft" ? "evaluation.draft" : "evaluation.submit"
 
   try {
     // Group-scoped when there is a group (enforces the JC canEvaluate flag);
@@ -120,6 +120,14 @@ async function saveEvaluation(
       }
     } else {
       ctx = await requireRecruitmentAction(target.cycleId, action)
+    }
+
+    if (target.kind === "PI" && data.recommendation) {
+      return {
+        ok: false,
+        error:
+          "Interview evaluations do not use recommendations. Finish the interview, then choose the final outcome.",
+      }
     }
 
     // SELECT is a hiring decision and a GD panel does not make one. The form

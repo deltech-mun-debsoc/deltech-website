@@ -173,6 +173,10 @@ export async function startSession(input: {
 
     return await prisma.$transaction(async (tx) => {
       const serverNow = new Date()
+      // Starting two different interviews from two tabs must serialise on the
+      // operator, not only on each session row. This makes "one interview per
+      // account" true even when both clicks land at the same millisecond.
+      await tx.$queryRaw`SELECT id FROM "User" WHERE id = ${ctx.userId} FOR UPDATE`
       // SELECT ... FOR UPDATE: two simultaneous starts serialise here rather than
       // both reading NOT_STARTED and both deciding to apply.
       await tx.$queryRaw`SELECT id FROM "RecruitmentSession" WHERE id = ${parsed.data.sessionId} FOR UPDATE`
@@ -199,6 +203,24 @@ export async function startSession(input: {
           ok: false as const,
           error: "This session was changed by someone else. The latest state is shown.",
           conflict: serialize(row, serverNow),
+        }
+      }
+
+      if (row.kind === "PI") {
+        const otherInterview = await tx.recruitmentSession.findFirst({
+          where: {
+            id: { not: row.id },
+            kind: "PI",
+            state: { in: ["ACTIVE", "PAUSED"] },
+            controllerId: ctx.userId,
+          },
+          select: { id: true },
+        })
+        if (otherInterview) {
+          return {
+            ok: false as const,
+            error: "Finish or abort your current interview before starting another one.",
+          }
         }
       }
 

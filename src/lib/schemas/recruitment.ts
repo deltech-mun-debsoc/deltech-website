@@ -55,13 +55,13 @@ export const recruitmentCycleConfigSchema = z.object({
     { key: "reasoning", label: "Reasoning", max: 10, weight: 1 },
     { key: "ownership", label: "Ownership", max: 10, weight: 1 },
   ]),
-  // Society roles a selected candidate may be recruited into. ADMIN and
-  // MAINTAINER are excluded by the schema, not just the UI, so finalisation can
-  // never hand out admin dashboard access.
+  // Recruitment creates ordinary society members. Writing access is the only
+  // optional elevation offered here; operational and administrative roles are
+  // assigned separately by an administrator.
   societyRoles: z
-    .array(z.enum(["AUTHOR", "SUB_MAINTAINER", "REGISTERER"]))
+    .array(z.enum(["MEMBER", "AUTHOR"]))
     .min(1)
-    .default(["AUTHOR", "SUB_MAINTAINER"]),
+    .default(["MEMBER", "AUTHOR"]),
 })
 
 export type RecruitmentCycleConfig = z.infer<typeof recruitmentCycleConfigSchema>
@@ -135,13 +135,12 @@ export const sheetSourceSchema = z.object({
 
 export const recommendationSchema = z.enum(["ADVANCE", "HOLD", "REJECT", "SELECT", "RECONSIDER"])
 
-// SELECT is a hiring decision, and a GD panel does not make one: a GD can only
-// advance a candidate to PI, hold them, or reject them. Offering SELECT there
-// invited a panel to believe they had selected someone when the value is inert.
-// Enforced on the server as well as the form, so the UI is not the only guard.
+// A recommendation is useful during GD as a handoff into PI. An interview is
+// already the last assessment, so its evaluator records scores and remarks; the
+// authorised Select / Under consideration / Reject decision happens afterwards.
 export const RECOMMENDATIONS_BY_KIND = {
   GD: ["ADVANCE", "HOLD", "REJECT", "RECONSIDER"],
-  PI: ["ADVANCE", "HOLD", "REJECT", "SELECT", "RECONSIDER"],
+  PI: [],
 } as const satisfies Record<"GD" | "PI", readonly z.infer<typeof recommendationSchema>[]>
 
 export function recommendationAllowed(
@@ -247,6 +246,14 @@ export const createGroupSchema = z.object({
     .max(20)
     .default([]),
   notes: z.string().max(2000).optional(),
+}).superRefine((group, ctx) => {
+  if (group.kind === "PI" && group.candidateIds.length !== 1) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["candidateIds"],
+      message: "An interview must have exactly one candidate.",
+    })
+  }
 })
 
 export const bypassGdSchema = z.object({
@@ -283,8 +290,7 @@ export const resultMoveSchema = z.object({
 
 export const recruitCandidateSchema = z.object({
   candidateId: z.string().min(1),
-  // Never ADMIN or MAINTAINER: recruitment must not grant dashboard access.
-  societyRole: z.enum(["AUTHOR", "SUB_MAINTAINER", "REGISTERER"]),
+  societyRole: z.enum(["MEMBER", "AUTHOR"]),
   // When present, also create a public team roster row.
   designation: z.string().min(2).max(80).optional(),
 })

@@ -351,11 +351,11 @@ export type RecruitResult =
 // actions; this is the second one. Safe to retry: the candidate's recruitedUserId
 // is unique and checked first, so a double-click cannot create two memberships.
 //
-// The society role is constrained by the schema to AUTHOR / SUB_MAINTAINER /
-// REGISTERER, so recruitment can never hand out admin dashboard access.
+// Recruitment creates an ordinary member or, explicitly, an author. Internal
+// dashboard roles are assigned through user administration, never finalisation.
 export async function recruitCandidate(input: {
   candidateId: string
-  societyRole: "AUTHOR" | "SUB_MAINTAINER" | "REGISTERER"
+  societyRole: "MEMBER" | "AUTHOR"
   designation?: string
 }): Promise<RecruitResult> {
   const parsed = recruitCandidateSchema.safeParse(input)

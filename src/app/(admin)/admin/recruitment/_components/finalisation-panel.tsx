@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { t } from "@/content/strings"
 import { recruitCandidate } from "../actions"
 
-type SocietyRole = "AUTHOR" | "SUB_MAINTAINER" | "REGISTERER"
+type SocietyRole = "MEMBER" | "AUTHOR"
 
 // The second half of finalisation: turning a SELECTED candidate into a society
 // member. Kept visibly separate from the selection decision itself, because they are
@@ -53,7 +53,7 @@ export function FinalisationPanel({
   const [busy, setBusy] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
 
-  const options = (societyRoles.length > 0 ? societyRoles : ["AUTHOR"]) as SocietyRole[]
+  const options = (societyRoles.length > 0 ? societyRoles : ["MEMBER", "AUTHOR"]) as SocietyRole[]
 
   function recruit(candidateId: string) {
     setBusy(candidateId)
@@ -178,7 +178,9 @@ export function FinalisationPanel({
                   <SelectContent>
                     {options.map((r) => (
                       <SelectItem key={r} value={r}>
-                        {r}
+                        {r === "MEMBER"
+                          ? t("recruitment.control.societyRoleMember")
+                          : t("recruitment.control.societyRoleAuthor")}
                       </SelectItem>
                     ))}
                   </SelectContent>

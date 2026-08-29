@@ -469,6 +469,7 @@ export const STRINGS = {
       empty: "No groups yet.",
       emptyScoped: "You have not been assigned to any group in this cycle.",
       candidateCount: "{count} candidates",
+      interviewCandidate: "Interview candidate",
       evaluationCount: "{count} evaluations",
       scheduled: "Scheduled",
       unscheduled: "Not scheduled",
@@ -675,7 +676,9 @@ export const STRINGS = {
       piPlanned: "Planned interview length (minutes)",
       societyRolesTitle: "Society roles offered",
       societyRolesHelp:
-        "Recruitment can never grant dashboard access, so administrative roles are not offered here.",
+        "Add selected candidates as society members, with optional writing access.",
+      societyRoleMember: "Member",
+      societyRoleAuthor: "Author",
       saveConfig: "Save configuration",
       finaliseTitle: "Finalisation",
       finaliseDescription:

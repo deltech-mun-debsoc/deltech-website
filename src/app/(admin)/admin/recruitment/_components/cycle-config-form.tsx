@@ -14,11 +14,11 @@ import { t } from "@/content/strings"
 import type { EvaluationCriterion, RecruitmentCycleConfig } from "@/lib/schemas/recruitment"
 import { updateCycleConfig } from "../actions"
 
-const SOCIETY_ROLES = ["AUTHOR", "SUB_MAINTAINER", "REGISTERER"] as const
+const SOCIETY_ROLES = ["MEMBER", "AUTHOR"] as const
 
 // Stage rules, the GD/PI rubrics, and which society roles this cycle hands out.
-// ADMIN and MAINTAINER are absent from SOCIETY_ROLES by design, and the server's
-// zod schema enforces the same, so recruitment can never grant dashboard access.
+// Recruitment offers ordinary membership and optional writing access. Internal
+// operational roles are managed separately and never leak into this decision.
 export function CycleConfigForm({
   cycleId,
   version,
@@ -164,7 +164,9 @@ export function CycleConfigForm({
                   }))
                 }
               />
-              {role}
+              {role === "MEMBER"
+                ? t("recruitment.control.societyRoleMember")
+                : t("recruitment.control.societyRoleAuthor")}
             </label>
           ))}
         </div>
