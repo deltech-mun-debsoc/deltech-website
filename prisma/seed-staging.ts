@@ -539,7 +539,7 @@ async function main() {
           { key: "reasoning", label: "Reasoning", max: 10, weight: 1 },
           { key: "ownership", label: "Ownership", max: 10, weight: 1 },
         ],
-        societyRoles: ["AUTHOR", "SUB_MAINTAINER"],
+        societyRoles: ["MEMBER"],
       },
     },
   })

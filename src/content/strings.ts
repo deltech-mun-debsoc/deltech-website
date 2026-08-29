@@ -674,11 +674,7 @@ export const STRINGS = {
       allowBypass: "Allow skipping GD",
       gdPlanned: "Planned GD length (minutes)",
       piPlanned: "Planned interview length (minutes)",
-      societyRolesTitle: "Society roles offered",
-      societyRolesHelp:
-        "Add selected candidates as society members, with optional writing access.",
       societyRoleMember: "Member",
-      societyRoleAuthor: "Author",
       saveConfig: "Save configuration",
       finaliseTitle: "Finalisation",
       finaliseDescription:

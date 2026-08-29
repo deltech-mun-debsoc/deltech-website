@@ -55,13 +55,13 @@ export const recruitmentCycleConfigSchema = z.object({
     { key: "reasoning", label: "Reasoning", max: 10, weight: 1 },
     { key: "ownership", label: "Ownership", max: 10, weight: 1 },
   ]),
-  // Recruitment creates ordinary society members. Writing access is the only
-  // optional elevation offered here; operational and administrative roles are
-  // assigned separately by an administrator.
+  // Recruitment creates ordinary society members. Author onboarding is a
+  // separate later action, never part of the selection workflow.
   societyRoles: z
-    .array(z.enum(["MEMBER", "AUTHOR"]))
-    .min(1)
-    .default(["MEMBER", "AUTHOR"]),
+    .array(z.literal("MEMBER"))
+    .length(1)
+    .catch(["MEMBER"])
+    .default(["MEMBER"]),
 })
 
 export type RecruitmentCycleConfig = z.infer<typeof recruitmentCycleConfigSchema>
@@ -290,7 +290,7 @@ export const resultMoveSchema = z.object({
 
 export const recruitCandidateSchema = z.object({
   candidateId: z.string().min(1),
-  societyRole: z.enum(["MEMBER", "AUTHOR"]),
+  societyRole: z.literal("MEMBER"),
   // When present, also create a public team roster row.
   designation: z.string().min(2).max(80).optional(),
 })
