@@ -33,6 +33,16 @@ assert.equal(
   "a one-letter candidate name must not block one-click PI",
 )
 assert.equal(
+  createGroupSchema.safeParse({ kind: "PI", title: "A", candidateIds: [] }).success,
+  false,
+  "an interview cannot exist without its one candidate",
+)
+assert.equal(
+  createGroupSchema.safeParse({ kind: "PI", title: "A", candidateIds: ["candidate-1", "candidate-2"] }).success,
+  false,
+  "an interview cannot contain multiple candidates",
+)
+assert.equal(
   evaluationInputSchema.safeParse({
     candidateId: "candidate-1",
     sessionId: "session-1",
@@ -127,13 +137,13 @@ assert.equal(
   assert.match(button, /moveCandidateStage/, "the button must call the audited action")
 }
 
-// --- SELECT is a PI verdict, not a GD one ------------------------------------
+// --- recommendations stop before PI -----------------------------------------
 {
   assert.ok(!RECOMMENDATIONS_BY_KIND.GD.includes("SELECT" as never), "GD must not offer SELECT")
-  assert.ok(RECOMMENDATIONS_BY_KIND.PI.includes("SELECT" as never), "PI keeps SELECT")
-
   assert.equal(recommendationAllowed("GD", "SELECT"), false)
-  assert.equal(recommendationAllowed("PI", "SELECT"), true)
+  for (const r of ["ADVANCE", "HOLD", "REJECT", "SELECT", "RECONSIDER"] as const) {
+    assert.equal(recommendationAllowed("PI", r), false, `PI must not offer ${r}`)
+  }
   for (const r of ["ADVANCE", "HOLD", "REJECT", "RECONSIDER"] as const) {
     assert.equal(recommendationAllowed("GD", r), true, `GD must still allow ${r}`)
   }
@@ -145,12 +155,18 @@ assert.equal(
     "utf8",
   )
   assert.match(form, /RECOMMENDATIONS_BY_KIND\[kind\]/, "the form must scope options by session kind")
+  assert.match(form, /kind === "GD" && <div/, "the recommendation picker must render only for GD")
 
   const actions = readFileSync("src/app/(recruitment)/recruitment/evaluation-actions.ts", "utf8")
   assert.match(
     actions,
     /recommendationAllowed\(target\.kind, data\.recommendation\)/,
     "the server must enforce the kind/recommendation pairing itself",
+  )
+  assert.match(
+    actions,
+    /target\.kind === "PI" && data\.recommendation/,
+    "a stale client must not persist an interview recommendation",
   )
 }
 
@@ -214,6 +230,11 @@ assert.equal(
     /if \(row\.kind === "PI"\)[\s\S]*?attendance: "PRESENT"/,
     "starting an interview must confirm attendance",
   )
+  assert.match(
+    sessionActions,
+    /SELECT id FROM "User"[\s\S]*?kind: "PI"[\s\S]*?state: \{ in: \["ACTIVE", "PAUSED"\] \}[\s\S]*?controllerId: ctx\.userId/,
+    "one account must not control two interviews at the same time, even across racing tabs",
+  )
 
   const piQueue = readFileSync(
     "src/app/(recruitment)/recruitment/_components/pi-queue.tsx",
@@ -226,6 +247,18 @@ assert.equal(
     "utf8",
   )
   assert.match(groupDialog, /return \[\.\.\.selected, \.\.\.matches\]/, "picked GD candidates stay on top")
+
+  const configSchema = readFileSync("src/lib/schemas/recruitment.ts", "utf8")
+  assert.match(
+    configSchema,
+    /societyRoles:[\s\S]*?z\.enum\(\["MEMBER", "AUTHOR"\]\)/,
+    "recruitment finalisation must offer only Member and Author",
+  )
+  assert.doesNotMatch(
+    configSchema.match(/societyRoles:[\s\S]*?export type RecruitmentCycleConfig/)?.[0] ?? "",
+    /SUB_MAINTAINER|REGISTERER/,
+    "internal application roles must not leak into society finalisation",
+  )
 
   const candidatesList = readFileSync(
     "src/app/(recruitment)/recruitment/_components/candidates-list.tsx",

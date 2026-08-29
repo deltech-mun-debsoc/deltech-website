@@ -5,6 +5,7 @@ import { roleHome, safeLanding } from "../src/lib/nav"
 // ── roleHome ─────────────────────────────────────────────────────────────────
 assert.equal(roleHome("ADMIN"), "/admin")
 assert.equal(roleHome("MAINTAINER"), "/admin")
+assert.equal(roleHome("MEMBER"), "/account")
 assert.equal(roleHome("AUTHOR"), "/write")
 assert.equal(roleHome("REGISTERER"), "/dashboard")
 assert.equal(roleHome(undefined), "/")
@@ -59,6 +60,7 @@ assert.equal(safeLanding("//evil.com", "ADMIN", ORIGIN), "/admin")
 // no way to reach the page they asked for.
 assert.equal(safeLanding("/account", "ADMIN", ORIGIN), "/account")
 assert.equal(safeLanding("/account", "MAINTAINER", ORIGIN), "/account")
+assert.equal(safeLanding("/account", "MEMBER", ORIGIN), "/account")
 assert.equal(safeLanding("/account", "AUTHOR", ORIGIN), "/account")
 assert.equal(safeLanding("/account", "REGISTERER", ORIGIN), "/account")
 assert.equal(safeLanding("https://app.example.com/account", "REGISTERER", ORIGIN), "/account")
@@ -88,7 +90,7 @@ assert.equal(safeLanding("https://evil.com/recruitment", "SUB_MAINTAINER", ORIGI
 // by all of them. The authoritative gate is requireRecruitmentAccess() in the
 // (recruitment) layout, which checks RecruitmentMember in the database — the edge
 // cannot, so it must not pre-emptively refuse.
-for (const role of ["ADMIN", "MAINTAINER", "AUTHOR", "REGISTERER", "SUB_MAINTAINER"]) {
+for (const role of ["ADMIN", "MAINTAINER", "MEMBER", "AUTHOR", "REGISTERER", "SUB_MAINTAINER"]) {
   assert.equal(
     safeLanding("/recruitment", role),
     "/recruitment",

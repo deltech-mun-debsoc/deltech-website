@@ -38,6 +38,7 @@ model User {
 enum Role {
   ADMIN
   MAINTAINER
+  MEMBER
   AUTHOR
   REGISTERER
   SUB_MAINTAINER

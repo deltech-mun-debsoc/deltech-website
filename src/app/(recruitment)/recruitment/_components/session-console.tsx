@@ -277,7 +277,9 @@ export function SessionConsole({
       <section className="space-y-3">
         <h2 className="section-label flex items-center gap-2">
           <Users className="size-3.5" />
-          {t("recruitment.groups.candidateCount", { count: members.length })}
+          {group.kind === "PI"
+            ? t("recruitment.groups.interviewCandidate")
+            : t("recruitment.groups.candidateCount", { count: members.length })}
         </h2>
 
         <ul className="space-y-3">

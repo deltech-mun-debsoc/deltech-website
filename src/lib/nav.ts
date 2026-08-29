@@ -1,7 +1,7 @@
 // Role-aware post-auth landing. Pure string logic, no Prisma, no React.
 // safe to import from the edge (auth.config.ts / proxy) and from route handlers.
 
-export type Role = "ADMIN" | "MAINTAINER" | "AUTHOR" | "REGISTERER" | "SUB_MAINTAINER"
+export type Role = "ADMIN" | "MAINTAINER" | "MEMBER" | "AUTHOR" | "REGISTERER" | "SUB_MAINTAINER"
 
 // The home surface for each role. Single source of truth, reused by the /go
 // dispatch route, the sign-in actions, and the route-group layouts/guards.
@@ -12,6 +12,8 @@ export function roleHome(role: string | null | undefined): string {
       return "/admin"
     case "AUTHOR":
       return "/write"
+    case "MEMBER":
+      return "/account"
     case "REGISTERER":
       return "/dashboard"
     // Junior Council: recruitment is the only surface this account has.
