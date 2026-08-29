@@ -233,6 +233,33 @@ assert.equal(
   )
   assert.match(candidatesList, /view === "selected"/, "candidate list must expose its selected tab")
   assert.match(candidatesList, /<Link[\s\S]*?prefetch/, "dossier links must preload their route")
+  assert.match(
+    candidatesList,
+    /<PostInterviewDecision/,
+    "a completed interview must expose the actual outcome instead of a dead-end stage",
+  )
+
+  const postInterviewDecision = readFileSync(
+    "src/app/(recruitment)/recruitment/_components/post-interview-decision.tsx",
+    "utf8",
+  )
+  for (const outcome of ["SELECTED", "ON_HOLD", "REJECTED"]) {
+    assert.match(
+      postInterviewDecision,
+      new RegExp(`result: "${outcome}"`),
+      `the post-interview decision must offer ${outcome}`,
+    )
+  }
+  assert.match(
+    postInterviewDecision,
+    /setCandidateResult/,
+    "post-interview decisions must write the result used by the Selected tab",
+  )
+  assert.match(
+    console_,
+    /group\.kind === "GD" && \([\s\S]*?<Select/,
+    "attendance remains available for GD no-shows but must not clutter interviews",
+  )
 
   const evaluationActions = readFileSync(
     "src/app/(recruitment)/recruitment/evaluation-actions.ts",

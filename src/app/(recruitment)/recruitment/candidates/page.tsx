@@ -101,6 +101,16 @@ export default async function CandidatesPage({
       result: true,
       gdRequired: true,
       piRequired: true,
+      version: true,
+      groupMemberships: {
+        where: {
+          kind: "PI",
+          attendance: { not: "REASSIGNED" },
+          group: { sessions: { some: { kind: "PI", state: "COMPLETED" } } },
+        },
+        take: 1,
+        select: { id: true },
+      },
     },
   })
 
@@ -115,13 +125,18 @@ export default async function CandidatesPage({
       />
 
       <CandidatesList
-        candidates={candidates}
+        candidates={candidates.map(({ groupMemberships, ...candidate }) => ({
+          ...candidate,
+          hasCompletedPi: groupMemberships.length > 0,
+        }))}
         cycleId={cycle.id}
         stages={STAGES}
         results={RESULTS}
         answersQuery={answersQuery}
         canBypass={mayPerform(ctx, "candidate.bypassGd")}
         canAdvance={mayPerform(ctx, "candidate.advance")}
+        canHold={mayPerform(ctx, "candidate.hold")}
+        canFinalise={mayPerform(ctx, "candidate.finalise")}
       />
     </div>
   )
