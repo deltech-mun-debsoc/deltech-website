@@ -107,10 +107,14 @@ for (const route of [
 // --- deleting a team card never crashes the whole admin page --------------
 {
   const actions = read("src/app/(admin)/admin/team/actions.ts")
+  const manager = read("src/app/(admin)/admin/team/_components/team-manager.tsx")
+  const route = read("src/app/api/admin/team/[id]/route.ts")
   assert.match(actions, /try \{[\s\S]*?requireAdmin\(\)/, "authorization failures must be contained")
   assert.match(actions, /member\.deleteMany/, "team deletion must be safe to retry from a stale tab")
   assert.match(actions, /revalidatePath\("\/admin\/team"\)/, "the admin roster must refresh")
   assert.match(actions, /revalidatePath\("\/team"\)/, "the public roster must refresh")
+  assert.match(manager, /fetch\(`\/api\/admin\/team\//, "deletion must not crash the RSC tree")
+  assert.match(route, /deleteMember\(id\)/, "the JSON route must reuse the guarded deletion")
 }
 
 // --- a quiz nickname collision is caught, not silently absorbed -----------
