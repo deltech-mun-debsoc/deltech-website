@@ -14,7 +14,7 @@
     "check:strings": "node scripts/check-strings.mjs",
     "check": "for f in scripts/check-*.ts; do npx tsx \"$f\" || exit 1; done && node scripts/check-strings.mjs",
     "db:deploy": "prisma migrate deploy",
-    "build:vercel": "if [ \"$VERCEL_ENV\" = \"production\" ] || [ \"$VERCEL_GIT_COMMIT_REF\" = \"development\" ]; then npm run db:deploy; fi && npm run build"
+    "build:vercel": "if { [ \"$VERCEL_ENV\" = \"production\" ] || [ \"$VERCEL_GIT_COMMIT_REF\" = \"development\" ]; } && [ -n \"$DIRECT_URL\" ]; then npm run db:deploy; elif [ \"$VERCEL_ENV\" = \"production\" ]; then echo 'DIRECT_URL is not configured; skipping database migrations'; fi && npm run build"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.11.3",
