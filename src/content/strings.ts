@@ -443,11 +443,11 @@ export const STRINGS = {
       STALE: "Stale",
     },
     attendance: {
+      EXPECTED: "Expected",
       PRESENT: "Present",
+      LATE: "Late",
       ABSENT: "Absent",
       REASSIGNED: "Reassigned",
-      markPresent: "Mark present",
-      markAbsent: "Mark absent",
     },
     pi: {
       inProgress: "Interviews in progress",

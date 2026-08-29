@@ -21,7 +21,7 @@ export default async function PiQueuePage() {
 
   const canStart = mayPerform(ctx, "group.create")
 
-  const [waiting, live] = await Promise.all([
+  const [waiting, live, starterMembership] = await Promise.all([
     // Anyone past GD: completed, bypassed, or configured not to need one. This is
     // the query that has to work for direct-to-PI candidates.
     prisma.recruitmentCandidate.findMany({
@@ -51,6 +51,10 @@ export default async function PiQueuePage() {
         },
       },
     }),
+    prisma.recruitmentMember.findUnique({
+      where: { cycleId_userId: { cycleId: cycle.id, userId: ctx.userId } },
+      select: { id: true, isActive: true },
+    }),
   ])
 
   return (
@@ -72,6 +76,7 @@ export default async function PiQueuePage() {
           state: g.state,
         }))}
         canStart={canStart}
+        starterMemberId={starterMembership?.isActive ? starterMembership.id : null}
       />
     </div>
   )

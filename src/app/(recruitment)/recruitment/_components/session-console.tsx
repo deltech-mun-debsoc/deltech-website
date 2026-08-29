@@ -7,6 +7,7 @@ import { toast } from "sonner"
 import { Pause, Play, Square, TriangleAlert, Users } from "lucide-react"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 import { t, type StringKey } from "@/content/strings"
 import type { EvaluationCriterion } from "@/lib/schemas/recruitment"
@@ -295,19 +296,16 @@ export function SessionConsole({
                   </div>
 
                   <div className="flex shrink-0 items-center gap-2">
-                    {/* Attendance is first come, first served: a seated candidate
-                        is present unless someone marks them absent. The four-state
-                        dropdown was ceremony nobody used mid-session. */}
-                    <Button
-                      variant={m.attendance === "ABSENT" ? "outline" : "ghost"}
-                      size="sm"
-                      className="h-8 gap-1.5 text-xs"
+                    {/* EXPECTED is deliberately explicit: finishing the session
+                        must never advance somebody whose arrival was not confirmed. */}
+                    <Select
+                      value={m.attendance}
                       disabled={pending}
-                      onClick={() =>
+                      onValueChange={(value) =>
                         startTransition(async () => {
                           const result = await setAttendance({
                             groupMemberId: m.id,
-                            attendance: m.attendance === "ABSENT" ? "PRESENT" : "ABSENT",
+                            attendance: value as "EXPECTED" | "PRESENT" | "LATE" | "ABSENT",
                           })
                           if (!result.ok) toast.error(result.error ?? t("recruitment.errors.generic"))
                           else {
@@ -317,12 +315,17 @@ export function SessionConsole({
                         })
                       }
                     >
-                      {t(
-                        m.attendance === "ABSENT"
-                          ? "recruitment.attendance.markPresent"
-                          : "recruitment.attendance.markAbsent",
-                      )}
-                    </Button>
+                      <SelectTrigger className="h-8 w-[8.5rem] text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {["EXPECTED", "PRESENT", "LATE", "ABSENT"].map((a) => (
+                          <SelectItem key={a} value={a}>
+                            {t(`recruitment.attendance.${a}` as StringKey)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
 
                     <Link
                       href={`/recruitment/candidates/${m.candidate.id}`}

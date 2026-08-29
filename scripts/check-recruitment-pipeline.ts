@@ -57,8 +57,13 @@ function at(stage: CandidateStageName, over: Partial<CandidateSnapshot> = {}): C
   )
   assert.match(
     src,
-    /const absent = members\.filter\(\(m\) => m\.attendance === "ABSENT"\)/,
-    "absentees must be returned to the queue, not left at *_ACTIVE forever",
+    /m\.attendance === "EXPECTED" \|\| m\.attendance === "ABSENT"/,
+    "unconfirmed candidates and absentees must be returned to the queue, not advanced",
+  )
+  assert.match(
+    src,
+    /m\.attendance === "PRESENT" \|\| m\.attendance === "LATE"/,
+    "only confirmed attendees may advance when a session finishes",
   )
   assert.match(
     src,
@@ -157,13 +162,33 @@ function at(stage: CandidateStageName, over: Partial<CandidateSnapshot> = {}): C
   )
   assert.match(evaluation, /items=\{recommendationItems\}/, "the trigger must resolve labels via items")
 
-  // Attendance is first come, first served: seated means present.
+  // Attendance stays unconfirmed until an operator records an arrival. A
+  // forgotten no-show must return to the queue, never advance automatically.
   const console_ = readFileSync(
     "src/app/(recruitment)/recruitment/_components/session-console.tsx",
     "utf8",
   )
-  assert.doesNotMatch(console_, /"EXPECTED"|"LATE"/, "EXPECTED and LATE are gone")
-  assert.match(console_, /markAbsent|markPresent/, "attendance is a present/absent toggle")
+  assert.match(console_, /"EXPECTED"/, "attendance must retain an unconfirmed state")
+  assert.match(console_, /<SelectValue/, "attendance must expose an explicit picker")
+
+  const schema = readFileSync("prisma/schema.prisma", "utf8")
+  assert.match(schema, /attendance\s+Attendance\s+@default\(EXPECTED\)/, "new seats start unconfirmed")
+
+  const sessionActions = readFileSync(
+    "src/app/(recruitment)/recruitment/session-actions.ts",
+    "utf8",
+  )
+  assert.match(
+    sessionActions,
+    /m\.attendance === "EXPECTED" \|\| m\.attendance === "ABSENT"/,
+    "unconfirmed candidates must return to the queue",
+  )
+
+  const piQueue = readFileSync(
+    "src/app/(recruitment)/recruitment/_components/pi-queue.tsx",
+    "utf8",
+  )
+  assert.match(piQueue, /staff: starterMemberId/, "one-click PI must assign its initiating panel member")
 }
 
 console.log("recruitment pipeline checks passed (GD->PI advance, absentees, GD recommendations, popups)")

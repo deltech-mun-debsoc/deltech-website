@@ -42,11 +42,13 @@ export function PiQueue({
   candidates,
   inProgress,
   canStart,
+  starterMemberId,
 }: {
   cycleId: string
   candidates: QueueCandidate[]
   inProgress: InProgress[]
   canStart: boolean
+  starterMemberId: string | null
 }) {
   const router = useRouter()
   const [query, setQuery] = useState("")
@@ -69,6 +71,9 @@ export function PiQueue({
         kind: "PI",
         title: c.fullName,
         candidateIds: [c.id],
+        // A maintainer must be assigned to evaluate. Global admins may be
+        // implicit recruitment admins and therefore have no membership row.
+        staff: starterMemberId ? [{ memberId: starterMemberId, canEvaluate: true }] : [],
       })
       setStarting(null)
       if (!result.ok) {

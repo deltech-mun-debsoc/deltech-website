@@ -286,5 +286,5 @@ export const recruitCandidateSchema = z.object({
 
 export const attendanceSchema = z.object({
   groupMemberId: z.string().min(1),
-  attendance: z.enum(["PRESENT", "ABSENT", "REASSIGNED"]),
+  attendance: z.enum(["EXPECTED", "PRESENT", "LATE", "ABSENT", "REASSIGNED"]),
 })
