@@ -131,6 +131,22 @@ export const sheetSourceSchema = z.object({
 
 export const recommendationSchema = z.enum(["ADVANCE", "HOLD", "REJECT", "SELECT", "RECONSIDER"])
 
+// SELECT is a hiring decision, and a GD panel does not make one: a GD can only
+// advance a candidate to PI, hold them, or reject them. Offering SELECT there
+// invited a panel to believe they had selected someone when the value is inert.
+// Enforced on the server as well as the form, so the UI is not the only guard.
+export const RECOMMENDATIONS_BY_KIND = {
+  GD: ["ADVANCE", "HOLD", "REJECT", "RECONSIDER"],
+  PI: ["ADVANCE", "HOLD", "REJECT", "SELECT", "RECONSIDER"],
+} as const satisfies Record<"GD" | "PI", readonly z.infer<typeof recommendationSchema>[]>
+
+export function recommendationAllowed(
+  kind: "GD" | "PI",
+  recommendation: z.infer<typeof recommendationSchema>,
+): boolean {
+  return (RECOMMENDATIONS_BY_KIND[kind] as readonly string[]).includes(recommendation)
+}
+
 export const evaluationInputSchema = z.object({
   candidateId: z.string().min(1),
   sessionId: z.string().min(1).nullable(),

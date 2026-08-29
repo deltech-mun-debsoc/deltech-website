@@ -78,7 +78,7 @@ export default async function ResponsesPage() {
       />
 
       <section className="space-y-3">
-        <h2 className="data-label text-xs uppercase tracking-[0.12em] text-muted-foreground">
+        <h2 className="section-label">
           {t("recruitment.responses.lastImport")}
         </h2>
         {imports.length === 0 ? (

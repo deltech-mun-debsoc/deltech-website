@@ -13,6 +13,20 @@ export interface MemberData {
   isActive: boolean
 }
 
+
+// Prisma error codes that mean something specific enough to tell the operator.
+// An unbound `catch {}` here used to discard the code entirely, so a row that had
+// already been deleted (P2025, a stale list) reported the same dead-end
+// "Failed to delete member." as a genuine failure, with nothing logged.
+function memberError(err: unknown, fallback: string): { success: false; error: string } {
+  const code = typeof err === "object" && err !== null && "code" in err ? String((err as { code: unknown }).code) : null
+  console.error("[admin/team]", code ?? "unknown", err)
+  if (code === "P2025") {
+    return { success: false, error: "That member was already removed. Refreshing the list." }
+  }
+  return { success: false, error: fallback }
+}
+
 export async function createMember(data: MemberData): Promise<{ success: boolean; error?: string }> {
   const session = await requireStaff()
   if (!data.name.trim() || !data.designation.trim()) {
@@ -31,8 +45,8 @@ export async function createMember(data: MemberData): Promise<{ success: boolean
     })
     await audit(session.user?.email ?? "unknown", "member.create", "Member", member.id, { name: data.name })
     return { success: true }
-  } catch {
-    return { success: false, error: "Failed to create member." }
+  } catch (err) {
+    return memberError(err, "Failed to create member.")
   }
 }
 
@@ -55,8 +69,8 @@ export async function updateMember(
     })
     await audit(session.user?.email ?? "unknown", "member.update", "Member", id)
     return { success: true }
-  } catch {
-    return { success: false, error: "Failed to update member." }
+  } catch (err) {
+    return memberError(err, "Failed to update member.")
   }
 }
 
@@ -66,7 +80,7 @@ export async function deleteMember(id: string): Promise<{ success: boolean; erro
     await prisma.member.delete({ where: { id } })
     await audit(session.user?.email ?? "unknown", "member.delete", "Member", id)
     return { success: true }
-  } catch {
-    return { success: false, error: "Failed to delete member." }
+  } catch (err) {
+    return memberError(err, "Failed to delete member.")
   }
 }

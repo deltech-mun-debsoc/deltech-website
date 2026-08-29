@@ -7,7 +7,7 @@ import { toast } from "sonner"
 import { Pause, Play, Square, TriangleAlert, Users } from "lucide-react"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
 import { t, type StringKey } from "@/content/strings"
 import type { EvaluationCriterion } from "@/lib/schemas/recruitment"
@@ -128,7 +128,7 @@ export function SessionConsole({
                 <span className="text-xs text-muted-foreground">#{session.attempt}</span>
               )}
             </div>
-            <p className="mt-2 data-label text-xs uppercase tracking-[0.12em] text-muted-foreground">
+            <p className="mt-2 data-label text-muted-foreground">
               {t("recruitment.session.elapsed")}
             </p>
             {session ? (
@@ -272,7 +272,7 @@ export function SessionConsole({
       </Card>
 
       <section className="space-y-3">
-        <h2 className="flex items-center gap-2 data-label text-xs uppercase tracking-[0.12em] text-muted-foreground">
+        <h2 className="section-label flex items-center gap-2">
           <Users className="size-3.5" />
           {t("recruitment.groups.candidateCount", { count: members.length })}
         </h2>
@@ -312,7 +312,9 @@ export function SessionConsole({
                         })
                       }
                     >
-                      <SelectTrigger className="h-8 w-[8.5rem] text-xs" />
+                      <SelectTrigger className="h-8 w-[8.5rem] text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
                       <SelectContent>
                         {["EXPECTED", "PRESENT", "LATE", "ABSENT"].map((a) => (
                           <SelectItem key={a} value={a}>

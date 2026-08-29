@@ -273,15 +273,10 @@
     border: 1px solid color-mix(in oklch, var(--foreground) 14%, transparent);
     border-radius: var(--radius-lg);
   }
-  /* Admin is an operations surface: readable at a glance, with less card chrome. */
-  .admin-shell .text-xs {
-    font-size: 0.875rem;
-    line-height: 1.45;
-  }
-  .admin-shell .text-sm {
-    font-size: 1rem;
-    line-height: 1.55;
-  }
+  /* Admin is an operations surface: readable at a glance, with less card chrome.
+     NOTE: density overrides for `.text-xs`/`.text-sm` used to live here and never
+     applied. Tailwind v4 orders `@layer components` BEFORE `utilities`, so the
+     utility always won. Set sizes on the element instead of trying to override. */
   .admin-shell {
     --admin-rail-width: 17rem;
     height: 100svh;
@@ -313,15 +308,25 @@
     background: #07100d;
   }
   .admin-shell .eyebrow,
-  .admin-shell .data-label {
+  .admin-shell .data-label,
+  .recruitment-shell .eyebrow,
+  .recruitment-shell .data-label,
+  .recruitment-shell .section-label {
     font-size: 0.875rem;
   }
-  .admin-shell .editorial-card {
+  .admin-shell .editorial-card,
+  .recruitment-shell .editorial-card {
     border-radius: 0;
     box-shadow: none;
   }
-  .admin-shell :where(input, textarea, button, [role="combobox"]) {
+  .admin-shell :where(input, textarea, button, [role="combobox"]),
+  .recruitment-shell :where(input, textarea, button, [role="combobox"]) {
     font-size: 1rem;
+  }
+  /* Recruitment is run live, often on a laptop at the back of a room: it gets the
+     same operations-surface treatment as admin rather than marketing defaults. */
+  .recruitment-shell {
+    background: var(--background);
   }
   /* subtle background grid for heroes */
   .paper-grid {
@@ -360,6 +365,18 @@
     font-weight: 650;
     letter-spacing: 0.1em;
     text-transform: uppercase;
+  }
+  /* A section heading, not a field label. `.data-label` was doing both jobs, which
+     made an <h2> and the <dt> under it typographically identical, and its mono
+     family silently overrode the heading font (components layer beats base). */
+  .section-label {
+    font-family: var(--font-sans);
+    font-size: 0.8125rem;
+    font-weight: 680;
+    line-height: 1.35;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
   }
   .diplomatic-surface {
     background:

@@ -16,11 +16,11 @@ export function RecruitmentPageHeader({
     <div className="flex flex-wrap items-end justify-between gap-4 border-b border-border/70 pb-5">
       <div className="min-w-0">
         {eyebrow && (
-          <p className="data-label text-xs uppercase tracking-[0.12em] text-muted-foreground">
+          <p className="eyebrow">
             {eyebrow}
           </p>
         )}
-        <h1 className="mt-1 font-heading text-2xl leading-tight sm:text-3xl">{title}</h1>
+        <h1 className="display mt-1 text-2xl leading-tight sm:text-3xl">{title}</h1>
         {description && (
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground">{description}</p>
         )}
