@@ -139,8 +139,11 @@ export function EvaluationForm({
         sessionId,
         scores: numericScores,
         remarks: remarks.trim() || undefined,
-        recommendation:
-          kind === "GD" ? ((recommendation || undefined) as "ADVANCE" | undefined) : undefined,
+        recommendation: (recommendation || undefined) as
+          | "SELECT"
+          | "HOLD"
+          | "REJECT"
+          | undefined,
         panelistUserId: evaluationUserId,
         // Derived from the evaluator, candidate, session and content: a retry of
         // the SAME submission reuses it; a genuine revision produces a new one.
@@ -239,8 +242,8 @@ export function EvaluationForm({
             ))}
           </div>
 
-          <div className={kind === "GD" ? "grid gap-3 sm:grid-cols-[1fr_12rem]" : "grid gap-3"}>
-            {kind === "GD" && <div className="space-y-1.5">
+          <div className="grid gap-3 sm:grid-cols-[1fr_12rem]">
+            <div className="space-y-1.5">
               <Label htmlFor={`rm-${candidateId}`} className="text-xs">
                 {t("recruitment.evaluation.remarksLabel")}
               </Label>
@@ -252,7 +255,7 @@ export function EvaluationForm({
                 onChange={(e) => setRemarks(e.target.value)}
                 placeholder={t("recruitment.evaluation.remarksPlaceholder")}
               />
-            </div>}
+            </div>
             <div className="space-y-1.5">
               <Label className="text-xs">{t("recruitment.evaluation.recommendationLabel")}</Label>
               {/* `items` is what lets the trigger render a LABEL. Base UI's
@@ -298,7 +301,7 @@ export function EvaluationForm({
               )}
               <Button
                 size="sm"
-                disabled={pending || locked || !validation.ok}
+                disabled={pending || locked || !validation.ok || !recommendation}
                 onClick={() => save("submit")}
               >
                 {submitted ? t("recruitment.evaluation.revise") : t("recruitment.evaluation.submit")}
@@ -329,7 +332,7 @@ export function EvaluationForm({
                   name: e.evaluatorName ?? e.evaluatorEmail ?? e.evaluatorId,
                 })}
               </span>
-              {kind === "GD" && e.recommendation && (
+              {e.recommendation && (
                 <span className="text-muted-foreground">
                   · {t(`recruitment.recommendation.${e.recommendation}` as StringKey)}
                 </span>

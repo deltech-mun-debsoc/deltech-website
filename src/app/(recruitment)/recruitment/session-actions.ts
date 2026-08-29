@@ -22,11 +22,10 @@ import {
   type SessionStateName,
 } from "@/lib/recruitment/session"
 import {
-  nextNaturalStage,
-  type CandidateResultName,
-  type CandidateStageName,
-} from "@/lib/recruitment/transitions"
-import { sessionActionSchema } from "@/lib/schemas/recruitment"
+  resolvePanelRecommendation,
+  sessionActionSchema,
+  type PanelRecommendation,
+} from "@/lib/schemas/recruitment"
 import type { Prisma } from "@/generated/prisma/client"
 
 // Session lifecycle. Every mutation here follows the same shape:
@@ -289,14 +288,12 @@ export async function startSession(input: {
         data: { stage: row.kind === "GD" ? "GD_ACTIVE" : "PI_ACTIVE" },
       })
 
-      // Starting a one-to-one interview confirms that its candidate arrived.
-      // GD attendance stays explicit because a group can begin with no-shows.
-      if (row.kind === "PI") {
-        await tx.recruitmentGroupMember.updateMany({
-          where: { groupId: row.groupId, attendance: "EXPECTED" },
-          data: { attendance: "PRESENT", joinedAt: serverNow },
-        })
-      }
+      // Starting a rostered session confirms participation. Reassignment stays
+      // as internal history, but attendance is not a separate operator workflow.
+      await tx.recruitmentGroupMember.updateMany({
+        where: { groupId: row.groupId, attendance: { not: "REASSIGNED" } },
+        data: { attendance: "PRESENT", joinedAt: serverNow },
+      })
 
       await auditRecruitmentTx(tx, {
         eventType: "session.start",
@@ -395,6 +392,37 @@ async function transition(
         }
       }
 
+      const finishRecommendations = new Map<string, PanelRecommendation>()
+      if (kind === "finish") {
+        const roster = await tx.recruitmentGroupMember.findMany({
+          where: { groupId: row.groupId, attendance: { not: "REASSIGNED" } },
+          select: { candidateId: true },
+        })
+        const evaluations = await tx.recruitmentEvaluation.findMany({
+          where: {
+            sessionId: row.id,
+            candidateId: { in: roster.map((member) => member.candidateId) },
+            state: "SUBMITTED",
+          },
+          select: { candidateId: true, recommendation: true },
+        })
+
+        for (const member of roster) {
+          const recommendation = resolvePanelRecommendation(
+            evaluations
+              .filter((evaluation) => evaluation.candidateId === member.candidateId)
+              .map((evaluation) => evaluation.recommendation as PanelRecommendation | null),
+          )
+          if (!recommendation) {
+            return {
+              ok: false as const,
+              error: "Submit a Selected, Hold, or Reject recommendation for every candidate before finishing.",
+            }
+          }
+          finishRecommendations.set(member.candidateId, recommendation)
+        }
+      }
+
       const data: Prisma.RecruitmentSessionUpdateManyMutationInput = {
         lastActivityAt: serverNow,
         version: { increment: 1 },
@@ -457,18 +485,7 @@ async function transition(
         })
 
         if (kind === "finish") {
-          // Present candidates complete the stage. Absentees stay where they were,
-          // an absence is not a completed evaluation.
-          // GD needs explicit per-person confirmation because a group can run
-          // with no-shows. A running one-to-one PI already confirms arrival;
-          // this also repairs interviews started before PI auto-attendance existed.
-          const present = members
-            .filter((m) =>
-              row.kind === "PI"
-                ? m.attendance !== "ABSENT"
-                : m.attendance === "PRESENT" || m.attendance === "LATE",
-            )
-            .map((m) => m.candidateId)
+          const present = members.map((member) => member.candidateId)
           const activeStage = row.kind === "GD" ? "GD_ACTIVE" : "PI_ACTIVE"
           const completeStage = row.kind === "GD" ? "GD_COMPLETE" : "PI_COMPLETE"
 
@@ -477,51 +494,36 @@ async function transition(
             data: { stage: completeStage },
           })
 
-          // Absentees would otherwise sit at *_ACTIVE forever once the session is
-          // COMPLETED: they match neither the assignable queue for this stage nor
-          // the next one. Return them to the queue so they can be reseated.
-          const absent = members
-            .filter((m) =>
-              row.kind === "PI"
-                ? m.attendance === "ABSENT"
-                : m.attendance === "EXPECTED" || m.attendance === "ABSENT",
-            )
-            .map((m) => m.candidateId)
-          if (absent.length > 0) {
-            await tx.recruitmentCandidate.updateMany({
-              where: { id: { in: absent }, stage: activeStage },
-              data: { stage: row.kind === "GD" ? "GD_PENDING" : "PI_PENDING" },
-            })
-          }
-
-          // Completing the stage is not the same as entering the next one, and a
-          // candidate parked at GD_COMPLETE appears in no queue at all. Advance
-          // them the way moveCandidateStage would, honouring gd/piRequired through
-          // nextNaturalStage rather than assuming GD -> PI, and recording the same
-          // handoff rows so the move is auditable.
           const advancing = await tx.recruitmentCandidate.findMany({
             where: { id: { in: present }, stage: completeStage },
             select: { id: true, stage: true, result: true, gdRequired: true, piRequired: true, version: true },
           })
 
           for (const candidate of advancing) {
-            // A candidate already decided (held, withdrawn, rejected) stays put:
-            // finishing a session must not resurrect them into the next queue.
+            // Never overwrite a concurrent manual decision made while the
+            // session was live. Its version/result remains authoritative.
             if (candidate.result !== "PENDING") continue
+            const recommendation = finishRecommendations.get(candidate.id)
+            if (!recommendation) continue
 
-            const to = nextNaturalStage({
-              stage: candidate.stage as CandidateStageName,
-              result: candidate.result as CandidateResultName,
-              gdRequired: candidate.gdRequired,
-              piRequired: candidate.piRequired,
-            })
-            // DECISION is a deliberate human call, so auto-advance stops at the
-            // last queue and leaves the outcome to an operator.
-            if (!to || to === "DECISION") continue
+            const proceedsFromGd = row.kind === "GD" && recommendation !== "REJECT" && candidate.piRequired
+            const to = proceedsFromGd ? "PI_PENDING" : "CLOSED"
+            const result = proceedsFromGd
+              ? "PENDING"
+              : recommendation === "SELECT"
+                ? "SELECTED"
+                : recommendation === "HOLD"
+                  ? "ON_HOLD"
+                  : "REJECTED"
 
             const moved = await tx.recruitmentCandidate.updateMany({
               where: { id: candidate.id, stage: candidate.stage, version: candidate.version },
-              data: { stage: to, version: { increment: 1 } },
+              data: {
+                stage: to,
+                result,
+                version: { increment: 1 },
+                ...(to === "CLOSED" ? { decidedById: ctx.userId, decidedAt: serverNow } : {}),
+              },
             })
             if (moved.count === 0) continue
 
@@ -531,12 +533,12 @@ async function transition(
                 candidateId: candidate.id,
                 fromStage: candidate.stage,
                 toStage: to,
-                reason: `Advanced automatically when the ${row.kind} session finished.`,
+                reason: `${recommendation} panel recommendation applied when the ${row.kind} session finished.`,
                 actorId: ctx.userId,
                 actorRole: ctx.role,
                 sessionId: row.id,
                 previousState: { stage: candidate.stage },
-                newState: { stage: to },
+                newState: { stage: to, result },
               },
             })
 
@@ -548,9 +550,9 @@ async function transition(
               sessionId: row.id,
               groupId: row.groupId,
               previousState: { stage: candidate.stage },
-              newState: { stage: to },
-              reason: `Advanced automatically when the ${row.kind} session finished.`,
-              meta: { automatic: true, sessionKind: row.kind },
+              newState: { stage: to, result },
+              reason: `${recommendation} panel recommendation applied when the ${row.kind} session finished.`,
+              meta: { automatic: true, sessionKind: row.kind, recommendation },
               requestId,
             })
           }

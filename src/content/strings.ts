@@ -428,7 +428,7 @@ export const STRINGS = {
     },
     result: {
       PENDING: "Pending",
-      ON_HOLD: "Under consideration",
+      ON_HOLD: "Hold",
       SELECTED: "Selected",
       REJECTED: "Not selected",
       WITHDRAWN: "Withdrawn",
@@ -540,7 +540,7 @@ export const STRINGS = {
       ADVANCE: "Advance",
       HOLD: "Hold",
       REJECT: "Reject",
-      SELECT: "Select",
+      SELECT: "Selected",
       RECONSIDER: "Reconsider",
     },
     candidates: {
@@ -552,7 +552,7 @@ export const STRINGS = {
       allStages: "All stages",
       allResults: "All results",
       allCandidatesTab: "All candidates",
-      selectedCandidatesTab: "Selected",
+      selectedCandidatesTab: "Final selections",
       empty: "No candidates match.",
       emptyCycle: "No candidates yet: import the form responses to get started.",
       count: "{count} candidates",
@@ -679,13 +679,13 @@ export const STRINGS = {
       finaliseTitle: "Finalisation",
       finaliseDescription:
         "Selecting a candidate and adding them to the society are separate steps.",
-      finalSelectedTitle: "Final selected candidates",
+      finalSelectedTitle: "Final selections",
       finalSelectedDescription:
-        "The confirmed selection list and the recipients for the completion email.",
+        "Everyone marked Selected or Hold after their final interview. Decisions remain editable here.",
       emailSelected: "Email selected candidates",
       emailTemplatePending: "Email sending will be enabled when the final message format is added.",
       completeBeforeEmail: "Complete recruitment before sending the selection email.",
-      noFinalSelected: "No candidates have been selected yet.",
+      noFinalSelected: "No candidates are in final selections yet.",
       addedToSociety: "Added to society",
       awaitingSociety: "Not added yet",
       awaitingRecruitment: "Selected, not yet added",

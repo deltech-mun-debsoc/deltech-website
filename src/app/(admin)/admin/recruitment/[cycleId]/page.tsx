@@ -41,9 +41,9 @@ export default async function CycleConfigPage({
 
   // Selected candidates who have not yet been added to the society. Finalisation
   // and membership are separate steps, so this is a real queue.
-  const [selected, awaiting, recruited] = await Promise.all([
+  const [finalists, awaiting, recruited] = await Promise.all([
     prisma.recruitmentCandidate.findMany({
-      where: { cycleId, result: "SELECTED" },
+      where: { cycleId, result: { in: ["SELECTED", "ON_HOLD"] } },
       orderBy: { fullName: "asc" },
       select: {
         id: true,
@@ -51,6 +51,8 @@ export default async function CycleConfigPage({
         email: true,
         recruitedUserId: true,
         decidedAt: true,
+        result: true,
+        version: true,
       },
     }),
     prisma.recruitmentCandidate.findMany({
@@ -93,7 +95,8 @@ export default async function CycleConfigPage({
           />
 
           <FinalisationPanel
-            selected={selected.map((candidate) => ({
+            cycleId={cycleId}
+            finalists={finalists.map((candidate) => ({
               ...candidate,
               addedToSociety: candidate.recruitedUserId !== null,
               decidedAt: candidate.decidedAt?.toISOString() ?? null,
