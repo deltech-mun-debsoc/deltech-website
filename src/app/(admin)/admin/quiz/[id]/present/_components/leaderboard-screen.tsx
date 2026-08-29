@@ -6,6 +6,7 @@ import { FALLBACK_AVATAR } from "@/lib/quiz-types"
 import { ConfettiBurst } from "./confetti-burst"
 import { t } from "@/content/strings"
 import type { LBEntry, PresentationTheme } from "@/lib/quiz-types"
+import { quizSurface } from "@/lib/quiz-theme"
 
 interface Props {
   entries: LBEntry[]
@@ -16,6 +17,8 @@ interface Props {
 }
 
 export function LeaderboardScreen({ entries, final, theme, onNext, onEnd }: Props) {
+  const surface = quizSurface(theme)
+
   const top = entries.slice(0, 10)
 
   return (
@@ -50,7 +53,7 @@ export function LeaderboardScreen({ entries, final, theme, onNext, onEnd }: Prop
                 <div
                   className={cn("flex w-full items-start justify-center rounded-t-xl pt-2", height)}
                   style={{
-                    background: index === 0 ? theme.accentColor + "55" : "rgba(255,255,255,0.10)",
+                    background: index === 0 ? theme.accentColor + "55" : surface.track,
                     border: `1px solid ${index === 0 ? theme.accentColor + "88" : "transparent"}`,
                   }}
                 >
@@ -80,7 +83,7 @@ export function LeaderboardScreen({ entries, final, theme, onNext, onEnd }: Prop
               transition={{ delay: i * 0.07, type: "spring", stiffness: 180, damping: 20 }}
               className="flex items-center gap-4 rounded-xl px-4 py-3"
               style={{
-                background: i === 0 ? theme.accentColor + "33" : "rgba(255,255,255,0.08)",
+                background: i === 0 ? theme.accentColor + "33" : surface.track,
                 border: i === 0 ? `1px solid ${theme.accentColor}66` : "1px solid transparent",
               }}
             >

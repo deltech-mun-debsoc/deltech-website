@@ -2,6 +2,7 @@
 
 import type { MCQTally } from "@/lib/quiz-types"
 import type { MCQConfig, PresentationTheme, MCQLayout } from "@/lib/quiz-types"
+import { quizSurface } from "@/lib/quiz-theme"
 
 interface Props {
   tally: MCQTally
@@ -12,6 +13,8 @@ interface Props {
 }
 
 export function VizMCQ({ tally, config, theme, revealedIndices, layout = "BARS" }: Props) {
+  const surface = quizSurface(theme)
+
   const { options } = config
   const { counts, totalVotes } = tally
   const max = Math.max(...counts, 1)
@@ -30,13 +33,13 @@ export function VizMCQ({ tally, config, theme, revealedIndices, layout = "BARS" 
                 <span>{opt}</span>
                 <span className="font-semibold tabular-nums">{pct}%</span>
               </div>
-              <div className="relative h-10 w-full overflow-hidden rounded" style={{ background: "rgba(255,255,255,0.12)" }}>
+              <div className="relative h-10 w-full overflow-hidden rounded" style={{ background: surface.track }}>
                 <div
                   className="absolute inset-y-0 left-0 flex items-center rounded transition-all duration-700"
                   style={{
                     width: `${width}%`,
                     background: revealed
-                      ? isCorrect ? "#22c55e" : "rgba(255,255,255,0.25)"
+                      ? isCorrect ? "#22c55e" : surface.border
                       : theme.accentColor,
                   }}
                 />
@@ -90,6 +93,7 @@ export function VizMCQ({ tally, config, theme, revealedIndices, layout = "BARS" 
 const PALETTE = ["#0f766e", "#3b82f6", "#f59e0b", "#ec4899", "#8b5cf6", "#22c55e", "#f97316", "#06b6d4", "#84cc16", "#e11d48"]
 
 function DonutViz({ counts, options, theme, revealedIndices }: { counts: number[]; options: string[]; theme: PresentationTheme; revealedIndices?: number[] }) {
+  const surface = quizSurface(theme)
   const total = counts.reduce((a, b) => a + b, 0)
   const r = 80
   const cx = 120
@@ -100,7 +104,7 @@ function DonutViz({ counts, options, theme, revealedIndices }: { counts: number[
   return (
     <div className="flex items-center gap-6 px-4">
       <svg width={240} height={240} viewBox="0 0 240 240">
-        <circle cx={cx} cy={cy} r={r} fill="none" strokeWidth={36} stroke="rgba(255,255,255,0.1)" />
+        <circle cx={cx} cy={cy} r={r} fill="none" strokeWidth={36} stroke={surface.track} />
         {counts.map((c, i) => {
           const pct = total > 0 ? c / total : 0
           const dash = pct * circumference

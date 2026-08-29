@@ -15,6 +15,7 @@ import type {
   TypeAnswerTally, NumericTally, PresentationTheme,
 } from "@/lib/quiz-types"
 import { asMCQ, asWordCloud, asScale, asOpenText, asNumeric, isScoredType } from "@/lib/quiz-types"
+import { quizSurface } from "@/lib/quiz-theme"
 
 interface Props {
   slide: SlideData
@@ -59,6 +60,8 @@ export function QuestionScreen({
   onTimerExpire,
   participantCount,
 }: Props) {
+  const surface = quizSurface(theme)
+
   const config = slide.config
   const type = slide.type
   const timerSeconds =
@@ -120,7 +123,7 @@ export function QuestionScreen({
       style={{ background: theme.background, color: theme.textColor, fontFamily: theme.font }}
     >
       {/* Header bar */}
-      <div className="flex min-h-20 items-center gap-5 border-b px-8 py-4" style={{ borderColor: "rgba(255,255,255,0.12)" }}>
+      <div className="flex min-h-20 items-center gap-5 border-b px-8 py-4" style={{ borderColor: surface.border }}>
         <span className="font-mono text-sm font-bold uppercase tracking-[0.18em] opacity-55">
           {t("quiz.slideProgress", { n: slideIndex + 1, total: slideCount })}
         </span>
@@ -156,7 +159,7 @@ export function QuestionScreen({
       {/* Host controls */}
       <div
         className="flex min-h-20 items-center gap-3 border-t px-8 py-4"
-        style={{ borderColor: "rgba(255,255,255,0.12)" }}
+        style={{ borderColor: surface.border }}
       >
         <button
           onClick={onPrev}

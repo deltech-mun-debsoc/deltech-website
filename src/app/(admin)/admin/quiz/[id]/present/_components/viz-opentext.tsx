@@ -2,6 +2,7 @@
 
 import { motion, AnimatePresence } from "framer-motion"
 import type { OpenTextTally, OpenTextConfig, PresentationTheme } from "@/lib/quiz-types"
+import { quizSurface } from "@/lib/quiz-theme"
 
 interface Props {
   tally: OpenTextTally
@@ -10,6 +11,7 @@ interface Props {
 }
 
 export function VizOpenText({ tally, config, theme }: Props) {
+  const surface = quizSurface(theme)
   const { responses } = tally
 
   if (responses.length === 0) {
@@ -53,7 +55,7 @@ export function VizOpenText({ tally, config, theme }: Props) {
             animate={{ y: 0, opacity: 1 }}
             transition={{ delay: i * 0.04 }}
             className="rounded-lg px-3 py-2 text-sm"
-            style={{ background: "rgba(255,255,255,0.1)", color: theme.textColor }}
+            style={{ background: surface.track, color: theme.textColor }}
           >
             <p className="leading-snug line-clamp-3">{r.text}</p>
             <p className="mt-0.5 text-xs opacity-50">{r.nickname}</p>

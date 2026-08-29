@@ -180,10 +180,22 @@ export function PresenterApp({ session, presentation, slides }: Props) {
   }
 
   function handleNext() {
+    // Standings after every scored question, not only at the end. The board then
+    // stays on screen, on the projector AND on every phone, until the host moves
+    // on: that pause is the point, it is when the room reacts to the scores.
+    //
+    // Unscored slides (a poll, a word cloud, a content slide) have no standings
+    // to show, so they advance straight through.
+    const scored = currentSlide && isScoredType(currentSlide.type) && presentation.mode === "QUIZ"
+    if (scored && screen !== "leaderboard") {
+      void handleShowLeaderboard(slideIndex >= slides.length - 1)
+      return
+    }
+
     if (slideIndex < slides.length - 1) {
       gotoSlide(slideIndex + 1)
     } else {
-      handleShowLeaderboard(true)
+      void handleShowLeaderboard(true)
     }
   }
 

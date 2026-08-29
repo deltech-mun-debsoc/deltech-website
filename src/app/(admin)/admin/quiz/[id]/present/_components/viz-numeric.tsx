@@ -3,6 +3,7 @@
 import { motion } from "framer-motion"
 import { t } from "@/content/strings"
 import type { NumericConfig, NumericTally, PresentationTheme } from "@/lib/quiz-types"
+import { quizSurface } from "@/lib/quiz-theme"
 
 // Guesses plotted on a line against the target, so the room can see the spread
 // rather than a single count. The target only appears once the host reveals.
@@ -17,6 +18,8 @@ export function VizNumeric({
   theme: PresentationTheme
   revealed: boolean
 }) {
+  const surface = quizSurface(theme)
+
   if (tally.values.length === 0) {
     return <p className="text-center text-2xl opacity-50">{t("quiz.noResponsesYet")}</p>
   }
@@ -35,7 +38,7 @@ export function VizNumeric({
         {/* The axis */}
         <div
           className="absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2"
-          style={{ background: "rgba(255,255,255,0.18)" }}
+          style={{ background: surface.border }}
         />
 
         {tally.values.map((value, i) => (

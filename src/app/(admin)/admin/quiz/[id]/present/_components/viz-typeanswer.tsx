@@ -2,6 +2,7 @@
 
 import { motion } from "framer-motion"
 import type { PresentationTheme, TypeAnswerTally } from "@/lib/quiz-types"
+import { quizSurface } from "@/lib/quiz-theme"
 
 // What the room typed, most common first. Correct answers are marked only after
 // the host reveals: showing them live would tell everyone still typing what to
@@ -15,6 +16,8 @@ export function VizTypeAnswer({
   theme: PresentationTheme
   revealed: boolean
 }) {
+  const surface = quizSurface(theme)
+
   const max = Math.max(1, ...tally.answers.map((a) => a.count))
 
   return (
@@ -30,7 +33,7 @@ export function VizTypeAnswer({
             transition={{ delay: i * 0.04, type: "spring", stiffness: 200, damping: 22 }}
             className="flex items-center gap-3"
           >
-            <div className="relative h-11 flex-1 overflow-hidden rounded-lg" style={{ background: "rgba(255,255,255,0.08)" }}>
+            <div className="relative h-11 flex-1 overflow-hidden rounded-lg" style={{ background: surface.track }}>
               <motion.div
                 className="absolute inset-y-0 left-0 rounded-lg"
                 initial={{ width: 0 }}
