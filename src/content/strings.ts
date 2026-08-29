@@ -884,6 +884,7 @@ export const STRINGS = {
     numericAverage: "Average guess",
     numericClosest: "Closest guess",
     noResponsesYet: "No answers yet",
+    timeRemaining: "Time remaining",
     correctAnswer: "Correct answer",
     typeAnswerPlaceholder: "Type your answer",
     numericPlaceholder: "Your number",

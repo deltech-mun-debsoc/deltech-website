@@ -62,6 +62,8 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
   // Seconds left on the current slide, mirrored from the slide's own timer so a
   // phone shows the same countdown as the projector.
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null)
+  // The slide's full timer, so the bar has something to deplete against.
+  const [timerDuration, setTimerDuration] = useState<number | null>(null)
 
   // MCQ state
   const [selectedIndices, setSelectedIndices] = useState<number[]>([])
@@ -105,7 +107,9 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
           // Mirror the slide's timer locally. The score is computed from the
           // SERVER's start time regardless; this is only the visible clock.
           const timer = (payload.slide.config as { timerSeconds?: number | null }).timerSeconds
-          setSecondsLeft(typeof timer === "number" && timer > 0 ? timer : null)
+          const duration = typeof timer === "number" && timer > 0 ? timer : null
+          setTimerDuration(duration)
+          setSecondsLeft(duration)
 
           // Initialise scale values
           if (payload.slide.type === "SCALE") {
@@ -494,6 +498,29 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
               </span>
             )}
           </div>
+
+          {/* A draining bar as well as the number. On a phone held at arm's
+              length the bar is what gets read: how much is left is a shape, not
+              a figure you have to focus on. Cosmetic only, like the number, the
+              score comes from the server's own start time. */}
+          {timerDuration !== null && secondsLeft !== null && !isLocked && (
+            <div
+              className="h-1.5 w-full overflow-hidden rounded-full bg-black/10"
+              role="progressbar"
+              aria-valuemin={0}
+              aria-valuemax={timerDuration}
+              aria-valuenow={secondsLeft}
+              aria-label={t("quiz.timeRemaining")}
+            >
+              <div
+                className={cn(
+                  "h-full rounded-full transition-[width,background-color] duration-1000 ease-linear",
+                  secondsLeft <= 5 ? "bg-destructive" : "bg-teal-600",
+                )}
+                style={{ width: `${(secondsLeft / timerDuration) * 100}%` }}
+              />
+            </div>
+          )}
           <h2 className="font-heading text-3xl leading-tight sm:text-4xl">{currentSlide.prompt}</h2>
         </div>
 
