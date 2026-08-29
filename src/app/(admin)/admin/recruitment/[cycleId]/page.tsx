@@ -103,7 +103,6 @@ export default async function CycleConfigPage({
               ...r,
               recruitedAt: r.recruitedAt?.toISOString() ?? null,
             }))}
-            societyRoles={config.societyRoles}
             recruitmentComplete={cycle.state === "COMPLETED" || cycle.state === "ARCHIVED"}
             disabled={!isAdmin}
           />

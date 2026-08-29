@@ -9,16 +9,12 @@ import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
-import { Checkbox } from "@/components/ui/checkbox"
 import { t } from "@/content/strings"
 import type { EvaluationCriterion, RecruitmentCycleConfig } from "@/lib/schemas/recruitment"
 import { updateCycleConfig } from "../actions"
 
-const SOCIETY_ROLES = ["MEMBER", "AUTHOR"] as const
-
-// Stage rules, the GD/PI rubrics, and which society roles this cycle hands out.
-// Recruitment offers ordinary membership and optional writing access. Internal
-// operational roles are managed separately and never leak into this decision.
+// Stage rules and the GD/PI rubrics. Selected candidates are always added as
+// members; author onboarding is a separate concern and needs no configuration.
 export function CycleConfigForm({
   cycleId,
   version,
@@ -140,39 +136,7 @@ export function CycleConfigForm({
         />
       </Card>
 
-      {/* ---- Society roles offered ---- */}
-      <Card className="space-y-3 p-4">
-        <h2 className="section-label">
-          {t("recruitment.control.societyRolesTitle")}
-        </h2>
-        <p className="text-xs text-muted-foreground">
-          {t("recruitment.control.societyRolesHelp")}
-        </p>
-        <div className="flex flex-wrap gap-4">
-          {SOCIETY_ROLES.map((role) => (
-            <label key={role} className="flex items-center gap-2 text-sm">
-              <Checkbox
-                disabled={disabled}
-                checked={config.societyRoles.includes(role)}
-                onCheckedChange={(v) =>
-                  setConfig((c) => ({
-                    ...c,
-                    societyRoles:
-                      v === true
-                        ? [...new Set([...c.societyRoles, role])]
-                        : c.societyRoles.filter((r) => r !== role),
-                  }))
-                }
-              />
-              {role === "MEMBER"
-                ? t("recruitment.control.societyRoleMember")
-                : t("recruitment.control.societyRoleAuthor")}
-            </label>
-          ))}
-        </div>
-      </Card>
-
-      <Button onClick={save} disabled={disabled || pending || config.societyRoles.length === 0}>
+      <Button onClick={save} disabled={disabled || pending}>
         {t("recruitment.control.saveConfig")}
       </Button>
     </div>

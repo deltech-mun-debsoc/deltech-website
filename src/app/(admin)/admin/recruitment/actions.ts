@@ -351,11 +351,11 @@ export type RecruitResult =
 // actions; this is the second one. Safe to retry: the candidate's recruitedUserId
 // is unique and checked first, so a double-click cannot create two memberships.
 //
-// Recruitment creates an ordinary member or, explicitly, an author. Internal
-// dashboard roles are assigned through user administration, never finalisation.
+// Recruitment creates an ordinary member. Author onboarding is deliberately a
+// separate later workflow.
 export async function recruitCandidate(input: {
   candidateId: string
-  societyRole: "MEMBER" | "AUTHOR"
+  societyRole: "MEMBER"
   designation?: string
 }): Promise<RecruitResult> {
   const parsed = recruitCandidateSchema.safeParse(input)

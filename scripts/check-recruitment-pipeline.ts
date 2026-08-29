@@ -191,12 +191,18 @@ assert.equal(
   for (const file of [
     "src/app/(recruitment)/recruitment/_components/evaluation-form.tsx",
     "src/app/(admin)/admin/recruitment/_components/cycle-staff-panel.tsx",
-    "src/app/(admin)/admin/recruitment/_components/finalisation-panel.tsx",
   ]) {
     const src = readFileSync(file, "utf8")
     assert.doesNotMatch(src, /<SelectTrigger[^>]*\/>/, `${file} has a self-closing SelectTrigger`)
     assert.match(src, /<SelectValue/, `${file} must render the selected value`)
   }
+
+  const finalisation = readFileSync(
+    "src/app/(admin)/admin/recruitment/_components/finalisation-panel.tsx",
+    "utf8",
+  )
+  assert.match(finalisation, /societyRole: "MEMBER"/, "finalisation must always create a member")
+  assert.doesNotMatch(finalisation, /<Select/, "a one-option membership choice must not render a dropdown")
 
   const evaluation = readFileSync(
     "src/app/(recruitment)/recruitment/_components/evaluation-form.tsx",
@@ -251,13 +257,13 @@ assert.equal(
   const configSchema = readFileSync("src/lib/schemas/recruitment.ts", "utf8")
   assert.match(
     configSchema,
-    /societyRoles:[\s\S]*?z\.enum\(\["MEMBER", "AUTHOR"\]\)/,
-    "recruitment finalisation must offer only Member and Author",
+    /societyRoles:[\s\S]*?z\.literal\("MEMBER"\)/,
+    "recruitment finalisation must create members only",
   )
   assert.doesNotMatch(
     configSchema.match(/societyRoles:[\s\S]*?export type RecruitmentCycleConfig/)?.[0] ?? "",
-    /SUB_MAINTAINER|REGISTERER/,
-    "internal application roles must not leak into society finalisation",
+    /AUTHOR|SUB_MAINTAINER|REGISTERER/,
+    "author and internal application roles must not leak into society finalisation",
   )
 
   const candidatesList = readFileSync(

@@ -8,11 +8,8 @@ import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { Mail } from "lucide-react"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { t } from "@/content/strings"
 import { recruitCandidate } from "../actions"
-
-type SocietyRole = "MEMBER" | "AUTHOR"
 
 // The second half of finalisation: turning a SELECTED candidate into a society
 // member. Kept visibly separate from the selection decision itself, because they are
@@ -24,7 +21,6 @@ export function FinalisationPanel({
   selected,
   awaiting,
   recruited,
-  societyRoles,
   recruitmentComplete,
   disabled,
 }: {
@@ -43,24 +39,20 @@ export function FinalisationPanel({
     societyRole: string | null
     recruitedAt: string | null
   }[]
-  societyRoles: string[]
   recruitmentComplete: boolean
   disabled: boolean
 }) {
   const router = useRouter()
-  const [role, setRole] = useState<Record<string, SocietyRole>>({})
   const [designation, setDesignation] = useState<Record<string, string>>({})
   const [busy, setBusy] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
-
-  const options = (societyRoles.length > 0 ? societyRoles : ["MEMBER", "AUTHOR"]) as SocietyRole[]
 
   function recruit(candidateId: string) {
     setBusy(candidateId)
     startTransition(async () => {
       const result = await recruitCandidate({
         candidateId,
-        societyRole: role[candidateId] ?? options[0],
+        societyRole: "MEMBER",
         designation: designation[candidateId]?.trim() || undefined,
       })
       setBusy(null)
@@ -158,33 +150,12 @@ export function FinalisationPanel({
             {awaiting.map((c) => (
               <li
                 key={c.id}
-                className="grid gap-2 rounded-md border border-border/70 p-3 sm:grid-cols-[1fr_9rem_10rem_auto] sm:items-end"
+                className="grid gap-2 rounded-md border border-border/70 p-3 sm:grid-cols-[1fr_10rem_auto] sm:items-end"
               >
                 <div className="min-w-0">
                   <p className="truncate text-sm font-medium">{c.fullName}</p>
                   <p className="truncate text-xs text-muted-foreground">{c.email}</p>
                 </div>
-
-                <Select
-                  value={role[c.id] ?? options[0]}
-                  onValueChange={(v) =>
-                    setRole((prev) => ({ ...prev, [c.id]: (v ?? options[0]) as SocietyRole }))
-                  }
-                  disabled={disabled || pending}
-                >
-                  <SelectTrigger className="h-9 w-full">
-                  <SelectValue />
-                </SelectTrigger>
-                  <SelectContent>
-                    {options.map((r) => (
-                      <SelectItem key={r} value={r}>
-                        {r === "MEMBER"
-                          ? t("recruitment.control.societyRoleMember")
-                          : t("recruitment.control.societyRoleAuthor")}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
 
                 <Input
                   className="h-9"
