@@ -114,8 +114,6 @@ export function TeamManager({ members, isAdmin }: { members: MemberRow[]; isAdmi
         router.refresh()
       } else {
         toast.error(result.error ?? "Failed.")
-        // A stale row is the common case: refresh so the list matches reality
-        // instead of leaving a button that will fail the same way again.
         router.refresh()
       }
     })
