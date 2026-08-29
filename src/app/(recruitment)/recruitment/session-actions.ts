@@ -267,6 +267,15 @@ export async function startSession(input: {
         data: { stage: row.kind === "GD" ? "GD_ACTIVE" : "PI_ACTIVE" },
       })
 
+      // Starting a one-to-one interview confirms that its candidate arrived.
+      // GD attendance stays explicit because a group can begin with no-shows.
+      if (row.kind === "PI") {
+        await tx.recruitmentGroupMember.updateMany({
+          where: { groupId: row.groupId, attendance: "EXPECTED" },
+          data: { attendance: "PRESENT", joinedAt: serverNow },
+        })
+      }
+
       await auditRecruitmentTx(tx, {
         eventType: "session.start",
         actor: { id: ctx.userId, email: ctx.email, role: ctx.role },
@@ -428,11 +437,15 @@ async function transition(
         if (kind === "finish") {
           // Present candidates complete the stage. Absentees stay where they were,
           // an absence is not a completed evaluation.
-          // Only an explicit arrival completes the round. EXPECTED means nobody
-          // confirmed attendance, so treating it as present silently advances a
-          // no-show when the operator finishes the session.
+          // GD needs explicit per-person confirmation because a group can run
+          // with no-shows. A running one-to-one PI already confirms arrival;
+          // this also repairs interviews started before PI auto-attendance existed.
           const present = members
-            .filter((m) => m.attendance === "PRESENT" || m.attendance === "LATE")
+            .filter((m) =>
+              row.kind === "PI"
+                ? m.attendance !== "ABSENT"
+                : m.attendance === "PRESENT" || m.attendance === "LATE",
+            )
             .map((m) => m.candidateId)
           const activeStage = row.kind === "GD" ? "GD_ACTIVE" : "PI_ACTIVE"
           const completeStage = row.kind === "GD" ? "GD_COMPLETE" : "PI_COMPLETE"
@@ -446,7 +459,11 @@ async function transition(
           // COMPLETED: they match neither the assignable queue for this stage nor
           // the next one. Return them to the queue so they can be reseated.
           const absent = members
-            .filter((m) => m.attendance === "EXPECTED" || m.attendance === "ABSENT")
+            .filter((m) =>
+              row.kind === "PI"
+                ? m.attendance === "ABSENT"
+                : m.attendance === "EXPECTED" || m.attendance === "ABSENT",
+            )
             .map((m) => m.candidateId)
           if (absent.length > 0) {
             await tx.recruitmentCandidate.updateMany({

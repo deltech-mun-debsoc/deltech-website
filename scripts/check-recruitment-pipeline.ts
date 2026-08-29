@@ -18,6 +18,7 @@ import {
 } from "../src/lib/recruitment/transitions"
 import {
   createGroupSchema,
+  evaluationInputSchema,
   RECOMMENDATIONS_BY_KIND,
   recommendationAllowed,
 } from "../src/lib/schemas/recruitment"
@@ -30,6 +31,16 @@ assert.equal(
   createGroupSchema.safeParse({ kind: "PI", title: "A", candidateIds: ["candidate-1"] }).success,
   true,
   "a one-letter candidate name must not block one-click PI",
+)
+assert.equal(
+  evaluationInputSchema.safeParse({
+    candidateId: "candidate-1",
+    sessionId: "session-1",
+    scores: {},
+    panelistUserId: "jc-user-1",
+  }).success,
+  true,
+  "a panel lead must be able to select an assigned evaluator on the shared device",
 )
 assert.equal(
   createGroupSchema.safeParse({ kind: "PI", title: "   ", candidateIds: ["candidate-1"] }).success,
@@ -72,8 +83,8 @@ assert.equal(
   )
   assert.match(
     src,
-    /m\.attendance === "EXPECTED" \|\| m\.attendance === "ABSENT"/,
-    "unconfirmed candidates and absentees must be returned to the queue, not advanced",
+    /row\.kind === "PI"[\s\S]*?m\.attendance === "ABSENT"[\s\S]*?m\.attendance === "EXPECTED" \|\| m\.attendance === "ABSENT"/,
+    "PI and GD no-shows must use their correct attendance rules",
   )
   assert.match(
     src,
@@ -195,8 +206,13 @@ assert.equal(
   )
   assert.match(
     sessionActions,
-    /m\.attendance === "EXPECTED" \|\| m\.attendance === "ABSENT"/,
-    "unconfirmed candidates must return to the queue",
+    /row\.kind === "PI"[\s\S]*?m\.attendance !== "ABSENT"/,
+    "a started one-to-one interview must complete unless explicitly marked absent",
+  )
+  assert.match(
+    sessionActions,
+    /if \(row\.kind === "PI"\)[\s\S]*?attendance: "PRESENT"/,
+    "starting an interview must confirm attendance",
   )
 
   const piQueue = readFileSync(
@@ -204,6 +220,35 @@ assert.equal(
     "utf8",
   )
   assert.match(piQueue, /staff: starterMemberId/, "one-click PI must assign its initiating panel member")
+
+  const groupDialog = readFileSync(
+    "src/app/(recruitment)/recruitment/_components/create-group-dialog.tsx",
+    "utf8",
+  )
+  assert.match(groupDialog, /return \[\.\.\.selected, \.\.\.matches\]/, "picked GD candidates stay on top")
+
+  const candidatesList = readFileSync(
+    "src/app/(recruitment)/recruitment/_components/candidates-list.tsx",
+    "utf8",
+  )
+  assert.match(candidatesList, /view === "selected"/, "candidate list must expose its selected tab")
+  assert.match(candidatesList, /<Link[\s\S]*?prefetch/, "dossier links must preload their route")
+
+  const evaluationActions = readFileSync(
+    "src/app/(recruitment)/recruitment/evaluation-actions.ts",
+    "utf8",
+  )
+  assert.match(
+    evaluationActions,
+    /member: \{ userId: data\.panelistUserId, isActive: true \}/,
+    "delegated scores must resolve to an active assigned panelist",
+  )
+
+  const consoleQueries = readFileSync(
+    "src/app/(recruitment)/recruitment/_lib/queries.ts",
+    "utf8",
+  )
+  assert.match(consoleQueries, /previousGdAttempts/, "judges must see earlier completed GD attempts")
 }
 
 console.log("recruitment pipeline checks passed (GD->PI advance, absentees, GD recommendations, popups)")

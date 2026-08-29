@@ -531,6 +531,9 @@ export const STRINGS = {
       noneYet: "No evaluations recorded yet.",
       ownOnly: "You can see your own evaluations only.",
       overallOutOf: "{score} / 10",
+      panelistDeviceTitle: "Whose evaluation is this?",
+      panelistDeviceDescription:
+        "On a shared panel laptop, select each assigned panelist and record their score separately.",
     },
     recommendation: {
       ADVANCE: "Advance",
@@ -547,6 +550,8 @@ export const STRINGS = {
       resultFilter: "Result",
       allStages: "All stages",
       allResults: "All results",
+      allCandidatesTab: "All candidates",
+      selectedCandidatesTab: "Selected",
       empty: "No candidates match.",
       emptyCycle: "No candidates yet: import the form responses to get started.",
       count: "{count} candidates",
@@ -577,6 +582,7 @@ export const STRINGS = {
       gdNotRequired: "This cycle does not run a GD for this candidate.",
       gdPending: "GD has not happened yet.",
       previousPiAttempts: "{count} earlier interview attempts",
+      previousGdAttempts: "Previous GD attempts: {count}",
       duration: "Duration",
       importedFrom: "Imported from {source}",
       importedAt: "Imported {date}",

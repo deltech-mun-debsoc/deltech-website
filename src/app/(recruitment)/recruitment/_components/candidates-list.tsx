@@ -85,10 +85,12 @@ export function CandidatesList({
   const [query, setQuery] = useState("")
   const [stage, setStage] = useState("")
   const [result, setResult] = useState("")
+  const [view, setView] = useState<"all" | "selected">("all")
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase()
     return candidates.filter((c) => {
+      if (view === "selected" && c.result !== "SELECTED") return false
       if (stage && c.stage !== stage) return false
       if (result && c.result !== result) return false
       if (!q) return true
@@ -96,10 +98,33 @@ export function CandidatesList({
         field?.toLowerCase().includes(q),
       )
     })
-  }, [candidates, query, stage, result])
+  }, [candidates, query, stage, result, view])
 
   return (
     <div className="space-y-4">
+      <div className="flex gap-2 border-b border-border/70 pb-3">
+        <button
+          type="button"
+          className={cn(buttonVariants({ variant: view === "all" ? "default" : "ghost", size: "sm" }))}
+          onClick={() => setView("all")}
+        >
+          {t("recruitment.candidates.allCandidatesTab")}
+        </button>
+        <button
+          type="button"
+          className={cn(
+            buttonVariants({ variant: view === "selected" ? "default" : "ghost", size: "sm" }),
+          )}
+          onClick={() => {
+            setView("selected")
+            setResult("")
+          }}
+        >
+          {t("recruitment.candidates.selectedCandidatesTab")} ·{" "}
+          {candidates.filter((candidate) => candidate.result === "SELECTED").length}
+        </button>
+      </div>
+
       <div className="flex flex-wrap items-end gap-3">
         <div className="relative min-w-48 flex-1">
           <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
@@ -127,6 +152,7 @@ export function CandidatesList({
         <select
           value={result}
           onChange={(e) => setResult(e.target.value)}
+          disabled={view === "selected"}
           aria-label={t("recruitment.candidates.resultFilter")}
           className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
         >
@@ -196,6 +222,7 @@ export function CandidatesList({
                   )}
                   <Link
                     href={`/recruitment/candidates/${c.id}`}
+                    prefetch
                     className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
                   >
                     {t("recruitment.candidates.openDossier")}

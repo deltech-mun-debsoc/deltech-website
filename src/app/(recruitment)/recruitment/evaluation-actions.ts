@@ -6,6 +6,7 @@ import {
   RecruitmentDenied,
   requireGroupAccess,
   requireRecruitmentAction,
+  type RecruitmentContext,
 } from "@/lib/recruitment/authz"
 import { auditRecruitmentTx, newRequestId } from "@/lib/recruitment/audit"
 import {
@@ -16,6 +17,7 @@ import {
   validateScores,
   type EvaluationInput,
 } from "@/lib/schemas/recruitment"
+import { can } from "@/lib/recruitment/permissions"
 
 // Evaluations are append-only. A revision inserts a NEW row and marks the previous
 // one SUPERSEDED in the same transaction: an earlier score is never overwritten,
@@ -103,9 +105,22 @@ async function saveEvaluation(
   try {
     // Group-scoped when there is a group (enforces the JC canEvaluate flag);
     // cycle-scoped otherwise.
-    const ctx = target.groupId
-      ? (await requireGroupAccess(target.groupId, action)).ctx
-      : await requireRecruitmentAction(target.cycleId, action)
+    let ctx: RecruitmentContext
+    if (target.groupId) {
+      const viewAccess = await requireGroupAccess(target.groupId, "session.view")
+      const delegated =
+        Boolean(data.panelistUserId) && data.panelistUserId !== viewAccess.ctx.userId
+      if (delegated) {
+        // A panel lead may operate a group without being one of its scorers, but
+        // the cycle must still permit the requested evaluation mutation.
+        await requireRecruitmentAction(target.cycleId, action)
+        ctx = viewAccess.ctx
+      } else {
+        ctx = (await requireGroupAccess(target.groupId, action)).ctx
+      }
+    } else {
+      ctx = await requireRecruitmentAction(target.cycleId, action)
+    }
 
     // SELECT is a hiring decision and a GD panel does not make one. The form
     // already hides it, but a stale client or a direct call must be refused too.
@@ -131,8 +146,28 @@ async function saveEvaluation(
       if (isMember === 0) return { ok: false, error: "That candidate is not in this group." }
     }
 
-    const requestId = newRequestId()
+    let evaluatorId = ctx.userId
+    let evaluatorRole = ctx.role
+    if (data.panelistUserId && data.panelistUserId !== ctx.userId) {
+      if (!target.groupId || !can(ctx.role, "evaluation.viewOthers")) {
+        return { ok: false, error: "Only a panel lead can record an evaluation for another panelist." }
+      }
+      const assignment = await prisma.recruitmentStaffAssignment.findFirst({
+        where: {
+          groupId: target.groupId,
+          canEvaluate: true,
+          member: { userId: data.panelistUserId, isActive: true },
+        },
+        select: { role: true, member: { select: { userId: true } } },
+      })
+      if (!assignment) {
+        return { ok: false, error: "That person is not an active evaluator on this panel." }
+      }
+      evaluatorId = assignment.member.userId
+      evaluatorRole = assignment.role
+    }
 
+    const requestId = newRequestId()
     return await prisma.$transaction(async (tx) => {
       // Idempotency first: a retried submit returns the original row untouched.
       if (data.idempotencyKey) {
@@ -141,7 +176,7 @@ async function saveEvaluation(
           select: { id: true, overall: true, evaluatorId: true },
         })
         if (existing) {
-          if (existing.evaluatorId !== ctx.userId) {
+          if (existing.evaluatorId !== evaluatorId) {
             return { ok: false as const, error: "That submission key belongs to another evaluator." }
           }
           return {
@@ -159,7 +194,7 @@ async function saveEvaluation(
         where: {
           candidateId: data.candidateId,
           sessionId: target.sessionId,
-          evaluatorId: ctx.userId,
+          evaluatorId,
           state: { in: ["DRAFT", "SUBMITTED"] },
         },
         select: { id: true, state: true, version: true, scores: true, overall: true, remarks: true },
@@ -185,7 +220,7 @@ async function saveEvaluation(
             state: mode === "submit" ? "SUBMITTED" : "DRAFT",
             submittedAt: mode === "submit" ? new Date() : null,
             idempotencyKey: data.idempotencyKey ?? null,
-            evaluatorRole: ctx.role,
+            evaluatorRole,
           },
           select: { id: true, overall: true, version: true },
         })
@@ -200,7 +235,12 @@ async function saveEvaluation(
           groupId: target.groupId,
           previousState: { state: open.state, overall: open.overall },
           newState: { state: mode === "submit" ? "SUBMITTED" : "DRAFT", overall: validation.overall },
-          meta: { kind: target.kind, version: updated.version, implicit: ctx.implicit },
+          meta: {
+            kind: target.kind,
+            version: updated.version,
+            implicit: ctx.implicit,
+            recordedForUserId: evaluatorId,
+          },
           requestId,
         })
 
@@ -237,8 +277,8 @@ async function saveEvaluation(
             kind: target.kind,
             groupId: target.groupId,
             sessionId: target.sessionId,
-            evaluatorId: ctx.userId,
-            evaluatorRole: ctx.role,
+            evaluatorId,
+            evaluatorRole,
             scores: data.scores,
             overall: validation.overall,
             remarks: data.remarks ?? null,
@@ -263,7 +303,12 @@ async function saveEvaluation(
           previousState: { evaluationId: open.id, overall: open.overall, version: open.version },
           newState: { evaluationId: created.id, overall: created.overall, version: created.version },
           reason: "Evaluator revised a submitted score; the previous version was superseded, not replaced.",
-          meta: { kind: target.kind, supersedes: open.id, implicit: ctx.implicit },
+          meta: {
+            kind: target.kind,
+            supersedes: open.id,
+            implicit: ctx.implicit,
+            recordedForUserId: evaluatorId,
+          },
           requestId,
         })
 
@@ -280,8 +325,8 @@ async function saveEvaluation(
           kind: target.kind,
           groupId: target.groupId,
           sessionId: target.sessionId,
-          evaluatorId: ctx.userId,
-          evaluatorRole: ctx.role,
+          evaluatorId,
+          evaluatorRole,
           scores: data.scores,
           overall: validation.overall,
           remarks: data.remarks ?? null,
@@ -303,7 +348,12 @@ async function saveEvaluation(
         evaluationId: created.id,
         groupId: target.groupId,
         newState: { state: mode === "submit" ? "SUBMITTED" : "DRAFT", overall: created.overall },
-        meta: { kind: target.kind, version: 1, implicit: ctx.implicit },
+        meta: {
+          kind: target.kind,
+          version: 1,
+          implicit: ctx.implicit,
+          recordedForUserId: evaluatorId,
+        },
         requestId,
       })
 

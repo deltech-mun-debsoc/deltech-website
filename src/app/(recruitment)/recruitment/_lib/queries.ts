@@ -134,6 +134,48 @@ export async function getGroupConsole(ctx: RecruitmentContext, groupId: string) 
 
   const session = group.sessions[0] ?? null
 
+  const previousGdSessions =
+    group.kind === "GD"
+      ? await prisma.recruitmentSession.findMany({
+          where: {
+            cycleId: group.cycleId,
+            kind: "GD",
+            state: "COMPLETED",
+            group: {
+              members: {
+                some: {
+                  candidateId: { in: group.members.map((member) => member.candidateId) },
+                  // Reassignment changes attendance but preserves joinedAt.
+                  joinedAt: { not: null },
+                },
+              },
+            },
+          },
+          select: {
+            group: {
+              select: {
+                members: {
+                  where: {
+                    candidateId: { in: group.members.map((member) => member.candidateId) },
+                    joinedAt: { not: null },
+                  },
+                  select: { candidateId: true },
+                },
+              },
+            },
+          },
+        })
+      : []
+  const previousGdByCandidate = new Map<string, number>()
+  for (const attempt of previousGdSessions) {
+    for (const member of attempt.group.members) {
+      previousGdByCandidate.set(
+        member.candidateId,
+        (previousGdByCandidate.get(member.candidateId) ?? 0) + 1,
+      )
+    }
+  }
+
   // Every evaluation for this group's candidates in this round. A JC sees only
   // their own, so panels stay independent.
   const evaluations = await prisma.recruitmentEvaluation.findMany({
@@ -220,6 +262,10 @@ export async function getGroupConsole(ctx: RecruitmentContext, groupId: string) 
       id: m.id,
       attendance: m.attendance,
       joinedAt: m.joinedAt,
+      previousGdAttempts:
+        group.kind === "GD"
+          ? previousGdByCandidate.get(m.candidateId) ?? 0
+          : 0,
       candidate: m.candidate,
       evaluations: evaluations
         .filter((e) => e.candidateId === m.candidateId)

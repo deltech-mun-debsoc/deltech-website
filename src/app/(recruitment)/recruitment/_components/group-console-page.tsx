@@ -64,13 +64,22 @@ export async function GroupConsolePage({
         }
         displayState={console_.displayState as SessionDisplayState}
         members={console_.members}
+        panelists={console_.staff
+          .filter((panelist) => panelist.canEvaluate)
+          .map((panelist) => ({
+            userId: panelist.userId,
+            name: panelist.name,
+            email: panelist.email,
+          }))}
         criteria={criteria}
         viewerId={ctx.userId}
         permissions={{
           control: mayPerform(ctx, "session.start"),
           // Both the capability AND the per-group grant must hold: a JC only scores
           // where a maintainer ticked "may score".
-          evaluate: canEvaluate && mayPerform(ctx, "evaluation.submit"),
+          evaluate:
+            (canEvaluate || can(ctx.role, "evaluation.viewOthers")) &&
+            mayPerform(ctx, "evaluation.submit"),
           revise: mayPerform(ctx, "evaluation.revise"),
           viewOthers: can(ctx.role, "evaluation.viewOthers"),
           reopen: mayPerform(ctx, "session.reopen"),
