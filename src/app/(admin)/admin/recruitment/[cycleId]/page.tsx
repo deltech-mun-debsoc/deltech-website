@@ -41,24 +41,36 @@ export default async function CycleConfigPage({
 
   // Selected candidates who have not yet been added to the society. Finalisation
   // and membership are separate steps, so this is a real queue.
-  const awaiting = await prisma.recruitmentCandidate.findMany({
-    where: { cycleId, result: "SELECTED", recruitedUserId: null },
-    orderBy: { fullName: "asc" },
-    select: { id: true, fullName: true, email: true, stage: true },
-  })
-
-  const recruited = await prisma.recruitmentCandidate.findMany({
-    where: { cycleId, recruitedUserId: { not: null } },
-    orderBy: { recruitedAt: "desc" },
-    take: 50,
-    select: {
-      id: true,
-      fullName: true,
-      email: true,
-      societyRole: true,
-      recruitedAt: true,
-    },
-  })
+  const [selected, awaiting, recruited] = await Promise.all([
+    prisma.recruitmentCandidate.findMany({
+      where: { cycleId, result: "SELECTED" },
+      orderBy: { fullName: "asc" },
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        recruitedUserId: true,
+        decidedAt: true,
+      },
+    }),
+    prisma.recruitmentCandidate.findMany({
+      where: { cycleId, result: "SELECTED", recruitedUserId: null },
+      orderBy: { fullName: "asc" },
+      select: { id: true, fullName: true, email: true, stage: true },
+    }),
+    prisma.recruitmentCandidate.findMany({
+      where: { cycleId, recruitedUserId: { not: null } },
+      orderBy: { recruitedAt: "desc" },
+      take: 50,
+      select: {
+        id: true,
+        fullName: true,
+        email: true,
+        societyRole: true,
+        recruitedAt: true,
+      },
+    }),
+  ])
 
   return (
     <div className="space-y-6">
@@ -81,12 +93,18 @@ export default async function CycleConfigPage({
           />
 
           <FinalisationPanel
+            selected={selected.map((candidate) => ({
+              ...candidate,
+              addedToSociety: candidate.recruitedUserId !== null,
+              decidedAt: candidate.decidedAt?.toISOString() ?? null,
+            }))}
             awaiting={awaiting}
             recruited={recruited.map((r) => ({
               ...r,
               recruitedAt: r.recruitedAt?.toISOString() ?? null,
             }))}
             societyRoles={config.societyRoles}
+            recruitmentComplete={cycle.state === "COMPLETED" || cycle.state === "ARCHIVED"}
             disabled={!isAdmin}
           />
         </div>

@@ -16,11 +16,26 @@ import {
   type CandidateSnapshot,
   type CandidateStageName,
 } from "../src/lib/recruitment/transitions"
-import { RECOMMENDATIONS_BY_KIND, recommendationAllowed } from "../src/lib/schemas/recruitment"
+import {
+  createGroupSchema,
+  RECOMMENDATIONS_BY_KIND,
+  recommendationAllowed,
+} from "../src/lib/schemas/recruitment"
 
 function at(stage: CandidateStageName, over: Partial<CandidateSnapshot> = {}): CandidateSnapshot {
   return { stage, result: "PENDING", gdRequired: true, piRequired: true, ...over }
 }
+
+assert.equal(
+  createGroupSchema.safeParse({ kind: "PI", title: "A", candidateIds: ["candidate-1"] }).success,
+  true,
+  "a one-letter candidate name must not block one-click PI",
+)
+assert.equal(
+  createGroupSchema.safeParse({ kind: "PI", title: "   ", candidateIds: ["candidate-1"] }).success,
+  false,
+  "an actually blank interview title must still be rejected",
+)
 
 // --- the pipeline reaches PI without a hardcoded GD -> PI edge ---------------
 {

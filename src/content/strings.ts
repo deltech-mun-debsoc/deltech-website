@@ -674,6 +674,15 @@ export const STRINGS = {
       finaliseTitle: "Finalisation",
       finaliseDescription:
         "Selecting a candidate and adding them to the society are separate steps.",
+      finalSelectedTitle: "Final selected candidates",
+      finalSelectedDescription:
+        "The confirmed selection list and the recipients for the completion email.",
+      emailSelected: "Email selected candidates",
+      emailTemplatePending: "Email sending will be enabled when the final message format is added.",
+      completeBeforeEmail: "Complete recruitment before sending the selection email.",
+      noFinalSelected: "No candidates have been selected yet.",
+      addedToSociety: "Added to society",
+      awaitingSociety: "Not added yet",
       awaitingRecruitment: "Selected, not yet added",
       recruit: "Add to society",
       recruiting: "Adding…",

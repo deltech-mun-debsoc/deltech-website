@@ -233,7 +233,9 @@ export const sessionActionSchema = z.object({
 
 export const createGroupSchema = z.object({
   kind: z.enum(["GD", "PI"]),
-  title: z.string().min(2).max(120),
+  // One-click PI uses the candidate's name as the panel title. A one-letter
+  // name is valid; reject only an actually blank title after trimming.
+  title: z.string().trim().min(1).max(120),
   scheduledAt: z.coerce.date().nullable().optional(),
   candidateIds: z.array(z.string().min(1)).max(60).default([]),
   // Staff assignments, with the explicit evaluate permission for JCs.
