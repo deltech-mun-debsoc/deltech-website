@@ -1,7 +1,15 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { parseConfig } from "@/lib/quiz-types"
-import type { SlideType, MCQConfig, ScaleConfig, Tally } from "@/lib/quiz-types"
+import { normalizeAnswerText } from "@/lib/quiz-scoring"
+import type {
+  SlideType,
+  MCQConfig,
+  NumericConfig,
+  ScaleConfig,
+  Tally,
+  TypeAnswerConfig,
+} from "@/lib/quiz-types"
 
 export async function GET(
   _request: Request,
@@ -41,6 +49,68 @@ export async function GET(
         totalVotes: total,
         counts,
         percentages: counts.map((c) => (total > 0 ? Math.round((c / total) * 100) : 0)),
+      }
+      break
+    }
+    // True/false is a two-option MCQ underneath, so it shares the MCQ tally and
+    // therefore the whole existing bar/donut visualisation.
+    case "TRUE_FALSE": {
+      const mcq = config as MCQConfig
+      const counts = new Array<number>(mcq.options.length || 2).fill(0)
+      for (const r of responses) {
+        const ans = r.answer as { selectedIndices?: number[] }
+        for (const idx of ans.selectedIndices ?? []) {
+          if (idx >= 0 && idx < counts.length) counts[idx]++
+        }
+      }
+      tally = {
+        type: "MCQ",
+        totalVotes: total,
+        counts,
+        percentages: counts.map((c) => (total > 0 ? Math.round((c / total) * 100) : 0)),
+      }
+      break
+    }
+    case "TYPE_ANSWER": {
+      const ta = config as TypeAnswerConfig
+      const accepted = new Set((ta.accepted ?? []).map(normalizeAnswerText).filter(Boolean))
+      const freq = new Map<string, { text: string; count: number }>()
+      for (const r of responses) {
+        const raw = (r.answer as { text?: string }).text ?? ""
+        const key = normalizeAnswerText(raw)
+        if (!key) continue
+        // Group by the normalised form, but show the first spelling submitted:
+        // "kofi annan" on a projector reads worse than "Kofi Annan".
+        const seen = freq.get(key)
+        if (seen) seen.count++
+        else freq.set(key, { text: raw.trim(), count: 1 })
+      }
+      tally = {
+        type: "TYPE_ANSWER",
+        totalVotes: total,
+        answers: [...freq.entries()]
+          .map(([key, v]) => ({ ...v, correct: accepted.has(key) }))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 20),
+      }
+      break
+    }
+    case "NUMERIC": {
+      const num = config as NumericConfig
+      const values = responses
+        .map((r) => (r.answer as { value?: number }).value)
+        .filter((v): v is number => typeof v === "number" && Number.isFinite(v))
+      const closest = values.length
+        ? values.reduce((best, v) =>
+            Math.abs(v - num.target) < Math.abs(best - num.target) ? v : best,
+          )
+        : null
+      tally = {
+        type: "NUMERIC",
+        totalVotes: total,
+        values,
+        average: values.length ? values.reduce((a, b) => a + b, 0) / values.length : null,
+        closest,
       }
       break
     }

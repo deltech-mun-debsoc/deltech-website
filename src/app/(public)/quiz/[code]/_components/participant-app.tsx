@@ -2,11 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from "react"
 import { getSupabase } from "@/lib/supabase"
-import { t } from "@/content/strings"
+import { t, type StringKey } from "@/content/strings"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { AVATARS, type SlideData, type QuizBroadcast, type LBEntry } from "@/lib/quiz-types"
-import { asMCQ, asScale, asWordCloud, asOpenText } from "@/lib/quiz-types"
+import { AVATARS, AVATAR_GROUPS, FALLBACK_AVATAR, type SlideData, type QuizBroadcast, type LBEntry } from "@/lib/quiz-types"
+import { asMCQ, asScale, asWordCloud, asOpenText, asNumeric } from "@/lib/quiz-types"
+import { cn } from "@/lib/utils"
+import { CountUp } from "./count-up"
 
 type AppState =
   | "nickname"
@@ -18,7 +20,12 @@ type AppState =
   | "leaderboard"
   | "ended"
 
-interface ResultData { correct: boolean | null; points: number; rank: number | null }
+interface ResultData {
+  correct: boolean | null
+  points: number
+  rank: number | null
+  streakBonus?: number
+}
 
 interface Props {
   sessionId: string
@@ -48,7 +55,13 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
   const [lbFinal, setLbFinal] = useState(false)
   const [result, setResult] = useState<ResultData | null>(null)
   const [submitting, setSubmitting] = useState(false)
-  const [slideStartMs, setSlideStartMs] = useState(0)
+  // The host controls when the answer is revealed. Showing it the instant
+  // someone taps spoiled the projected reveal for everyone still answering, and
+  // let the front row read the room's phones.
+  const [revealed, setRevealed] = useState(false)
+  // Seconds left on the current slide, mirrored from the slide's own timer so a
+  // phone shows the same countdown as the projector.
+  const [secondsLeft, setSecondsLeft] = useState<number | null>(null)
 
   // MCQ state
   const [selectedIndices, setSelectedIndices] = useState<number[]>([])
@@ -58,6 +71,8 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
   const [scaleValues, setScaleValues] = useState<number[]>([])
   // Open text state
   const [openText, setOpenText] = useState("")
+  const [typedAnswer, setTypedAnswer] = useState("")
+  const [numericAnswer, setNumericAnswer] = useState("")
 
   const channelRef = useRef<ReturnType<NonNullable<ReturnType<typeof getSupabase>>["channel"]> | null>(null)
   const userIdRef = useRef(randomUserId())
@@ -83,7 +98,14 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
           setSelectedIndices([])
           setWords([""])
           setOpenText("")
-          setSlideStartMs(Date.now())
+          setTypedAnswer("")
+          setNumericAnswer("")
+          setRevealed(false)
+
+          // Mirror the slide's timer locally. The score is computed from the
+          // SERVER's start time regardless; this is only the visible clock.
+          const timer = (payload.slide.config as { timerSeconds?: number | null }).timerSeconds
+          setSecondsLeft(typeof timer === "number" && timer > 0 ? timer : null)
 
           // Initialise scale values
           if (payload.slide.type === "SCALE") {
@@ -99,7 +121,8 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
           setLocked(false)
           if (!submittedRef.current) setAppState("question")
         } else if (payload.event === "REVEAL") {
-          // If they submitted, we already have result, nothing extra needed
+          // NOW the verdict is allowed on screen, in time with the projector.
+          setRevealed(true)
         } else if (payload.event === "LEADERBOARD") {
           setLbEntries(payload.entries)
           setLbFinal(payload.final)
@@ -163,6 +186,15 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
     joinChannel(nickname, ava)
     setAppState("lobby")
   }
+
+  // Local countdown, one interval, stopped at zero. Only ever cosmetic: the
+  // points come from the server's record of when the slide went live, so a phone
+  // with a wrong clock scores exactly the same as one without.
+  useEffect(() => {
+    if (secondsLeft === null || secondsLeft <= 0) return
+    const id = setInterval(() => setSecondsLeft((v) => (v === null ? null : Math.max(0, v - 1))), 1000)
+    return () => clearInterval(id)
+  }, [secondsLeft])
 
   // ── Answer submit ──────────────────────────────────────────────────────────
   async function submitAnswer(answer: unknown) {
@@ -271,15 +303,27 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
         <div className="flex w-full max-w-lg flex-col gap-6 py-4">
           <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-teal-700">Choose your signal</p>
           <h1 className="font-heading text-5xl">{t("quiz.pickAvatar")}</h1>
-          <div className="grid grid-cols-4 gap-2 sm:grid-cols-5">
-            {AVATARS.map((ava) => (
-              <button
-                key={ava}
-                onClick={() => handleAvatarSelect(ava)}
-                className={`flex aspect-square items-center justify-center border border-black/15 bg-white/40 p-2 text-4xl transition-all hover:-translate-y-1 hover:bg-white ${avatar === ava ? "border-teal-700 bg-teal-50 shadow-[5px_5px_0_#0f766e]" : ""}`}
-              >
-                {ava}
-              </button>
+          {/* Grouped and scrollable: 72 emoji in one undifferentiated grid is
+              harder to choose from than 20 was, not easier. */}
+          <div className="max-h-[52vh] space-y-4 overflow-y-auto pr-1">
+            {AVATAR_GROUPS.map((group) => (
+              <div key={group.key} className="space-y-2">
+                <p className="font-mono text-[0.7rem] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+                  {t(`quiz.avatarGroups.${group.key}` as StringKey)}
+                </p>
+                <div className="grid grid-cols-5 gap-2 sm:grid-cols-6">
+                  {group.emoji.map((ava) => (
+                    <button
+                      key={ava}
+                      onClick={() => handleAvatarSelect(ava)}
+                      aria-label={ava}
+                      className={`flex aspect-square items-center justify-center border border-black/15 bg-white/40 p-2 text-3xl transition-all hover:-translate-y-1 hover:bg-white ${avatar === ava ? "border-teal-700 bg-teal-50 shadow-[5px_5px_0_#0f766e]" : ""}`}
+                    >
+                      {ava}
+                    </button>
+                  ))}
+                </div>
+              </div>
             ))}
           </div>
         </div>
@@ -291,7 +335,7 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
     return (
       <Screen k={appState}>
         <div className="flex flex-col items-center gap-5 py-8 text-center">
-          <span className="text-7xl">{avatar || "👤"}</span>
+          <span className="text-7xl">{avatar || FALLBACK_AVATAR}</span>
           <p className="font-heading text-4xl">{nickname}</p>
           <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-teal-700">{t("quiz.waitingToStart")}</p>
           <div className="mt-4 flex gap-1">
@@ -333,7 +377,7 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
                 <span className="w-6 text-center text-sm font-bold text-teal-600">
                   {t("quiz.rankN", { n: entry.rank })}
                 </span>
-                <span className="text-xl">{entry.avatar || "👤"}</span>
+                <span className="text-xl">{entry.avatar || FALLBACK_AVATAR}</span>
                 <span className="flex-1 text-sm font-medium">{entry.nickname}</span>
                 <span className="tabular-nums text-sm font-bold">{entry.totalPoints.toLocaleString()}</span>
               </div>
@@ -344,7 +388,7 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
               <span className="w-6 text-center text-sm font-bold text-teal-600">
                 {t("quiz.rankN", { n: myEntry.rank })}
               </span>
-              <span className="text-xl">{myEntry.avatar || "👤"}</span>
+              <span className="text-xl">{myEntry.avatar || FALLBACK_AVATAR}</span>
               <span className="flex-1 text-sm font-medium">{myEntry.nickname}</span>
               <span className="tabular-nums text-sm font-bold">{myEntry.totalPoints.toLocaleString()}</span>
             </div>
@@ -358,29 +402,50 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
 
   // ── Question screen ──────────────────────────────────────────────────────
   if (appState === "result" && result) {
+    // The verdict waits for the host's REVEAL, so a phone cannot spoil the
+    // projected answer for the people still deciding. A scored slide that has
+    // not been revealed shows a neutral "answer received" instead.
+    const showVerdict = revealed && result.correct !== null
     return (
       <Screen k={appState}>
         <div className="flex flex-col items-center gap-5 py-8 text-center">
-          {result.correct === true && (
+          {showVerdict && result.correct === true && (
             <>
               <span className="text-7xl">✅</span>
               <p className="font-heading text-5xl text-green-700">{t("quiz.correct")}</p>
-              <p className="text-teal-600 text-xl font-semibold">{t("quiz.pointsEarned", { points: result.points })}</p>
+              <p className="text-teal-600 text-xl font-semibold">
+                <CountUp to={result.points} />
+              </p>
+              {(result.streakBonus ?? 0) > 0 && (
+                <p className="text-sm font-medium text-amber-600">
+                  {t("quiz.streakEarned", { points: result.streakBonus ?? 0 })}
+                </p>
+              )}
             </>
           )}
-          {result.correct === false && (
+          {showVerdict && result.correct === false && (
             <>
-              <span className="text-7xl">❌</span>
-              <p className="font-heading text-5xl text-destructive">{t("quiz.incorrect")}</p>
+              <span className="text-7xl">{result.points > 0 ? "🎯" : "❌"}</span>
+              {/* Partial credit (a near-miss number, a partly-right multi-select)
+                  is not simply "wrong": saying so would be a lie about the score
+                  they can see on the leaderboard. */}
+              <p className={cn("font-heading text-5xl", result.points > 0 ? "text-amber-600" : "text-destructive")}>
+                {t(result.points > 0 ? "quiz.closeEnough" : "quiz.incorrect")}
+              </p>
+              {result.points > 0 && (
+                <p className="text-teal-600 text-xl font-semibold">
+                  <CountUp to={result.points} />
+                </p>
+              )}
             </>
           )}
-          {result.correct === null && (
+          {!showVerdict && (
             <>
               <span className="text-5xl">✓</span>
               <p className="text-xl font-semibold">{t("quiz.answerReceived")}</p>
             </>
           )}
-          {result.rank !== null && (
+          {showVerdict && result.rank !== null && (
             <p className="text-muted-foreground">
               {t("quiz.yourRankLabel", { rank: result.rank })}
             </p>
@@ -410,9 +475,25 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
     <Screen padding k={`${appState}-${currentSlide?.id ?? ""}`}>
       <div className="w-full max-w-2xl space-y-7">
         <div className="space-y-1">
-          <p className="font-mono text-xs font-bold uppercase tracking-[0.18em] text-teal-700">
-            {t("quiz.slideProgress", { n: slideIndex + 1, total: slideCount })}
-          </p>
+          <div className="flex items-baseline justify-between gap-3">
+            <p className="font-mono text-xs font-bold uppercase tracking-[0.18em] text-teal-700">
+              {t("quiz.slideProgress", { n: slideIndex + 1, total: slideCount })}
+            </p>
+            {/* The countdown was projector-only, so anyone looking at their phone
+                had no idea how long they had left. Cosmetic: the score is still
+                computed from the server's own start time. */}
+            {secondsLeft !== null && !isLocked && (
+              <span
+                className={cn(
+                  "font-mono text-2xl font-bold tabular-nums transition-colors",
+                  secondsLeft <= 5 ? "text-destructive" : "text-teal-700",
+                )}
+                aria-live="off"
+              >
+                {secondsLeft}
+              </span>
+            )}
+          </div>
           <h2 className="font-heading text-3xl leading-tight sm:text-4xl">{currentSlide.prompt}</h2>
         </div>
 
@@ -513,6 +594,97 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
                 <Button
                   onClick={() => void submitAnswer({ values: scaleValues })}
                   disabled={submitting}
+                  className="w-full"
+                >
+                  {submitting ? t("common.loading") : t("quiz.submitAnswer")}
+                </Button>
+              )}
+            </div>
+          )
+        })()}
+
+        {/* True/false is a two-option MCQ underneath, but on a phone it deserves
+            two big targets rather than a list. */}
+        {currentSlide.type === "TRUE_FALSE" && (
+          <div className="grid grid-cols-2 gap-3">
+            {[0, 1].map((index) => (
+              <button
+                key={index}
+                disabled={isLocked || submitting}
+                onClick={() => void submitAnswer({ selectedIndices: [index] })}
+                className={cn(
+                  "flex min-h-28 items-center justify-center rounded-xl border-2 text-2xl font-semibold transition-transform active:scale-95 disabled:opacity-50",
+                  index === 0
+                    ? "border-emerald-600 bg-emerald-50 text-emerald-900"
+                    : "border-rose-600 bg-rose-50 text-rose-900",
+                )}
+              >
+                {t(index === 0 ? "quiz.trueLabel" : "quiz.falseLabel")}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {currentSlide.type === "TYPE_ANSWER" && (
+          <div className="space-y-3">
+            <input
+              value={typedAnswer}
+              onChange={(e) => setTypedAnswer(e.target.value.slice(0, 120))}
+              disabled={isLocked}
+              // Autocorrect turns a right answer into a wrong one on a phone.
+              autoCapitalize="off"
+              autoCorrect="off"
+              spellCheck={false}
+              enterKeyHint="send"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && typedAnswer.trim() && !isLocked) {
+                  void submitAnswer({ text: typedAnswer })
+                }
+              }}
+              className="w-full rounded-md border border-border bg-background px-3 py-3 text-lg focus:outline-none focus:ring-2 focus:ring-teal-600 disabled:opacity-50"
+              placeholder={t("quiz.typeAnswerPlaceholder")}
+            />
+            {!isLocked && (
+              <Button
+                onClick={() => void submitAnswer({ text: typedAnswer })}
+                disabled={submitting || typedAnswer.trim().length === 0}
+                className="w-full"
+              >
+                {submitting ? t("common.loading") : t("quiz.submitAnswer")}
+              </Button>
+            )}
+          </div>
+        )}
+
+        {currentSlide.type === "NUMERIC" && (() => {
+          const config = asNumeric(currentSlide.config)
+          return (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <input
+                  value={numericAnswer}
+                  onChange={(e) => setNumericAnswer(e.target.value)}
+                  disabled={isLocked}
+                  // Numeric keypad, but text mode so a decimal point and a minus
+                  // sign both survive on iOS.
+                  inputMode="decimal"
+                  enterKeyHint="send"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && numericAnswer.trim() && !isLocked) {
+                      void submitAnswer({ value: Number(numericAnswer) })
+                    }
+                  }}
+                  className="w-full rounded-md border border-border bg-background px-3 py-3 text-center text-2xl tabular-nums focus:outline-none focus:ring-2 focus:ring-teal-600 disabled:opacity-50"
+                  placeholder={t("quiz.numericPlaceholder")}
+                />
+                {config.unit && (
+                  <span className="shrink-0 text-lg text-muted-foreground">{config.unit}</span>
+                )}
+              </div>
+              {!isLocked && (
+                <Button
+                  onClick={() => void submitAnswer({ value: Number(numericAnswer) })}
+                  disabled={submitting || !Number.isFinite(Number(numericAnswer)) || numericAnswer.trim() === ""}
                   className="w-full"
                 >
                   {submitting ? t("common.loading") : t("quiz.submitAnswer")}

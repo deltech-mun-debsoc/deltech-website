@@ -2,14 +2,56 @@
 
 export type MCQLayout = "BARS" | "DONUT" | "PIE" | "DOTS"
 export type OpenTextLayout = "SPEECH_BUBBLES" | "FLOWING_GRID"
-export type SlideType = "MCQ" | "WORDCLOUD" | "SCALE" | "OPEN_TEXT" | "CONTENT"
+export type SlideType =
+  | "MCQ"
+  | "TRUE_FALSE"
+  | "TYPE_ANSWER"
+  | "NUMERIC"
+  | "WORDCLOUD"
+  | "SCALE"
+  | "OPEN_TEXT"
+  | "CONTENT"
+
+// Scoring knobs shared by every scored slide type. All optional: an existing
+// slide with none of them set scores exactly as it did before (1000 points, a
+// half-weight speed bonus, no streak).
+export type ScoringConfig = {
+  basePoints?: number       // default 1000
+  speedWeight?: number      // 0-1, default 0.5. 0 = speed does not matter
+  streakBonus?: number      // points per consecutive correct answer, default 0
+}
 export type SlideMode = "POLL" | "QUIZ"
 
-export type MCQConfig = {
+export type MCQConfig = ScoringConfig & {
   options: string[]        // 2–10 items
   correct: number[]        // option indices (quiz mode)
   layout: MCQLayout        // default BARS
   allowMultiple: boolean   // multiple correct answers
+  // Award a share of the points for a partly-right multi-select. Without this,
+  // picking 2 of 3 correct options scores the same as picking nothing.
+  partialCredit: boolean
+  timerSeconds: number | null
+}
+
+// True/false is a two-option MCQ, deliberately: the tally, the reveal and the
+// projected visualisation all work unchanged, and the builder gets a one-click
+// slide type instead of asking someone to type "True" and "False" every time.
+export type TrueFalseConfig = MCQConfig
+
+export type TypeAnswerConfig = ScoringConfig & {
+  accepted: string[]       // any one of these counts as correct
+  // Exact means character-for-character after normalising case and whitespace.
+  // Otherwise punctuation is ignored too.
+  exact: boolean
+  timerSeconds: number | null
+}
+
+export type NumericConfig = ScoringConfig & {
+  target: number
+  // Answers within this distance earn a share of the points, scaling to zero at
+  // the edge. 0 means only the exact number counts.
+  tolerance: number
+  unit: string             // shown next to the input, e.g. "kg", "%"
   timerSeconds: number | null
 }
 
@@ -40,6 +82,8 @@ export type ContentConfig = {
 
 export type SlideConfig =
   | MCQConfig
+  | TypeAnswerConfig
+  | NumericConfig
   | WordCloudConfig
   | ScaleConfig
   | OpenTextConfig
@@ -51,6 +95,15 @@ export interface SlideData {
   type: SlideType
   prompt: string
   config: SlideConfig
+}
+
+// Slide types that produce a right answer. Everything else is an opinion.
+export const DEFAULT_BASE_POINTS_LABEL = "1000"
+
+export const SCORED_TYPES: SlideType[] = ["MCQ", "TRUE_FALSE", "TYPE_ANSWER", "NUMERIC"]
+
+export function isScoredType(type: SlideType): boolean {
+  return SCORED_TYPES.includes(type)
 }
 
 // ── Presentation theme ────────────────────────────────────────────────────────
@@ -76,6 +129,29 @@ export const DEFAULT_MCQ_CONFIG: MCQConfig = {
   correct: [],
   layout: "BARS",
   allowMultiple: false,
+  partialCredit: true,
+  timerSeconds: null,
+}
+
+export const DEFAULT_TRUE_FALSE_CONFIG: TrueFalseConfig = {
+  options: ["True", "False"],
+  correct: [],
+  layout: "BARS",
+  allowMultiple: false,
+  partialCredit: false,
+  timerSeconds: null,
+}
+
+export const DEFAULT_TYPE_ANSWER_CONFIG: TypeAnswerConfig = {
+  accepted: [""],
+  exact: false,
+  timerSeconds: null,
+}
+
+export const DEFAULT_NUMERIC_CONFIG: NumericConfig = {
+  target: 0,
+  tolerance: 0,
+  unit: "",
   timerSeconds: null,
 }
 
@@ -105,8 +181,11 @@ export const DEFAULT_CONTENT_CONFIG: ContentConfig = {
 }
 
 export const DEFAULT_CONFIGS: Record<SlideType, SlideConfig> = {
-  MCQ:       DEFAULT_MCQ_CONFIG,
-  WORDCLOUD: DEFAULT_WORDCLOUD_CONFIG,
+  MCQ:         DEFAULT_MCQ_CONFIG,
+  TRUE_FALSE:  DEFAULT_TRUE_FALSE_CONFIG,
+  TYPE_ANSWER: DEFAULT_TYPE_ANSWER_CONFIG,
+  NUMERIC:     DEFAULT_NUMERIC_CONFIG,
+  WORDCLOUD:   DEFAULT_WORDCLOUD_CONFIG,
   SCALE:     DEFAULT_SCALE_CONFIG,
   OPEN_TEXT: DEFAULT_OPEN_TEXT_CONFIG,
   CONTENT:   DEFAULT_CONTENT_CONFIG,
@@ -126,7 +205,9 @@ export const DEFAULT_THEME = PRESET_THEMES.classic
 
 // ── Cast helpers ──────────────────────────────────────────────────────────────
 
-export const asMCQ       = (c: SlideConfig) => c as MCQConfig
+export const asMCQ        = (c: SlideConfig) => c as MCQConfig
+export const asTypeAnswer = (c: SlideConfig) => c as TypeAnswerConfig
+export const asNumeric    = (c: SlideConfig) => c as NumericConfig
 export const asWordCloud = (c: SlideConfig) => c as WordCloudConfig
 export const asScale     = (c: SlideConfig) => c as ScaleConfig
 export const asOpenText  = (c: SlideConfig) => c as OpenTextConfig
@@ -140,10 +221,41 @@ export function parseConfig(raw: unknown, type: SlideType): SlideConfig {
 
 // ── Avatars ───────────────────────────────────────────────────────────────────
 
-export const AVATARS = [
-  "🦁","🐯","🐻","🦊","🐸","🐧","🦅","🦋","🦄","🐊","🦖","🐙","🦑","🐳","🦈",
-  "🐝","🦉","🐺","🦝","🐲",
-] as const
+// Grouped so the picker can show sections rather than one undifferentiated wall
+// of 20 animals. Every entry is a single emoji: they are rendered at large sizes
+// on a projector, and multi-codepoint sequences render inconsistently across
+// Android versions.
+export const AVATAR_GROUPS: { key: string; emoji: readonly string[] }[] = [
+  {
+    key: "animals",
+    emoji: [
+      "🦁","🐯","🐻","🦊","🐸","🐧","🦅","🦋","🦄","🐊",
+      "🦖","🐙","🦑","🐳","🦈","🐝","🦉","🐺","🦝","🐲",
+      "🐨","🐼","🦥","🦦","🦔","🐢","🦜","🦩","🐬","🦭",
+    ],
+  },
+  {
+    key: "faces",
+    emoji: ["😎","🤓","🥳","🤠","🧐","🤖","👽","🤡","👻","💀","🎃","😺"],
+  },
+  {
+    key: "things",
+    emoji: [
+      "🚀","⚡","🔥","🌈","⭐","🌙","☄️","🎯","🎲","🎸",
+      "🏆","💎","🍕","🍩","🌮","🧃","⚽","🏀","🎧","📚",
+    ],
+  },
+  {
+    key: "world",
+    emoji: ["🌍","🌏","🗽","🏛️","⛰️","🌋","🏝️","🌵","🍁","🌊"],
+  },
+]
+
+export const AVATARS = AVATAR_GROUPS.flatMap((g) => g.emoji)
+
+// Shown when a participant has no avatar: an old response row from before they
+// were stored, or someone who never picked one.
+export const FALLBACK_AVATAR = "👤"
 
 // ── Realtime broadcast events ─────────────────────────────────────────────────
 
@@ -194,9 +306,34 @@ export type OpenTextTally = {
   totalVotes: number
   responses: { text: string; nickname: string }[]
 }
+// Typed answers, grouped by their normalised form so "Kofi Annan" and
+// "kofi  annan" are one bar rather than two.
+export type TypeAnswerTally = {
+  type: "TYPE_ANSWER"
+  totalVotes: number
+  answers: { text: string; count: number; correct: boolean }[]
+}
+
+// Numeric guesses, kept individually so the projector can plot the spread
+// against the target rather than just counting exact hits.
+export type NumericTally = {
+  type: "NUMERIC"
+  totalVotes: number
+  values: number[]
+  average: number | null
+  closest: number | null
+}
+
 export type ContentTally = { type: "CONTENT"; totalVotes: 0 }
 
-export type Tally = MCQTally | WordCloudTally | ScaleTally | OpenTextTally | ContentTally
+export type Tally =
+  | MCQTally
+  | TypeAnswerTally
+  | NumericTally
+  | WordCloudTally
+  | ScaleTally
+  | OpenTextTally
+  | ContentTally
 
 export function parseTheme(raw: unknown): PresentationTheme {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return DEFAULT_THEME

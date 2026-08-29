@@ -1,6 +1,8 @@
 "use client"
 
 import { motion, AnimatePresence } from "framer-motion"
+import { cn } from "@/lib/utils"
+import { FALLBACK_AVATAR } from "@/lib/quiz-types"
 import { ConfettiBurst } from "./confetti-burst"
 import { t } from "@/content/strings"
 import type { LBEntry, PresentationTheme } from "@/lib/quiz-types"
@@ -27,11 +29,52 @@ export function LeaderboardScreen({ entries, final, theme, onNext, onEnd }: Prop
         {final ? t("quiz.finalResults") : t("quiz.leaderboard")}
       </h2>
 
+      {/* Podium, final board only. The top three earned a moment; a flat list
+          gives the winner the same visual weight as fourth place. */}
+      {final && top.length >= 3 && (
+        <div className="flex w-full max-w-xl items-end justify-center gap-3">
+          {[1, 0, 2].map((index) => {
+            const entry = top[index]
+            if (!entry) return null
+            const height = index === 0 ? "h-32" : index === 1 ? "h-24" : "h-20"
+            return (
+              <motion.div
+                key={entry.nickname}
+                initial={{ y: 40, opacity: 0 }}
+                animate={{ y: 0, opacity: 1 }}
+                transition={{ delay: 0.15 * (index === 0 ? 2 : index === 1 ? 0 : 1), type: "spring", stiffness: 200, damping: 18 }}
+                className="flex flex-1 flex-col items-center gap-2"
+              >
+                <span className="text-4xl">{entry.avatar || FALLBACK_AVATAR}</span>
+                <span className="max-w-full truncate text-sm font-medium">{entry.nickname}</span>
+                <div
+                  className={cn("flex w-full items-start justify-center rounded-t-xl pt-2", height)}
+                  style={{
+                    background: index === 0 ? theme.accentColor + "55" : "rgba(255,255,255,0.10)",
+                    border: `1px solid ${index === 0 ? theme.accentColor + "88" : "transparent"}`,
+                  }}
+                >
+                  <span className="text-2xl font-bold" style={{ color: theme.accentColor }}>
+                    {t("quiz.rankN", { n: entry.rank })}
+                  </span>
+                </div>
+                <span className="font-bold tabular-nums" style={{ color: theme.accentColor }}>
+                  {entry.totalPoints.toLocaleString()}
+                </span>
+              </motion.div>
+            )
+          })}
+        </div>
+      )}
+
       <div className="w-full max-w-xl space-y-2">
         <AnimatePresence>
           {top.map((entry, i) => (
             <motion.div
               key={entry.nickname}
+              // `layout` is what makes a rank change read as movement: rows slide
+              // past each other instead of the numbers silently swapping.
+              layout
               initial={{ x: -60, opacity: 0 }}
               animate={{ x: 0, opacity: 1 }}
               transition={{ delay: i * 0.07, type: "spring", stiffness: 180, damping: 20 }}
@@ -44,7 +87,7 @@ export function LeaderboardScreen({ entries, final, theme, onNext, onEnd }: Prop
               <span className="w-8 text-center text-lg font-bold" style={{ color: theme.accentColor }}>
                 {t("quiz.rankN", { n: entry.rank })}
               </span>
-              <span className="text-2xl">{entry.avatar || "👤"}</span>
+              <span className="text-2xl">{entry.avatar || FALLBACK_AVATAR}</span>
               <span className="flex-1 font-medium">{entry.nickname}</span>
               <span className="font-bold tabular-nums" style={{ color: theme.accentColor }}>
                 {entry.totalPoints.toLocaleString()}

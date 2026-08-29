@@ -7,9 +7,14 @@ import { VizMCQ } from "./viz-mcq"
 import { VizWordCloud } from "./viz-wordcloud"
 import { VizScale } from "./viz-scale"
 import { VizOpenText } from "./viz-opentext"
+import { VizTypeAnswer } from "./viz-typeanswer"
+import { VizNumeric } from "./viz-numeric"
 import { t } from "@/content/strings"
-import type { SlideData, Tally, MCQTally, WordCloudTally, ScaleTally, OpenTextTally, PresentationTheme } from "@/lib/quiz-types"
-import { asMCQ, asWordCloud, asScale, asOpenText } from "@/lib/quiz-types"
+import type {
+  SlideData, Tally, MCQTally, WordCloudTally, ScaleTally, OpenTextTally,
+  TypeAnswerTally, NumericTally, PresentationTheme,
+} from "@/lib/quiz-types"
+import { asMCQ, asWordCloud, asScale, asOpenText, asNumeric, isScoredType } from "@/lib/quiz-types"
 
 interface Props {
   slide: SlideData
@@ -22,6 +27,9 @@ interface Props {
   revealed: boolean
   revealedIndices: number[]
   timerRunning: boolean
+  // How many people are in the room, so the header can say "12 of 30" instead of
+  // "12 of ?". The presenter already tracks this from the presence channel.
+  participantCount?: number
   onLock: () => void
   onUnlock: () => void
   onReveal: () => void
@@ -49,6 +57,7 @@ export function QuestionScreen({
   onPrev,
   onLeaderboard,
   onTimerExpire,
+  participantCount,
 }: Props) {
   const config = slide.config
   const type = slide.type
@@ -70,6 +79,28 @@ export function QuestionScreen({
             theme={theme}
             revealedIndices={revealed ? revealedIndices : undefined}
             layout={asMCQ(config).layout}
+          />
+        )
+      // True/false shares the MCQ tally and chart: it IS a two-option MCQ.
+      case "TRUE_FALSE":
+        return (
+          <VizMCQ
+            tally={tally as MCQTally}
+            config={asMCQ(config)}
+            theme={theme}
+            revealedIndices={revealed ? revealedIndices : undefined}
+            layout={asMCQ(config).layout}
+          />
+        )
+      case "TYPE_ANSWER":
+        return <VizTypeAnswer tally={tally as TypeAnswerTally} theme={theme} revealed={revealed} />
+      case "NUMERIC":
+        return (
+          <VizNumeric
+            tally={tally as NumericTally}
+            config={asNumeric(config)}
+            theme={theme}
+            revealed={revealed}
           />
         )
       case "WORDCLOUD":
@@ -95,7 +126,7 @@ export function QuestionScreen({
         </span>
         <span className="flex-1" />
         <span className="font-mono text-sm font-bold uppercase tracking-[0.16em] opacity-55">
-          {t("quiz.voteCount", { voted: voteCount, total: "?" })}
+          {t("quiz.voteCount", { voted: voteCount, total: participantCount ?? "?" })}
         </span>
         {timerSeconds && (
           <CountdownRing
@@ -156,7 +187,10 @@ export function QuestionScreen({
           </button>
         )}
 
-        {type === "MCQ" && mode === "QUIZ" && locked && !revealed && (
+        {/* Every scored type gets a reveal button, not only MCQ: a typed or
+            numeric question is just as revealable, and the phones are waiting
+            on it before they show a verdict. */}
+        {isScoredType(type) && mode === "QUIZ" && locked && !revealed && (
           <button
             onClick={onReveal}
             className="flex items-center gap-2 px-4 py-2.5 text-sm font-bold transition-opacity hover:opacity-90"

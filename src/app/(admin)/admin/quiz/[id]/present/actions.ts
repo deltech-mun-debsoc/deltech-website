@@ -41,15 +41,22 @@ export async function computeLeaderboard(
     orderBy: { _sum: { points: "desc" } },
   })
 
-  // Grab avatars: take the most recent response per nickname that has avatar info
-  // (avatar stored separately, look it up from a recent session presence snapshot)
-  // We store avatars in nickname responses via the response table only if we add avatar field.
-  // Since the Response model doesn't have avatar, we use the presence state from the broadcast.
-  // This action only returns scores; the caller supplies avatar from presence state.
+  // Avatars come off the response rows now. They used to come only from the live
+  // presence channel, so anyone who closed their phone before the final board
+  // was shown appeared as a generic silhouette next to their own score.
+  const avatarRows = await prisma.response.findMany({
+    where: { sessionId, avatar: { not: null } },
+    distinct: ["nickname"],
+    orderBy: { createdAt: "desc" },
+    select: { nickname: true, avatar: true },
+  })
+  const avatars = new Map(avatarRows.map((r) => [r.nickname ?? "", r.avatar ?? ""]))
+
   return rows.map((r, i) => ({
     nickname: r.nickname ?? "Anonymous",
-    avatar: "",
+    avatar: avatars.get(r.nickname ?? "") ?? "",
     totalPoints: r._sum.points ?? 0,
     rank: i + 1,
   }))
 }
+

@@ -78,4 +78,36 @@ for (const file of CONSUMERS) {
   assert.match(src, /from "@\/lib\/app-url"/, `${file} must import the shared origin`)
 }
 
+// A hosted deployment must never emit a loopback link, on ANY environment.
+//
+// This was production-only, so a Preview build with
+// NEXT_PUBLIC_APP_URL=http://localhost:3000 printed localhost into the quiz join
+// QR code, the payment links and the magic-link emails. A QR pointing at
+// localhost is worse than a broken one: it scans, it opens, and it fails on a
+// delegate's phone with no clue why.
+{
+  for (const env of ["preview", "production"]) {
+    assert.equal(
+      resolveAppUrl("http://localhost:3000", "deltech-website-abc.vercel.app", "deltechmun.in", true),
+      "https://deltechmun.in",
+      `a loopback explicit value must be refused on a hosted ${env} deployment`,
+    )
+  }
+
+  // Falls back to the deployment's own URL when there is no production domain.
+  assert.equal(
+    resolveAppUrl("http://127.0.0.1:3000", "deltech-website-abc.vercel.app", undefined, true),
+    "https://deltech-website-abc.vercel.app",
+  )
+
+  // And returns nothing rather than a lie when there is no hosted URL at all.
+  assert.equal(resolveAppUrl("http://localhost:3000", undefined, undefined, true), "")
+
+  // Local development is untouched: localhost is the right answer there.
+  assert.equal(
+    resolveAppUrl("http://localhost:3000", undefined, undefined, false),
+    "http://localhost:3000",
+  )
+}
+
 console.log(`✅ check-app-url passed (${CONSUMERS.length} consumers on the shared resolver)`)

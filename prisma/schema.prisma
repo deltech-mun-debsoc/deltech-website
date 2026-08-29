@@ -955,6 +955,11 @@ model Slide {
 
 enum SlideType {
   MCQ
+  // A two-option MCQ underneath, so the tally, reveal and projected chart all
+  // work unchanged; it exists as its own type for the builder's sake.
+  TRUE_FALSE
+  TYPE_ANSWER
+  NUMERIC
   WORDCLOUD
   SCALE
   OPEN_TEXT
@@ -981,6 +986,10 @@ model Response {
   sessionId String
   slideId   String
   nickname  String?
+  // Stored so the final leaderboard can show who someone was. It used to live
+  // only in the realtime presence channel, so anyone who dropped out before the
+  // end appeared as a generic silhouette on the board.
+  avatar    String?
   answer    Json
   points    Int      @default(0)
   createdAt DateTime @default(now())

@@ -22,7 +22,9 @@ import {
   type SlideMode,
   type MCQLayout,
   type OpenTextLayout,
-  asMCQ, asWordCloud, asScale, asOpenText, asContent,
+  asMCQ, asWordCloud, asScale, asOpenText, asContent, asTypeAnswer, asNumeric,
+  isScoredType,
+  DEFAULT_BASE_POINTS_LABEL,
 } from "@/lib/quiz-types"
 
 const TIMER_OPTIONS = [null, 10, 15, 20, 30, 45, 60, 90, 120]
@@ -360,6 +362,252 @@ function ScaleConfigPanel({
 
 // ── OpenText config ───────────────────────────────────────────────────────────
 
+// ── True / false ─────────────────────────────────────────────────────────────
+//
+// A two-option MCQ underneath, so the tally, the reveal and the projected chart
+// all work unchanged. The builder just does not make anyone type "True" and
+// "False" every time.
+function TrueFalseConfigPanel({
+  slide, mode, onChange,
+}: {
+  slide: SlideData
+  mode: SlideMode
+  onChange: (p: Partial<Pick<SlideData, "prompt" | "config">>) => void
+}) {
+  const cfg = asMCQ(slide.config)
+  const correct = cfg.correct[0] ?? null
+
+  return (
+    <div className="space-y-4">
+      {mode === "QUIZ" && (
+        <FieldRow label={t("quiz.correctAnswer")}>
+          <div className="flex gap-2">
+            {[0, 1].map((index) => (
+              <Button
+                key={index}
+                type="button"
+                size="sm"
+                variant={correct === index ? "default" : "outline"}
+                onClick={() => onChange({ config: { ...cfg, correct: [index] } })}
+              >
+                {t(index === 0 ? "quiz.trueLabel" : "quiz.falseLabel")}
+              </Button>
+            ))}
+          </div>
+        </FieldRow>
+      )}
+
+      <TimerField
+        value={cfg.timerSeconds}
+        onChange={(v) => onChange({ config: { ...cfg, timerSeconds: v } })}
+      />
+
+      {mode === "QUIZ" && <ScoringFields cfg={cfg} onChange={onChange} />}
+    </div>
+  )
+}
+
+// ── Type the answer ──────────────────────────────────────────────────────────
+function TypeAnswerConfigPanel({
+  slide, mode, onChange,
+}: {
+  slide: SlideData
+  mode: SlideMode
+  onChange: (p: Partial<Pick<SlideData, "prompt" | "config">>) => void
+}) {
+  const cfg = asTypeAnswer(slide.config)
+
+  return (
+    <div className="space-y-4">
+      <FieldRow label={t("quiz.acceptedAnswersLabel")}>
+        <div className="space-y-1.5">
+          <Textarea
+            value={cfg.accepted.join("\n")}
+            onChange={(e) =>
+              onChange({ config: { ...cfg, accepted: e.target.value.split("\n") } })
+            }
+            rows={3}
+            className="text-sm"
+          />
+          <p className="text-xs text-muted-foreground">{t("quiz.acceptedAnswersHelp")}</p>
+        </div>
+      </FieldRow>
+
+      <div className="flex items-center gap-2">
+        <Checkbox
+          id="exact-match"
+          checked={cfg.exact}
+          onCheckedChange={(v) => onChange({ config: { ...cfg, exact: v === true } })}
+        />
+        <Label htmlFor="exact-match" className="text-xs font-normal">
+          {t("quiz.exactMatchLabel")}
+        </Label>
+      </div>
+
+      <TimerField
+        value={cfg.timerSeconds}
+        onChange={(v) => onChange({ config: { ...cfg, timerSeconds: v } })}
+      />
+
+      {mode === "QUIZ" && <ScoringFields cfg={cfg} onChange={onChange} />}
+    </div>
+  )
+}
+
+// ── Numeric ──────────────────────────────────────────────────────────────────
+function NumericConfigPanel({
+  slide, mode, onChange,
+}: {
+  slide: SlideData
+  mode: SlideMode
+  onChange: (p: Partial<Pick<SlideData, "prompt" | "config">>) => void
+}) {
+  const cfg = asNumeric(slide.config)
+
+  return (
+    <div className="space-y-4">
+      <FieldRow label={t("quiz.targetLabel")}>
+        <Input
+          type="number"
+          value={cfg.target}
+          onChange={(e) => onChange({ config: { ...cfg, target: Number(e.target.value) } })}
+          className="h-8 w-32 text-sm"
+        />
+      </FieldRow>
+
+      <FieldRow label={t("quiz.toleranceLabel")}>
+        <Input
+          type="number"
+          min={0}
+          value={cfg.tolerance}
+          onChange={(e) =>
+            onChange({ config: { ...cfg, tolerance: Math.max(0, Number(e.target.value)) } })
+          }
+          className="h-8 w-32 text-sm"
+        />
+      </FieldRow>
+
+      <FieldRow label={t("quiz.unitLabel")}>
+        <Input
+          value={cfg.unit}
+          onChange={(e) => onChange({ config: { ...cfg, unit: e.target.value } })}
+          className="h-8 w-32 text-sm"
+        />
+      </FieldRow>
+
+      <TimerField
+        value={cfg.timerSeconds}
+        onChange={(v) => onChange({ config: { ...cfg, timerSeconds: v } })}
+      />
+
+      {mode === "QUIZ" && <ScoringFields cfg={cfg} onChange={onChange} />}
+    </div>
+  )
+}
+
+// ── Scoring, shared by every scored type ─────────────────────────────────────
+//
+// Every field is optional and blank means "use the default", so an existing
+// slide keeps scoring exactly as it did: 1000 points, half-weight speed bonus,
+// no streak.
+function ScoringFields({
+  cfg,
+  onChange,
+}: {
+  cfg: Record<string, unknown>
+  onChange: (p: Partial<Pick<SlideData, "prompt" | "config">>) => void
+}) {
+  const base = cfg.basePoints as number | undefined
+  const weight = cfg.speedWeight as number | undefined
+  const streak = cfg.streakBonus as number | undefined
+  const partial = cfg.partialCredit as boolean | undefined
+  const allowMultiple = cfg.allowMultiple as boolean | undefined
+
+  return (
+    <>
+      <Separator />
+      <p className="data-label text-muted-foreground">{t("quiz.scoringTitle")}</p>
+
+      <FieldRow label={t("quiz.basePointsLabel")}>
+        <Input
+          type="number"
+          min={0}
+          placeholder={DEFAULT_BASE_POINTS_LABEL}
+          value={base ?? ""}
+          onChange={(e) =>
+            onChange({
+              config: {
+                ...cfg,
+                basePoints: e.target.value === "" ? undefined : Math.max(0, Number(e.target.value)),
+              } as never,
+            })
+          }
+          className="h-8 w-28 text-sm"
+        />
+      </FieldRow>
+
+      <FieldRow label={t("quiz.speedWeightLabel")}>
+        <div className="space-y-1.5">
+          <Input
+            type="number"
+            min={0}
+            max={1}
+            step={0.1}
+            placeholder="0.5"
+            value={weight ?? ""}
+            onChange={(e) =>
+              onChange({
+                config: {
+                  ...cfg,
+                  speedWeight:
+                    e.target.value === ""
+                      ? undefined
+                      : Math.min(1, Math.max(0, Number(e.target.value))),
+                } as never,
+              })
+            }
+            className="h-8 w-28 text-sm"
+          />
+          <p className="text-xs text-muted-foreground">{t("quiz.speedWeightHelp")}</p>
+        </div>
+      </FieldRow>
+
+      <FieldRow label={t("quiz.streakBonusLabel")}>
+        <Input
+          type="number"
+          min={0}
+          placeholder="0"
+          value={streak ?? ""}
+          onChange={(e) =>
+            onChange({
+              config: {
+                ...cfg,
+                streakBonus: e.target.value === "" ? undefined : Math.max(0, Number(e.target.value)),
+              } as never,
+            })
+          }
+          className="h-8 w-28 text-sm"
+        />
+      </FieldRow>
+
+      {allowMultiple && (
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="partial-credit"
+            checked={partial !== false}
+            onCheckedChange={(v) =>
+              onChange({ config: { ...cfg, partialCredit: v === true } as never })
+            }
+          />
+          <Label htmlFor="partial-credit" className="text-xs font-normal">
+            {t("quiz.partialCreditLabel")}
+          </Label>
+        </div>
+      )}
+    </>
+  )
+}
+
 function OpenTextConfigPanel({
   slide,
   mode,
@@ -487,7 +735,10 @@ export function ConfigPanel({ slide, mode, onChange, className }: Props) {
 
         <Separator />
 
-        {slide.type === "MCQ"       && <MCQConfigPanel       slide={slide} mode={mode} onChange={handleChange} />}
+        {slide.type === "MCQ"         && <MCQConfigPanel        slide={slide} mode={mode} onChange={handleChange} />}
+        {slide.type === "TRUE_FALSE"  && <TrueFalseConfigPanel  slide={slide} mode={mode} onChange={handleChange} />}
+        {slide.type === "TYPE_ANSWER" && <TypeAnswerConfigPanel slide={slide} mode={mode} onChange={handleChange} />}
+        {slide.type === "NUMERIC"     && <NumericConfigPanel    slide={slide} mode={mode} onChange={handleChange} />}
         {slide.type === "WORDCLOUD" && <WordCloudConfigPanel slide={slide} mode={mode} onChange={handleChange} />}
         {slide.type === "SCALE"     && <ScaleConfigPanel     slide={slide} mode={mode} onChange={handleChange} />}
         {slide.type === "OPEN_TEXT" && <OpenTextConfigPanel  slide={slide} mode={mode} onChange={handleChange} />}

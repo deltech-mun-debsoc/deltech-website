@@ -11,14 +11,28 @@ import { cn } from "@/lib/utils"
 import { t } from "@/content/strings"
 import type { SlideData, SlideType } from "@/lib/quiz-types"
 
-const SLIDE_TYPES: SlideType[] = ["MCQ", "WORDCLOUD", "SCALE", "OPEN_TEXT", "CONTENT"]
+// Scored formats first, then the opinion formats, then content. The order is the
+// order they appear in the "add slide" menu.
+const SLIDE_TYPES: SlideType[] = [
+  "MCQ",
+  "TRUE_FALSE",
+  "TYPE_ANSWER",
+  "NUMERIC",
+  "WORDCLOUD",
+  "SCALE",
+  "OPEN_TEXT",
+  "CONTENT",
+]
 
 const TYPE_COLOUR: Record<SlideType, string> = {
-  MCQ:       "bg-teal-500",
-  WORDCLOUD: "bg-purple-500",
-  SCALE:     "bg-amber-500",
-  OPEN_TEXT: "bg-blue-500",
-  CONTENT:   "bg-gray-400",
+  MCQ:         "bg-teal-500",
+  TRUE_FALSE:  "bg-emerald-500",
+  TYPE_ANSWER: "bg-rose-500",
+  NUMERIC:     "bg-indigo-500",
+  WORDCLOUD:   "bg-purple-500",
+  SCALE:       "bg-amber-500",
+  OPEN_TEXT:   "bg-blue-500",
+  CONTENT:     "bg-gray-400",
 }
 
 interface Props {

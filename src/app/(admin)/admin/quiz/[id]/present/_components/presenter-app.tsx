@@ -16,7 +16,7 @@ import type {
   PresentationData,
   MCQConfig,
 } from "@/lib/quiz-types"
-import { asMCQ } from "@/lib/quiz-types"
+import { asMCQ, isScoredType } from "@/lib/quiz-types"
 import { APP_URL } from "@/lib/app-url"
 
 type Screen = "lobby" | "question" | "leaderboard"
@@ -157,8 +157,19 @@ export function PresenterApp({ session, presentation, slides }: Props) {
   }
 
   function handleReveal() {
-    if (!currentSlide || currentSlide.type !== "MCQ") return
-    const indices = asMCQ(currentSlide.config).correct
+    // Every scored type can be revealed, not just MCQ. The gate used to be
+    // `type !== "MCQ"`, which would have made a typed or numeric answer
+    // impossible to reveal at all, and left every participant's phone holding a
+    // verdict that never arrived.
+    if (!currentSlide || !isScoredType(currentSlide.type)) return
+
+    // Only the option-based types carry indices; the rest reveal against their
+    // own config on the projector and simply unblock the phones.
+    const indices =
+      currentSlide.type === "MCQ" || currentSlide.type === "TRUE_FALSE"
+        ? asMCQ(currentSlide.config).correct
+        : []
+
     setRevealed(true)
     setRevealedIndices(indices)
     broadcast({ event: "REVEAL", correctIndices: indices })
@@ -187,12 +198,13 @@ export function PresenterApp({ session, presentation, slides }: Props) {
     // Compute scores
     const scores = await computeLeaderboard(session.id)
 
-    // Merge avatars from presence
-    const avatarMap = new Map(participants.map((p) => [p.nickname, p.avatar]))
+    // The stored avatar wins; live presence is the fallback for someone who has
+    // joined but not yet answered anything, so has no response row to read.
+    const presenceAvatars = new Map(participants.map((p) => [p.nickname, p.avatar]))
     const entries: LBEntry[] = scores.map((s) => {
       const prev = prevRanksRef.current.get(s.nickname)
       const delta = prev !== undefined ? prev - s.rank : undefined
-      return { ...s, avatar: avatarMap.get(s.nickname) ?? "", delta }
+      return { ...s, avatar: s.avatar || presenceAvatars.get(s.nickname) || "", delta }
     })
 
     // Save current ranks for delta next time
@@ -261,6 +273,7 @@ export function PresenterApp({ session, presentation, slides }: Props) {
             revealed={revealed}
             revealedIndices={revealedIndices}
             timerRunning={timerRunning}
+            participantCount={participants.length}
             onLock={handleLock}
             onUnlock={handleUnlock}
             onReveal={handleReveal}

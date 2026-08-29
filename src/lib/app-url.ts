@@ -18,11 +18,15 @@ export function resolveAppUrl(
   explicit: string | undefined,
   vercelUrl: string | undefined,
   productionUrl?: string,
-  hostedProduction = false,
+  // True on ANY hosted deployment, preview included. It was production-only,
+  // which is how a Preview build with NEXT_PUBLIC_APP_URL=http://localhost:3000
+  // came to print localhost into the quiz join QR code: nothing on a preview
+  // rejected the loopback value, so it won outright.
+  hosted = false,
 ): string {
   const set = explicit?.trim()
   const localExplicit = set ? isLoopback(set) : false
-  if (set && !(hostedProduction && localExplicit)) return stripTrailingSlash(set)
+  if (set && !(hosted && localExplicit)) return stripTrailingSlash(set)
 
   const production = productionUrl?.trim()
   if (production) {
@@ -33,8 +37,10 @@ export function resolveAppUrl(
   if (vercel) return `https://${stripTrailingSlash(vercel.replace(/^https?:\/\//, ""))}`
 
   // Keep localhost useful in local development even when no Vercel variables
-  // exist. Hosted Production is never allowed to emit a loopback link.
-  return set && !hostedProduction ? stripTrailingSlash(set) : ""
+  // exist. A hosted deployment is never allowed to emit a loopback link: a QR
+  // code or a payment link pointing at localhost is worse than one pointing
+  // nowhere, because it looks like it works.
+  return set && !hosted ? stripTrailingSlash(set) : ""
 }
 
 function stripTrailingSlash(s: string): string {
@@ -54,7 +60,9 @@ export const APP_URL: string = resolveAppUrl(
   process.env.NEXT_PUBLIC_APP_URL,
   process.env.NEXT_PUBLIC_VERCEL_URL,
   process.env.VERCEL_PROJECT_PRODUCTION_URL,
-  process.env.NODE_ENV === "production" && process.env.VERCEL === "1",
+  // Any Vercel deployment, not just production: a preview must not hand out
+  // localhost links either.
+  process.env.VERCEL === "1",
 )
 
 /** Join a path onto the deployment origin. Returns the bare path when unset. */

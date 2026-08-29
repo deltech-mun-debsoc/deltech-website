@@ -2,7 +2,26 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit"
 import { parseConfig } from "@/lib/quiz-types"
-import type { MCQConfig, SlideType } from "@/lib/quiz-types"
+import type { SlideType } from "@/lib/quiz-types"
+import { scoreAnswer } from "@/lib/quiz-scoring"
+
+// Consecutive correct answers immediately before this one, newest first. Points
+// are the proxy for correctness on an already-stored row: a scored slide only
+// awards points when something was right.
+async function currentStreak(sessionId: string, nickname: string): Promise<number> {
+  const recent = await prisma.response.findMany({
+    where: { sessionId, nickname },
+    orderBy: { createdAt: "desc" },
+    select: { points: true },
+    take: 10,
+  })
+  let streak = 0
+  for (const row of recent) {
+    if (row.points <= 0) break
+    streak++
+  }
+  return streak
+}
 
 // POST, participant submits an answer
 export async function POST(request: Request) {
@@ -65,39 +84,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "already_submitted" }, { status: 409 })
   }
 
-  // Score (QUIZ mode, check correctness)
-  let points = 0
-  let correct: boolean | null = null
-
+  // Score. Every question type routes through the same pure scorer, which takes
+  // elapsed time as an INPUT derived from the server's record of when the slide
+  // went live. The request body's clock is not consulted, here or anywhere.
   const type = slide.type as SlideType
   const config = parseConfig(slide.config, type)
 
-  if (type === "MCQ") {
-    const mcqConfig = config as MCQConfig
-    if (mcqConfig.correct && mcqConfig.correct.length > 0) {
-      const submitted = (answer as { selectedIndices: number[] }).selectedIndices ?? []
-      const correctSet = new Set(mcqConfig.correct)
-      const submittedSet = new Set(submitted)
-      correct =
-        submittedSet.size === correctSet.size &&
-        [...submittedSet].every((i) => correctSet.has(i))
+  const startedAt = session.currentSlideStartedAt
+  const elapsedSeconds = startedAt ? (Date.now() - startedAt.getTime()) / 1000 : null
 
-      if (correct) {
-        // Speed bonus: max 1000, scaling with how quickly they answered
-        // relative to the timer. Measured against the server's own record of
-        // when the slide went live, clamped into range so a missing or skewed
-        // start time degrades to the no-bonus score rather than a free 1000.
-        const startedAt = session.currentSlideStartedAt
-        if (mcqConfig.timerSeconds && startedAt) {
-          const elapsedS = (Date.now() - startedAt.getTime()) / 1000
-          const clamped = Math.min(Math.max(elapsedS, 0), mcqConfig.timerSeconds)
-          points = Math.round(1000 * (1 - (clamped / mcqConfig.timerSeconds) * 0.5))
-        } else {
-          points = 1000
-        }
-      }
-    }
-  }
+  // Streak: how many correct answers this participant already has in a row.
+  // Counted from their own submitted responses, so it cannot be forged.
+  const streak = nickname ? await currentStreak(sessionId, nickname) : 0
+
+  const scored = scoreAnswer({ type, config, answer, elapsedSeconds, streak })
+  const { correct, points } = scored
 
   // The findFirst above is only for the friendly 409. This is the real guard:
   // two taps milliseconds apart both cleared that check and scored twice.
@@ -107,6 +108,9 @@ export async function POST(request: Request) {
         sessionId,
         slideId,
         nickname,
+        // Kept on the row so the final leaderboard still knows who someone was
+        // after they close their phone and leave the presence channel.
+        avatar: typeof body.avatar === "string" ? body.avatar : null,
         answer: answer as never,
         points,
       },
@@ -144,5 +148,5 @@ export async function POST(request: Request) {
     rank = ahead.length + 1
   }
 
-  return NextResponse.json({ correct, points, rank })
+  return NextResponse.json({ correct, points, rank, streakBonus: scored.streakBonus ?? 0 })
 }
