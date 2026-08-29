@@ -51,7 +51,7 @@ export default async function CandidateDossierPage({
         <div className="space-y-6">
           {/* ---- GD record, or an explicit explanation of its absence ---- */}
           <section className="space-y-3">
-            <h2 className="data-label text-xs uppercase tracking-[0.12em] text-muted-foreground">
+            <h2 className="section-label">
               {t("recruitment.dossier.gdRecord")}
             </h2>
 
@@ -97,7 +97,7 @@ export default async function CandidateDossierPage({
 
           {/* ---- PI record ---- */}
           <section className="space-y-3">
-            <h2 className="data-label text-xs uppercase tracking-[0.12em] text-muted-foreground">
+            <h2 className="section-label">
               {t("recruitment.dossier.piRecord")}
             </h2>
             {dossier.previousPiAttempts > 1 && (
@@ -115,7 +115,7 @@ export default async function CandidateDossierPage({
 
           {/* ---- Imported form response, verbatim ---- */}
           <section className="space-y-3">
-            <h2 className="data-label text-xs uppercase tracking-[0.12em] text-muted-foreground">
+            <h2 className="section-label">
               {t("recruitment.dossier.formResponse")}
             </h2>
             {Object.keys(dossier.formResponse).length === 0 ? (
@@ -140,7 +140,7 @@ export default async function CandidateDossierPage({
         {/* ---- Sidebar: profile, provenance, history ---- */}
         <aside className="space-y-6">
           <Card className="space-y-2 p-4">
-            <h2 className="data-label text-xs uppercase tracking-[0.12em] text-muted-foreground">
+            <h2 className="section-label">
               {t("recruitment.dossier.profile")}
             </h2>
             <dl className="space-y-1.5 text-sm">
@@ -171,7 +171,7 @@ export default async function CandidateDossierPage({
           </Card>
 
           <Card className="space-y-3 p-4">
-            <h2 className="data-label text-xs uppercase tracking-[0.12em] text-muted-foreground">
+            <h2 className="section-label">
               {t("recruitment.dossier.history")}
             </h2>
             {dossier.history.length === 0 ? (
@@ -243,7 +243,7 @@ function SessionSummary({ sessions }: { sessions: DossierSession[] }) {
               </p>
             </div>
             <div className="shrink-0 text-right">
-              <p className="data-label text-xs uppercase tracking-[0.12em] text-muted-foreground">
+              <p className="data-label text-muted-foreground">
                 {t("recruitment.dossier.duration")}
               </p>
               <p className="font-mono tabular-nums">{formatElapsed(s.durationMs)}</p>
@@ -273,7 +273,7 @@ function EvaluationList({
   return (
     <Card className="space-y-3 p-4">
       <div className="flex items-baseline justify-between gap-3">
-        <p className="data-label text-xs uppercase tracking-[0.12em] text-muted-foreground">
+        <p className="data-label text-muted-foreground">
           {t("recruitment.evaluation.aggregate")}
         </p>
         <p className="font-mono text-lg tabular-nums">

@@ -24,7 +24,7 @@ export function RecruitmentSidebar({ user }: { user: RecruitmentShellUser }) {
   return (
     <aside className="hidden w-64 shrink-0 flex-col border-r border-border/70 bg-card lg:flex">
       <div className="border-b border-border/70 px-5 py-4">
-        <p className="data-label text-xs uppercase tracking-[0.12em] text-muted-foreground">
+        <p className="data-label text-muted-foreground">
           {t("recruitment.brand")}
         </p>
         {user.cycleName && (
@@ -58,7 +58,7 @@ export function RecruitmentSidebar({ user }: { user: RecruitmentShellUser }) {
       </nav>
 
       <div className="border-t border-border/70 px-5 py-4">
-        <p className="data-label text-xs uppercase tracking-[0.12em] text-muted-foreground">
+        <p className="data-label text-muted-foreground">
           {t("recruitment.shell.roleLabel")}
         </p>
         <p className="mt-0.5 text-sm font-medium">

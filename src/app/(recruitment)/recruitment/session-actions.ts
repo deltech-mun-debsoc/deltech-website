@@ -21,6 +21,11 @@ import {
   type SessionSnapshot,
   type SessionStateName,
 } from "@/lib/recruitment/session"
+import {
+  nextNaturalStage,
+  type CandidateResultName,
+  type CandidateStageName,
+} from "@/lib/recruitment/transitions"
 import { sessionActionSchema } from "@/lib/schemas/recruitment"
 import type { Prisma } from "@/generated/prisma/client"
 
@@ -424,10 +429,85 @@ async function transition(
           // Present candidates complete the stage. Absentees stay where they were,
           // an absence is not a completed evaluation.
           const present = members.filter((m) => m.attendance !== "ABSENT").map((m) => m.candidateId)
+          const activeStage = row.kind === "GD" ? "GD_ACTIVE" : "PI_ACTIVE"
+          const completeStage = row.kind === "GD" ? "GD_COMPLETE" : "PI_COMPLETE"
+
           await tx.recruitmentCandidate.updateMany({
-            where: { id: { in: present }, stage: row.kind === "GD" ? "GD_ACTIVE" : "PI_ACTIVE" },
-            data: { stage: row.kind === "GD" ? "GD_COMPLETE" : "PI_COMPLETE" },
+            where: { id: { in: present }, stage: activeStage },
+            data: { stage: completeStage },
           })
+
+          // Absentees would otherwise sit at *_ACTIVE forever once the session is
+          // COMPLETED: they match neither the assignable queue for this stage nor
+          // the next one. Return them to the queue so they can be reseated.
+          const absent = members.filter((m) => m.attendance === "ABSENT").map((m) => m.candidateId)
+          if (absent.length > 0) {
+            await tx.recruitmentCandidate.updateMany({
+              where: { id: { in: absent }, stage: activeStage },
+              data: { stage: row.kind === "GD" ? "GD_PENDING" : "PI_PENDING" },
+            })
+          }
+
+          // Completing the stage is not the same as entering the next one, and a
+          // candidate parked at GD_COMPLETE appears in no queue at all. Advance
+          // them the way moveCandidateStage would, honouring gd/piRequired through
+          // nextNaturalStage rather than assuming GD -> PI, and recording the same
+          // handoff rows so the move is auditable.
+          const advancing = await tx.recruitmentCandidate.findMany({
+            where: { id: { in: present }, stage: completeStage },
+            select: { id: true, stage: true, result: true, gdRequired: true, piRequired: true, version: true },
+          })
+
+          for (const candidate of advancing) {
+            // A candidate already decided (held, withdrawn, rejected) stays put:
+            // finishing a session must not resurrect them into the next queue.
+            if (candidate.result !== "PENDING") continue
+
+            const to = nextNaturalStage({
+              stage: candidate.stage as CandidateStageName,
+              result: candidate.result as CandidateResultName,
+              gdRequired: candidate.gdRequired,
+              piRequired: candidate.piRequired,
+            })
+            // DECISION is a deliberate human call, so auto-advance stops at the
+            // last queue and leaves the outcome to an operator.
+            if (!to || to === "DECISION") continue
+
+            const moved = await tx.recruitmentCandidate.updateMany({
+              where: { id: candidate.id, stage: candidate.stage, version: candidate.version },
+              data: { stage: to, version: { increment: 1 } },
+            })
+            if (moved.count === 0) continue
+
+            await tx.recruitmentHandoff.create({
+              data: {
+                cycleId: row.cycleId,
+                candidateId: candidate.id,
+                fromStage: candidate.stage,
+                toStage: to,
+                reason: `Advanced automatically when the ${row.kind} session finished.`,
+                actorId: ctx.userId,
+                actorRole: ctx.role,
+                sessionId: row.id,
+                previousState: { stage: candidate.stage },
+                newState: { stage: to },
+              },
+            })
+
+            await auditRecruitmentTx(tx, {
+              eventType: "candidate.transition",
+              actor: { id: ctx.userId, email: ctx.email, role: ctx.role },
+              cycleId: row.cycleId,
+              candidateId: candidate.id,
+              sessionId: row.id,
+              groupId: row.groupId,
+              previousState: { stage: candidate.stage },
+              newState: { stage: to },
+              reason: `Advanced automatically when the ${row.kind} session finished.`,
+              meta: { automatic: true, sessionKind: row.kind },
+              requestId,
+            })
+          }
         } else {
           // An abort returns everyone to the queue so the group can be re-run.
           await tx.recruitmentCandidate.updateMany({

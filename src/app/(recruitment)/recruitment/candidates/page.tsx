@@ -13,6 +13,8 @@ import { RecruitmentPageHeader } from "../../_components/page-header"
 import { LiveRefresh } from "@/components/recruitment/live-refresh"
 import { ResultBadge, StageBadge } from "../../_components/status-badges"
 import { BypassGdButton } from "../_components/bypass-gd-button"
+import { AdvanceCandidateButton } from "../_components/advance-candidate-button"
+import { nextNaturalStage, type CandidateStageName, type CandidateResultName } from "@/lib/recruitment/transitions"
 import type { CandidateResult, CandidateStage, Prisma } from "@/generated/prisma/client"
 
 const STAGES: CandidateStage[] = [
@@ -35,6 +37,39 @@ const RESULTS: CandidateResult[] = [
   "WITHDRAWN",
   "DISQUALIFIED",
 ]
+
+
+// Where the "advance" button would send this candidate, or null when there is no
+// sensible next queue. Only the resting stages get a button: a candidate mid
+// session is moved by the session, and DECISION/CLOSED are deliberate human calls
+// made on the dossier rather than from a list row.
+const ADVANCE_LABELS: Partial<Record<CandidateStageName, string>> = {
+  GD_PENDING: "recruitment.candidates.advanceToGd",
+  PI_PENDING: "recruitment.candidates.advanceToPi",
+}
+
+function advanceTargetFor(c: {
+  stage: CandidateStage
+  result: CandidateResult
+  gdRequired: boolean
+  piRequired: boolean
+}): { to: CandidateStageName; label: string } | null {
+  // A decided candidate stays decided; reopening them is a dossier action.
+  if (c.result !== "PENDING") return null
+  const restingStages: CandidateStageName[] = ["INTAKE", "GD_COMPLETE", "GD_BYPASSED", "PI_COMPLETE"]
+  if (!restingStages.includes(c.stage as CandidateStageName)) return null
+
+  const to = nextNaturalStage({
+    stage: c.stage as CandidateStageName,
+    result: c.result as CandidateResultName,
+    gdRequired: c.gdRequired,
+    piRequired: c.piRequired,
+  })
+  if (!to) return null
+  const key = ADVANCE_LABELS[to]
+  if (!key) return null
+  return { to, label: t(key as Parameters<typeof t>[0]) }
+}
 
 export default async function CandidatesPage({
   searchParams,
@@ -90,6 +125,7 @@ export default async function CandidatesPage({
         stage: true,
         result: true,
         gdRequired: true,
+      piRequired: true,
         manualEditedFields: true,
       },
     }),
@@ -97,6 +133,7 @@ export default async function CandidatesPage({
   ])
 
   const canBypass = mayPerform(ctx, "candidate.bypassGd")
+  const canAdvance = mayPerform(ctx, "candidate.advance")
 
   return (
     <div className="space-y-6">
@@ -165,7 +202,9 @@ export default async function CandidatesPage({
         </p>
       ) : (
         <ul className="divide-y divide-border/70 rounded-md border border-border/70">
-          {candidates.map((c) => (
+          {candidates.map((c) => {
+            const advance = advanceTargetFor(c)
+            return (
             <li key={c.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
@@ -184,6 +223,13 @@ export default async function CandidatesPage({
                 {canBypass && c.gdRequired && (c.stage === "INTAKE" || c.stage === "GD_PENDING") && (
                   <BypassGdButton candidateId={c.id} candidateName={c.fullName} cycleId={cycle.id} />
                 )}
+                {/* The recovery path out of a resting stage. Sessions advance the
+                    candidates who attended, so this covers absentees, aborted
+                    groups and bypassed candidates who never sat in one. The
+                    destination comes from the same pure function the server uses. */}
+                {canAdvance && advance && (
+                  <AdvanceCandidateButton candidateId={c.id} to={advance.to} label={advance.label} />
+                )}
                 <Link
                   href={`/recruitment/candidates/${c.id}`}
                   className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
@@ -192,7 +238,8 @@ export default async function CandidatesPage({
                 </Link>
               </div>
             </li>
-          ))}
+            )
+          })}
         </ul>
       )}
     </div>

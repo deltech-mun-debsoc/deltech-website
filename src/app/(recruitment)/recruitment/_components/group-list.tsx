@@ -56,7 +56,7 @@ export function GroupList({
 
             <div className="mt-auto flex items-end justify-between gap-3">
               <div>
-                <p className="data-label text-xs uppercase tracking-[0.12em] text-muted-foreground">
+                <p className="data-label text-muted-foreground">
                   {g.session?.startedAt
                     ? t("recruitment.session.elapsed")
                     : t("recruitment.groups.scheduled")}

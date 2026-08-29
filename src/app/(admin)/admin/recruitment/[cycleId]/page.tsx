@@ -93,7 +93,7 @@ export default async function CycleConfigPage({
 
         <aside className="space-y-6">
           <Card className="space-y-3 p-4">
-            <h2 className="data-label text-xs uppercase tracking-[0.12em] text-muted-foreground">
+            <h2 className="section-label">
               {t("recruitment.control.stateLabel")}
             </h2>
             <CycleStateControls

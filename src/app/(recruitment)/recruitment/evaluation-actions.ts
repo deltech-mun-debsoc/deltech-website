@@ -12,6 +12,7 @@ import {
   criteriaFor,
   evaluationInputSchema,
   parseCycleConfig,
+  recommendationAllowed,
   validateScores,
   type EvaluationInput,
 } from "@/lib/schemas/recruitment"
@@ -105,6 +106,15 @@ async function saveEvaluation(
     const ctx = target.groupId
       ? (await requireGroupAccess(target.groupId, action)).ctx
       : await requireRecruitmentAction(target.cycleId, action)
+
+    // SELECT is a hiring decision and a GD panel does not make one. The form
+    // already hides it, but a stale client or a direct call must be refused too.
+    if (data.recommendation && !recommendationAllowed(target.kind, data.recommendation)) {
+      return {
+        ok: false,
+        error: `A ${target.kind} evaluation cannot recommend ${data.recommendation}.`,
+      }
+    }
 
     const criteria = criteriaFor(parseCycleConfig(target.config), target.kind)
     // A draft may be partial; a submission must be complete.

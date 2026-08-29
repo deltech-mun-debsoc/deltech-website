@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { t } from "@/content/strings"
 import { recruitCandidate } from "../actions"
 
@@ -69,7 +69,7 @@ export function FinalisationPanel({
   return (
     <Card className="space-y-4 p-4">
       <div>
-        <h2 className="data-label text-xs uppercase tracking-[0.12em] text-muted-foreground">
+        <h2 className="section-label">
           {t("recruitment.control.finaliseTitle")}
         </h2>
         <p className="mt-1 text-xs text-muted-foreground">
@@ -102,7 +102,9 @@ export function FinalisationPanel({
                   }
                   disabled={disabled || pending}
                 >
-                  <SelectTrigger className="h-9" />
+                  <SelectTrigger className="h-9 w-full">
+                  <SelectValue />
+                </SelectTrigger>
                   <SelectContent>
                     {options.map((r) => (
                       <SelectItem key={r} value={r}>

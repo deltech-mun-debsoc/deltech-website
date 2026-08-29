@@ -25,7 +25,7 @@ export default async function RecruitmentLayout({ children }: { children: React.
     return (
       <div className={cn("recruitment-shell min-h-svh bg-background", themeClass(theme))}>
         <div className="mx-auto flex min-h-svh max-w-lg flex-col items-center justify-center px-6 text-center">
-          <p className="data-label text-xs uppercase tracking-[0.12em] text-muted-foreground">
+          <p className="data-label text-muted-foreground">
             {t("recruitment.brand")}
           </p>
           <h1 className="mt-3 font-heading text-2xl">{t("recruitment.shell.noCycleTitle")}</h1>

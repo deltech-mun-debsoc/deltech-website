@@ -117,7 +117,7 @@ export function ResponsesManager({
   return (
     <div className="space-y-6">
       <section className="space-y-3">
-        <h2 className="data-label text-xs uppercase tracking-[0.12em] text-muted-foreground">
+        <h2 className="section-label">
           {t("recruitment.responses.sourcesTitle")}
         </h2>
 
@@ -172,7 +172,7 @@ export function ResponsesManager({
       {preview?.ok && (
         <section className="space-y-3">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="data-label text-xs uppercase tracking-[0.12em] text-muted-foreground">
+            <h2 className="section-label">
               {t("recruitment.responses.previewTitle")}
             </h2>
             <p className="text-xs text-muted-foreground">{preview.summary}</p>
@@ -236,7 +236,7 @@ export function ResponsesManager({
       {/* ---- Source configuration (admin only) ---- */}
       {canConfigure && (
         <section className="space-y-3">
-          <h2 className="data-label text-xs uppercase tracking-[0.12em] text-muted-foreground">
+          <h2 className="section-label">
             {t("recruitment.responses.addSource")}
           </h2>
           <Card className="space-y-4 p-4">
