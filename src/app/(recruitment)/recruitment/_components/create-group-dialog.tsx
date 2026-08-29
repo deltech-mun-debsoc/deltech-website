@@ -53,13 +53,20 @@ export function CreateGroupDialog({
   const [candidateQuery, setCandidateQuery] = useState("")
   const visibleCandidates = useMemo(() => {
     const query = candidateQuery.trim().toLowerCase()
-    if (!query) return candidates
-    return candidates.filter((c) =>
-      [c.fullName, c.email, c.branch, c.year].some((field) =>
-        field?.toLowerCase().includes(query),
-      ),
+    // Keep every selection visible at the top even when the search changes.
+    // Operators can therefore review and undo a pick without remembering the
+    // previous query that found it.
+    const selected = candidates.filter((candidate) => picked.has(candidate.id))
+    const matches = candidates.filter(
+      (candidate) =>
+        !picked.has(candidate.id) &&
+        (!query ||
+          [candidate.fullName, candidate.email, candidate.branch, candidate.year].some((field) =>
+            field?.toLowerCase().includes(query),
+          )),
     )
-  }, [candidates, candidateQuery])
+    return [...selected, ...matches]
+  }, [candidates, candidateQuery, picked])
 
   const toggle = (id: string) =>
     setPicked((prev) => {
@@ -69,11 +76,13 @@ export function CreateGroupDialog({
       return next
     })
 
-  const toggleStaff = (memberId: string) =>
+  const toggleStaff = (staff: StaffOption) =>
     setStaffPicked((prev) => {
       const next = new Map(prev)
-      if (next.has(memberId)) next.delete(memberId)
-      else next.set(memberId, false)
+      if (next.has(staff.memberId)) next.delete(staff.memberId)
+      // Adding a JC as a panelist normally means they may score. The explicit
+      // switch remains available for the uncommon view-only assignment.
+      else next.set(staff.memberId, staff.role === "JC")
       return next
     })
 
@@ -150,7 +159,7 @@ export function CreateGroupDialog({
                       <Checkbox
                         id={`staff-${s.memberId}`}
                         checked={selected}
-                        onCheckedChange={() => toggleStaff(s.memberId)}
+                        onCheckedChange={() => toggleStaff(s)}
                       />
                       <Label htmlFor={`staff-${s.memberId}`} className="min-w-0 flex-1 font-normal">
                         <span className="truncate">{s.name ?? s.email}</span>
@@ -220,7 +229,7 @@ export function CreateGroupDialog({
             <Button variant="outline" onClick={() => setOpen(false)} disabled={pending}>
               {t("common.cancel")}
             </Button>
-            <Button onClick={submit} disabled={pending || title.trim().length < 2}>
+            <Button onClick={submit} disabled={pending || title.trim().length < 1}>
               {pending ? t("recruitment.groups.creating") : t("recruitment.groups.create")}
             </Button>
           </DialogFooter>

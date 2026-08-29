@@ -145,6 +145,7 @@ export function PiQueue({
                 <div className="flex shrink-0 items-center gap-2">
                   <Link
                     href={`/recruitment/candidates/${c.id}`}
+                    prefetch
                     className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
                   >
                     {t("recruitment.candidates.openDossier")}

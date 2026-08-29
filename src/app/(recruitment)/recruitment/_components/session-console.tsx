@@ -30,6 +30,7 @@ import { EvaluationForm, type ConsoleEvaluation } from "./evaluation-form"
 export interface ConsoleMember {
   id: string
   attendance: string
+  previousGdAttempts: number
   candidate: {
     id: string
     fullName: string
@@ -48,6 +49,7 @@ export interface SessionConsoleProps {
   session: SerializedSession | null
   displayState: SessionDisplayState
   members: ConsoleMember[]
+  panelists: { userId: string; name: string | null; email: string }[]
   criteria: EvaluationCriterion[]
   viewerId: string
   permissions: {
@@ -71,6 +73,7 @@ export function SessionConsole({
   session: initialSession,
   displayState,
   members,
+  panelists,
   criteria,
   viewerId,
   permissions,
@@ -287,6 +290,14 @@ export function SessionConsole({
                       <p className="font-medium">{m.candidate.fullName}</p>
                       <StageBadge stage={m.candidate.stage} />
                       <AttendanceBadge attendance={m.attendance} />
+                      {group.kind === "GD" && m.previousGdAttempts > 0 && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-[var(--signal-soft)] px-2 py-0.5 text-xs text-[var(--ink-soft)]">
+                          <TriangleAlert className="size-3" />
+                          {t("recruitment.dossier.previousGdAttempts", {
+                            count: m.previousGdAttempts,
+                          })}
+                        </span>
+                      )}
                     </div>
                     <p className="mt-0.5 truncate text-xs text-muted-foreground">
                       {[m.candidate.branch, m.candidate.year, m.candidate.email]
@@ -329,6 +340,7 @@ export function SessionConsole({
 
                     <Link
                       href={`/recruitment/candidates/${m.candidate.id}`}
+                      prefetch
                       className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
                     >
                       {t("recruitment.candidates.openDossier")}
@@ -344,6 +356,7 @@ export function SessionConsole({
                   kind={group.kind}
                   criteria={criteria}
                   evaluations={m.evaluations}
+                  panelists={panelists}
                   viewerId={viewerId}
                   canEvaluate={permissions.evaluate && m.attendance !== "ABSENT"}
                   canRevise={permissions.revise}

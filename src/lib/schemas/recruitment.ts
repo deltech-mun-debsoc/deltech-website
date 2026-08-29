@@ -159,6 +159,9 @@ export const evaluationInputSchema = z.object({
   scores: z.record(z.string(), z.number()),
   remarks: z.string().max(4000).optional(),
   recommendation: recommendationSchema.optional(),
+  // A maintainer operating the shared panel laptop may record the score for an
+  // assigned panelist. Authorization is resolved from the group, never trusted.
+  panelistUserId: z.string().min(1).optional(),
   // Client-generated so a retried submit collapses onto the same row.
   idempotencyKey: z.string().min(8).max(120).optional(),
   // Version the client was editing, for optimistic concurrency on revisions.
