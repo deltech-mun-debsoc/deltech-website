@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { Mail } from "lucide-react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { t } from "@/content/strings"
 import { recruitCandidate } from "../actions"
@@ -20,11 +21,20 @@ type SocietyRole = "AUTHOR" | "SUB_MAINTAINER" | "REGISTERER"
 // Safe to retry: the server returns the existing membership if one already exists,
 // so a double-click reports "already added" rather than creating a second user.
 export function FinalisationPanel({
+  selected,
   awaiting,
   recruited,
   societyRoles,
+  recruitmentComplete,
   disabled,
 }: {
+  selected: {
+    id: string
+    fullName: string
+    email: string
+    addedToSociety: boolean
+    decidedAt: string | null
+  }[]
   awaiting: { id: string; fullName: string; email: string; stage: string }[]
   recruited: {
     id: string
@@ -34,6 +44,7 @@ export function FinalisationPanel({
     recruitedAt: string | null
   }[]
   societyRoles: string[]
+  recruitmentComplete: boolean
   disabled: boolean
 }) {
   const router = useRouter()
@@ -76,6 +87,65 @@ export function FinalisationPanel({
           {t("recruitment.control.finaliseDescription")}
         </p>
       </div>
+
+      <section className="space-y-3 rounded-md border border-border/70 p-3">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-sm font-medium">
+              {t("recruitment.control.finalSelectedTitle")} · {selected.length}
+            </p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              {t("recruitment.control.finalSelectedDescription")}
+            </p>
+          </div>
+          <Button size="sm" className="gap-1.5" disabled>
+            <Mail className="size-3.5" />
+            {t("recruitment.control.emailSelected")}
+          </Button>
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          {t(
+            recruitmentComplete
+              ? "recruitment.control.emailTemplatePending"
+              : "recruitment.control.completeBeforeEmail",
+          )}
+        </p>
+
+        {selected.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            {t("recruitment.control.noFinalSelected")}
+          </p>
+        ) : (
+          <ul className="divide-y divide-border/70">
+            {selected.map((candidate) => (
+              <li
+                key={candidate.id}
+                className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"
+              >
+                <div className="min-w-0">
+                  <p className="truncate font-medium">{candidate.fullName}</p>
+                  <p className="truncate text-xs text-muted-foreground">{candidate.email}</p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <Badge variant="outline">
+                    {t(
+                      candidate.addedToSociety
+                        ? "recruitment.control.addedToSociety"
+                        : "recruitment.control.awaitingSociety",
+                    )}
+                  </Badge>
+                  {candidate.decidedAt && (
+                    <time className="text-xs text-muted-foreground" dateTime={candidate.decidedAt}>
+                      {candidate.decidedAt.slice(0, 10)}
+                    </time>
+                  )}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       <section className="space-y-2">
         <p className="text-sm font-medium">
