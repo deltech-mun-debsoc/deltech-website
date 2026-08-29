@@ -102,6 +102,9 @@ export const CANDIDATE_IMPORT_FIELDS = [
   { key: "phone", label: "Phone / WhatsApp", required: false },
   { key: "year", label: "Year / batch", required: false },
   { key: "branch", label: "Branch / department", required: false },
+  // Optional, but map it when the sheet has one: it is what lets a resubmission
+  // supersede the original instead of the oldest row winning by arrival order.
+  { key: "timestamp", label: "Submitted at", required: false },
 ] as const
 
 export type CandidateFieldKey = (typeof CANDIDATE_IMPORT_FIELDS)[number]["key"]
@@ -115,6 +118,7 @@ export const candidateMappingSchema = z.object({
   phone: z.string().min(1).optional(),
   year: z.string().min(1).optional(),
   branch: z.string().min(1).optional(),
+  timestamp: z.string().min(1).optional(),
 })
 
 export type CandidateMapping = z.infer<typeof candidateMappingSchema>

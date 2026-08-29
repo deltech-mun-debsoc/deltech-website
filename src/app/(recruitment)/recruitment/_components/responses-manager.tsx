@@ -54,6 +54,9 @@ export function ResponsesManager({
   const router = useRouter()
   const [activeId, setActiveId] = useState(sources[0]?.id ?? null)
   const [preview, setPreview] = useState<PreviewResult | null>(null)
+  // { email: rowIndex } the operator picked for a duplicate, overriding the
+  // automatic (latest submission) winner.
+  const [duplicateOverrides, setDuplicateOverrides] = useState<Record<string, number>>({})
   const [pending, startTransition] = useTransition()
 
   // Source editor state (admins only).
@@ -63,9 +66,9 @@ export function ResponsesManager({
 
   const active = sources.find((s) => s.id === activeId) ?? null
 
-  function doPreview(sourceId: string) {
+  function doPreview(sourceId: string, overrides = duplicateOverrides) {
     startTransition(async () => {
-      const result = await previewImport({ cycleId, sourceId })
+      const result = await previewImport({ cycleId, sourceId, duplicateOverrides: overrides })
       setPreview(result)
       if (!result.ok) toast.error(result.error)
     })
@@ -73,7 +76,7 @@ export function ResponsesManager({
 
   function doApply(sourceId: string) {
     startTransition(async () => {
-      const result = await applyImport({ cycleId, sourceId })
+      const result = await applyImport({ cycleId, sourceId, duplicateOverrides })
       if (!result.ok) {
         toast.error(result.error)
         return
@@ -182,6 +185,44 @@ export function ResponsesManager({
             <p className="rounded-md bg-accent px-3 py-2 text-sm text-accent-foreground">
               {t("recruitment.responses.alreadyApplied")}
             </p>
+          )}
+
+          {preview.duplicateGroups.length > 0 && (
+            <div className="space-y-2 rounded-md border border-border/70 p-3">
+              <h3 className="section-label">{t("recruitment.responses.duplicatesTitle")}</h3>
+              <p className="text-xs text-muted-foreground">
+                {t("recruitment.responses.duplicatesHelp")}
+              </p>
+              <ul className="space-y-2">
+                {preview.duplicateGroups.map((g) => (
+                  <li key={g.email} className="text-sm">
+                    <p className="font-medium">{g.email}</p>
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                      {g.rowIndexes.map((i) => {
+                        const kept = i === g.winnerIndex
+                        return (
+                          <Button
+                            key={i}
+                            type="button"
+                            size="sm"
+                            variant={kept ? "default" : "outline"}
+                            disabled={pending}
+                            onClick={() => {
+                              const next = { ...duplicateOverrides, [g.email]: i }
+                              setDuplicateOverrides(next)
+                              if (activeId) doPreview(activeId, next)
+                            }}
+                          >
+                            {t("recruitment.responses.duplicateRow", { row: i + 1 })}
+                            {kept ? ` · ${t("recruitment.responses.duplicateKept")}` : ""}
+                          </Button>
+                        )
+                      })}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
 
           <div className="max-h-96 overflow-auto rounded-md border border-border/70">
