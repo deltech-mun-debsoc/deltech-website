@@ -52,6 +52,9 @@ export type PreviewResult =
       headers: string[]
       idempotencyKey: string
       alreadyApplied: boolean
+      // Emails that appeared more than once, so the operator can see which
+      // submission won and pick a different one before applying.
+      duplicateGroups: ImportPlan["duplicateGroups"]
     }
   | { ok: false; error: string }
 
@@ -190,6 +193,8 @@ function toPreviewRows(plan: ImportPlan, mapping: CandidateMapping): PreviewRow[
 export async function previewImport(input: {
   cycleId: string
   sourceId: string
+  // { email: rowIndex } chosen by the operator, overriding the automatic winner.
+  duplicateOverrides?: Record<string, number>
 }): Promise<PreviewResult> {
   try {
     await requireRecruitmentAction(input.cycleId, "import.preview")
@@ -204,12 +209,18 @@ export async function previewImport(input: {
     if (!mapping.success) return { ok: false, error: "This source's column mapping is incomplete." }
 
     const { rows, headers } = await fetchRows(source.csvUrl)
-    const plan = planImport(rows, mapping.data, await existingCandidates(input.cycleId))
+    const plan = planImport(
+      rows,
+      mapping.data,
+      await existingCandidates(input.cycleId),
+      input.duplicateOverrides ?? {},
+    )
     const key = importIdempotencyKey({
       cycleId: input.cycleId,
       sourceId: source.id,
       mapping: mapping.data,
       rows: rows as Record<string, string>[],
+      overrides: input.duplicateOverrides ?? {},
     })
     // Tell the operator up front that this exact content was already applied.
     const prior = await prisma.recruitmentImport.findUnique({
@@ -225,6 +236,7 @@ export async function previewImport(input: {
       headers,
       idempotencyKey: key,
       alreadyApplied: prior?.state === "APPLIED",
+      duplicateGroups: plan.duplicateGroups,
     }
   } catch (err) {
     if (err instanceof ImportError) return { ok: false, error: err.message }
@@ -253,6 +265,7 @@ export type ApplyResult =
 
 export async function applyImport(input: {
   cycleId: string
+  duplicateOverrides?: Record<string, number>
   sourceId: string
 }): Promise<ApplyResult> {
   try {
@@ -274,6 +287,7 @@ export async function applyImport(input: {
       sourceId: source.id,
       mapping: mapping.data,
       rows: rows as Record<string, string>[],
+      overrides: input.duplicateOverrides ?? {},
     })
 
     // Idempotency: the same sheet content applied twice returns the first result.
@@ -291,7 +305,12 @@ export async function applyImport(input: {
     }
 
     const cycleConfig = parseCycleConfig(ctx.cycle.config)
-    const plan = planImport(rows, mapping.data, await existingCandidates(input.cycleId))
+    const plan = planImport(
+      rows,
+      mapping.data,
+      await existingCandidates(input.cycleId),
+      input.duplicateOverrides ?? {},
+    )
 
     const result = await prisma.$transaction(
       async (tx) => {

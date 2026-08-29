@@ -693,7 +693,7 @@ async function main() {
           {
             candidateId: candidateId("candidate-gd-pending"),
             kind: SessionKind.GD,
-            attendance: Attendance.LATE,
+            attendance: Attendance.ABSENT,
             joinedAt: new Date("2026-08-05T10:06:00+05:30"),
             addedById: councilSenior.id,
           },

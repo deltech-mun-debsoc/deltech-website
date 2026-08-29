@@ -46,7 +46,7 @@ export async function GroupConsolePage({
 
   return (
     <div className="space-y-6">
-      <LiveRefresh cycleId={ctx.cycle.id} pollMs={10000} />
+      <LiveRefresh cycleId={ctx.cycle.id} pollMs={60000} />
 
       <RecruitmentPageHeader
         eyebrow={t(kind === "GD" ? "recruitment.groups.titleGd" : "recruitment.groups.titlePi")}

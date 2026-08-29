@@ -4,6 +4,7 @@ import * as React from "react"
 import { Select as SelectPrimitive } from "@base-ui/react/select"
 
 import { cn } from "@/lib/utils"
+import { useThemedPortalContainer } from "@/lib/theme-portal"
 import { ChevronDownIcon, CheckIcon, ChevronUpIcon } from "lucide-react"
 
 const Select = SelectPrimitive.Root
@@ -70,8 +71,17 @@ function SelectContent({
     SelectPrimitive.Positioner.Props,
     "align" | "alignOffset" | "side" | "sideOffset" | "alignItemWithTrigger"
   >) {
+  // Keep the popup inside the themed area shell: portalling to document.body
+  // would render it in <html>'s theme rather than this area's.
+  //
+  // `undefined` (not null) when the node is missing, so Base UI falls back to its
+  // own resolution: a PARENT portal if this select is inside one, else body.
+  // Passing a container unconditionally broke selects inside dialogs, which rely
+  // on being nested in the dialog's portal for focus and inert handling.
+  const container = useThemedPortalContainer()
+
   return (
-    <SelectPrimitive.Portal>
+    <SelectPrimitive.Portal container={container ?? undefined}>
       <SelectPrimitive.Positioner
         side={side}
         sideOffset={sideOffset}

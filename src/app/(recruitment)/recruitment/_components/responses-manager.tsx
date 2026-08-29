@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useEffect, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Download, RefreshCw } from "lucide-react"
@@ -40,6 +40,17 @@ const OUTCOME_TONE: Record<string, string> = {
   invalid: "bg-[var(--signal-soft)] text-[var(--ink-soft)]",
 }
 
+// The most human-readable thing that distinguishes two submissions from the same
+// person: the submission time when the sheet has one, else the first answer that
+// looks like a date, else nothing (the caller falls back to a row number).
+function describeSubmission(raw: Record<string, string>): string | null {
+  for (const [key, value] of Object.entries(raw)) {
+    if (!value?.trim()) continue
+    if (/timestamp|submitted|date|time/i.test(key)) return value.trim()
+  }
+  return null
+}
+
 export function ResponsesManager({
   cycleId,
   sources,
@@ -54,6 +65,9 @@ export function ResponsesManager({
   const router = useRouter()
   const [activeId, setActiveId] = useState(sources[0]?.id ?? null)
   const [preview, setPreview] = useState<PreviewResult | null>(null)
+  // { email: rowIndex } the operator picked for a duplicate, overriding the
+  // automatic (latest submission) winner.
+  const [duplicateOverrides, setDuplicateOverrides] = useState<Record<string, number>>({})
   const [pending, startTransition] = useTransition()
 
   // Source editor state (admins only).
@@ -63,9 +77,20 @@ export function ResponsesManager({
 
   const active = sources.find((s) => s.id === activeId) ?? null
 
-  function doPreview(sourceId: string) {
+  // The editor used to start empty with the stored values as PLACEHOLDERS, and
+  // saveSheetSource writes the mapping wholesale: adding a timestamp column meant
+  // retyping label, URL and every other field, and silently dropping whichever one
+  // you forgot. Seed from the source being edited instead.
+  useEffect(() => {
+    if (!active) return
+    setLabel(active.label)
+    setSheetUrl(active.sheetUrl)
+    setMapping(Object.fromEntries(Object.entries(active.mapping).filter(([, v]) => v)) as Record<string, string>)
+  }, [active])
+
+  function doPreview(sourceId: string, overrides = duplicateOverrides) {
     startTransition(async () => {
-      const result = await previewImport({ cycleId, sourceId })
+      const result = await previewImport({ cycleId, sourceId, duplicateOverrides: overrides })
       setPreview(result)
       if (!result.ok) toast.error(result.error)
     })
@@ -73,7 +98,7 @@ export function ResponsesManager({
 
   function doApply(sourceId: string) {
     startTransition(async () => {
-      const result = await applyImport({ cycleId, sourceId })
+      const result = await applyImport({ cycleId, sourceId, duplicateOverrides })
       if (!result.ok) {
         toast.error(result.error)
         return
@@ -100,7 +125,12 @@ export function ResponsesManager({
         cycleId,
         label,
         sheetUrl,
-        mapping: mapping as CandidateMapping,
+        // Empty strings are not "unmapped": z.string().min(1).optional() REJECTS
+        // "", which stored an unparseable source and hard-failed both preview and
+        // apply with "column mapping is incomplete".
+        mapping: Object.fromEntries(
+          Object.entries(mapping).filter(([, v]) => v.trim()),
+        ) as CandidateMapping,
       })
       if (!result.ok) {
         toast.error(result.error ?? t("recruitment.errors.generic"))
@@ -117,7 +147,7 @@ export function ResponsesManager({
   return (
     <div className="space-y-6">
       <section className="space-y-3">
-        <h2 className="data-label text-xs uppercase tracking-[0.12em] text-muted-foreground">
+        <h2 className="section-label">
           {t("recruitment.responses.sourcesTitle")}
         </h2>
 
@@ -152,7 +182,15 @@ export function ResponsesManager({
                       <Button
                         size="sm"
                         className="gap-1.5"
-                        disabled={pending}
+                        // Applying without previewing skipped the duplicate picker
+                        // entirely: an operator never saw that two submissions were
+                        // collapsed, let alone which one won.
+                        disabled={pending || !(preview?.ok && activeId === s.id)}
+                        title={
+                          preview?.ok && activeId === s.id
+                            ? undefined
+                            : t("recruitment.responses.previewFirst")
+                        }
                         onClick={() => doApply(s.id)}
                       >
                         <Download className="size-3.5" />
@@ -172,7 +210,7 @@ export function ResponsesManager({
       {preview?.ok && (
         <section className="space-y-3">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="data-label text-xs uppercase tracking-[0.12em] text-muted-foreground">
+            <h2 className="section-label">
               {t("recruitment.responses.previewTitle")}
             </h2>
             <p className="text-xs text-muted-foreground">{preview.summary}</p>
@@ -182,6 +220,55 @@ export function ResponsesManager({
             <p className="rounded-md bg-accent px-3 py-2 text-sm text-accent-foreground">
               {t("recruitment.responses.alreadyApplied")}
             </p>
+          )}
+
+          {preview.duplicateGroups.length > 0 && (
+            <div className="space-y-2 rounded-md border border-border/70 p-3">
+              <h3 className="section-label">{t("recruitment.responses.duplicatesTitle")}</h3>
+              <p className="text-xs text-muted-foreground">
+                {t("recruitment.responses.duplicatesHelp")}
+              </p>
+              <ul className="space-y-2">
+                {preview.duplicateGroups.map((g) => (
+                  <li key={g.email} className="text-sm">
+                    <p className="font-medium">{g.email}</p>
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                      {g.rowIndexes.map((i) => {
+                        const kept = i === g.winnerIndex
+                        const row = preview.rows.find((r) => r.index === i)
+                        // "Row 3 vs Row 17" is not a choice anyone can make. Show
+                        // what actually distinguishes the two submissions.
+                        const stamp = row ? describeSubmission(row.raw) : null
+                        return (
+                          <Button
+                            key={i}
+                            type="button"
+                            size="sm"
+                            variant={kept ? "default" : "outline"}
+                            className="h-auto flex-col items-start gap-0.5 py-1.5 text-left"
+                            disabled={pending}
+                            onClick={() => {
+                              const next = { ...duplicateOverrides, [g.email]: i }
+                              setDuplicateOverrides(next)
+                              if (activeId) doPreview(activeId, next)
+                            }}
+                          >
+                            <span className="text-xs font-medium">
+                              {stamp ?? t("recruitment.responses.duplicateRow", { row: i + 1 })}
+                            </span>
+                            <span className="text-[0.7rem] opacity-80">
+                              {kept
+                                ? t("recruitment.responses.duplicateKept")
+                                : t("recruitment.responses.duplicateUse")}
+                            </span>
+                          </Button>
+                        )
+                      })}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
 
           <div className="max-h-96 overflow-auto rounded-md border border-border/70">
@@ -236,7 +323,7 @@ export function ResponsesManager({
       {/* ---- Source configuration (admin only) ---- */}
       {canConfigure && (
         <section className="space-y-3">
-          <h2 className="data-label text-xs uppercase tracking-[0.12em] text-muted-foreground">
+          <h2 className="section-label">
             {t("recruitment.responses.addSource")}
           </h2>
           <Card className="space-y-4 p-4">

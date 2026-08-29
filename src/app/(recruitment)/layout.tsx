@@ -3,6 +3,7 @@ import { requireRecruitmentAccess } from "@/lib/recruitment/authz"
 import { cn } from "@/lib/utils"
 import { THEME_COOKIES, parseTheme, themeClass } from "@/lib/theme"
 import { AreaThemeToggle } from "@/components/theme/area-theme-toggle"
+import { ThemedPortalRoot } from "@/components/theme/themed-portal-root"
 import { SignOutButton } from "@/components/sign-out-button"
 import { t, type StringKey } from "@/content/strings"
 import { RecruitmentSidebar } from "./_components/recruitment-sidebar"
@@ -25,7 +26,7 @@ export default async function RecruitmentLayout({ children }: { children: React.
     return (
       <div className={cn("recruitment-shell min-h-svh bg-background", themeClass(theme))}>
         <div className="mx-auto flex min-h-svh max-w-lg flex-col items-center justify-center px-6 text-center">
-          <p className="data-label text-xs uppercase tracking-[0.12em] text-muted-foreground">
+          <p className="data-label text-muted-foreground">
             {t("recruitment.brand")}
           </p>
           <h1 className="mt-3 font-heading text-2xl">{t("recruitment.shell.noCycleTitle")}</h1>
@@ -35,6 +36,8 @@ export default async function RecruitmentLayout({ children }: { children: React.
             <SignOutButton />
           </div>
         </div>
+
+        <ThemedPortalRoot />
       </div>
     )
   }
@@ -71,6 +74,8 @@ export default async function RecruitmentLayout({ children }: { children: React.
           {children}
         </main>
       </div>
+
+      <ThemedPortalRoot />
     </div>
   )
 }

@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { t, type StringKey } from "@/content/strings"
 import type { RecruitmentRole } from "@/generated/prisma/client"
 import { assignRecruitmentMember, revokeRecruitmentMember } from "../actions"
@@ -67,7 +67,7 @@ export function CycleStaffPanel({
 
   return (
     <Card className="space-y-4 p-4">
-      <h2 className="data-label text-xs uppercase tracking-[0.12em] text-muted-foreground">
+      <h2 className="section-label">
         {t("recruitment.control.staffTitle")}
       </h2>
 
@@ -135,7 +135,9 @@ export function CycleStaffPanel({
             onValueChange={(v) => setRole((v ?? "JC") as RecruitmentRole)}
             disabled={disabled || pending}
           >
-            <SelectTrigger />
+            <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
             <SelectContent>
               {ROLES.map((r) => (
                 <SelectItem key={r} value={r}>

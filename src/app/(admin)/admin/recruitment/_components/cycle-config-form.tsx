@@ -56,7 +56,7 @@ export function CycleConfigForm({
     <div className="space-y-6">
       {/* ---- Stage rules ---- */}
       <Card className="space-y-4 p-4">
-        <h2 className="data-label text-xs uppercase tracking-[0.12em] text-muted-foreground">
+        <h2 className="section-label">
           {t("recruitment.control.stagesTitle")}
         </h2>
 
@@ -122,7 +122,7 @@ export function CycleConfigForm({
 
       {/* ---- Rubrics ---- */}
       <Card className="space-y-5 p-4">
-        <h2 className="data-label text-xs uppercase tracking-[0.12em] text-muted-foreground">
+        <h2 className="section-label">
           {t("recruitment.control.rubricTitle")}
         </h2>
 
@@ -142,7 +142,7 @@ export function CycleConfigForm({
 
       {/* ---- Society roles offered ---- */}
       <Card className="space-y-3 p-4">
-        <h2 className="data-label text-xs uppercase tracking-[0.12em] text-muted-foreground">
+        <h2 className="section-label">
           {t("recruitment.control.societyRolesTitle")}
         </h2>
         <p className="text-xs text-muted-foreground">

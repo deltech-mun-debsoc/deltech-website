@@ -55,7 +55,7 @@ export default async function ResponsesPage() {
 
   return (
     <div className="space-y-6">
-      <LiveRefresh cycleId={cycle.id} pollMs={30000} />
+      <LiveRefresh cycleId={cycle.id} />
 
       <RecruitmentPageHeader
         eyebrow={cycle.name}
@@ -78,7 +78,7 @@ export default async function ResponsesPage() {
       />
 
       <section className="space-y-3">
-        <h2 className="data-label text-xs uppercase tracking-[0.12em] text-muted-foreground">
+        <h2 className="section-label">
           {t("recruitment.responses.lastImport")}
         </h2>
         {imports.length === 0 ? (

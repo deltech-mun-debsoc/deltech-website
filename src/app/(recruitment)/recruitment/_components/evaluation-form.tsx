@@ -8,8 +8,9 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
-import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { t, type StringKey } from "@/content/strings"
+import { RECOMMENDATIONS_BY_KIND } from "@/lib/schemas/recruitment"
 import { validateScores, type EvaluationCriterion } from "@/lib/schemas/recruitment"
 import { saveEvaluationDraft, submitEvaluation } from "../evaluation-actions"
 
@@ -29,7 +30,6 @@ export interface ConsoleEvaluation {
   isMine: boolean
 }
 
-const RECOMMENDATIONS = ["ADVANCE", "HOLD", "REJECT", "SELECT", "RECONSIDER"] as const
 
 // One evaluator's scoring form plus the panel's other scores.
 //
@@ -71,7 +71,15 @@ export function EvaluationForm({
     Object.fromEntries(criteria.map((c) => [c.key, mine?.scores[c.key]?.toString() ?? ""])),
   )
   const [remarks, setRemarks] = useState(mine?.remarks ?? "")
-  const [recommendation, setRecommendation] = useState(mine?.recommendation ?? "")
+  const [recommendation, setRecommendation] = useState<string | null>(mine?.recommendation ?? null)
+
+  const recommendationItems = useMemo(
+    () =>
+      Object.fromEntries(
+        RECOMMENDATIONS_BY_KIND[kind].map((r) => [r, t(`recruitment.recommendation.${r}` as StringKey)]),
+      ),
+    [kind],
+  )
   const [pending, startTransition] = useTransition()
 
   const numericScores = useMemo(
@@ -135,7 +143,7 @@ export function EvaluationForm({
   return (
     <div className="space-y-4 rounded-md border border-border/70 bg-muted/30 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="data-label text-xs uppercase tracking-[0.12em] text-muted-foreground">
+        <p className="data-label text-muted-foreground">
           {t("recruitment.evaluation.title")}
         </p>
         <div className="flex items-center gap-3 text-xs">
@@ -198,14 +206,20 @@ export function EvaluationForm({
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">{t("recruitment.evaluation.recommendationLabel")}</Label>
+              {/* `items` is what lets the trigger render a LABEL. Base UI's
+                  Select.Item does not register its label with the trigger, so
+                  without this the trigger shows the raw enum ("ADVANCE"). */}
               <Select
+                items={recommendationItems}
                 value={recommendation}
-                onValueChange={(value) => setRecommendation(value ?? "")}
+                onValueChange={(value) => setRecommendation((value as string | null) ?? null)}
                 disabled={locked || pending}
               >
-                <SelectTrigger />
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder={t("recruitment.evaluation.recommendationPlaceholder")} />
+                </SelectTrigger>
                 <SelectContent>
-                  {RECOMMENDATIONS.map((r) => (
+                  {RECOMMENDATIONS_BY_KIND[kind].map((r) => (
                     <SelectItem key={r} value={r}>
                       {t(`recruitment.recommendation.${r}` as StringKey)}
                     </SelectItem>

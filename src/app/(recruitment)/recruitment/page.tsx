@@ -33,7 +33,7 @@ export default async function RecruitmentOverviewPage() {
       />
 
       <section className="space-y-3">
-        <h2 className="data-label text-xs uppercase tracking-[0.12em] text-muted-foreground">
+        <h2 className="section-label">
           {t("recruitment.overview.upcoming")}
         </h2>
 
@@ -57,7 +57,7 @@ export default async function RecruitmentOverviewPage() {
 
                   <div className="flex items-end justify-between gap-3">
                     <div>
-                      <p className="data-label text-xs uppercase tracking-[0.12em] text-muted-foreground">
+                      <p className="data-label text-muted-foreground">
                         {t("recruitment.session.elapsed")}
                       </p>
                       <SessionTimer session={s.timer} className="text-2xl" />
@@ -77,7 +77,7 @@ export default async function RecruitmentOverviewPage() {
       </section>
 
       <section className="space-y-3">
-        <h2 className="data-label text-xs uppercase tracking-[0.12em] text-muted-foreground">
+        <h2 className="section-label">
           {t("recruitment.overview.pendingEvaluations")}
         </h2>
 

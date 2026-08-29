@@ -63,7 +63,7 @@ export default async function AdminRecruitmentPage() {
 
       {/* ---- Cycles ---- */}
       <section className="space-y-3">
-        <h2 className="data-label text-xs uppercase tracking-[0.12em] text-muted-foreground">
+        <h2 className="section-label">
           {t("recruitment.control.cyclesTitle")}
         </h2>
         {cycles.length === 0 ? (
@@ -109,7 +109,7 @@ export default async function AdminRecruitmentPage() {
         <>
           <section className="space-y-3">
             <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h2 className="data-label text-xs uppercase tracking-[0.12em] text-muted-foreground">
+              <h2 className="section-label">
                 {t("recruitment.control.monitorTitle")} · {focus.name}
               </h2>
               <p className="text-xs text-muted-foreground">
@@ -166,7 +166,7 @@ export default async function AdminRecruitmentPage() {
           {/* ---- Live session table ---- */}
           {sessions.length > 0 && (
             <section className="space-y-3">
-              <h2 className="data-label text-xs uppercase tracking-[0.12em] text-muted-foreground">
+              <h2 className="section-label">
                 {t("recruitment.monitor.sessionsActive")}
               </h2>
               <div className="overflow-x-auto rounded-md border border-border/70">
@@ -283,7 +283,7 @@ function Stat({
         emphasis && value > 0 && "bg-[var(--teal-100)] text-[var(--teal-700)]",
       )}
     >
-      <p className="data-label text-xs uppercase tracking-[0.12em] opacity-70">{t(label)}</p>
+      <p className="data-label opacity-70">{t(label)}</p>
       <p className="mt-0.5 font-mono text-2xl tabular-nums">{value}</p>
     </Card>
   )
