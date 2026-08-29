@@ -5,8 +5,10 @@
 // detection, invalid rows surfaced rather than dropped, and manual candidate edits
 // never silently overwritten.
 import assert from "node:assert"
+import { readFileSync } from "node:fs"
 import {
   importIdempotencyKey,
+  parseRowTimestamp,
   normalizeHeaders,
   planImport,
   prepareRow,
@@ -181,8 +183,13 @@ assert.equal(matchedByEmail.rows[0].candidateId, "cand9")
 const dupes = planImport([sheetRow(), sheetRow({ Branch: "ECE" })], mapping, [])
 assert.equal(dupes.counts.create, 1)
 assert.equal(dupes.counts.skipDuplicate, 1)
-assert.equal(dupes.rows[1].outcome, "skip-duplicate")
-assert.ok(dupes.rows[1].errors?.[0].includes("asha@gmail.com"))
+// With no timestamp mapped the LAST row wins: a response sheet appends, so the
+// later row is the newer submission. It used to be the first, which meant a
+// resubmitted correction was the one thrown away.
+assert.equal(dupes.rows[0].outcome, "skip-duplicate")
+assert.equal(dupes.rows[1].outcome, "create")
+assert.equal(dupes.rows[1].changes?.branch, "ECE", "the surviving row is the later one")
+assert.ok(dupes.rows[0].errors?.[0].includes("asha@gmail.com"))
 // Case and typo differences still collapse to the same identity.
 const dupesFuzzy = planImport([sheetRow(), sheetRow({ "Email Address": "  Asha@GMAIL.com " })], mapping, [])
 assert.equal(dupesFuzzy.counts.create, 1)
@@ -250,5 +257,113 @@ for (const plan of [firstRun, rerun, edited, dupes, mixed, respectful, empty]) {
 }
 
 assert.ok(summarisePlan(mixed).includes("3 rows"))
+
+// ---------------------------------------------------------------------------
+// Duplicate resolution: latest submission wins, and the operator can override
+// ---------------------------------------------------------------------------
+//
+// The old rule kept whichever row came FIRST. On a form response sheet that is
+// the OLDEST submission, so someone who resubmitted to correct their answers had
+// the correction silently discarded.
+{
+  const mapping = {
+    fullName: "Name",
+    email: "Email",
+    timestamp: "Timestamp",
+  } as unknown as CandidateMapping
+
+  const rows = [
+    { Name: "Asha Old", Email: "asha@example.com", Timestamp: "8/24/2026 10:14:00" },
+    { Name: "Bo Only", Email: "bo@example.com", Timestamp: "8/24/2026 11:00:00" },
+    { Name: "Asha New", Email: "asha@example.com", Timestamp: "8/26/2026 18:52:00" },
+  ]
+
+  const plan = planImport(rows, mapping, [])
+  const created = plan.rows.filter((r) => r.outcome === "create")
+  assert.equal(created.length, 2, "one row per person")
+  assert.ok(
+    created.some((r) => r.candidate?.fullName === "Asha New"),
+    "the LATER submission must win, not the first one in the sheet",
+  )
+  assert.equal(plan.counts.skipDuplicate, 1)
+
+  const group = plan.duplicateGroups.find((g) => g.email === "asha@example.com")
+  assert.ok(group, "the duplicate must be reported, not silently dropped")
+  assert.equal(group!.byTimestamp, true, "and reported as resolved by timestamp")
+  assert.equal(group!.winnerIndex, 2)
+  assert.equal(group!.rowIndexes[0], 2, "the winner is listed first for the preview")
+
+  // The operator overrides the automatic choice.
+  const forced = planImport(rows, mapping, [], { "asha@example.com": 0 })
+  assert.ok(
+    forced.rows.some((r) => r.outcome === "create" && r.candidate?.fullName === "Asha Old"),
+    "an explicit override must beat the timestamp",
+  )
+
+  // With no timestamp mapped, fall back to the LAST row rather than the first:
+  // a response sheet appends, so the last row is the newest submission.
+  const noStamp = { fullName: "Name", email: "Email" } as unknown as CandidateMapping
+  const fallback = planImport(rows, noStamp, [])
+  const fbGroup = fallback.duplicateGroups.find((g) => g.email === "asha@example.com")!
+  assert.equal(fbGroup.byTimestamp, false)
+  assert.equal(fbGroup.winnerIndex, 2, "last row wins when there is no timestamp")
+}
+
+// Timestamp parsing has to survive the formats Sheets and the CSV reader produce.
+// A month/day swap would pick the wrong submission for 12 days of every year.
+{
+  const iso = (v: string) => new Date(parseRowTimestamp(v)!).toISOString()
+
+  assert.equal(iso("8/24/2026 20:32:29"), "2026-08-24T20:32:29.000Z", "US order with time")
+  assert.equal(iso("8/24/26"), "2026-08-24T00:00:00.000Z", "two-digit year, time dropped by the reader")
+  assert.equal(iso("24/8/2026 20:32:29"), "2026-08-24T20:32:29.000Z", "day-first when >12 disambiguates")
+  assert.equal(iso("2026-08-24T20:32:29"), "2026-08-24T20:32:29.000Z", "ISO")
+
+  // Ordering within a day must survive, or same-day resubmissions tie.
+  assert.ok(
+    parseRowTimestamp("8/24/2026 20:33:37")! > parseRowTimestamp("8/24/2026 20:32:29")!,
+    "same-day submissions must stay ordered",
+  )
+
+  assert.equal(parseRowTimestamp(""), null)
+  assert.equal(parseRowTimestamp(undefined), null)
+  assert.equal(parseRowTimestamp("not a date"), null)
+}
+
+// The idempotency key must change when the operator picks a different winner,
+// or the corrected import would be swallowed as a repeat of the first one.
+{
+  const args = {
+    cycleId: "c1",
+    sourceId: "s1",
+    mapping: { fullName: "Name", email: "Email" } as unknown as CandidateMapping,
+    rows: [{ Name: "A", Email: "a@example.com" }],
+  }
+  assert.notEqual(
+    importIdempotencyKey({ ...args, overrides: { "a@example.com": 0 } }),
+    importIdempotencyKey({ ...args, overrides: { "a@example.com": 1 } }),
+    "a different duplicate choice is a different import",
+  )
+  assert.equal(
+    importIdempotencyKey(args),
+    importIdempotencyKey({ ...args, overrides: {} }),
+    "no overrides must hash the same as an empty override map",
+  )
+}
+
+// Prisma's `string_contains` matches a string VALUE at a JSON path, NOT anywhere
+// in the document, so using it to search a whole form response silently returned
+// nothing. Verified against 254 real candidates: it found 0 for terms present in
+// 19 of them. The candidate list must therefore use a raw text search.
+{
+  const page = readFileSync("src/app/(recruitment)/recruitment/candidates/page.tsx", "utf8")
+  assert.doesNotMatch(
+    page,
+    /formAnswers: \{ string_contains/,
+    "string_contains cannot search a whole JSON document: use the raw text search",
+  )
+  assert.match(page, /formAnswerMatches/, "the candidate list must search inside form answers")
+  assert.match(page, /"formAnswers"::text ILIKE/, "and must do it with a text match")
+}
 
 console.log("recruitment import checks passed (identity, idempotency, duplicates, manual-edit protection)")
