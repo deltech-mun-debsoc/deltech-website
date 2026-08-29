@@ -6,10 +6,14 @@ interface Props {
   durationSeconds: number
   running: boolean
   accentColor: string
+  trackColor?: string
   onExpire?: () => void
 }
 
-export function CountdownRing({ durationSeconds, running, accentColor, onExpire }: Props) {
+export function CountdownRing({ durationSeconds, running, accentColor,
+  // Derived from the theme by the caller: the ring used to hardcode a white
+  // track, invisible on the light preset themes.
+  trackColor = "rgba(128,128,128,0.25)", onExpire }: Props) {
   const [remaining, setRemaining] = useState(durationSeconds)
   const startRef = useRef<number | null>(null)
   const rafRef = useRef<number | undefined>(undefined)
@@ -64,7 +68,7 @@ export function CountdownRing({ durationSeconds, running, accentColor, onExpire 
       style={{ width: 112, height: 112 }}
     >
       <svg width={112} height={112} className="-rotate-90">
-        <circle cx={56} cy={56} r={r} strokeWidth={8} stroke="rgba(255,255,255,0.15)" fill="none" />
+        <circle cx={56} cy={56} r={r} strokeWidth={8} stroke={trackColor} fill="none" />
         <circle
           cx={56}
           cy={56}

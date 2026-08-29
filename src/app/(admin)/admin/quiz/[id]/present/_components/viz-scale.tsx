@@ -1,6 +1,7 @@
 "use client"
 
 import type { ScaleTally, ScaleConfig, PresentationTheme } from "@/lib/quiz-types"
+import { quizSurface } from "@/lib/quiz-theme"
 
 interface Props {
   tally: ScaleTally
@@ -9,6 +10,7 @@ interface Props {
 }
 
 export function VizScale({ tally, config, theme }: Props) {
+  const surface = quizSurface(theme)
   const { statements, min, max, minLabel, maxLabel } = config
   const { averages } = tally
   const range = max - min
@@ -28,7 +30,7 @@ export function VizScale({ tally, config, theme }: Props) {
         return (
           <div key={i} className="space-y-2">
             <p className="text-sm" style={{ color: theme.textColor }}>{stmt}</p>
-            <div className="relative h-2 w-full rounded-full" style={{ background: "rgba(255,255,255,0.15)" }}>
+            <div className="relative h-2 w-full rounded-full" style={{ background: surface.track }}>
               <div
                 className="absolute inset-y-0 left-0 rounded-full transition-all duration-700"
                 style={{ width: `${pct}%`, background: theme.accentColor }}
