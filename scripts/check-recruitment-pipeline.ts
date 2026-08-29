@@ -21,6 +21,7 @@ import {
   evaluationInputSchema,
   RECOMMENDATIONS_BY_KIND,
   recommendationAllowed,
+  resolvePanelRecommendation,
 } from "../src/lib/schemas/recruitment"
 
 function at(stage: CandidateStageName, over: Partial<CandidateSnapshot> = {}): CandidateSnapshot {
@@ -85,7 +86,7 @@ assert.equal(
 {
   const src = readFileSync("src/app/(recruitment)/recruitment/session-actions.ts", "utf8")
 
-  assert.match(src, /nextNaturalStage\(/, "finish must derive the next stage, never hardcode PI_PENDING")
+  assert.match(src, /finishRecommendations/, "finish must resolve submitted panel recommendations")
   assert.match(
     src,
     /tx\.recruitmentHandoff\.create/,
@@ -93,23 +94,23 @@ assert.equal(
   )
   assert.match(
     src,
-    /row\.kind === "PI"[\s\S]*?m\.attendance === "ABSENT"[\s\S]*?m\.attendance === "EXPECTED" \|\| m\.attendance === "ABSENT"/,
-    "PI and GD no-shows must use their correct attendance rules",
+    /recommendation !== "REJECT" && candidate\.piRequired/,
+    "Selected and Hold must move a GD candidate into PI",
   )
   assert.match(
     src,
-    /m\.attendance === "PRESENT" \|\| m\.attendance === "LATE"/,
-    "only confirmed attendees may advance when a session finishes",
+    /recommendation === "SELECT"[\s\S]*?"SELECTED"[\s\S]*?recommendation === "HOLD"[\s\S]*?"ON_HOLD"/,
+    "PI recommendations must become final candidate results",
   )
   assert.match(
     src,
-    /if \(candidate\.result !== "PENDING"\) continue/,
-    "a decided candidate must not be resurrected into the next queue by a session finish",
+    /Submit a Selected, Hold, or Reject recommendation for every candidate/,
+    "a session must not finish with an unassessed candidate",
   )
   assert.match(
     src,
-    /if \(!to \|\| to === "DECISION"\) continue/,
-    "auto-advance must stop before DECISION, which is a human call",
+    /reason: `\$\{recommendation\} panel recommendation applied/,
+    "the applied panel recommendation must be auditable",
   )
 }
 
@@ -137,16 +138,21 @@ assert.equal(
   assert.match(button, /moveCandidateStage/, "the button must call the audited action")
 }
 
-// --- recommendations stop before PI -----------------------------------------
+// --- both rounds use one three-way recommendation ----------------------------
 {
-  assert.ok(!RECOMMENDATIONS_BY_KIND.GD.includes("SELECT" as never), "GD must not offer SELECT")
-  assert.equal(recommendationAllowed("GD", "SELECT"), false)
-  for (const r of ["ADVANCE", "HOLD", "REJECT", "SELECT", "RECONSIDER"] as const) {
-    assert.equal(recommendationAllowed("PI", r), false, `PI must not offer ${r}`)
+  for (const kind of ["GD", "PI"] as const) {
+    assert.deepEqual(RECOMMENDATIONS_BY_KIND[kind], ["SELECT", "HOLD", "REJECT"])
+    for (const r of ["SELECT", "HOLD", "REJECT"] as const) {
+      assert.equal(recommendationAllowed(kind, r), true, `${kind} must allow ${r}`)
+    }
+    for (const r of ["ADVANCE", "RECONSIDER"] as const) {
+      assert.equal(recommendationAllowed(kind, r), false, `${kind} must reject legacy ${r}`)
+    }
   }
-  for (const r of ["ADVANCE", "HOLD", "REJECT", "RECONSIDER"] as const) {
-    assert.equal(recommendationAllowed("GD", r), true, `GD must still allow ${r}`)
-  }
+  assert.equal(resolvePanelRecommendation([]), null)
+  assert.equal(resolvePanelRecommendation(["SELECT"]), "SELECT")
+  assert.equal(resolvePanelRecommendation(["SELECT", "SELECT", "REJECT"]), "SELECT")
+  assert.equal(resolvePanelRecommendation(["SELECT", "REJECT"]), "HOLD")
 
   // The form must read the kind prop it receives rather than a fixed list, and the
   // server must refuse a forged value rather than trusting the UI.
@@ -155,7 +161,7 @@ assert.equal(
     "utf8",
   )
   assert.match(form, /RECOMMENDATIONS_BY_KIND\[kind\]/, "the form must scope options by session kind")
-  assert.match(form, /kind === "GD" && <div/, "the recommendation picker must render only for GD")
+  assert.match(form, /!recommendation/, "submission must require a recommendation")
 
   const actions = readFileSync("src/app/(recruitment)/recruitment/evaluation-actions.ts", "utf8")
   assert.match(
@@ -165,8 +171,8 @@ assert.equal(
   )
   assert.match(
     actions,
-    /target\.kind === "PI" && data\.recommendation/,
-    "a stale client must not persist an interview recommendation",
+    /Choose Selected, Hold, or Reject before submitting/,
+    "the server must require a recommendation before submission",
   )
 }
 
@@ -210,14 +216,13 @@ assert.equal(
   )
   assert.match(evaluation, /items=\{recommendationItems\}/, "the trigger must resolve labels via items")
 
-  // Attendance stays unconfirmed until an operator records an arrival. A
-  // forgotten no-show must return to the queue, never advance automatically.
+  // Attendance is internal history, not an operator task in either round.
   const console_ = readFileSync(
     "src/app/(recruitment)/recruitment/_components/session-console.tsx",
     "utf8",
   )
-  assert.match(console_, /"EXPECTED"/, "attendance must retain an unconfirmed state")
-  assert.match(console_, /<SelectValue/, "attendance must expose an explicit picker")
+  assert.doesNotMatch(console_, /setAttendance/, "the console must not expose attendance controls")
+  assert.doesNotMatch(console_, /AttendanceBadge/, "the console must not display attendance state")
 
   const schema = readFileSync("prisma/schema.prisma", "utf8")
   assert.match(schema, /attendance\s+Attendance\s+@default\(EXPECTED\)/, "new seats start unconfirmed")
@@ -228,13 +233,13 @@ assert.equal(
   )
   assert.match(
     sessionActions,
-    /row\.kind === "PI"[\s\S]*?m\.attendance !== "ABSENT"/,
-    "a started one-to-one interview must complete unless explicitly marked absent",
+    /attendance: \{ not: "REASSIGNED" \}[\s\S]*?attendance: "PRESENT"/,
+    "starting any rostered session must confirm its candidates automatically",
   )
   assert.match(
     sessionActions,
-    /if \(row\.kind === "PI"\)[\s\S]*?attendance: "PRESENT"/,
-    "starting an interview must confirm attendance",
+    /const present = members\.map/,
+    "finishing must consider the full non-reassigned roster",
   )
   assert.match(
     sessionActions,
@@ -270,7 +275,12 @@ assert.equal(
     "src/app/(recruitment)/recruitment/_components/candidates-list.tsx",
     "utf8",
   )
-  assert.match(candidatesList, /view === "selected"/, "candidate list must expose its selected tab")
+  assert.match(candidatesList, /view === "final"/, "candidate list must expose final selections")
+  assert.match(
+    candidatesList,
+    /c\.result !== "SELECTED" && c\.result !== "ON_HOLD"/,
+    "final selections must include Selected and Hold",
+  )
   assert.match(candidatesList, /<Link[\s\S]*?prefetch/, "dossier links must preload their route")
   assert.match(
     candidatesList,
@@ -292,12 +302,13 @@ assert.equal(
   assert.match(
     postInterviewDecision,
     /setCandidateResult/,
-    "post-interview decisions must write the result used by the Selected tab",
+    "post-interview decisions must write the result used by Final selections",
   )
+  assert.match(finalisation, /finalFilter/, "final selections must be filterable")
   assert.match(
-    console_,
-    /group\.kind === "GD" && \([\s\S]*?<Select/,
-    "attendance remains available for GD no-shows but must not clutter interviews",
+    finalisation,
+    /PostInterviewDecision/,
+    "final selections decisions must remain editable",
   )
 
   const evaluationActions = readFileSync(
@@ -317,4 +328,4 @@ assert.equal(
   assert.match(consoleQueries, /previousGdAttempts/, "judges must see earlier completed GD attempts")
 }
 
-console.log("recruitment pipeline checks passed (GD->PI advance, absentees, GD recommendations, popups)")
+console.log("recruitment pipeline checks passed (three-way decisions, final selections, popups)")

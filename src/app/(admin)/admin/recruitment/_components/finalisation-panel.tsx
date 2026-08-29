@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Mail } from "lucide-react"
 import { t } from "@/content/strings"
 import { recruitCandidate } from "../actions"
+import { PostInterviewDecision } from "@/app/(recruitment)/recruitment/_components/post-interview-decision"
 
 // The second half of finalisation: turning a SELECTED candidate into a society
 // member. Kept visibly separate from the selection decision itself, because they are
@@ -18,18 +19,22 @@ import { recruitCandidate } from "../actions"
 // Safe to retry: the server returns the existing membership if one already exists,
 // so a double-click reports "already added" rather than creating a second user.
 export function FinalisationPanel({
-  selected,
+  cycleId,
+  finalists,
   awaiting,
   recruited,
   recruitmentComplete,
   disabled,
 }: {
-  selected: {
+  cycleId: string
+  finalists: {
     id: string
     fullName: string
     email: string
     addedToSociety: boolean
     decidedAt: string | null
+    result: string
+    version: number
   }[]
   awaiting: { id: string; fullName: string; email: string; stage: string }[]
   recruited: {
@@ -44,8 +49,12 @@ export function FinalisationPanel({
 }) {
   const router = useRouter()
   const [designation, setDesignation] = useState<Record<string, string>>({})
+  const [finalFilter, setFinalFilter] = useState<"ALL" | "SELECTED" | "ON_HOLD">("ALL")
   const [busy, setBusy] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
+  const visibleFinalists = finalists.filter(
+    (candidate) => finalFilter === "ALL" || candidate.result === finalFilter,
+  )
 
   function recruit(candidateId: string) {
     setBusy(candidateId)
@@ -84,7 +93,7 @@ export function FinalisationPanel({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <p className="text-sm font-medium">
-              {t("recruitment.control.finalSelectedTitle")} · {selected.length}
+              {t("recruitment.control.finalSelectedTitle")} · {finalists.length}
             </p>
             <p className="mt-1 text-xs text-muted-foreground">
               {t("recruitment.control.finalSelectedDescription")}
@@ -104,13 +113,31 @@ export function FinalisationPanel({
           )}
         </p>
 
-        {selected.length === 0 ? (
+        <div className="flex flex-wrap gap-2" aria-label="Filter final selections">
+          {([
+            ["ALL", "All"],
+            ["SELECTED", "Selected"],
+            ["ON_HOLD", "Hold"],
+          ] as const).map(([value, label]) => (
+            <Button
+              key={value}
+              type="button"
+              size="sm"
+              variant={finalFilter === value ? "default" : "outline"}
+              onClick={() => setFinalFilter(value)}
+            >
+              {label}
+            </Button>
+          ))}
+        </div>
+
+        {visibleFinalists.length === 0 ? (
           <p className="text-sm text-muted-foreground">
             {t("recruitment.control.noFinalSelected")}
           </p>
         ) : (
           <ul className="divide-y divide-border/70">
-            {selected.map((candidate) => (
+            {visibleFinalists.map((candidate) => (
               <li
                 key={candidate.id}
                 className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"
@@ -120,6 +147,17 @@ export function FinalisationPanel({
                   <p className="truncate text-xs text-muted-foreground">{candidate.email}</p>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
+                  <Badge variant={candidate.result === "SELECTED" ? "default" : "secondary"}>
+                    {candidate.result === "SELECTED" ? "Selected" : "Hold"}
+                  </Badge>
+                  <PostInterviewDecision
+                    cycleId={cycleId}
+                    candidateId={candidate.id}
+                    currentResult={candidate.result}
+                    version={candidate.version}
+                    canHold={!disabled}
+                    canFinalise={!disabled}
+                  />
                   <Badge variant="outline">
                     {t(
                       candidate.addedToSociety

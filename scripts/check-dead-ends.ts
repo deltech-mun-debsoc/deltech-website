@@ -104,6 +104,15 @@ for (const route of [
   }
 }
 
+// --- deleting a team card never crashes the whole admin page --------------
+{
+  const actions = read("src/app/(admin)/admin/team/actions.ts")
+  assert.match(actions, /try \{[\s\S]*?requireAdmin\(\)/, "authorization failures must be contained")
+  assert.match(actions, /member\.deleteMany/, "team deletion must be safe to retry from a stale tab")
+  assert.match(actions, /revalidatePath\("\/admin\/team"\)/, "the admin roster must refresh")
+  assert.match(actions, /revalidatePath\("\/team"\)/, "the public roster must refresh")
+}
+
 // --- a quiz nickname collision is caught, not silently absorbed -----------
 //
 // Two people typing "Arnav" merged into one leaderboard row, and the second

@@ -7,20 +7,18 @@ import { toast } from "sonner"
 import { Pause, Play, Square, TriangleAlert, Users } from "lucide-react"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { cn } from "@/lib/utils"
-import { t, type StringKey } from "@/content/strings"
+import { t } from "@/content/strings"
 import type { EvaluationCriterion } from "@/lib/schemas/recruitment"
 import type { SessionDisplayState } from "@/lib/recruitment/session"
 import { SessionTimer } from "../../_components/session-timer"
-import { AttendanceBadge, SessionStateBadge, StageBadge } from "../../_components/status-badges"
+import { SessionStateBadge, StageBadge } from "../../_components/status-badges"
 import { useRecruitmentLive } from "@/components/recruitment/use-recruitment-live"
 import {
   abortSession,
   finishSession,
   pauseSession,
   resumeSession,
-  setAttendance,
   startSession,
   takeSessionControl,
   type SerializedSession,
@@ -61,8 +59,7 @@ export interface SessionConsoleProps {
   }
 }
 
-// The live session console: server-authoritative timer, roster, attendance and
-// per-evaluator scoring.
+// The live session console: server-authoritative timer, roster and scoring.
 //
 // Every control action returns the server's current session state. On conflict we
 // adopt that state rather than retrying, which is what makes a queued click from a
@@ -291,7 +288,6 @@ export function SessionConsole({
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-medium">{m.candidate.fullName}</p>
                       <StageBadge stage={m.candidate.stage} />
-                      {group.kind === "GD" && <AttendanceBadge attendance={m.attendance} />}
                       {group.kind === "GD" && m.previousGdAttempts > 0 && (
                         <span className="inline-flex items-center gap-1 rounded-full bg-[var(--signal-soft)] px-2 py-0.5 text-xs text-[var(--ink-soft)]">
                           <TriangleAlert className="size-3" />
@@ -309,37 +305,6 @@ export function SessionConsole({
                   </div>
 
                   <div className="flex shrink-0 items-center gap-2">
-                    {group.kind === "GD" && (
-                      <Select
-                        value={m.attendance}
-                        disabled={pending}
-                        onValueChange={(value) =>
-                          startTransition(async () => {
-                            const result = await setAttendance({
-                              groupMemberId: m.id,
-                              attendance: value as "EXPECTED" | "PRESENT" | "LATE" | "ABSENT",
-                            })
-                            if (!result.ok) toast.error(result.error ?? t("recruitment.errors.generic"))
-                            else {
-                              notify("candidate")
-                              router.refresh()
-                            }
-                          })
-                        }
-                      >
-                        <SelectTrigger className="h-8 w-[8.5rem] text-xs">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {["EXPECTED", "PRESENT", "LATE", "ABSENT"].map((a) => (
-                            <SelectItem key={a} value={a}>
-                              {t(`recruitment.attendance.${a}` as StringKey)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )}
-
                     <Link
                       href={`/recruitment/candidates/${m.candidate.id}`}
                       prefetch
@@ -360,7 +325,7 @@ export function SessionConsole({
                   evaluations={m.evaluations}
                   panelists={panelists}
                   viewerId={viewerId}
-                  canEvaluate={permissions.evaluate && m.attendance !== "ABSENT"}
+                  canEvaluate={permissions.evaluate}
                   canRevise={permissions.revise}
                   canViewOthers={permissions.viewOthers}
                   onSaved={() => notify("evaluation")}

@@ -10,13 +10,13 @@ import { setCandidateResult } from "../candidate-actions"
 import type { CandidateResultName } from "@/lib/recruitment/transitions"
 
 const DECISIONS: { result: Extract<CandidateResultName, "SELECTED" | "ON_HOLD" | "REJECTED">; label: string }[] = [
-  { result: "SELECTED", label: "Select" },
-  { result: "ON_HOLD", label: "Under consideration" },
+  { result: "SELECTED", label: "Selected" },
+  { result: "ON_HOLD", label: "Hold" },
   { result: "REJECTED", label: "Reject" },
 ]
 
 // The interview is the final assessment. There is no separate "advance to
-// decision" step: these buttons apply the actual outcome and the Selected tab
+// decision" step: these buttons apply the actual outcome and the Final selections tab
 // reads that same result, so the two screens cannot drift apart.
 export function PostInterviewDecision({
   cycleId,

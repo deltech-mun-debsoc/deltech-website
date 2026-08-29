@@ -3,6 +3,7 @@
 import { prisma } from "@/lib/prisma"
 import { requireStaff, requireAdmin } from "@/lib/authz"
 import { audit } from "@/lib/audit"
+import { revalidatePath } from "next/cache"
 
 export interface MemberData {
   name: string
@@ -75,10 +76,14 @@ export async function updateMember(
 }
 
 export async function deleteMember(id: string): Promise<{ success: boolean; error?: string }> {
-  const session = await requireAdmin()
   try {
-    await prisma.member.delete({ where: { id } })
+    const session = await requireAdmin()
+    // deleteMany makes retries and stale tabs safe: the desired state is
+    // "member absent", whether this click or an earlier one removed the row.
+    await prisma.member.deleteMany({ where: { id } })
     await audit(session.user?.email ?? "unknown", "member.delete", "Member", id)
+    revalidatePath("/admin/team")
+    revalidatePath("/team")
     return { success: true }
   } catch (err) {
     return memberError(err, "Failed to delete member.")

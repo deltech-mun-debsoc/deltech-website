@@ -122,16 +122,15 @@ async function saveEvaluation(
       ctx = await requireRecruitmentAction(target.cycleId, action)
     }
 
-    if (target.kind === "PI" && data.recommendation) {
+    if (mode === "submit" && !data.recommendation) {
       return {
         ok: false,
-        error:
-          "Interview evaluations do not use recommendations. Finish the interview, then choose the final outcome.",
+        error: "Choose Selected, Hold, or Reject before submitting.",
       }
     }
 
-    // SELECT is a hiring decision and a GD panel does not make one. The form
-    // already hides it, but a stale client or a direct call must be refused too.
+    // The form offers the round's options, but stale clients and direct calls
+    // still have to pass the same server-owned allow-list.
     if (data.recommendation && !recommendationAllowed(target.kind, data.recommendation)) {
       return {
         ok: false,

@@ -135,12 +135,11 @@ export const sheetSourceSchema = z.object({
 
 export const recommendationSchema = z.enum(["ADVANCE", "HOLD", "REJECT", "SELECT", "RECONSIDER"])
 
-// A recommendation is useful during GD as a handoff into PI. An interview is
-// already the last assessment, so its evaluator records scores and remarks; the
-// authorised Select / Under consideration / Reject decision happens afterwards.
+// Both assessment rounds use the same small vocabulary. The session finish
+// resolves panel votes and applies the resulting transition atomically.
 export const RECOMMENDATIONS_BY_KIND = {
-  GD: ["ADVANCE", "HOLD", "REJECT", "RECONSIDER"],
-  PI: [],
+  GD: ["SELECT", "HOLD", "REJECT"],
+  PI: ["SELECT", "HOLD", "REJECT"],
 } as const satisfies Record<"GD" | "PI", readonly z.infer<typeof recommendationSchema>[]>
 
 export function recommendationAllowed(
@@ -148,6 +147,27 @@ export function recommendationAllowed(
   recommendation: z.infer<typeof recommendationSchema>,
 ): boolean {
   return (RECOMMENDATIONS_BY_KIND[kind] as readonly string[]).includes(recommendation)
+}
+
+export type PanelRecommendation = "SELECT" | "HOLD" | "REJECT"
+
+// A clear panel majority wins. Any tie is held for a human decision instead of
+// silently rejecting or advancing somebody on an arbitrary evaluator order.
+export function resolvePanelRecommendation(
+  recommendations: readonly (PanelRecommendation | null | undefined)[],
+): PanelRecommendation | null {
+  const votes = recommendations.filter((value): value is PanelRecommendation =>
+    value === "SELECT" || value === "HOLD" || value === "REJECT",
+  )
+  if (votes.length === 0) return null
+
+  const counts: Record<PanelRecommendation, number> = { SELECT: 0, HOLD: 0, REJECT: 0 }
+  for (const vote of votes) counts[vote] += 1
+  const highest = Math.max(...Object.values(counts))
+  const leaders = (Object.keys(counts) as PanelRecommendation[]).filter(
+    (recommendation) => counts[recommendation] === highest,
+  )
+  return leaders.length === 1 ? leaders[0] : "HOLD"
 }
 
 export const evaluationInputSchema = z.object({

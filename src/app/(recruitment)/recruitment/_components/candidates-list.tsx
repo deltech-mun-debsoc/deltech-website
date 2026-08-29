@@ -92,12 +92,12 @@ export function CandidatesList({
   const [query, setQuery] = useState("")
   const [stage, setStage] = useState("")
   const [result, setResult] = useState("")
-  const [view, setView] = useState<"all" | "selected">("all")
+  const [view, setView] = useState<"all" | "final">("all")
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase()
     return candidates.filter((c) => {
-      if (view === "selected" && c.result !== "SELECTED") return false
+      if (view === "final" && c.result !== "SELECTED" && c.result !== "ON_HOLD") return false
       if (stage && c.stage !== stage) return false
       if (result && c.result !== result) return false
       if (!q) return true
@@ -120,15 +120,17 @@ export function CandidatesList({
         <button
           type="button"
           className={cn(
-            buttonVariants({ variant: view === "selected" ? "default" : "ghost", size: "sm" }),
+            buttonVariants({ variant: view === "final" ? "default" : "ghost", size: "sm" }),
           )}
           onClick={() => {
-            setView("selected")
+            setView("final")
             setResult("")
           }}
         >
           {t("recruitment.candidates.selectedCandidatesTab")} ·{" "}
-          {candidates.filter((candidate) => candidate.result === "SELECTED").length}
+          {candidates.filter(
+            (candidate) => candidate.result === "SELECTED" || candidate.result === "ON_HOLD",
+          ).length}
         </button>
       </div>
 
@@ -159,12 +161,13 @@ export function CandidatesList({
         <select
           value={result}
           onChange={(e) => setResult(e.target.value)}
-          disabled={view === "selected"}
           aria-label={t("recruitment.candidates.resultFilter")}
           className="h-9 rounded-md border border-input bg-transparent px-2 text-sm"
         >
           <option value="">{t("recruitment.candidates.allResults")}</option>
-          {results.map((r) => (
+          {results
+            .filter((r) => view === "all" || r === "SELECTED" || r === "ON_HOLD")
+            .map((r) => (
             <option key={r} value={r}>
               {t(`recruitment.result.${r}` as StringKey)}
             </option>
