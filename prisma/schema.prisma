@@ -483,7 +483,7 @@ model RecruitmentGroupMember {
   // Denormalised from the group so the partial unique index in the migration can
   // enforce "one active group per candidate per kind" at the database level.
   kind        SessionKind
-  attendance  Attendance           @default(EXPECTED)
+  attendance  Attendance           @default(PRESENT)
   joinedAt    DateTime?
   seat        Int?
   addedById   String
@@ -494,10 +494,11 @@ model RecruitmentGroupMember {
   @@index([candidateId])
 }
 
+// First come, first served: a candidate seated in a group is present unless
+// someone marks them absent. REASSIGNED is load-bearing, the partial unique index
+// RecruitmentGroupMember_one_active_per_kind excludes it.
 enum Attendance {
-  EXPECTED
   PRESENT
-  LATE
   ABSENT
   REASSIGNED
 }

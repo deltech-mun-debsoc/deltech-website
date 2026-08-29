@@ -3,42 +3,54 @@ import { t } from "@/content/strings"
 import { prisma } from "@/lib/prisma"
 import { RecruitmentPageHeader } from "../../_components/page-header"
 import { LiveRefresh } from "@/components/recruitment/live-refresh"
-import { GroupList } from "../_components/group-list"
-import { CreateGroupDialog } from "../_components/create-group-dialog"
-import { listGroups } from "../_lib/queries"
+import { PiQueue } from "../_components/pi-queue"
 
-export default async function PiGroupsPage() {
+// A personal interview is one candidate, so this page is a queue of PEOPLE.
+//
+// The group underneath is still real (sessions, locks and the partial unique index
+// all key off group membership) but it holds one candidate and is created by
+// "Start interview" rather than assembled by hand. Previously this page listed
+// groups and hid the candidates inside a create-group modal, which is why they
+// appeared to vanish after a GD.
+export default async function PiQueuePage() {
   const { cycle } = await requireRecruitmentAccess()
   if (!cycle) return null
 
   const ctx = await resolveCycleContext(cycle.id)
   if (!ctx) return null
 
-  const canCreate = mayPerform(ctx, "group.create")
+  const canStart = mayPerform(ctx, "group.create")
 
-  const [groups, assignable, staff] = await Promise.all([
-    listGroups(ctx, "PI"),
+  const [waiting, live] = await Promise.all([
     // Anyone past GD: completed, bypassed, or configured not to need one. This is
     // the query that has to work for direct-to-PI candidates.
-    canCreate
-      ? prisma.recruitmentCandidate.findMany({
-          where: {
-            cycleId: cycle.id,
-            piRequired: true,
-            stage: { in: ["GD_COMPLETE", "GD_BYPASSED", "PI_PENDING"] },
-            result: { in: ["PENDING", "ON_HOLD"] },
-            groupMemberships: { none: { kind: "PI", attendance: { not: "REASSIGNED" } } },
-          },
-          orderBy: { fullName: "asc" },
-          select: { id: true, fullName: true, email: true, branch: true, year: true },
-        })
-      : Promise.resolve([]),
-    canCreate
-      ? prisma.recruitmentMember.findMany({
-          where: { cycleId: cycle.id, isActive: true },
-          include: { user: { select: { name: true, email: true } } },
-        })
-      : Promise.resolve([]),
+    prisma.recruitmentCandidate.findMany({
+      where: {
+        cycleId: cycle.id,
+        piRequired: true,
+        stage: { in: ["GD_COMPLETE", "GD_BYPASSED", "PI_PENDING"] },
+        result: { in: ["PENDING", "ON_HOLD"] },
+        groupMemberships: { none: { kind: "PI", attendance: { not: "REASSIGNED" } } },
+      },
+      orderBy: { fullName: "asc" },
+      select: { id: true, fullName: true, email: true, branch: true, year: true, stage: true },
+    }),
+    // Interviews already under way, so a half-finished one can be resumed rather
+    // than started twice.
+    prisma.recruitmentGroup.findMany({
+      where: { cycleId: cycle.id, kind: "PI", state: { in: ["DRAFT", "READY", "RUNNING"] } },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        title: true,
+        state: true,
+        members: {
+          where: { attendance: { not: "REASSIGNED" } },
+          select: { candidate: { select: { fullName: true } } },
+          take: 1,
+        },
+      },
+    }),
   ])
 
   return (
@@ -49,23 +61,18 @@ export default async function PiGroupsPage() {
         eyebrow={cycle.name}
         title={t("recruitment.groups.titlePi")}
         description={t("recruitment.groups.descriptionPi")}
-      >
-        {canCreate && (
-          <CreateGroupDialog
-            cycleId={cycle.id}
-            kind="PI"
-            candidates={assignable}
-            staff={staff.map((m) => ({
-              memberId: m.id,
-              role: m.role,
-              name: m.user.name,
-              email: m.user.email,
-            }))}
-          />
-        )}
-      </RecruitmentPageHeader>
+      />
 
-      <GroupList groups={groups} kind="PI" scoped={ctx.role === "JC"} />
+      <PiQueue
+        cycleId={cycle.id}
+        candidates={waiting}
+        inProgress={live.map((g) => ({
+          groupId: g.id,
+          candidateName: g.members[0]?.candidate.fullName ?? g.title,
+          state: g.state,
+        }))}
+        canStart={canStart}
+      />
     </div>
   )
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useEffect, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Download, RefreshCw } from "lucide-react"
@@ -40,6 +40,17 @@ const OUTCOME_TONE: Record<string, string> = {
   invalid: "bg-[var(--signal-soft)] text-[var(--ink-soft)]",
 }
 
+// The most human-readable thing that distinguishes two submissions from the same
+// person: the submission time when the sheet has one, else the first answer that
+// looks like a date, else nothing (the caller falls back to a row number).
+function describeSubmission(raw: Record<string, string>): string | null {
+  for (const [key, value] of Object.entries(raw)) {
+    if (!value?.trim()) continue
+    if (/timestamp|submitted|date|time/i.test(key)) return value.trim()
+  }
+  return null
+}
+
 export function ResponsesManager({
   cycleId,
   sources,
@@ -65,6 +76,17 @@ export function ResponsesManager({
   const [mapping, setMapping] = useState<Record<string, string>>({})
 
   const active = sources.find((s) => s.id === activeId) ?? null
+
+  // The editor used to start empty with the stored values as PLACEHOLDERS, and
+  // saveSheetSource writes the mapping wholesale: adding a timestamp column meant
+  // retyping label, URL and every other field, and silently dropping whichever one
+  // you forgot. Seed from the source being edited instead.
+  useEffect(() => {
+    if (!active) return
+    setLabel(active.label)
+    setSheetUrl(active.sheetUrl)
+    setMapping(Object.fromEntries(Object.entries(active.mapping).filter(([, v]) => v)) as Record<string, string>)
+  }, [active])
 
   function doPreview(sourceId: string, overrides = duplicateOverrides) {
     startTransition(async () => {
@@ -103,7 +125,12 @@ export function ResponsesManager({
         cycleId,
         label,
         sheetUrl,
-        mapping: mapping as CandidateMapping,
+        // Empty strings are not "unmapped": z.string().min(1).optional() REJECTS
+        // "", which stored an unparseable source and hard-failed both preview and
+        // apply with "column mapping is incomplete".
+        mapping: Object.fromEntries(
+          Object.entries(mapping).filter(([, v]) => v.trim()),
+        ) as CandidateMapping,
       })
       if (!result.ok) {
         toast.error(result.error ?? t("recruitment.errors.generic"))
@@ -155,7 +182,15 @@ export function ResponsesManager({
                       <Button
                         size="sm"
                         className="gap-1.5"
-                        disabled={pending}
+                        // Applying without previewing skipped the duplicate picker
+                        // entirely: an operator never saw that two submissions were
+                        // collapsed, let alone which one won.
+                        disabled={pending || !(preview?.ok && activeId === s.id)}
+                        title={
+                          preview?.ok && activeId === s.id
+                            ? undefined
+                            : t("recruitment.responses.previewFirst")
+                        }
                         onClick={() => doApply(s.id)}
                       >
                         <Download className="size-3.5" />
@@ -200,12 +235,17 @@ export function ResponsesManager({
                     <div className="mt-1 flex flex-wrap gap-1.5">
                       {g.rowIndexes.map((i) => {
                         const kept = i === g.winnerIndex
+                        const row = preview.rows.find((r) => r.index === i)
+                        // "Row 3 vs Row 17" is not a choice anyone can make. Show
+                        // what actually distinguishes the two submissions.
+                        const stamp = row ? describeSubmission(row.raw) : null
                         return (
                           <Button
                             key={i}
                             type="button"
                             size="sm"
                             variant={kept ? "default" : "outline"}
+                            className="h-auto flex-col items-start gap-0.5 py-1.5 text-left"
                             disabled={pending}
                             onClick={() => {
                               const next = { ...duplicateOverrides, [g.email]: i }
@@ -213,8 +253,14 @@ export function ResponsesManager({
                               if (activeId) doPreview(activeId, next)
                             }}
                           >
-                            {t("recruitment.responses.duplicateRow", { row: i + 1 })}
-                            {kept ? ` · ${t("recruitment.responses.duplicateKept")}` : ""}
+                            <span className="text-xs font-medium">
+                              {stamp ?? t("recruitment.responses.duplicateRow", { row: i + 1 })}
+                            </span>
+                            <span className="text-[0.7rem] opacity-80">
+                              {kept
+                                ? t("recruitment.responses.duplicateKept")
+                                : t("recruitment.responses.duplicateUse")}
+                            </span>
                           </Button>
                         )
                       })}

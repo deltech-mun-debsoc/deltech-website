@@ -362,8 +362,16 @@ assert.ok(summarisePlan(mixed).includes("3 rows"))
     /formAnswers: \{ string_contains/,
     "string_contains cannot search a whole JSON document: use the raw text search",
   )
-  assert.match(page, /formAnswerMatches/, "the candidate list must search inside form answers")
+  assert.match(page, /formAnswerMatches/, "answer search must still exist, server-side")
   assert.match(page, /"formAnswers"::text ILIKE/, "and must do it with a text match")
+
+  // The promoted columns are filtered in the browser: no round trip per keystroke.
+  const list = readFileSync(
+    "src/app/(recruitment)/recruitment/_components/candidates-list.tsx",
+    "utf8",
+  )
+  assert.match(list, /useMemo/, "the candidate list must filter client-side")
+  assert.doesNotMatch(list, /formAnswers/, "form answers are too large to ship to the client")
 }
 
 console.log("recruitment import checks passed (identity, idempotency, duplicates, manual-edit protection)")

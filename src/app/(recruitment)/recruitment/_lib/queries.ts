@@ -272,7 +272,7 @@ export async function getMyDesk(ctx: RecruitmentContext) {
   // finished-or-running session, with no submitted evaluation from them.
   const owed = await prisma.recruitmentGroupMember.findMany({
     where: {
-      attendance: { in: ["PRESENT", "LATE", "EXPECTED"] },
+      attendance: "PRESENT",
       group: {
         cycleId: ctx.cycle.id,
         ...(scoped ? { id: { in: scoped } } : {}),

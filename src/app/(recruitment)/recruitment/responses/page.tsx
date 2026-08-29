@@ -55,7 +55,7 @@ export default async function ResponsesPage() {
 
   return (
     <div className="space-y-6">
-      <LiveRefresh cycleId={cycle.id} pollMs={30000} />
+      <LiveRefresh cycleId={cycle.id} />
 
       <RecruitmentPageHeader
         eyebrow={cycle.name}

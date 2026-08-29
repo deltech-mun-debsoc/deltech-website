@@ -4,7 +4,7 @@ import * as React from "react"
 import { Dialog as DialogPrimitive } from "@base-ui/react/dialog"
 
 import { cn } from "@/lib/utils"
-import { useThemedPortalContainer } from "@/lib/theme-portal"
+import { InPopup, useThemedPortalContainer } from "@/lib/theme-portal"
 import { Button } from "@/components/ui/button"
 import { XIcon } from "lucide-react"
 
@@ -67,7 +67,10 @@ function DialogContent({
         )}
         {...props}
       >
-        {children}
+        {/* Anything rendered in here is already inside a portal: a Select or menu
+            opened from a dialog must nest in the dialog's portal, not be pulled
+            back out to the shell. */}
+        <InPopup>{children}</InPopup>
         {showCloseButton && (
           <DialogPrimitive.Close
             data-slot="dialog-close"

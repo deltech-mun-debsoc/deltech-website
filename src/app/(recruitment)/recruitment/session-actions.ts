@@ -753,7 +753,7 @@ export async function reopenSession(input: {
 
 export async function setAttendance(input: {
   groupMemberId: string
-  attendance: "EXPECTED" | "PRESENT" | "LATE" | "ABSENT"
+  attendance: "PRESENT" | "ABSENT"
 }): Promise<{ ok: boolean; error?: string }> {
   const member = await prisma.recruitmentGroupMember.findUnique({
     where: { id: input.groupMemberId },
@@ -772,7 +772,7 @@ export async function setAttendance(input: {
           attendance: input.attendance,
           // A late arrival is recorded with the moment they actually joined.
           joinedAt:
-            input.attendance === "PRESENT" || input.attendance === "LATE" ? new Date() : null,
+            input.attendance === "PRESENT" ? new Date() : null,
         },
       })
       await auditRecruitmentTx(tx, {

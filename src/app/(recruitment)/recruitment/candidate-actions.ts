@@ -249,7 +249,7 @@ export async function bypassGd(input: {
 
       // Remove them from any pending GD group, keeping the row as history.
       await tx.recruitmentGroupMember.updateMany({
-        where: { candidateId: candidate.id, kind: "GD", attendance: "EXPECTED" },
+        where: { candidateId: candidate.id, kind: "GD", attendance: "PRESENT" },
         data: { attendance: "REASSIGNED" },
       })
 
