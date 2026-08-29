@@ -3,6 +3,7 @@ import { requireRecruitmentAccess } from "@/lib/recruitment/authz"
 import { cn } from "@/lib/utils"
 import { THEME_COOKIES, parseTheme, themeClass } from "@/lib/theme"
 import { AreaThemeToggle } from "@/components/theme/area-theme-toggle"
+import { ThemedPortalRoot } from "@/components/theme/themed-portal-root"
 import { SignOutButton } from "@/components/sign-out-button"
 import { t, type StringKey } from "@/content/strings"
 import { RecruitmentSidebar } from "./_components/recruitment-sidebar"
@@ -35,6 +36,8 @@ export default async function RecruitmentLayout({ children }: { children: React.
             <SignOutButton />
           </div>
         </div>
+
+        <ThemedPortalRoot />
       </div>
     )
   }
@@ -71,6 +74,8 @@ export default async function RecruitmentLayout({ children }: { children: React.
           {children}
         </main>
       </div>
+
+      <ThemedPortalRoot />
     </div>
   )
 }

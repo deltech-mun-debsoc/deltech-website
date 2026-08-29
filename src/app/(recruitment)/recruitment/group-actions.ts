@@ -277,7 +277,7 @@ export async function addCandidatesToGroup(input: {
             kind: group.kind,
             addedById: ctx.userId,
           },
-          update: { attendance: "EXPECTED" },
+          update: { attendance: "PRESENT" },
         })
       }
       await tx.recruitmentCandidate.updateMany({

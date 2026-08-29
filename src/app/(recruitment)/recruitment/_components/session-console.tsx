@@ -296,13 +296,16 @@ export function SessionConsole({
                   </div>
 
                   <div className="flex shrink-0 items-center gap-2">
+                    {/* EXPECTED is deliberately explicit: finishing the session
+                        must never advance somebody whose arrival was not confirmed. */}
                     <Select
                       value={m.attendance}
+                      disabled={pending}
                       onValueChange={(value) =>
                         startTransition(async () => {
                           const result = await setAttendance({
                             groupMemberId: m.id,
-                            attendance: value as "PRESENT",
+                            attendance: value as "EXPECTED" | "PRESENT" | "LATE" | "ABSENT",
                           })
                           if (!result.ok) toast.error(result.error ?? t("recruitment.errors.generic"))
                           else {

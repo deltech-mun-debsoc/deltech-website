@@ -236,7 +236,7 @@ function SessionSummary({ sessions }: { sessions: DossierSession[] }) {
               <p className="truncate font-medium">{s.groupTitle}</p>
               <p className="text-xs text-muted-foreground">
                 {t(`recruitment.sessionState.${s.state}` as StringKey)}
-                {s.attendance && s.attendance !== "EXPECTED" && (
+                {s.attendance && s.attendance !== "PRESENT" && (
                   <> · {t(`recruitment.attendance.${s.attendance}` as StringKey)}</>
                 )}
                 {s.staff.length > 0 && <> · {s.staff.map((x) => x.name ?? x.email).join(", ")}</>}

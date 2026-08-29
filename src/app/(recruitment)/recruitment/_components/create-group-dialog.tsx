@@ -1,9 +1,9 @@
 "use client"
 
-import { useState, useTransition } from "react"
+import { useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { Plus } from "lucide-react"
+import { Plus, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -46,6 +46,20 @@ export function CreateGroupDialog({
   // JCs need an explicit "may score" grant; maintainers always can.
   const [staffPicked, setStaffPicked] = useState<Map<string, boolean>>(new Map())
   const [pending, startTransition] = useTransition()
+
+  // Filtering happens here, not on the server: the full assignable list is already
+  // in this component, and a cycle is a few hundred people. Picking ten of them out
+  // of 267 checkboxes with no search was the actual blocker.
+  const [candidateQuery, setCandidateQuery] = useState("")
+  const visibleCandidates = useMemo(() => {
+    const query = candidateQuery.trim().toLowerCase()
+    if (!query) return candidates
+    return candidates.filter((c) =>
+      [c.fullName, c.email, c.branch, c.year].some((field) =>
+        field?.toLowerCase().includes(query),
+      ),
+    )
+  }, [candidates, candidateQuery])
 
   const toggle = (id: string) =>
     setPicked((prev) => {
@@ -168,8 +182,22 @@ export function CreateGroupDialog({
                 {t("recruitment.groups.createCandidatesLabel")} ·{" "}
                 {t("recruitment.groups.candidateCount", { count: picked.size })}
               </Label>
+              <div className="relative">
+                <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={candidateQuery}
+                  onChange={(e) => setCandidateQuery(e.target.value)}
+                  placeholder={t("recruitment.groups.searchCandidates")}
+                  className="pl-8"
+                />
+              </div>
               <ul className="max-h-64 divide-y divide-border/70 overflow-y-auto rounded-md border border-border/70">
-                {candidates.map((c) => (
+                {visibleCandidates.length === 0 && (
+                  <li className="px-3 py-6 text-center text-sm text-muted-foreground">
+                    {t("recruitment.groups.noMatchingCandidates")}
+                  </li>
+                )}
+                {visibleCandidates.map((c) => (
                   <li key={c.id} className="flex items-center gap-3 px-3 py-2">
                     <Checkbox
                       id={`cand-${c.id}`}

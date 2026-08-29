@@ -428,7 +428,12 @@ async function transition(
         if (kind === "finish") {
           // Present candidates complete the stage. Absentees stay where they were,
           // an absence is not a completed evaluation.
-          const present = members.filter((m) => m.attendance !== "ABSENT").map((m) => m.candidateId)
+          // Only an explicit arrival completes the round. EXPECTED means nobody
+          // confirmed attendance, so treating it as present silently advances a
+          // no-show when the operator finishes the session.
+          const present = members
+            .filter((m) => m.attendance === "PRESENT" || m.attendance === "LATE")
+            .map((m) => m.candidateId)
           const activeStage = row.kind === "GD" ? "GD_ACTIVE" : "PI_ACTIVE"
           const completeStage = row.kind === "GD" ? "GD_COMPLETE" : "PI_COMPLETE"
 
@@ -440,7 +445,9 @@ async function transition(
           // Absentees would otherwise sit at *_ACTIVE forever once the session is
           // COMPLETED: they match neither the assignable queue for this stage nor
           // the next one. Return them to the queue so they can be reseated.
-          const absent = members.filter((m) => m.attendance === "ABSENT").map((m) => m.candidateId)
+          const absent = members
+            .filter((m) => m.attendance === "EXPECTED" || m.attendance === "ABSENT")
+            .map((m) => m.candidateId)
           if (absent.length > 0) {
             await tx.recruitmentCandidate.updateMany({
               where: { id: { in: absent }, stage: activeStage },

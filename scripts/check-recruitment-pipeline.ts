@@ -57,8 +57,13 @@ function at(stage: CandidateStageName, over: Partial<CandidateSnapshot> = {}): C
   )
   assert.match(
     src,
-    /const absent = members\.filter\(\(m\) => m\.attendance === "ABSENT"\)/,
-    "absentees must be returned to the queue, not left at *_ACTIVE forever",
+    /m\.attendance === "EXPECTED" \|\| m\.attendance === "ABSENT"/,
+    "unconfirmed candidates and absentees must be returned to the queue, not advanced",
+  )
+  assert.match(
+    src,
+    /m\.attendance === "PRESENT" \|\| m\.attendance === "LATE"/,
+    "only confirmed attendees may advance when a session finishes",
   )
   assert.match(
     src,
@@ -77,9 +82,17 @@ function at(stage: CandidateStageName, over: Partial<CandidateSnapshot> = {}): C
 // The original bug was not bad logic, it was an action nobody called. Assert the
 // wiring so it cannot rot back to dead code.
 {
-  const list = readFileSync("src/app/(recruitment)/recruitment/candidates/page.tsx", "utf8")
+  const page = readFileSync("src/app/(recruitment)/recruitment/candidates/page.tsx", "utf8")
+  const list = readFileSync(
+    "src/app/(recruitment)/recruitment/_components/candidates-list.tsx",
+    "utf8",
+  )
   assert.match(list, /AdvanceCandidateButton/, "the candidate list must offer an advance control")
-  assert.match(list, /mayPerform\(ctx, "candidate\.advance"\)/, "and must gate it on the capability")
+  assert.match(
+    page,
+    /mayPerform\(ctx, "candidate\.advance"\)/,
+    "and the server must decide the capability, not the client",
+  )
 
   const button = readFileSync(
     "src/app/(recruitment)/recruitment/_components/advance-candidate-button.tsx",
@@ -129,11 +142,12 @@ function at(stage: CandidateStageName, over: Partial<CandidateSnapshot> = {}): C
     )
   }
 
-  // A trigger with no SelectValue renders no selected label at all: the bug that
-  // made the recruitment dropdowns look empty.
+  // Two separate defects made the dropdowns look empty. A trigger with no
+  // SelectValue draws no label at all; and without `items` on the root, Base UI
+  // cannot resolve a value to its label and falls back to the raw enum, so the
+  // trigger reads "ADVANCE" instead of "Advance".
   for (const file of [
     "src/app/(recruitment)/recruitment/_components/evaluation-form.tsx",
-    "src/app/(recruitment)/recruitment/_components/session-console.tsx",
     "src/app/(admin)/admin/recruitment/_components/cycle-staff-panel.tsx",
     "src/app/(admin)/admin/recruitment/_components/finalisation-panel.tsx",
   ]) {
@@ -141,6 +155,40 @@ function at(stage: CandidateStageName, over: Partial<CandidateSnapshot> = {}): C
     assert.doesNotMatch(src, /<SelectTrigger[^>]*\/>/, `${file} has a self-closing SelectTrigger`)
     assert.match(src, /<SelectValue/, `${file} must render the selected value`)
   }
+
+  const evaluation = readFileSync(
+    "src/app/(recruitment)/recruitment/_components/evaluation-form.tsx",
+    "utf8",
+  )
+  assert.match(evaluation, /items=\{recommendationItems\}/, "the trigger must resolve labels via items")
+
+  // Attendance stays unconfirmed until an operator records an arrival. A
+  // forgotten no-show must return to the queue, never advance automatically.
+  const console_ = readFileSync(
+    "src/app/(recruitment)/recruitment/_components/session-console.tsx",
+    "utf8",
+  )
+  assert.match(console_, /"EXPECTED"/, "attendance must retain an unconfirmed state")
+  assert.match(console_, /<SelectValue/, "attendance must expose an explicit picker")
+
+  const schema = readFileSync("prisma/schema.prisma", "utf8")
+  assert.match(schema, /attendance\s+Attendance\s+@default\(EXPECTED\)/, "new seats start unconfirmed")
+
+  const sessionActions = readFileSync(
+    "src/app/(recruitment)/recruitment/session-actions.ts",
+    "utf8",
+  )
+  assert.match(
+    sessionActions,
+    /m\.attendance === "EXPECTED" \|\| m\.attendance === "ABSENT"/,
+    "unconfirmed candidates must return to the queue",
+  )
+
+  const piQueue = readFileSync(
+    "src/app/(recruitment)/recruitment/_components/pi-queue.tsx",
+    "utf8",
+  )
+  assert.match(piQueue, /staff: starterMemberId/, "one-click PI must assign its initiating panel member")
 }
 
 console.log("recruitment pipeline checks passed (GD->PI advance, absentees, GD recommendations, popups)")

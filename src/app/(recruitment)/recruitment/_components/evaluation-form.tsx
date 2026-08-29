@@ -72,6 +72,14 @@ export function EvaluationForm({
   )
   const [remarks, setRemarks] = useState(mine?.remarks ?? "")
   const [recommendation, setRecommendation] = useState<string | null>(mine?.recommendation ?? null)
+
+  const recommendationItems = useMemo(
+    () =>
+      Object.fromEntries(
+        RECOMMENDATIONS_BY_KIND[kind].map((r) => [r, t(`recruitment.recommendation.${r}` as StringKey)]),
+      ),
+    [kind],
+  )
   const [pending, startTransition] = useTransition()
 
   const numericScores = useMemo(
@@ -198,9 +206,13 @@ export function EvaluationForm({
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">{t("recruitment.evaluation.recommendationLabel")}</Label>
+              {/* `items` is what lets the trigger render a LABEL. Base UI's
+                  Select.Item does not register its label with the trigger, so
+                  without this the trigger shows the raw enum ("ADVANCE"). */}
               <Select
+                items={recommendationItems}
                 value={recommendation}
-                onValueChange={(value) => setRecommendation(value ?? "")}
+                onValueChange={(value) => setRecommendation((value as string | null) ?? null)}
                 disabled={locked || pending}
               >
                 <SelectTrigger className="w-full">

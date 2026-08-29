@@ -16,9 +16,17 @@ import { getSupabase } from "@/lib/supabase"
 // than a stuck screen.
 export type RecruitmentTopic = "session" | "candidate" | "import" | "evaluation"
 
+// The safety net, not the update mechanism. Realtime pushes a refresh the moment
+// anything changes, and returning to the tab refreshes too, so this only has to
+// cover the case where realtime is unconfigured or its socket died silently.
+//
+// It used to be 10-30s per screen, which meant a full RSC render and database round
+// trip every few seconds per open tab, forever, whether or not anything had changed.
+const FALLBACK_POLL_MS = 5 * 60 * 1000
+
 export function useRecruitmentLive(
   cycleId: string | null,
-  { pollMs = 15000 }: { pollMs?: number } = {},
+  { pollMs = FALLBACK_POLL_MS }: { pollMs?: number } = {},
 ): { notify: (topic: RecruitmentTopic) => void } {
   const router = useRouter()
   const channelRef = useRef<ReturnType<NonNullable<ReturnType<typeof getSupabase>>["channel"]> | null>(null)
@@ -39,9 +47,11 @@ export function useRecruitmentLive(
       : null
     channelRef.current = channel
 
-    // Fallback: refresh on a slow cadence regardless. Costs one RSC request per
-    // interval and guarantees a screen is never more than pollMs stale.
-    const interval = setInterval(() => router.refresh(), pollMs)
+    // Fallback only, and deliberately slow. A hidden tab polls nothing: it will
+    // refresh on visibilitychange the moment someone looks at it again.
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") router.refresh()
+    }, pollMs)
 
     // Returning to a backgrounded tab should show current state at once, rather
     // than whatever was on screen when it was hidden.

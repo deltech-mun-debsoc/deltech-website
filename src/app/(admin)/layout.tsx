@@ -3,6 +3,7 @@ import { requireStaff } from "@/lib/authz"
 import { cn } from "@/lib/utils"
 import { THEME_COOKIES, parseTheme, themeClass } from "@/lib/theme"
 import { AreaThemeToggle } from "@/components/theme/area-theme-toggle"
+import { ThemedPortalRoot } from "@/components/theme/themed-portal-root"
 import { AdminSidebar, type SidebarUser } from "./_components/admin-sidebar"
 import { AdminMobileNav } from "./_components/admin-mobile-nav"
 import { AdminBreadcrumb } from "./_components/admin-breadcrumb"
@@ -47,6 +48,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         {/* Page content */}
         <main className="min-h-0 flex-1 overflow-auto overscroll-contain bg-background p-5 sm:p-7 lg:p-10">{children}</main>
       </div>
+
+      <ThemedPortalRoot />
     </div>
   )
 }
