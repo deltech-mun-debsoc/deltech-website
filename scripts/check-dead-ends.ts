@@ -104,7 +104,7 @@ for (const route of [
   }
 }
 
-// --- deleting a team card never crashes the whole admin page --------------
+// --- team management never crashes the whole admin page --------------------
 {
   const actions = read("src/app/(admin)/admin/team/actions.ts")
   const manager = read("src/app/(admin)/admin/team/_components/team-manager.tsx")
@@ -115,6 +115,22 @@ for (const route of [
   assert.match(actions, /revalidatePath\("\/team"\)/, "the public roster must refresh")
   assert.match(manager, /fetch\(`\/api\/admin\/team\//, "deletion must not crash the RSC tree")
   assert.match(route, /deleteMember\(id\)/, "the JSON route must reuse the guarded deletion")
+  assert.match(manager, /method: editing \? "PATCH" : "POST"/, "add and edit must avoid page actions too")
+  assert.match(manager, /TEAM_LEVELS\.map/, "the manager must display AC, SC and JC separately")
+  assert.match(manager, /Photo URL \(optional fallback\)/, "photo storage outages need a usable fallback")
+
+  const publicTeam = read("src/app/(marketing)/team/page.tsx")
+  assert.match(publicTeam, /TEAM_LEVELS\.map/, "the public roster must preserve council hierarchy")
+
+  assert.match(manager, /prepareTeamPhoto/, "team photos must be resized before upload")
+  assert.match(
+    manager,
+    /\/api\/admin\/team\/\$\{encodeURIComponent\(result\.id\)\}\/photo/,
+    "photo upload must avoid page actions",
+  )
+  const photoRoute = read("src/app/api/admin/team/[id]/photo/route.ts")
+  assert.match(photoRoute, /MAX_TEAM_PHOTO_BYTES/, "team photos need a server-side size limit")
+  assert.match(photoRoute, /photoBytes: bytes/, "prepared photos must persist independently of S3")
 }
 
 // --- a quiz nickname collision is caught, not silently absorbed -----------

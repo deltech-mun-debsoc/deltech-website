@@ -8,10 +8,31 @@ import { revalidatePath } from "next/cache"
 export interface MemberData {
   name: string
   designation: string
+  level: "AC" | "SC" | "JC"
   order: number
   imageUrl?: string
   socials?: { instagram?: string; linkedin?: string }
   isActive: boolean
+}
+
+export type MemberMutationResult =
+  | { success: true; id: string }
+  | { success: false; error: string }
+
+const TEAM_LEVELS = new Set(["AC", "SC", "JC"])
+
+function memberLevel(value: string): "AC" | "SC" | "JC" {
+  return TEAM_LEVELS.has(value) ? (value as "AC" | "SC" | "JC") : "JC"
+}
+
+function optionalWebUrl(value?: string): string | undefined {
+  if (!value) return undefined
+  try {
+    const parsed = new URL(value)
+    return parsed.protocol === "http:" || parsed.protocol === "https:" ? parsed.toString() : undefined
+  } catch {
+    return undefined
+  }
 }
 
 
@@ -28,7 +49,7 @@ function memberError(err: unknown, fallback: string): { success: false; error: s
   return { success: false, error: fallback }
 }
 
-export async function createMember(data: MemberData): Promise<{ success: boolean; error?: string }> {
+export async function createMember(data: MemberData): Promise<MemberMutationResult> {
   const session = await requireStaff()
   if (!data.name.trim() || !data.designation.trim()) {
     return { success: false, error: "Name and designation are required." }
@@ -38,14 +59,22 @@ export async function createMember(data: MemberData): Promise<{ success: boolean
       data: {
         name: data.name.trim(),
         designation: data.designation.trim(),
+        level: memberLevel(data.level),
         order: data.order,
-        imageUrl: data.imageUrl || null,
-        socials: data.socials ?? undefined,
+        imageUrl: optionalWebUrl(data.imageUrl) ?? null,
+        socials: {
+          ...(optionalWebUrl(data.socials?.instagram)
+            ? { instagram: optionalWebUrl(data.socials?.instagram) }
+            : {}),
+          ...(optionalWebUrl(data.socials?.linkedin)
+            ? { linkedin: optionalWebUrl(data.socials?.linkedin) }
+            : {}),
+        },
         isActive: data.isActive,
       },
     })
     await audit(session.user?.email ?? "unknown", "member.create", "Member", member.id, { name: data.name })
-    return { success: true }
+    return { success: true, id: member.id }
   } catch (err) {
     return memberError(err, "Failed to create member.")
   }
@@ -54,7 +83,7 @@ export async function createMember(data: MemberData): Promise<{ success: boolean
 export async function updateMember(
   id: string,
   data: MemberData,
-): Promise<{ success: boolean; error?: string }> {
+): Promise<MemberMutationResult> {
   const session = await requireStaff()
   try {
     await prisma.member.update({
@@ -62,14 +91,22 @@ export async function updateMember(
       data: {
         name: data.name.trim(),
         designation: data.designation.trim(),
+        level: memberLevel(data.level),
         order: data.order,
-        imageUrl: data.imageUrl || null,
-        socials: data.socials ?? undefined,
+        imageUrl: optionalWebUrl(data.imageUrl) ?? null,
+        socials: {
+          ...(optionalWebUrl(data.socials?.instagram)
+            ? { instagram: optionalWebUrl(data.socials?.instagram) }
+            : {}),
+          ...(optionalWebUrl(data.socials?.linkedin)
+            ? { linkedin: optionalWebUrl(data.socials?.linkedin) }
+            : {}),
+        },
         isActive: data.isActive,
       },
     })
     await audit(session.user?.email ?? "unknown", "member.update", "Member", id)
-    return { success: true }
+    return { success: true, id }
   } catch (err) {
     return memberError(err, "Failed to update member.")
   }
