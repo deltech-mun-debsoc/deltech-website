@@ -117,6 +117,9 @@ for (const route of [
   assert.match(route, /deleteMember\(id\)/, "the JSON route must reuse the guarded deletion")
   assert.match(manager, /method: editing \? "PATCH" : "POST"/, "add and edit must avoid page actions too")
   assert.match(manager, /TEAM_LEVELS\.map/, "the manager must display AC, SC and JC separately")
+  for (const council of ["Administrative Council", "Senior Council", "Junior Council"]) {
+    assert.match(manager, new RegExp(council), `the manager must spell out ${council}`)
+  }
   assert.match(manager, /Photo URL \(optional fallback\)/, "photo storage outages need a usable fallback")
 
   const publicTeam = read("src/app/(marketing)/team/page.tsx")
