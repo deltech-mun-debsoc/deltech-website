@@ -11,9 +11,6 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { t } from "@/content/strings"
 import { bypassGd } from "../candidate-actions"
 
-// Mirrors bypassGdSchema on the server (src/lib/schemas/recruitment.ts).
-const MIN_REASON = 10
-
 // GD bypass. The reason is mandatory (and enforced again server-side) because the
 // bypass becomes a permanent audit event that a PI evaluator will read: "skipped,
 // no reason given" would defeat the point.
@@ -33,11 +30,10 @@ export function BypassGdButton({
   const [reason, setReason] = useState("")
   const [pending, startTransition] = useTransition()
 
-  // The server refuses a reason under 10 characters, so the confirm button is
-  // disabled until it would be accepted. That disabled state used to say nothing:
-  // you typed "no time", the button stayed grey, and the only reading available
-  // was that Skip GD is broken.
-  const remaining = MIN_REASON - reason.trim().length
+  // A reason is required, and that is the whole rule. Whatever the button's state,
+  // the hint below says why -- a control that is disabled and silent reads as a
+  // broken one, which is exactly how this was reported.
+  const hasReason = reason.trim().length > 0
 
   function submit() {
     startTransition(async () => {
@@ -85,9 +81,9 @@ export function BypassGdButton({
                 aria-describedby="bypass-reason-hint"
               />
               <p id="bypass-reason-hint" className="text-xs text-muted-foreground">
-                {remaining > 0
-                  ? t("recruitment.candidates.bypassReasonRemaining", { n: remaining })
-                  : t("recruitment.candidates.bypassReasonReady")}
+                {hasReason
+                  ? t("recruitment.candidates.bypassReasonReady")
+                  : t("recruitment.candidates.bypassReasonRequired")}
               </p>
             </div>
           </div>
@@ -96,9 +92,9 @@ export function BypassGdButton({
             <Button variant="outline" onClick={() => setOpen(false)} disabled={pending}>
               {t("common.cancel")}
             </Button>
-            {/* Matches the server minimum, so the button is never enabled for a
-                request that would be refused. The hint above says why. */}
-            <Button onClick={submit} disabled={pending || remaining > 0}>
+            {/* Matches the server rule exactly, so the button is never enabled for
+                a request that would be refused. The hint above says why. */}
+            <Button onClick={submit} disabled={pending || !hasReason}>
               {t("recruitment.candidates.bypassConfirm")}
             </Button>
           </DialogFooter>

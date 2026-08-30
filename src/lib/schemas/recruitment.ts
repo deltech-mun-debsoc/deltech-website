@@ -272,8 +272,12 @@ export const createGroupSchema = z.object({
 
 export const bypassGdSchema = z.object({
   candidateId: z.string().min(1),
-  // A bypass without a reason is not auditable, so the reason is mandatory.
-  reason: z.string().min(10, "Explain why GD is being skipped (10 characters or more).").max(1000),
+  // A bypass without a reason is not auditable, so a reason is still mandatory --
+  // but only that it exists. The old ten-character floor was an arbitrary guess at
+  // what counts as an explanation, and it rejected perfectly good ones ("Aise hi",
+  // "No slot") while a maintainer stared at a dead button. Whoever reads the audit
+  // trail can judge a short reason for themselves; the software cannot.
+  reason: z.string().trim().min(1, "Give a reason for skipping GD.").max(1000),
 })
 
 export const stageMoveSchema = z.object({

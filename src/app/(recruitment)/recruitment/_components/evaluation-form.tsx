@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState, useTransition } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Check, Loader2 } from "lucide-react"
 import { t, type StringKey } from "@/content/strings"
 import { RECOMMENDATIONS_BY_KIND } from "@/lib/schemas/recruitment"
 import { validateScores, type EvaluationCriterion } from "@/lib/schemas/recruitment"
@@ -124,7 +125,65 @@ export function EvaluationForm({
     return Number((live.reduce((a, e) => a + (e.overall ?? 0), 0) / live.length).toFixed(2))
   }, [canViewOthers, evaluations, mine])
 
-  function save(mode: "draft" | "submit") {
+  // Autosave.
+  //
+  // Scoring a group used to mean pressing Submit once per candidate before Finish
+  // would accept the session -- eight taps for a group of seven, and a refusal if
+  // you missed one. Now the score saves itself as a draft while you type, and
+  // finishing the session promotes every complete draft. The only thing left to
+  // press is Finish.
+  //
+  // Submitted work is NOT autosaved: revising a score that a panel already agreed
+  // is a deliberate act, so it keeps an explicit button.
+  const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle")
+  const dirtyRef = useRef(false)
+  const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  const autosave = useCallback(() => {
+    if (submitted || !canEvaluate) return
+    if (Object.keys(numericScores).length === 0 && !remarks.trim() && !recommendation) return
+    setSaveState("saving")
+    void saveEvaluationDraft({
+      candidateId,
+      sessionId,
+      scores: numericScores,
+      remarks: remarks.trim() || undefined,
+      recommendation: (recommendation || undefined) as "SELECT" | "HOLD" | "REJECT" | undefined,
+      expectedVersion: mine?.version,
+    })
+      .then((result) => {
+        if (!result.ok) {
+          setSaveState("idle")
+          toast.error(result.error)
+          return
+        }
+        dirtyRef.current = false
+        setSaveState("saved")
+        onSaved?.()
+      })
+      .catch(() => setSaveState("idle"))
+  }, [
+    submitted, canEvaluate, numericScores, remarks, recommendation,
+    candidateId, sessionId, mine?.version, onSaved,
+  ])
+
+  useEffect(() => {
+    if (!dirtyRef.current) return
+    clearTimeout(timerRef.current)
+    timerRef.current = setTimeout(autosave, 800)
+    return () => clearTimeout(timerRef.current)
+  }, [autosave])
+
+  // Nothing typed yet must not count as an edit, or every mount would save.
+  const touch = () => { dirtyRef.current = true; setSaveState("idle") }
+
+  // Exactly the server's test for "complete enough to submit when the session
+  // finishes", so the console never promises something finish would skip.
+  const ready = validation.ok && Boolean(recommendation)
+
+  // Revising an already-submitted score. A first score never comes through here:
+  // it autosaves as a draft and is submitted when the session finishes.
+  function save() {
     startTransition(async () => {
       const payload = {
         candidateId,
@@ -138,23 +197,17 @@ export function EvaluationForm({
           | undefined,
         // Derived from the evaluator, candidate, session and content: a retry of
         // the SAME submission reuses it; a genuine revision produces a new one.
-        idempotencyKey:
-          mode === "submit"
-            ? `ev:${viewerId}:${candidateId}:${sessionId ?? "none"}:${(mine?.version ?? 0) + 1}`
-            : undefined,
+        idempotencyKey: `ev:${viewerId}:${candidateId}:${sessionId ?? "none"}:${(mine?.version ?? 0) + 1}`,
         expectedVersion: mine?.version,
       }
-      const result =
-        mode === "submit" ? await submitEvaluation(payload) : await saveEvaluationDraft(payload)
+      const result = await submitEvaluation(payload)
 
       if (!result.ok) {
         toast.error(result.error)
         result.errors?.slice(0, 3).forEach((e) => toast.error(e))
         return
       }
-      toast.success(
-        mode === "submit" ? t("recruitment.evaluation.submitted") : t("recruitment.evaluation.draft"),
-      )
+      toast.success(t("recruitment.evaluation.submitted"))
       onSaved?.()
       router.refresh()
     })
@@ -204,7 +257,10 @@ export function EvaluationForm({
                   step="0.5"
                   value={scores[c.key] ?? ""}
                   disabled={locked || pending}
-                  onChange={(e) => setScores((prev) => ({ ...prev, [c.key]: e.target.value }))}
+                  onChange={(e) => {
+                    touch()
+                    setScores((prev) => ({ ...prev, [c.key]: e.target.value }))
+                  }}
                 />
               </div>
             ))}
@@ -220,7 +276,7 @@ export function EvaluationForm({
                 rows={2}
                 value={remarks}
                 disabled={locked || pending}
-                onChange={(e) => setRemarks(e.target.value)}
+                onChange={(e) => { touch(); setRemarks(e.target.value) }}
                 placeholder={t("recruitment.evaluation.remarksPlaceholder")}
               />
             </div>
@@ -232,7 +288,10 @@ export function EvaluationForm({
               <Select
                 items={recommendationItems}
                 value={recommendation}
-                onValueChange={(value) => setRecommendation((value as string | null) ?? null)}
+                onValueChange={(value) => {
+                  touch()
+                  setRecommendation((value as string | null) ?? null)
+                }}
                 disabled={locked || pending}
               >
                 <SelectTrigger className="w-full">
@@ -256,24 +315,44 @@ export function EvaluationForm({
                 Object.keys(numericScores).length > 0 &&
                 validation.errors[0]}
             </p>
-            <div className="flex items-center gap-2">
+
+            <div className="flex items-center gap-3">
+              {/* What the panel needs to know is whether their score is safe, not
+                  which button to press. Complete scores say so; an incomplete one
+                  says what is still missing, because finishing will skip it. */}
               {!submitted && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  disabled={pending || Object.keys(numericScores).length === 0}
-                  onClick={() => save("draft")}
+                <span
+                  className="flex items-center gap-1.5 text-xs text-muted-foreground"
+                  aria-live="polite"
                 >
-                  {t("recruitment.evaluation.saveDraft")}
+                  {saveState === "saving" && (
+                    <>
+                      <Loader2 className="size-3 animate-spin" />
+                      {t("recruitment.evaluation.saving")}
+                    </>
+                  )}
+                  {saveState === "saved" && ready && (
+                    <>
+                      <Check className="size-3 text-teal-600" />
+                      {t("recruitment.evaluation.readyToFinish")}
+                    </>
+                  )}
+                  {saveState === "saved" && !ready && t("recruitment.evaluation.savedIncomplete")}
+                </span>
+              )}
+
+              {/* Only a revision needs a button. A first score is saved as you type
+                  and submitted when the session finishes. */}
+              {submitted && (
+                <Button
+                  size="sm"
+                  disabled={pending || locked || !validation.ok || !recommendation}
+                  onClick={() => save()}
+                >
+                  {pending && <Loader2 className="mr-1.5 size-3 animate-spin" />}
+                  {t("recruitment.evaluation.revise")}
                 </Button>
               )}
-              <Button
-                size="sm"
-                disabled={pending || locked || !validation.ok || !recommendation}
-                onClick={() => save("submit")}
-              >
-                {submitted ? t("recruitment.evaluation.revise") : t("recruitment.evaluation.submit")}
-              </Button>
             </div>
           </div>
         </>
