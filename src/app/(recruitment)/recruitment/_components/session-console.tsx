@@ -16,7 +16,6 @@ import { EvaluationForm, type ConsoleEvaluation } from "./evaluation-form"
 
 export interface ConsoleMember {
   id: string
-  attendance: string
   previousGdAttempts: number
   candidate: {
     id: string
@@ -38,12 +37,14 @@ export interface SessionConsoleProps {
   members: ConsoleMember[]
   criteria: EvaluationCriterion[]
   viewerId: string
+  // Who ran this panel. The audit record of the round, and the question you are
+  // actually asking when you open a finished console from an audit-trail link.
+  staff: { userId: string; name: string | null; email: string; role: string }[]
   permissions: {
     control: boolean
     evaluate: boolean
     revise: boolean
     viewOthers: boolean
-    reopen: boolean
   }
 }
 
@@ -60,6 +61,7 @@ export function SessionConsole({
   members,
   criteria,
   viewerId,
+  staff,
   permissions,
 }: SessionConsoleProps) {
   const { notify } = useRecruitmentLive(cycleId)
@@ -72,7 +74,14 @@ export function SessionConsole({
         displayState={displayState}
         viewerId={viewerId}
         canControl={permissions.control}
-      />
+      >
+        {staff.length > 0 && (
+          <p className="mt-2 text-xs text-muted-foreground">
+            {t("recruitment.groups.staffLabel")}:{" "}
+            {staff.map((s) => s.name ?? s.email).join(", ")}
+          </p>
+        )}
+      </SessionControls>
 
       <section className="space-y-3">
         <h2 className="section-label flex items-center gap-2">

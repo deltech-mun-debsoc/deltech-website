@@ -318,7 +318,7 @@ export async function startSession(input: {
         select: SESSION_SELECT,
       })) as SessionRow
 
-      revalidatePath("/recruitment")
+      revalidatePath("/recruitment", "layout")
       return { ok: true as const, idempotent: false, session: serialize(fresh, serverNow) }
     })
   } catch (err) {
@@ -669,7 +669,7 @@ async function transition(
         select: SESSION_SELECT,
       })) as SessionRow
 
-      revalidatePath("/recruitment")
+      revalidatePath("/recruitment", "layout")
       return { ok: true as const, idempotent: false, session: serialize(fresh, serverNow) }
     })
   } catch (err) {
@@ -784,7 +784,7 @@ export async function takeSessionControl(input: {
         where: { id: row.id },
         select: SESSION_SELECT,
       })) as SessionRow
-      revalidatePath("/recruitment")
+      revalidatePath("/recruitment", "layout")
       return { ok: true as const, idempotent: false, session: serialize(fresh, serverNow) }
     })
   } catch (err) {

@@ -425,8 +425,8 @@ export async function applyImport(input: {
     )
 
     revalidatePath("/recruitment/responses")
-    revalidatePath("/recruitment/candidates")
-    revalidatePath("/admin/recruitment")
+    revalidatePath("/recruitment/candidates", "layout")
+    revalidatePath("/admin/recruitment", "layout")
     return { ok: true, idempotent: false, ...result }
   } catch (err) {
     // A concurrent apply claimed the key first: return its result rather than

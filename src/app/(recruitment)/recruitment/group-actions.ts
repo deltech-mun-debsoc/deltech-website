@@ -158,7 +158,7 @@ export async function createGroup(input: {
       return created
     })
 
-    revalidatePath("/recruitment")
+    revalidatePath("/recruitment", "layout")
     return { ok: true, groupId: group.id }
   } catch (err) {
     return denied(err)

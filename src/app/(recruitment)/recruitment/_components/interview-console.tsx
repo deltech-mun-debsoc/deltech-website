@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { FastForward } from "lucide-react"
 import { buttonVariants } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -37,6 +38,7 @@ export function InterviewConsole({
   member,
   criteria,
   viewerId,
+  staff,
   gdRecord,
   gdBypassed,
   gdBypassReason,
@@ -48,11 +50,14 @@ export function InterviewConsole({
   member: ConsoleMember
   criteria: EvaluationCriterion[]
   viewerId: string
+  // Who conducted the interview: the audit record of the round.
+  staff: { userId: string; name: string | null; email: string; role: string }[]
   gdRecord: GdRecordEntry[]
   gdBypassed: boolean
   gdBypassReason: string | null
   permissions: { control: boolean; evaluate: boolean; revise: boolean; viewOthers: boolean }
 }) {
+  const router = useRouter()
   const { notify } = useRecruitmentLive(cycleId)
   const c = member.candidate
 
@@ -83,6 +88,12 @@ export function InterviewConsole({
           >
             {t("recruitment.groups.openDossierFull")}
           </Link>
+          {staff.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {t("recruitment.groups.staffLabel")}:{" "}
+              {staff.map((s) => s.name ?? s.email).join(", ")}
+            </p>
+          )}
         </div>
       </SessionControls>
 
@@ -144,6 +155,10 @@ export function InterviewConsole({
           canRevise={permissions.revise}
           canViewOthers={permissions.viewOthers}
           onSaved={() => notify("evaluation")}
+          // An interview is one person: once the score is saved there is nothing
+          // else on this screen to do, so hand them back to the queue rather than
+          // making them find their own way. A GD console passes nothing here.
+          onRevised={() => router.push("/recruitment/pi")}
         />
       </section>
     </div>

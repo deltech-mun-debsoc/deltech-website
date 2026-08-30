@@ -30,9 +30,49 @@ import {
 //   · evaluatorRole is denormalised  : revoking someone's role later must not
 //     rewrite the attribution on a score they already gave.
 
+// The saved row, as the server left it.
+//
+// The client used to learn only the id and the score, then wait for an RSC
+// refresh to discover everything else. That made the screen depend on a refetch
+// landing: EvaluationForm re-seeds its fields whenever the row id changes, and a
+// revision ALWAYS mints a new id, so a refresh carrying the pre-write row would
+// overwrite what the evaluator had just typed -- a save that visibly undid
+// itself. Returning the row lets the form adopt it immediately, the same way
+// SessionControls already adopts the session every action returns.
+export interface SavedEvaluation {
+  id: string
+  state: "DRAFT" | "SUBMITTED"
+  version: number
+  overall: number | null
+  submittedAt: string | null
+}
+
 export type EvaluationResult =
-  | { ok: true; evaluationId: string; idempotent: boolean; overall: number | null }
+  | {
+      ok: true
+      evaluationId: string
+      idempotent: boolean
+      overall: number | null
+      saved: SavedEvaluation
+    }
   | { ok: false; error: string; errors?: string[] }
+
+// Narrow a freshly written row into the shape the client adopts.
+function savedFrom(row: {
+  id: string
+  state: string
+  version: number
+  overall: number | null
+  submittedAt: Date | null
+}): SavedEvaluation {
+  return {
+    id: row.id,
+    state: row.state === "SUBMITTED" ? "SUBMITTED" : "DRAFT",
+    version: row.version,
+    overall: row.overall,
+    submittedAt: row.submittedAt?.toISOString() ?? null,
+  }
+}
 
 function denied(err: unknown): EvaluationResult {
   if (err instanceof RecruitmentDenied) {
@@ -153,7 +193,14 @@ async function saveEvaluation(
       if (data.idempotencyKey) {
         const existing = await tx.recruitmentEvaluation.findUnique({
           where: { idempotencyKey: data.idempotencyKey },
-          select: { id: true, overall: true, evaluatorId: true },
+          select: {
+            id: true,
+            overall: true,
+            evaluatorId: true,
+            version: true,
+            state: true,
+            submittedAt: true,
+          },
         })
         if (existing) {
           if (existing.evaluatorId !== evaluatorId) {
@@ -164,6 +211,7 @@ async function saveEvaluation(
             evaluationId: existing.id,
             idempotent: true,
             overall: existing.overall,
+            saved: savedFrom(existing),
           }
         }
       }
@@ -202,7 +250,7 @@ async function saveEvaluation(
             idempotencyKey: data.idempotencyKey ?? null,
             evaluatorRole,
           },
-          select: { id: true, overall: true, version: true },
+          select: { id: true, overall: true, version: true, state: true, submittedAt: true },
         })
 
         await auditRecruitmentTx(tx, {
@@ -225,12 +273,13 @@ async function saveEvaluation(
         })
 
         if (mode === "submit") await touchSession(tx, target.sessionId)
-        revalidatePath("/recruitment")
+        revalidatePath("/recruitment", "layout")
         return {
           ok: true as const,
           evaluationId: updated.id,
           idempotent: false,
           overall: updated.overall,
+          saved: savedFrom(updated),
         }
       }
 
@@ -269,7 +318,7 @@ async function saveEvaluation(
             supersedesId: open.id,
             idempotencyKey: data.idempotencyKey ?? null,
           },
-          select: { id: true, overall: true, version: true },
+          select: { id: true, overall: true, version: true, state: true, submittedAt: true },
         })
 
         await auditRecruitmentTx(tx, {
@@ -293,8 +342,14 @@ async function saveEvaluation(
         })
 
         await touchSession(tx, target.sessionId)
-        revalidatePath("/recruitment")
-        return { ok: true as const, evaluationId: created.id, idempotent: false, overall: created.overall }
+        revalidatePath("/recruitment", "layout")
+        return {
+          ok: true as const,
+          evaluationId: created.id,
+          idempotent: false,
+          overall: created.overall,
+          saved: savedFrom(created),
+        }
       }
 
       // First evaluation from this evaluator for this candidate.
@@ -316,7 +371,7 @@ async function saveEvaluation(
           version: 1,
           idempotencyKey: data.idempotencyKey ?? null,
         },
-        select: { id: true, overall: true },
+        select: { id: true, overall: true, version: true, state: true, submittedAt: true },
       })
 
       await auditRecruitmentTx(tx, {
@@ -338,8 +393,14 @@ async function saveEvaluation(
       })
 
       if (mode === "submit") await touchSession(tx, target.sessionId)
-      revalidatePath("/recruitment")
-      return { ok: true as const, evaluationId: created.id, idempotent: false, overall: created.overall }
+      revalidatePath("/recruitment", "layout")
+      return {
+        ok: true as const,
+        evaluationId: created.id,
+        idempotent: false,
+        overall: created.overall,
+        saved: savedFrom(created),
+      }
     })
   } catch (err) {
     // A unique-violation here means a concurrent submit from the same evaluator
@@ -348,11 +409,17 @@ async function saveEvaluation(
       const existing = data.idempotencyKey
         ? await prisma.recruitmentEvaluation.findUnique({
             where: { idempotencyKey: data.idempotencyKey },
-            select: { id: true, overall: true },
+            select: { id: true, overall: true, version: true, state: true, submittedAt: true },
           })
         : null
       if (existing) {
-        return { ok: true, evaluationId: existing.id, idempotent: true, overall: existing.overall }
+        return {
+          ok: true,
+          evaluationId: existing.id,
+          idempotent: true,
+          overall: existing.overall,
+          saved: savedFrom(existing),
+        }
       }
       return {
         ok: false,

@@ -40,6 +40,13 @@ export async function GroupConsolePage({
   }
   const { ctx, canEvaluate } = access
 
+  // Interviews are not a Junior Council surface, and that has to hold on the
+  // console too. The nav hides the destination and the queue redirects, but a JC
+  // who had ever been put on a PI group could still read the whole interview by
+  // typing its URL -- the guarantee was "hidden unless unassigned", which is not
+  // the guarantee that was asked for.
+  if (kind === "PI" && !can(ctx.role, "group.create")) redirect("/recruitment")
+
   const group = await prisma.recruitmentGroup.findUnique({
     where: { id: groupId },
     select: { kind: true, cycleId: true },
@@ -62,7 +69,6 @@ export async function GroupConsolePage({
       mayPerform(ctx, "evaluation.submit"),
     revise: mayPerform(ctx, "evaluation.revise"),
     viewOthers: can(ctx.role, "evaluation.viewOthers"),
-    reopen: mayPerform(ctx, "session.reopen"),
   }
 
   const session = console_.session
@@ -133,6 +139,7 @@ export async function GroupConsolePage({
           member={member}
           criteria={criteria}
           viewerId={ctx.userId}
+          staff={console_.staff}
           gdRecord={gdRecord.map((e) => ({
             id: e.id,
             overall: e.overall,
@@ -169,6 +176,7 @@ export async function GroupConsolePage({
         members={console_.members}
         criteria={criteria}
         viewerId={ctx.userId}
+        staff={console_.staff}
         permissions={permissions}
       />
     </div>

@@ -260,6 +260,13 @@ export function CreateGroupDialog({
             </div>
           </div>
 
+          {/* Create is gated on a title and used to say nothing about it. */}
+          {title.trim().length < 1 && (
+            <p className="text-xs text-muted-foreground">
+              {t("recruitment.groups.titleRequired")}
+            </p>
+          )}
+
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)} disabled={pending}>
               {t("common.cancel")}
