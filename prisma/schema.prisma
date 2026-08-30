@@ -848,10 +848,22 @@ model Member {
   id          String  @id @default(cuid())
   name        String
   designation String
+  level       TeamLevel @default(JC)
   order       Int     @default(0)
   imageUrl    String?
+  photoBytes  Bytes?
+  photoMimeType String?
   socials     Json?
   isActive    Boolean @default(true)
+  updatedAt   DateTime @updatedAt
+
+  @@index([level, order])
+}
+
+enum TeamLevel {
+  AC
+  SC
+  JC
 }
 
 // ---- Audit ----
