@@ -321,7 +321,7 @@ export type QuizBroadcast =
   | { event: "GOTO"; slideId: string; slideIndex: number; slideCount: number; slide: SlideData }
   | { event: "LOCK" }
   | { event: "UNLOCK" }
-  | { event: "REVEAL"; correctIndices: number[] }
+  | { event: "REVEAL"; correctIndices: number[]; correctAnswers: string[] }
   | { event: "LEADERBOARD"; entries: LBEntry[]; final: boolean }
   | { event: "END" }
 

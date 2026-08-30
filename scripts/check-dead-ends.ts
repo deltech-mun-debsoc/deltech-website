@@ -187,6 +187,34 @@ for (const route of [
   assert.match(src, /quiz\.noOneJoinedYet/, "an empty room is a warning, not a lock")
 }
 
+// --- quiz reveal and standings feel like one synchronized product ----------
+//
+// A participant must not learn the answer before the host reveals it, but the
+// reveal also cannot be an unexplained red/green verdict. Standings already
+// compute rank deltas server-side; pin the UI that actually makes them visible.
+{
+  const types = read("src/lib/quiz-types.ts")
+  const participant = read("src/app/(public)/quiz/[code]/_components/participant-app.tsx")
+  const presenter = read("src/app/(admin)/admin/quiz/[id]/present/_components/presenter-app.tsx")
+  const board = read("src/app/(admin)/admin/quiz/[id]/present/_components/leaderboard-screen.tsx")
+  const stage = read("src/app/(admin)/admin/quiz/[id]/present/_components/question-screen.tsx")
+
+  assert.match(types, /event: "REVEAL"; correctIndices: number\[\]; correctAnswers: string\[\]/, "reveal must carry safe answer copy")
+  assert.match(presenter, /broadcast\(\{ event: "REVEAL", correctIndices: indices, correctAnswers \}\)/, "answers may be sent only in the reveal event")
+  assert.match(participant, /payload\.correctAnswers/, "the phone must adopt the host's revealed answer")
+  assert.match(participant, /const showVerdict = revealed/, "a phone verdict must remain gated by host reveal")
+  assert.match(participant, /stableFeedback/, "feedback copy must not flicker between renders")
+  assert.match(participant, /quiz-score-bar/, "the phone leaderboard needs horizontal score bars")
+  assert.match(participant, /movementText\(entry\.delta\)/, "the phone must explain rank movement")
+  assert.match(board, /entry\.delta \* 56/, "projector rows must travel from their previous rank")
+  assert.match(board, /entry\.totalPoints \/ maxScore/, "projector bars must represent relative score")
+  assert.match(board, /<Movement delta=\{entry\.delta\}/, "projector must show position jumps")
+  assert.match(stage, /font-heading/, "the presenter must use the site's display typography")
+  assert.match(stage, /const canAdvance = !scoredQuiz \|\| revealed/, "a scored question cannot skip its reveal")
+  assert.match(stage, /mode === "QUIZ" && canAdvance/, "standings must not jump ahead of the answer reveal")
+  assert.doesNotMatch(stage, /fontFamily: theme\.font/, "custom quiz fonts must not replace the site typography on the stage")
+}
+
 // --- no dead UI in recruitment ---------------------------------------------
 //
 // A standing rule, and the general form of nearly every defect reported against

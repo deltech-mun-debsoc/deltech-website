@@ -39,6 +39,40 @@ function randomUserId() {
   return Math.random().toString(36).slice(2)
 }
 
+const CORRECT_FEEDBACK: StringKey[] = [
+  "quiz.correctFeedback1",
+  "quiz.correctFeedback2",
+  "quiz.correctFeedback3",
+  "quiz.correctFeedback4",
+]
+const PARTIAL_FEEDBACK: StringKey[] = [
+  "quiz.partialFeedback1",
+  "quiz.partialFeedback2",
+  "quiz.partialFeedback3",
+]
+const INCORRECT_FEEDBACK: StringKey[] = [
+  "quiz.incorrectFeedback1",
+  "quiz.incorrectFeedback2",
+  "quiz.incorrectFeedback3",
+  "quiz.incorrectFeedback4",
+]
+
+// The feedback should feel varied, but never flicker to a different sentence
+// because React rendered again. A stable seed gives each player/question one
+// line and keeps it there for the whole reveal.
+function stableFeedback(seed: string, choices: StringKey[]): StringKey {
+  let hash = 0
+  for (const char of seed) hash = (hash * 31 + char.charCodeAt(0)) >>> 0
+  return choices[hash % choices.length]
+}
+
+function movementText(delta: number | undefined): string {
+  if (delta === undefined) return t("quiz.joinedBoard")
+  if (delta > 0) return t("quiz.movedUp", { count: delta })
+  if (delta < 0) return t("quiz.movedDown", { count: Math.abs(delta) })
+  return t("quiz.heldPosition")
+}
+
 export function ParticipantApp({ sessionId, roomCode, initialStatus, presentationMode, presentationTitle }: Props) {
   const [appState, setAppState] = useState<AppState>(
     initialStatus === "ended" ? "ended" : "nickname"
@@ -59,6 +93,7 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
   // someone taps spoiled the projected reveal for everyone still answering, and
   // let the front row read the room's phones.
   const [revealed, setRevealed] = useState(false)
+  const [revealedAnswers, setRevealedAnswers] = useState<string[]>([])
   // True when voting closed on this slide before this phone answered. The
   // "submitted" screen is reached both ways, and it used to say "Answer
   // received!" to someone who had answered nothing at all.
@@ -119,6 +154,7 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
       setTypedAnswer("")
       setNumericAnswer("")
       setRevealed(false)
+      setRevealedAnswers([])
       setMissed(false)
 
       // Mirror the slide's timer locally. The score is computed from the
@@ -166,6 +202,7 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
           }
         } else if (payload.event === "REVEAL") {
           // NOW the verdict is allowed on screen, in time with the projector.
+          setRevealedAnswers(payload.correctAnswers)
           setRevealed(true)
         } else if (payload.event === "LEADERBOARD") {
           setLbEntries(payload.entries)
@@ -497,36 +534,69 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
   }
 
   if (appState === "leaderboard") {
+    const visibleEntries = lbEntries.slice(0, 10)
+    const maxScore = Math.max(...visibleEntries.map((entry) => entry.totalPoints), 1)
     return (
       <Screen k={appState}>
-        <div className="w-full max-w-lg space-y-5">
-          <p className="text-center font-mono text-xs font-bold uppercase tracking-[0.2em] text-teal-700">Live standings</p>
-          <h2 className="text-center font-heading text-5xl">
+        <div className="w-full max-w-xl space-y-6 py-2">
+          <div className="space-y-2 text-center">
+            <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-teal-700">{t("quiz.liveStandings")}</p>
+            <h2 className="font-heading text-5xl sm:text-6xl">
             {lbFinal ? t("quiz.finalResults") : t("quiz.leaderboard")}
-          </h2>
-          <div className="space-y-2">
-            {lbEntries.slice(0, 10).map((entry) => (
+            </h2>
+          </div>
+          <div className="space-y-3">
+            {visibleEntries.map((entry, index) => {
+              const width = Math.max(8, (entry.totalPoints / maxScore) * 100)
+              const isMe = entry.nickname === nickname
+              const movement = entry.delta ?? 0
+              return (
               <div
                 key={entry.nickname}
-                className={`flex items-center gap-3 border px-4 py-4 ${entry.nickname === nickname ? "border-teal-700 bg-teal-50" : "border-black/10 bg-black/5"}`}
+                className={cn(
+                  "quiz-rank-enter relative overflow-hidden border px-4 py-3",
+                  isMe ? "border-teal-700 bg-teal-50" : "border-black/10 bg-white/45",
+                )}
+                style={{
+                  animationDelay: `${index * 55}ms`,
+                  "--quiz-rank-from": `${entry.delta === undefined ? 10 : entry.delta * 54}px`,
+                } as React.CSSProperties}
               >
-                <span className="w-6 text-center text-sm font-bold text-teal-600">
-                  {t("quiz.rankN", { n: entry.rank })}
-                </span>
-                <span className="text-xl">{entry.avatar || FALLBACK_AVATAR}</span>
-                <span className="flex-1 text-sm font-medium">{entry.nickname}</span>
-                <span className="tabular-nums text-sm font-bold">{entry.totalPoints.toLocaleString()}</span>
+                <div
+                  aria-hidden
+                  className="quiz-score-bar absolute inset-y-0 left-0 bg-teal-500/15"
+                  style={{ "--quiz-score-width": `${width}%` } as React.CSSProperties}
+                />
+                <div className="relative flex items-center gap-3">
+                  <span className="w-8 font-mono text-sm font-black text-teal-700">{t("quiz.rankN", { n: entry.rank })}</span>
+                  <span className="text-2xl">{entry.avatar || FALLBACK_AVATAR}</span>
+                  <span className="min-w-0 flex-1 truncate text-sm font-bold">{entry.nickname}</span>
+                  <span
+                    className={cn(
+                      "whitespace-nowrap px-2 py-1 font-mono text-[0.65rem] font-bold uppercase tracking-wide",
+                      movement > 0 && "bg-emerald-100 text-emerald-800",
+                      movement < 0 && "bg-rose-100 text-rose-800",
+                      movement === 0 && "bg-black/5 text-black/50",
+                    )}
+                  >
+                    {movementText(entry.delta)}
+                  </span>
+                  <span className="min-w-16 text-right font-mono text-sm font-black tabular-nums">
+                    {entry.totalPoints.toLocaleString()} <span className="text-[0.6rem] text-black/45">{t("quiz.pointsShort")}</span>
+                  </span>
+                </div>
               </div>
-            ))}
+              )
+            })}
           </div>
-          {myEntry && !lbEntries.slice(0, 10).find((e) => e.nickname === nickname) && (
-            <div className="flex items-center gap-3 rounded-xl px-4 py-3 bg-teal-50 ring-1 ring-teal-200">
-              <span className="w-6 text-center text-sm font-bold text-teal-600">
+          {myEntry && !visibleEntries.find((e) => e.nickname === nickname) && (
+            <div className="flex items-center gap-3 border border-teal-700 bg-teal-50 px-4 py-3">
+              <span className="w-8 font-mono text-sm font-black text-teal-700">
                 {t("quiz.rankN", { n: myEntry.rank })}
               </span>
-              <span className="text-xl">{myEntry.avatar || FALLBACK_AVATAR}</span>
-              <span className="flex-1 text-sm font-medium">{myEntry.nickname}</span>
-              <span className="tabular-nums text-sm font-bold">{myEntry.totalPoints.toLocaleString()}</span>
+              <span className="text-2xl">{myEntry.avatar || FALLBACK_AVATAR}</span>
+              <span className="flex-1 truncate text-sm font-bold">{myEntry.nickname}</span>
+              <span className="font-mono text-sm font-black tabular-nums">{myEntry.totalPoints.toLocaleString()} {t("quiz.pointsShort")}</span>
             </div>
           )}
         </div>
@@ -542,15 +612,24 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
     // projected answer for the people still deciding. A scored slide that has
     // not been revealed shows a neutral "answer received" instead.
     const showVerdict = revealed && result.correct !== null
+    const partial = showVerdict && result.correct === false && result.points > 0
+    const feedbackKey = stableFeedback(
+      `${nickname}:${currentSlide.id}`,
+      result.correct ? CORRECT_FEEDBACK : partial ? PARTIAL_FEEDBACK : INCORRECT_FEEDBACK,
+    )
     return (
-      <Screen k={appState}>
-        <div className="flex flex-col items-center gap-5 py-8 text-center">
+      <Screen
+        k={`${appState}-${showVerdict ? "revealed" : "waiting"}`}
+        tone={showVerdict ? (result.correct ? "correct" : partial ? "partial" : "incorrect") : "neutral"}
+      >
+        <div className="flex min-h-[28rem] w-full flex-col items-center justify-center gap-5 py-8 text-center">
           {showVerdict && result.correct === true && (
             <>
-              <span className="text-7xl">✅</span>
-              <p className="font-heading text-5xl text-green-700">{t("quiz.correct")}</p>
-              <p className="text-teal-600 text-xl font-semibold">
-                <CountUp to={result.points} />
+              <span className="quiz-result-pop text-7xl" aria-hidden>✓</span>
+              <p className="font-mono text-xs font-black uppercase tracking-[0.24em] text-emerald-800">{t("quiz.correct")}</p>
+              <p className="max-w-[11ch] font-heading text-5xl leading-[0.95] text-emerald-950 sm:text-6xl">{t(feedbackKey)}</p>
+              <p className="font-mono text-3xl font-black text-emerald-800 tabular-nums">
+                +<CountUp to={result.points} /> {t("quiz.pointsShort")}
               </p>
               {(result.streakBonus ?? 0) > 0 && (
                 <p className="text-sm font-medium text-amber-600">
@@ -561,25 +640,35 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
           )}
           {showVerdict && result.correct === false && (
             <>
-              <span className="text-7xl">{result.points > 0 ? "🎯" : "❌"}</span>
+              <span className="quiz-result-pop text-7xl" aria-hidden>{partial ? "◎" : "↗"}</span>
               {/* Partial credit (a near-miss number, a partly-right multi-select)
                   is not simply "wrong": saying so would be a lie about the score
                   they can see on the leaderboard. */}
-              <p className={cn("font-heading text-5xl", result.points > 0 ? "text-amber-600" : "text-destructive")}>
+              <p className={cn("font-mono text-xs font-black uppercase tracking-[0.24em]", partial ? "text-amber-800" : "text-rose-800")}>
                 {t(result.points > 0 ? "quiz.closeEnough" : "quiz.incorrect")}
               </p>
+              <p className={cn("max-w-[12ch] font-heading text-5xl leading-[0.95] sm:text-6xl", partial ? "text-amber-950" : "text-rose-950")}>
+                {t(feedbackKey)}
+              </p>
               {result.points > 0 && (
-                <p className="text-teal-600 text-xl font-semibold">
-                  <CountUp to={result.points} />
+                <p className="font-mono text-3xl font-black text-amber-800 tabular-nums">
+                  +<CountUp to={result.points} /> {t("quiz.pointsShort")}
                 </p>
               )}
             </>
           )}
           {!showVerdict && (
             <>
-              <span className="text-5xl">✓</span>
-              <p className="text-xl font-semibold">{t("quiz.answerReceived")}</p>
+              <span className="flex size-24 items-center justify-center rounded-full bg-teal-700 text-5xl text-white">✓</span>
+              <p className="font-mono text-xs font-black uppercase tracking-[0.24em] text-teal-800">{t("quiz.answerLocked")}</p>
+              <p className="max-w-sm font-heading text-4xl leading-tight">{t("quiz.revealIncoming")}</p>
             </>
+          )}
+          {showVerdict && revealedAnswers.length > 0 && (
+            <div className="mt-2 w-full max-w-md border-t border-current/15 pt-4">
+              <p className="font-mono text-[0.65rem] font-black uppercase tracking-[0.2em] opacity-55">{t("quiz.correctAnswer")}</p>
+              <p className="mt-1 text-lg font-bold">{revealedAnswers.join(" · ")}</p>
+            </div>
           )}
           {showVerdict && result.rank !== null && (
             <p className="text-muted-foreground">
@@ -592,12 +681,8 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
               and a poll, where no verdict is ever coming and promising results
               would just leave the phone waiting for something that never
               arrives. */}
-          <p className="text-sm text-muted-foreground mt-2">
-            {t(
-              showVerdict || result.correct === null
-                ? "quiz.waitingForNext"
-                : "quiz.waitingForResults",
-            )}
+          <p className="mt-2 text-sm opacity-60">
+            {t(showVerdict || result.correct === null ? "quiz.nextQuestionSoon" : "quiz.waitingForResults")}
           </p>
         </div>
       </Screen>
@@ -936,7 +1021,20 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
 // load fast on a few hundred phones on venue wifi. Doing them in CSS keeps
 // framer-motion out of the bundle entirely rather than merely deferring it.
 // motion-reduce: preserves what useReducedMotion() was doing.
-function Screen({ children, padding, k, urgent, banner }: { children: React.ReactNode; padding?: boolean; k?: string; urgent?: boolean; banner?: React.ReactNode }) {
+function Screen({ children, padding, k, urgent, banner, tone = "neutral" }: {
+  children: React.ReactNode
+  padding?: boolean
+  k?: string
+  urgent?: boolean
+  banner?: React.ReactNode
+  tone?: "neutral" | "correct" | "partial" | "incorrect"
+}) {
+  const toneClass = {
+    neutral: "bg-[#f3eee2] shadow-[14px_14px_0_#14b8a6]",
+    correct: "bg-emerald-100 shadow-[14px_14px_0_#16a34a]",
+    partial: "bg-amber-100 shadow-[14px_14px_0_#d97706]",
+    incorrect: "bg-rose-100 shadow-[14px_14px_0_#e11d48]",
+  }[tone]
   return (
     <div className={`overscroll-dark relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-[#07100d] ${padding ? "px-4 py-10" : "px-4 py-8"}`}>
       <div className="paper-grid absolute inset-0 opacity-[0.1]" aria-hidden />
@@ -953,7 +1051,7 @@ function Screen({ children, padding, k, urgent, banner }: { children: React.Reac
       {/* key remounts this on phase change so the entrance replays. */}
       <div
         key={k}
-        className={`relative z-10 flex w-full max-w-3xl flex-col items-center bg-[#f3eee2] p-6 text-[#111614] shadow-[14px_14px_0_#14b8a6] sm:p-10 motion-reduce:animate-none ${
+        className={`relative z-10 flex w-full max-w-3xl flex-col items-center p-6 text-[#111614] sm:p-10 motion-reduce:animate-none ${toneClass} ${
           k === undefined ? "" : "animate-in fade-in zoom-in-95 slide-in-from-bottom-4 duration-300"
         } ${urgent ? "quiz-urgent" : ""}`}
       >

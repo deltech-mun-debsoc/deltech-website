@@ -14,8 +14,9 @@ import type {
   QuizBroadcast,
   PresentationData,
 } from "@/lib/quiz-types"
-import { asMCQ, isScoredType, redactSlide } from "@/lib/quiz-types"
+import { asMCQ, asNumeric, asTypeAnswer, isScoredType, redactSlide } from "@/lib/quiz-types"
 import { APP_URL } from "@/lib/app-url"
+import { t } from "@/content/strings"
 
 type Screen = "lobby" | "question" | "leaderboard"
 
@@ -164,9 +165,30 @@ export function PresenterApp({ session, presentation, slides }: Props) {
         ? asMCQ(currentSlide.config).correct
         : []
 
+    // Answers are broadcast only at reveal time. The question itself remains
+    // redacted on every phone, while the reveal can still explain the result
+    // instead of reducing it to an unexplained green or red card.
+    const correctAnswers = (() => {
+      if (currentSlide.type === "MCQ") {
+        const config = asMCQ(currentSlide.config)
+        return indices.map((index) => config.options[index]).filter(Boolean)
+      }
+      if (currentSlide.type === "TRUE_FALSE") {
+        return indices.map((index) => t(index === 0 ? "quiz.trueLabel" : "quiz.falseLabel"))
+      }
+      if (currentSlide.type === "TYPE_ANSWER") {
+        return asTypeAnswer(currentSlide.config).accepted.slice(0, 3)
+      }
+      if (currentSlide.type === "NUMERIC") {
+        const config = asNumeric(currentSlide.config)
+        return [`${config.target}${config.unit ? ` ${config.unit}` : ""}`]
+      }
+      return []
+    })()
+
     setRevealed(true)
     setRevealedIndices(indices)
-    broadcast({ event: "REVEAL", correctIndices: indices })
+    broadcast({ event: "REVEAL", correctIndices: indices, correctAnswers })
   }
 
   function handleTimerExpire() {

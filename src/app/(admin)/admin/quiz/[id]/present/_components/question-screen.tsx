@@ -70,6 +70,8 @@ export function QuestionScreen({
       : null
 
   const voteCount = tally?.totalVotes ?? 0
+  const scoredQuiz = mode === "QUIZ" && isScoredType(type)
+  const canAdvance = !scoredQuiz || revealed
 
   function renderViz() {
     if (!tally) return null
@@ -119,18 +121,30 @@ export function QuestionScreen({
 
   return (
     <div
-      className="flex h-full flex-col"
-      style={{ background: theme.background, color: theme.textColor, fontFamily: theme.font }}
+      className="relative flex h-full flex-col overflow-hidden"
+      style={{ background: theme.background, color: theme.textColor }}
     >
-      {/* Header bar */}
-      <div className="flex min-h-20 items-center gap-5 border-b px-8 py-4" style={{ borderColor: surface.border }}>
-        <span className="font-mono text-sm font-bold uppercase tracking-[0.18em] opacity-55">
-          {t("quiz.slideProgress", { n: slideIndex + 1, total: slideCount })}
-        </span>
+      <div className="paper-grid pointer-events-none absolute inset-0 opacity-[0.055]" aria-hidden />
+      <div className="pointer-events-none absolute -right-20 -top-44 size-[32rem] rounded-full border opacity-20" style={{ borderColor: theme.accentColor }} aria-hidden />
+
+      {/* Stage status. Big counts make it readable from the back of a room. */}
+      <div className="relative flex min-h-24 items-center gap-6 border-b px-9 py-4" style={{ borderColor: surface.border }}>
+        <div>
+          <span className="flex items-center gap-2 font-mono text-xs font-black uppercase tracking-[0.22em] opacity-55">
+            <span className="size-2 animate-pulse" style={{ background: revealed ? "#22c55e" : theme.accentColor }} />
+            {t(revealed ? "quiz.answerReveal" : "quiz.liveQuestion")}
+          </span>
+          <span className="mt-1 block font-mono text-sm font-bold uppercase tracking-[0.16em]">
+            {t("quiz.slideProgress", { n: slideIndex + 1, total: slideCount })}
+          </span>
+        </div>
         <span className="flex-1" />
-        <span className="font-mono text-sm font-bold uppercase tracking-[0.16em] opacity-55">
-          {t("quiz.voteCount", { voted: voteCount, total: participantCount ?? "?" })}
-        </span>
+        <div className="text-right">
+          <span className="block font-heading text-4xl leading-none tabular-nums">{voteCount}</span>
+          <span className="font-mono text-[0.65rem] font-black uppercase tracking-[0.16em] opacity-50">
+            {t("quiz.responsesIn", { count: voteCount })} · {t("quiz.playersInRoom", { count: participantCount ?? "?" })}
+          </span>
+        </div>
         {timerSeconds && (
           <CountdownRing
             durationSeconds={timerSeconds}
@@ -142,15 +156,17 @@ export function QuestionScreen({
       </div>
 
       {/* Prompt */}
-      <div className="px-10 py-7">
-        <h1 className="max-w-[24ch] text-5xl font-bold leading-[1.08]">{slide.prompt || t("quiz.builder.promptPlaceholder")}</h1>
+      <div className="relative px-10 pb-6 pt-7">
+        <h1 className="max-w-[22ch] font-heading text-[clamp(3.4rem,6vw,6.5rem)] leading-[0.92] tracking-[-0.04em]">
+          {slide.prompt || t("quiz.builder.promptPlaceholder")}
+        </h1>
       </div>
 
       {/* Viz */}
-      <div className="flex-1 overflow-auto">
+      <div className="relative min-h-0 flex-1 overflow-auto px-6 pb-4">
         {renderViz()}
         {type === "CONTENT" && (
-          <div className="max-w-5xl px-10 text-3xl opacity-80" style={{ lineHeight: 1.5 }}>
+          <div className="max-w-5xl px-4 font-heading text-4xl opacity-80" style={{ lineHeight: 1.35 }}>
             {(config as { body?: string }).body}
           </div>
         )}
@@ -158,13 +174,16 @@ export function QuestionScreen({
 
       {/* Host controls */}
       <div
-        className="flex min-h-20 items-center gap-3 border-t px-8 py-4"
+        className="relative flex min-h-24 items-center gap-3 border-t px-8 py-4"
         style={{ borderColor: surface.border }}
       >
+        <span className="mr-2 hidden font-mono text-[0.65rem] font-black uppercase tracking-[0.18em] opacity-40 xl:block">
+          {t("quiz.hostControls")}
+        </span>
         <button
           onClick={onPrev}
           disabled={slideIndex === 0}
-          className="border px-4 py-2.5 text-sm font-bold transition-opacity disabled:opacity-30 hover:opacity-80"
+          className="border px-4 py-2.5 font-mono text-xs font-black uppercase tracking-[0.1em] transition-opacity disabled:opacity-30 hover:opacity-80"
           style={{ borderColor: theme.accentColor, color: theme.accentColor }}
         >
           {t("quiz.prevSlide")}
@@ -173,7 +192,7 @@ export function QuestionScreen({
         {type !== "CONTENT" && !locked && (
           <button
             onClick={onLock}
-            className="flex items-center gap-2 px-4 py-2.5 text-sm font-bold transition-opacity hover:opacity-90"
+            className="flex items-center gap-2 px-4 py-2.5 font-mono text-xs font-black uppercase tracking-[0.1em] transition-opacity hover:opacity-90"
             style={{ background: "#f59e0b", color: readableOn("#f59e0b") }}
           >
             <Lock className="size-3" /> {t("quiz.lockVoting")}
@@ -183,10 +202,10 @@ export function QuestionScreen({
         {type !== "CONTENT" && locked && !revealed && (
           <button
             onClick={onUnlock}
-            className="flex items-center gap-2 border px-4 py-2.5 text-sm font-bold transition-opacity hover:opacity-80"
+            className="flex items-center gap-2 border px-4 py-2.5 font-mono text-xs font-black uppercase tracking-[0.1em] transition-opacity hover:opacity-80"
             style={{ borderColor: theme.accentColor, color: theme.accentColor }}
           >
-            <Unlock className="size-3" /> Unlock
+            <Unlock className="size-3" /> {t("quiz.unlockVoting")}
           </button>
         )}
 
@@ -196,17 +215,17 @@ export function QuestionScreen({
         {isScoredType(type) && mode === "QUIZ" && locked && !revealed && (
           <button
             onClick={onReveal}
-            className="flex items-center gap-2 px-4 py-2.5 text-sm font-bold transition-opacity hover:opacity-90"
+            className="flex items-center gap-2 px-4 py-2.5 font-mono text-xs font-black uppercase tracking-[0.1em] transition-transform hover:-translate-y-0.5"
             style={{ background: "#22c55e", color: readableOn("#22c55e") }}
           >
             <Eye className="size-3" /> {t("quiz.revealResults")}
           </button>
         )}
 
-        {mode === "QUIZ" && (
+        {mode === "QUIZ" && canAdvance && (
           <button
             onClick={onLeaderboard}
-            className="flex items-center gap-2 border px-4 py-2.5 text-sm font-bold transition-opacity hover:opacity-80"
+            className="flex items-center gap-2 border px-4 py-2.5 font-mono text-xs font-black uppercase tracking-[0.1em] transition-opacity hover:opacity-80"
             style={{ borderColor: theme.accentColor, color: theme.accentColor }}
           >
             <Trophy className="size-3" /> {t("quiz.leaderboard")}
@@ -215,13 +234,15 @@ export function QuestionScreen({
 
         <span className="flex-1" />
 
-        <button
-          onClick={onNext}
-          className="flex items-center gap-2 px-6 py-3 text-base font-bold transition-transform hover:-translate-y-0.5"
-          style={{ background: theme.accentColor, color: readableOn(theme.accentColor) }}
-        >
-          {t("quiz.nextSlide")} <ChevronRight className="size-4" />
-        </button>
+        {canAdvance && (
+          <button
+            onClick={onNext}
+            className="flex items-center gap-2 px-7 py-3 font-mono text-sm font-black uppercase tracking-[0.1em] transition-transform hover:-translate-y-0.5"
+            style={{ background: theme.accentColor, color: readableOn(theme.accentColor) }}
+          >
+            {t("quiz.nextSlide")} <ChevronRight className="size-4" />
+          </button>
+        )}
       </div>
     </div>
   )
