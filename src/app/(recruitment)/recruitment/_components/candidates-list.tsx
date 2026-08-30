@@ -37,9 +37,28 @@ export interface CandidateRow {
 // sensible next queue. Only the resting stages get one: a candidate mid-session is
 // moved by the session, and DECISION/CLOSED are deliberate calls made on the
 // dossier rather than from a list row.
+// Only PI. "Send to GD" was removed: it flipped the stage badge INTAKE -> GD_PENDING
+// and did nothing else, while createGroup already performs that same write when the
+// candidate is put in a group, and the GD page already offers INTAKE candidates to
+// the group dialog. Advancing to PI is different -- it is the deliberate "no time
+// for a GD, interview them anyway" call, which nothing else makes for you.
 const ADVANCE_LABELS: Partial<Record<CandidateStageName, StringKey>> = {
-  GD_PENDING: "recruitment.candidates.advanceToGd",
   PI_PENDING: "recruitment.candidates.advanceToPi",
+}
+
+// Whether a decision (Selected / Hold / Reject) is due on this candidate.
+//
+// This used to be `hasCompletedPi` alone, which requires a PI group membership
+// joined to a COMPLETED PI session. On real data that was nearly always false at
+// the moment someone wanted to act: the candidates sitting at PI_COMPLETE or
+// DECISION -- exactly the ones awaiting a call -- had no buttons at all, and the
+// ones who did qualify were already CLOSED with a result, so their only enabled
+// control was the one they were already on. The Hold button was, in practice,
+// never clickable anywhere. Reaching a decided stage is enough.
+const DECIDED_STAGES: CandidateStageName[] = ["PI_COMPLETE", "DECISION", "CLOSED"]
+
+function decidable(c: CandidateRow): boolean {
+  return c.hasCompletedPi || DECIDED_STAGES.includes(c.stage as CandidateStageName)
 }
 
 function advanceTargetFor(c: CandidateRow): { to: CandidateStageName; label: string } | null {
@@ -224,7 +243,7 @@ export function CandidatesList({
                 </div>
 
                 <div className="flex shrink-0 items-center gap-2">
-                  {c.hasCompletedPi && (canHold || canFinalise) && (
+                  {decidable(c) && (canHold || canFinalise) && (
                     <PostInterviewDecision
                       cycleId={cycleId}
                       candidateId={c.id}

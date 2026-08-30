@@ -64,13 +64,6 @@ export async function GroupConsolePage({
         }
         displayState={console_.displayState as SessionDisplayState}
         members={console_.members}
-        panelists={console_.staff
-          .filter((panelist) => panelist.canEvaluate)
-          .map((panelist) => ({
-            userId: panelist.userId,
-            name: panelist.name,
-            email: panelist.email,
-          }))}
         criteria={criteria}
         viewerId={ctx.userId}
         permissions={{

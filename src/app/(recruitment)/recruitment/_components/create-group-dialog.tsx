@@ -68,6 +68,21 @@ export function CreateGroupDialog({
     return [...selected, ...matches]
   }, [candidates, candidateQuery, picked])
 
+  // The panel got the same treatment. It was a flat, unbounded, unsearchable list
+  // of every active member in the cycle -- the one list in this dialog that had
+  // never been given a filter, and the one that grows with the council.
+  const [staffQuery, setStaffQuery] = useState("")
+  const visibleStaff = useMemo(() => {
+    const query = staffQuery.trim().toLowerCase()
+    const selected = staff.filter((s) => staffPicked.has(s.memberId))
+    const matches = staff.filter(
+      (s) =>
+        !staffPicked.has(s.memberId) &&
+        (!query || [s.name, s.email].some((field) => field?.toLowerCase().includes(query))),
+    )
+    return [...selected, ...matches]
+  }, [staff, staffQuery, staffPicked])
+
   const toggle = (id: string) =>
     setPicked((prev) => {
       const next = new Set(prev)
@@ -150,9 +165,29 @@ export function CreateGroupDialog({
             </div>
 
             <div className="space-y-2">
-              <Label>{t("recruitment.groups.createStaffLabel")}</Label>
-              <ul className="divide-y divide-border/70 rounded-md border border-border/70">
-                {staff.map((s) => {
+              <Label>
+                {t("recruitment.groups.createStaffLabel")} ·{" "}
+                {t("recruitment.groups.panelCount", { count: staffPicked.size })}
+              </Label>
+              {/* Always shown, like the candidate search below it. Hiding it under
+                  a length threshold just means the one person who needs it cannot
+                  find it. */}
+              <div className="relative">
+                <Search className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  value={staffQuery}
+                  onChange={(e) => setStaffQuery(e.target.value)}
+                  placeholder={t("recruitment.groups.searchStaff")}
+                  className="pl-8"
+                />
+              </div>
+              <ul className="max-h-64 divide-y divide-border/70 overflow-y-auto rounded-md border border-border/70">
+                {visibleStaff.length === 0 && (
+                  <li className="px-3 py-6 text-center text-sm text-muted-foreground">
+                    {t("recruitment.groups.noMatchingStaff")}
+                  </li>
+                )}
+                {visibleStaff.map((s) => {
                   const selected = staffPicked.has(s.memberId)
                   return (
                     <li key={s.memberId} className="flex items-center gap-3 px-3 py-2">

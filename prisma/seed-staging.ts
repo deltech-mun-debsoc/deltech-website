@@ -523,8 +523,6 @@ async function main() {
         stages: {
           gdRequiredByDefault: true,
           piRequiredByDefault: true,
-          minGdEvaluations: 1,
-          minPiEvaluations: 1,
           gdPlannedSeconds: 900,
           piPlannedSeconds: 600,
           allowGdBypass: true,

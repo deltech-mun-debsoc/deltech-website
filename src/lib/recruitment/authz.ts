@@ -8,6 +8,7 @@
 // MAINTAINER has no recruitment power until someone assigns them, and a
 // SUB_MAINTAINER has no dashboard power at all: the two systems are independent.
 
+import { cache } from "react"
 import { redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
@@ -58,14 +59,29 @@ export class RecruitmentDenied extends Error {
   }
 }
 
-async function sessionUser() {
+// Per-request memoised, because a recruitment page resolves its context twice:
+// once in the layout guard and again in the page itself, and Next gives a layout
+// no way to hand what it found to the page below it. On the candidate dossier
+// that was four duplicate queries -- session, cycle, membership -- on every open,
+// which is most of why it felt slow. `cache` collapses them for the whole render
+// without changing a single call site.
+const sessionUser = cache(async function sessionUser() {
   const session = await auth()
   const user = session?.user as
     | { id?: string; email?: string | null; name?: string | null; role?: string }
     | undefined
   if (!user?.id || !user.email) return null
   return { id: user.id, email: user.email, name: user.name ?? null, appRole: user.role ?? "AUTHOR" }
-}
+})
+
+// Same reasoning: the cycle row and the membership row are read by both the
+// layout and the page, and neither changes inside one request.
+const cycleById = cache(async function cycleById(cycleId: string) {
+  return prisma.recruitmentCycle.findUnique({
+    where: { id: cycleId },
+    select: { id: true, name: true, slug: true, state: true, version: true, config: true },
+  })
+})
 
 // ---------------------------------------------------------------------------
 // Cycle selection
@@ -103,7 +119,7 @@ const LIVE_STATES: CycleState[] = ["OPEN", "IN_PROGRESS", "PAUSED", "FINALISATIO
 // Role resolution
 // ---------------------------------------------------------------------------
 
-export async function recruitmentRoleFor(
+export const recruitmentRoleFor = cache(async function recruitmentRoleFor(
   userId: string,
   appRole: string,
   cycleId: string,
@@ -116,7 +132,7 @@ export async function recruitmentRoleFor(
   // a page is open" take effect on the next action rather than the next login.
   const membershipRole = membership?.isActive ? membership.role : null
   return resolveRecruitmentRole(appRole, membershipRole)
-}
+})
 
 // ---------------------------------------------------------------------------
 // Route guards (redirect on failure: for layouts and pages)
@@ -196,10 +212,7 @@ export async function resolveCycleContext(cycleId: string): Promise<RecruitmentC
   const user = await sessionUser()
   if (!user) return null
 
-  const cycle = await prisma.recruitmentCycle.findUnique({
-    where: { id: cycleId },
-    select: { id: true, name: true, slug: true, state: true, version: true, config: true },
-  })
+  const cycle = await cycleById(cycleId)
   if (!cycle) return null
 
   const { role, implicit } = await recruitmentRoleFor(user.id, user.appRole, cycleId)

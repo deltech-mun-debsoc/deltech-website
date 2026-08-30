@@ -31,9 +31,6 @@ export const stageRulesSchema = z.object({
   // queue: no code path special-cases it.
   gdRequiredByDefault: z.boolean().default(true),
   piRequiredByDefault: z.boolean().default(true),
-  // Minimum submitted GD evaluations before a candidate may advance. 0 disables.
-  minGdEvaluations: z.number().int().min(0).max(10).default(1),
-  minPiEvaluations: z.number().int().min(0).max(10).default(1),
   // Default planned length, used to prefill a session's timer target. Advisory:
   // the server never auto-ends a session, it only reports elapsed time.
   gdPlannedSeconds: z.number().int().min(60).max(4 * 60 * 60).default(15 * 60),
@@ -178,9 +175,6 @@ export const evaluationInputSchema = z.object({
   scores: z.record(z.string(), z.number()),
   remarks: z.string().max(4000).optional(),
   recommendation: recommendationSchema.optional(),
-  // A maintainer operating the shared panel laptop may record the score for an
-  // assigned panelist. Authorization is resolved from the group, never trusted.
-  panelistUserId: z.string().min(1).optional(),
   // Client-generated so a retried submit collapses onto the same row.
   idempotencyKey: z.string().min(8).max(120).optional(),
   // Version the client was editing, for optimistic concurrency on revisions.
