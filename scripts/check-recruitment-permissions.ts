@@ -173,8 +173,19 @@ assert.equal(cycleAllows("DRAFT", "import.apply"), true)
 // Running.
 assert.equal(cycleAllows("IN_PROGRESS", "session.start"), true)
 assert.equal(cycleAllows("IN_PROGRESS", "candidate.bypassGd"), true)
-// Finalising is not an in-progress action.
-assert.equal(cycleAllows("IN_PROGRESS", "candidate.finalise"), false)
+// Deciding a candidate IS an in-progress action.
+//
+// It used to be FINALISATION-only, which made the Hold button a dead end: an admin
+// looking at someone who had just finished their interview got a greyed-out Hold and
+// no Selected or Reject at all, while session Finish was already writing SELECTED and
+// REJECTED in this very state. The role gate is the protection here, and it is
+// asserted immediately below -- widening WHEN a decision may be recorded must never
+// be mistaken for widening WHO may record one.
+assert.equal(cycleAllows("OPEN", "candidate.finalise"), true)
+assert.equal(cycleAllows("IN_PROGRESS", "candidate.finalise"), true)
+assert.equal(can("MAINTAINER", "candidate.finalise"), false)
+assert.equal(can("JC", "candidate.finalise"), false)
+assert.equal(can("ADMIN", "candidate.finalise"), true)
 
 // Paused: nothing starts or advances, but panel work in flight can still be saved
 // so a pause never destroys unsubmitted evaluations.
@@ -182,6 +193,10 @@ assert.equal(cycleAllows("PAUSED", "session.start"), false)
 assert.equal(cycleAllows("PAUSED", "candidate.advance"), false)
 assert.equal(cycleAllows("PAUSED", "evaluation.draft"), true)
 assert.equal(cycleAllows("PAUSED", "evaluation.submit"), true)
+// Deciding is not operational work on a session, so the decision backlog can be
+// worked through without un-pausing the cycle.
+assert.equal(cycleAllows("PAUSED", "candidate.finalise"), true)
+assert.equal(cycleAllows("PAUSED", "candidate.hold"), true)
 
 // Finalisation: decide outcomes, don't run sessions.
 assert.equal(cycleAllows("FINALISATION", "candidate.finalise"), true)

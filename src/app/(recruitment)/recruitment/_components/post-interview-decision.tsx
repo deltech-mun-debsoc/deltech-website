@@ -6,13 +6,16 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { useRecruitmentLive } from "@/components/recruitment/use-recruitment-live"
 import { cn } from "@/lib/utils"
+import { t, type StringKey } from "@/content/strings"
 import { setCandidateResult } from "../candidate-actions"
 import type { CandidateResultName } from "@/lib/recruitment/transitions"
 
-const DECISIONS: { result: Extract<CandidateResultName, "SELECTED" | "ON_HOLD" | "REJECTED">; label: string }[] = [
-  { result: "SELECTED", label: "Selected" },
-  { result: "ON_HOLD", label: "Hold" },
-  { result: "REJECTED", label: "Reject" },
+// One name per outcome, shared with ResultBadge, so the button and the badge it
+// produces can never read differently.
+const DECISIONS: Extract<CandidateResultName, "SELECTED" | "ON_HOLD" | "REJECTED">[] = [
+  "SELECTED",
+  "ON_HOLD",
+  "REJECTED",
 ]
 
 // The interview is the final assessment. There is no separate "advance to
@@ -39,10 +42,11 @@ export function PostInterviewDecision({
 
   return (
     <div className="flex flex-wrap items-center gap-1.5" aria-label="Post-interview decision">
-      {DECISIONS.map(({ result, label }) => {
+      {DECISIONS.map((result) => {
         const permitted = result === "ON_HOLD" ? canHold : canFinalise
         if (!permitted) return null
         const active = currentResult === result
+        const label = t(`recruitment.result.${result}` as StringKey)
 
         return (
           <Button

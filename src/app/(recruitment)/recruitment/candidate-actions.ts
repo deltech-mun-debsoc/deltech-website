@@ -351,6 +351,18 @@ export async function setCandidateResult(input: {
 
     const requestId = newRequestId()
 
+    // Which outcomes finish a candidate.
+    //
+    // A hold does NOT: it is a question still open, and the PI queue deliberately
+    // re-offers held candidates -- but only at GD_COMPLETE, GD_BYPASSED or
+    // PI_PENDING. Closing them on Hold put them in a stage no queue looks at, so
+    // pressing Hold quietly removed the candidate from the process instead of
+    // parking them in it. Same class of dead end as the finish-session bug fixed
+    // in #86, on the manual path this time.
+    const closes = data.to === "SELECTED" || data.to === "REJECTED" ||
+      data.to === "WITHDRAWN" || data.to === "DISQUALIFIED"
+    const nextStage = closes ? "CLOSED" : candidate.stage
+
     return await prisma.$transaction(async (tx) => {
       const updated = await tx.recruitmentCandidate.updateMany({
         where: { id: candidate.id, version: candidate.version, result: candidate.result },
@@ -359,8 +371,7 @@ export async function setCandidateResult(input: {
           decidedById: ctx.userId,
           decidedAt: new Date(),
           version: { increment: 1 },
-          // A decided candidate moves to CLOSED unless they are being reopened.
-          ...(data.to === "PENDING" ? {} : { stage: "CLOSED" }),
+          ...(closes ? { stage: "CLOSED" as const } : {}),
         },
       })
       // Two admins finalising the same candidate: one wins, the other is told.
@@ -381,7 +392,7 @@ export async function setCandidateResult(input: {
         cycleId: candidate.cycleId,
         candidateId: candidate.id,
         previousState: { result: candidate.result, stage: candidate.stage, version: candidate.version },
-        newState: { result: data.to, version: candidate.version + 1 },
+        newState: { result: data.to, stage: nextStage, version: candidate.version + 1 },
         reason: data.reason ?? null,
         meta: { action, candidateName: candidate.fullName, implicit: ctx.implicit },
         requestId,

@@ -165,6 +165,14 @@ const SETUP: readonly RecruitmentAction[] = [
 ]
 
 // The full operational surface: only while recruitment is actually running.
+//
+// `candidate.finalise` lives here as well as in FINALISATION. It used to be
+// FINALISATION-only, which made Hold a dead end: an admin looking at a candidate
+// who had just finished their interview saw a greyed-out Hold and no Selected or
+// Reject at all, because `mayPerform` refused the capability in an OPEN cycle.
+// Meanwhile session Finish was already writing SELECTED and REJECTED directly in
+// that same state, so the panel could select someone the admin was forbidden to.
+// The role gate is the real protection here and it is unchanged: ADMIN_ONLY.
 const OPERATIONS: readonly RecruitmentAction[] = [
   "group.create",
   "group.edit",
@@ -192,6 +200,7 @@ const OPERATIONS: readonly RecruitmentAction[] = [
   "candidate.disqualify",
   "candidate.reconsider",
   "candidate.override",
+  "candidate.finalise",
   "import.preview",
   "import.apply",
 ]
@@ -225,6 +234,10 @@ export const CYCLE_STATE_ALLOWS: Record<CycleStateName, readonly RecruitmentActi
     "session.pause",
     "session.abort",
     "candidate.override",
+    // Deciding is not operational work on a session, so pausing the cycle to work
+    // through the decision backlog is a legitimate thing to want to do.
+    "candidate.finalise",
+    "candidate.hold",
   ],
   // Sessions are done; results are being decided.
   FINALISATION: ["cycle.transition", "cycle.assignStaff", ...FINALISATION],

@@ -298,10 +298,17 @@ assert.equal(
   for (const outcome of ["SELECTED", "ON_HOLD", "REJECTED"]) {
     assert.match(
       postInterviewDecision,
-      new RegExp(`result: "${outcome}"`),
+      new RegExp(`"${outcome}"`),
       `the post-interview decision must offer ${outcome}`,
     )
   }
+  // Button and badge read from one table, so they can never name an outcome
+  // differently on two screens.
+  assert.match(
+    postInterviewDecision,
+    /recruitment\.result\.\$\{result\}/,
+    "and must name outcomes from the shared string table",
+  )
   assert.match(
     postInterviewDecision,
     /setCandidateResult/,
@@ -510,6 +517,136 @@ assert.equal(
   )
   // A disabled control that says nothing reads as a broken one.
   assert.match(button, /bypassReasonRequired/, "an empty reason must say what it needs")
+}
+
+// --- a hold parks a candidate, it does not close them -----------------------
+//
+// setCandidateResult moved EVERY non-PENDING outcome to CLOSED, ON_HOLD included.
+// The PI queue only re-offers candidates at GD_COMPLETE, GD_BYPASSED or PI_PENDING,
+// so pressing Hold silently removed them from the process instead of parking them
+// in it -- the manual twin of the finish-session dead end fixed in #86.
+{
+  const candidateActions = readFileSync(
+    "src/app/(recruitment)/recruitment/candidate-actions.ts",
+    "utf8",
+  )
+  assert.match(
+    candidateActions,
+    /const closes = data\.to === "SELECTED" \|\| data\.to === "REJECTED"/,
+    "only a final outcome closes a candidate",
+  )
+  assert.doesNotMatch(
+    candidateActions,
+    /data\.to === "PENDING" \? \{\} : \{ stage: "CLOSED" \}/,
+    "a hold must not close the candidate",
+  )
+  const queue = readFileSync("src/app/(recruitment)/recruitment/pi/page.tsx", "utf8")
+  assert.match(
+    queue,
+    /result: \{ in: \["PENDING", "ON_HOLD"\] \}/,
+    "and the interview queue must still re-offer held candidates",
+  )
+}
+
+// --- a finished panel stays reachable ---------------------------------------
+//
+// Finish sets the group to DONE. GD listed everything but ARCHIVED, so finished
+// panels buried the live ones; PI listed only DRAFT/READY/RUNNING and filtered the
+// candidate out of the queue by their new membership, so a finished interview had
+// no link anywhere in the app and a mis-scored one could not be corrected.
+{
+  const queries = readFileSync("src/app/(recruitment)/recruitment/_lib/queries.ts", "utf8")
+  assert.match(queries, /export const LIVE_GROUP_STATES/, "live panel states must be named")
+  assert.match(queries, /export const PAST_GROUP_STATES = \["DONE"\]/, "so must finished ones")
+
+  const gd = readFileSync("src/app/(recruitment)/recruitment/gd/page.tsx", "utf8")
+  assert.match(gd, /PAST_GROUP_STATES/, "the GD page must fetch finished panels")
+
+  const pi = readFileSync("src/app/(recruitment)/recruitment/pi/page.tsx", "utf8")
+  assert.match(pi, /state: "DONE"/, "the interview page must fetch finished interviews")
+
+  // Both lists ship together and the toggle is in-memory state: a tab that fetches
+  // is a tab that makes the site feel slow, which is the whole reason for #87.
+  // (pi-queue keeps a router.push, but for navigating to a newly started interview.)
+  for (const [file, marker] of [
+    ["src/app/(recruitment)/recruitment/_components/group-list.tsx", "past"],
+    ["src/app/(recruitment)/recruitment/_components/pi-queue.tsx", "visiblePast"],
+  ] as const) {
+    const source = readFileSync(file, "utf8")
+    assert.match(source, new RegExp(marker), `${file} must render the past list`)
+    assert.match(source, /TabStrip/, `${file} must switch tabs in the browser`)
+    assert.doesNotMatch(source, /fetch\(/, `${file} must not go to the server to switch tabs`)
+  }
+}
+
+// --- an interview is one person, not a roster of one ------------------------
+{
+  const consolePage = readFileSync(
+    "src/app/(recruitment)/recruitment/_components/group-console-page.tsx",
+    "utf8",
+  )
+  assert.match(consolePage, /InterviewConsole/, "PI must have its own console")
+  assert.match(
+    consolePage,
+    /kind: "GD", state: "SUBMITTED"/,
+    "and the interview must load the candidate's GD record, which its own description promises",
+  )
+  const interview = readFileSync(
+    "src/app/(recruitment)/recruitment/_components/interview-console.tsx",
+    "utf8",
+  )
+  assert.match(interview, /gdBypassed \?/, "a skipped GD must say so rather than render an empty panel")
+  // The clock and its lifecycle buttons carry the optimistic conflict-adoption
+  // logic. Two copies of that would drift, so both consoles import one.
+  for (const file of [
+    "src/app/(recruitment)/recruitment/_components/session-console.tsx",
+    "src/app/(recruitment)/recruitment/_components/interview-console.tsx",
+  ]) {
+    assert.match(readFileSync(file, "utf8"), /SessionControls/, `${file} must share the session controls`)
+    assert.doesNotMatch(readFileSync(file, "utf8"), /takeSessionControl/, `${file} must not re-implement them`)
+  }
+}
+
+// --- interviews are not a Junior Council surface ----------------------------
+{
+  const nav = readFileSync("src/app/(recruitment)/_components/recruitment-nav.ts", "utf8")
+  assert.match(
+    nav,
+    /href: "\/recruitment\/pi",[\s\S]*?requires: "group\.create"/,
+    "the PI destination must be gated",
+  )
+  const pi = readFileSync("src/app/(recruitment)/recruitment/pi/page.tsx", "utf8")
+  // The nav is cosmetic. The queue names every candidate past GD and is NOT scoped
+  // by visibleGroupIds, so the page has to guard itself.
+  assert.match(
+    pi,
+    /if \(!can\(ctx\.role, "group\.create"\)\) redirect\("\/recruitment"\)/,
+    "and the page must refuse a JC who types the URL",
+  )
+}
+
+// --- the audit trail names people, not cuids --------------------------------
+//
+// Every row used to be a raw event slug over two JSON blobs. The candidateId and
+// groupId columns were written on every relevant event and never read, so "what
+// happened to this person" could only be answered from a database client.
+{
+  const viewer = readFileSync(
+    "src/app/(recruitment)/recruitment/_components/audit-viewer.tsx",
+    "utf8",
+  )
+  assert.match(viewer, /const candidateById = new Map/, "the audit trail must resolve candidate ids")
+  assert.match(viewer, /const groupById = new Map/, "and group ids")
+  // Batched, never per row: this is already the heaviest page in the module.
+  assert.match(viewer, /id: \{ in: \[\.\.\.new Set\(events\.map/, "in one query each, not one per row")
+  assert.match(viewer, /function describe\(/, "and say what happened in a sentence")
+  // Demoted, not deleted. An audit trail drops nothing.
+  assert.match(viewer, /<details/, "the raw record must still be reachable")
+  assert.match(viewer, /JSON\.stringify\(e\.previousState/, "including the before state")
+  assert.match(viewer, /JSON\.stringify\(e\.newState/, "and the after state")
+  // filters.candidate was accepted by the page and had no control anywhere.
+  assert.match(viewer, /name="candidate"/, "and a candidate filter must exist in the form")
+  assert.match(viewer, /fullName: \{ contains: candidateQuery/, "taking a name, not an id")
 }
 
 console.log("recruitment pipeline checks passed (three-way decisions, final selections, popups)")
