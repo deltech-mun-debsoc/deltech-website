@@ -181,7 +181,7 @@ export async function moveCandidateStage(input: {
         requestId,
       })
 
-      revalidatePath("/recruitment")
+      revalidatePath("/recruitment", "layout")
       return { ok: true as const, stage: data.to, version: candidate.version + 1, idempotent: false }
     })
   } catch (err) {
@@ -282,7 +282,7 @@ export async function bypassGd(input: {
         requestId,
       })
 
-      revalidatePath("/recruitment")
+      revalidatePath("/recruitment", "layout")
       return { ok: true as const, stage: "GD_BYPASSED", version: candidate.version + 1, idempotent: false }
     })
   } catch (err) {
@@ -398,8 +398,8 @@ export async function setCandidateResult(input: {
         requestId,
       })
 
-      revalidatePath("/recruitment")
-      revalidatePath("/admin/recruitment")
+      revalidatePath("/recruitment", "layout")
+      revalidatePath("/admin/recruitment", "layout")
       return { ok: true as const, result: data.to, version: candidate.version + 1, idempotent: false }
     })
   } catch (err) {

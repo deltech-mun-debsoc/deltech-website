@@ -87,7 +87,7 @@ export async function createRecruitmentCycle(input: {
       return created
     })
 
-    revalidatePath("/admin/recruitment")
+    revalidatePath("/admin/recruitment", "layout")
     return { ok: true, id: cycle.id }
   } catch (err) {
     if (isUniqueViolation(err)) {
@@ -135,8 +135,8 @@ export async function updateCycleConfig(input: {
       return { ok: false, error: "This cycle was reconfigured elsewhere. Reload and try again." }
     }
 
-    revalidatePath("/admin/recruitment")
-    revalidatePath("/recruitment")
+    revalidatePath("/admin/recruitment", "layout")
+    revalidatePath("/recruitment", "layout")
     return { ok: true }
   } catch (err) {
     return denied(err)
@@ -217,8 +217,8 @@ export async function transitionCycle(input: {
       return { ok: false, error: "This cycle changed state elsewhere. Reload and try again." }
     }
 
-    revalidatePath("/admin/recruitment")
-    revalidatePath("/recruitment")
+    revalidatePath("/admin/recruitment", "layout")
+    revalidatePath("/recruitment", "layout")
     return { ok: true }
   } catch (err) {
     return denied(err)
@@ -284,7 +284,7 @@ export async function assignRecruitmentMember(input: {
       })
     })
 
-    revalidatePath("/admin/recruitment")
+    revalidatePath("/admin/recruitment", "layout")
     return { ok: true }
   } catch (err) {
     return denied(err)
@@ -332,7 +332,7 @@ export async function revokeRecruitmentMember(input: {
       })
     })
 
-    revalidatePath("/admin/recruitment")
+    revalidatePath("/admin/recruitment", "layout")
     return { ok: true }
   } catch (err) {
     return denied(err)
@@ -487,9 +487,9 @@ export async function recruitCandidate(input: {
       createdUser: result.createdUser,
     })
 
-    revalidatePath("/admin/recruitment")
+    revalidatePath("/admin/recruitment", "layout")
     revalidatePath("/admin/users")
-    revalidatePath("/recruitment")
+    revalidatePath("/recruitment", "layout")
     return { ok: true, userId: result.userId, idempotent: false }
   } catch (err) {
     if (err instanceof AlreadyRecruited) {

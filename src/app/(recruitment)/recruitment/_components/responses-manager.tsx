@@ -198,6 +198,13 @@ export function ResponsesManager({
                       </Button>
                     )}
                   </div>
+                  {/* The title attribute was the only explanation, and a tooltip
+                      is invisible on touch and to keyboard users. */}
+                  {canApply && !(preview?.ok && activeId === s.id) && (
+                    <p className="text-xs text-muted-foreground">
+                      {t("recruitment.responses.previewFirst")}
+                    </p>
+                  )}
                 </Card>
               </li>
             ))}
@@ -375,6 +382,12 @@ export function ResponsesManager({
               </div>
             </div>
 
+            {/* Four separate gates, none of which used to be stated anywhere. */}
+            {(!label.trim() || !sheetUrl.trim() || !mapping.fullName || !mapping.email) && (
+              <p className="text-xs text-muted-foreground">
+                {t("recruitment.responses.sourceIncomplete")}
+              </p>
+            )}
             <Button
               disabled={pending || !label.trim() || !sheetUrl.trim() || !mapping.fullName || !mapping.email}
               onClick={doSaveSource}

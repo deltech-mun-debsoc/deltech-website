@@ -10,6 +10,7 @@
 // Also pins that a GD panel cannot record SELECT: selecting someone is a hiring
 // decision made after PI, not on a discussion round.
 import assert from "node:assert"
+import { newerOf } from "../src/lib/recruitment/evaluation-merge"
 import { existsSync, readFileSync } from "node:fs"
 import {
   nextNaturalStage,
@@ -623,6 +624,13 @@ assert.equal(
     /if \(!can\(ctx\.role, "group\.create"\)\) redirect\("\/recruitment"\)/,
     "and the page must refuse a JC who types the URL",
   )
+  // The console too: being staffed on a PI group must not become a way around a
+  // gate the nav and the queue both enforce.
+  assert.match(
+    readFileSync("src/app/(recruitment)/recruitment/_components/group-console-page.tsx", "utf8"),
+    /kind === "PI" && !can\(ctx\.role, "group\.create"\)/,
+    "the interview console must refuse a JC as well",
+  )
 }
 
 // --- the audit trail names people, not cuids --------------------------------
@@ -647,6 +655,91 @@ assert.equal(
   // filters.candidate was accepted by the page and had no control anywhere.
   assert.match(viewer, /name="candidate"/, "and a candidate filter must exist in the form")
   assert.match(viewer, /fullName: \{ contains: candidateQuery/, "taking a name, not an id")
+}
+
+// --- a save shows itself, without waiting for a refresh ---------------------
+//
+// EvaluationForm re-seeds its fields whenever the row id changes, and a revision
+// ALWAYS mints a new id. So an RSC refresh that had not yet seen the write would
+// re-seed from the pre-write row and visibly undo what was just typed -- a save
+// that appeared to have been ignored. The action returns the row it wrote and the
+// client adopts it, the same way SessionControls adopts the session.
+{
+  const actions = readFileSync(
+    "src/app/(recruitment)/recruitment/evaluation-actions.ts",
+    "utf8",
+  )
+  assert.match(actions, /export interface SavedEvaluation\b/, "the action must return the row it wrote")
+  assert.match(actions, /saved: savedFrom\(/, "every success path must carry it")
+  // Four write paths plus the idempotent recovery: none may return without it.
+  assert.equal(
+    (actions.match(/ok: true as const,|ok: true,/g) ?? []).length,
+    (actions.match(/saved: savedFrom\(/g) ?? []).length,
+    "every ok:true return must include the saved row",
+  )
+
+  const form = readFileSync(
+    "src/app/(recruitment)/recruitment/_components/evaluation-form.tsx",
+    "utf8",
+  )
+  assert.match(form, /const \[adopted, setAdopted\]/, "the form must hold the adopted row")
+  assert.match(form, /newerOf\(adopted, serverMine/, "and pick between it and the server row by version")
+
+  // The merge rule itself, exercised rather than grepped. Getting it wrong in one
+  // direction undoes the user's save; in the other it silently swallows another
+  // evaluator's revision, which is the harder failure to notice.
+  const local = { version: 2, tag: "local" }
+  const server = { version: 1, tag: "server" }
+  assert.equal(newerOf(local, server)!.tag, "local", "a newer local save must not be clobbered")
+  assert.equal(newerOf({ version: 1, tag: "local" }, { version: 3, tag: "server" })!.tag, "server",
+    "a newer server row must win")
+  // A tie is the same write seen twice; the server copy carries every field.
+  assert.equal(newerOf({ version: 2, tag: "local" }, { version: 2, tag: "server" })!.tag, "server",
+    "ties go to the server")
+  assert.equal(newerOf(null, server)!.tag, "server", "no local row yet")
+  assert.equal(newerOf(local, null)!.tag, "local", "no server row yet")
+  assert.equal(newerOf(null, null), null, "neither")
+  assert.match(form, /function unchanged\(\)/, "a revision that changes nothing must not be written")
+}
+
+// --- an interview hands you back, a group discussion does not ---------------
+{
+  const interview = readFileSync(
+    "src/app/(recruitment)/recruitment/_components/interview-console.tsx",
+    "utf8",
+  )
+  assert.match(
+    interview,
+    /onRevised=\{\(\) => router\.push\("\/recruitment\/pi"\)\}/,
+    "a revised interview must return to the queue",
+  )
+  const group = readFileSync(
+    "src/app/(recruitment)/recruitment/_components/session-console.tsx",
+    "utf8",
+  )
+  // A panel of several candidates may be revised in any order; navigating away
+  // after each one would be worse than the extra click.
+  assert.doesNotMatch(group, /onRevised/, "a group discussion console must stay put")
+}
+
+// --- mutations must invalidate the pages they change ------------------------
+//
+// revalidatePath("/recruitment") invalidates only that page. Every nested route
+// -- both consoles and the dossier -- was never invalidated by any mutation.
+{
+  for (const file of [
+    "src/app/(recruitment)/recruitment/evaluation-actions.ts",
+    "src/app/(recruitment)/recruitment/candidate-actions.ts",
+    "src/app/(recruitment)/recruitment/session-actions.ts",
+    "src/app/(recruitment)/recruitment/group-actions.ts",
+    "src/app/(admin)/admin/recruitment/actions.ts",
+  ]) {
+    assert.doesNotMatch(
+      readFileSync(file, "utf8"),
+      /revalidatePath\("\/(admin\/)?recruitment"\)/,
+      `${file} must invalidate the nested recruitment routes, not just the index`,
+    )
+  }
 }
 
 console.log("recruitment pipeline checks passed (three-way decisions, final selections, popups)")

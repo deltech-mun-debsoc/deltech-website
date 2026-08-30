@@ -187,4 +187,69 @@ for (const route of [
   assert.match(src, /quiz\.noOneJoinedYet/, "an empty room is a warning, not a lock")
 }
 
+// --- no dead UI in recruitment ---------------------------------------------
+//
+// A standing rule, and the general form of nearly every defect reported against
+// this module: Skip GD disabled in silence, Hold greyed out with nowhere to go,
+// "Send to GD" that only moved a badge, a one-entry panelist dropdown, finished
+// sessions with no link. Nothing renders that does nothing.
+//
+// Both rules below are heuristics over source text, not a renderer. They ratchet
+// against the specific shapes that keep recurring; a green run is not a proof
+// that no dead UI exists.
+{
+  const dir = "src/app/(recruitment)/recruitment/_components"
+
+  // 1. A control disabled on anything beyond a transient in-flight flag must say
+  //    what unlocks it, in the same file. A tooltip does not count: `title` is
+  //    invisible on touch and to keyboard users.
+  const gated: [string, string][] = [
+    ["create-group-dialog.tsx", "recruitment.groups.titleRequired"],
+    ["responses-manager.tsx", "recruitment.responses.sourceIncomplete"],
+    ["responses-manager.tsx", "recruitment.responses.previewFirst"],
+    ["evaluation-form.tsx", "recruitment.evaluation.needsScores"],
+    ["evaluation-form.tsx", "recruitment.evaluation.needsRecommendation"],
+    // A JC whose score is final saw an entirely inert form and was told nothing.
+    ["evaluation-form.tsx", "recruitment.evaluation.lockedNote"],
+  ]
+  for (const [file, key] of gated) {
+    const src = read(`${dir}/${file}`)
+    assert.match(src, new RegExp(key.replace(/\./g, "\\.")), `${file} must explain why its control is disabled`)
+  }
+  // The hint has to be rendered, not just tucked into a title attribute.
+  const responses = read(`${dir}/responses-manager.tsx`)
+  assert.match(
+    responses,
+    /<p className="text-xs text-muted-foreground">\s*\{t\("recruitment\.responses\.previewFirst"\)\}/,
+    "the preview-first hint must be visible, not tooltip-only",
+  )
+
+  // 2. Nothing may be fetched for the console and rendered nowhere. This is the
+  //    general form of the panel roster, previousAttempts and permissions.reopen
+  //    -- all three were queried or threaded through and never displayed.
+  const queries = read("src/app/(recruitment)/recruitment/_lib/queries.ts")
+  const body = queries.slice(queries.indexOf("export async function getGroupConsole"))
+  const returned = body.slice(body.indexOf("\n  return {"), body.indexOf("\n}"))
+  const keys = [...returned.matchAll(/^    (\w+):/gm)].map((m) => m[1])
+  assert.ok(keys.length >= 4, "could not read getGroupConsole's return shape")
+  // Deliberately NOT group-console-page.tsx: that file only wires props through,
+  // and "passed to a component that never renders it" is precisely how
+  // permissions.reopen survived two releases. Only the rendering components count.
+  const consumers = ["session-console.tsx", "interview-console.tsx"]
+    .map((f) => read(`${dir}/${f}`))
+    .join("\n")
+  for (const key of keys) {
+    assert.match(
+      consumers,
+      new RegExp(`\\b${key}\\b`),
+      `getGroupConsole returns "${key}" and no console renders it -- render it or stop fetching it`,
+    )
+  }
+
+  // reopenSession was deleted in #86 for having no callers; its permission wire
+  // outlived it by two releases.
+  const consolePage = read(`${dir}/group-console-page.tsx`)
+  assert.doesNotMatch(consolePage, /reopen:/, "the reopen capability has no UI and must not be plumbed")
+}
+
 console.log("✅ check-dead-ends passed")

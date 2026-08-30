@@ -264,20 +264,12 @@ export async function getGroupConsole(ctx: RecruitmentContext, groupId: string) 
         }
       : null,
     displayState: snapshot ? displayState(snapshot, serverNow) : "NOT_STARTED",
-    // Earlier attempts, so a reopened session still shows what the first one did.
-    previousAttempts: group.sessions.slice(1).map((s) => ({
-      id: s.id,
-      attempt: s.attempt,
-      state: s.state,
-      startedAt: s.startedAt?.toISOString() ?? null,
-      endedAt: s.endedAt?.toISOString() ?? null,
-      pausedMs: s.pausedMs,
-      reopenReason: s.reopenReason,
-    })),
+    // No `previousAttempts` here: it existed for a reopen UI that #86 removed
+    // along with reopenSession, and nothing has rendered it since. Same for the
+    // per-member attendance and joinedAt, and for serverNow -- the timer gets its
+    // clock from the session payload.
     members: group.members.map((m) => ({
       id: m.id,
-      attendance: m.attendance,
-      joinedAt: m.joinedAt,
       previousGdAttempts:
         group.kind === "GD"
           ? previousGdByCandidate.get(m.candidateId) ?? 0
@@ -301,7 +293,6 @@ export async function getGroupConsole(ctx: RecruitmentContext, groupId: string) 
       role: a.role,
       canEvaluate: a.canEvaluate,
     })),
-    serverNow: serverNow.toISOString(),
   }
 }
 

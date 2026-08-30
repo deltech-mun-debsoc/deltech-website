@@ -13,7 +13,8 @@ import { Check, Loader2 } from "lucide-react"
 import { t, type StringKey } from "@/content/strings"
 import { RECOMMENDATIONS_BY_KIND } from "@/lib/schemas/recruitment"
 import { validateScores, type EvaluationCriterion } from "@/lib/schemas/recruitment"
-import { saveEvaluationDraft, submitEvaluation } from "../evaluation-actions"
+import { newerOf } from "@/lib/recruitment/evaluation-merge"
+import { saveEvaluationDraft, submitEvaluation, type SavedEvaluation } from "../evaluation-actions"
 
 export interface ConsoleEvaluation {
   id: string
@@ -50,6 +51,7 @@ export function EvaluationForm({
   canRevise,
   canViewOthers,
   onSaved,
+  onRevised,
 }: {
   cycleId: string
   candidateId: string
@@ -63,6 +65,11 @@ export function EvaluationForm({
   canRevise: boolean
   canViewOthers: boolean
   onSaved?: () => void
+  // Fired only after a successful revision. The interview console uses it to
+  // return to the queue; a GD console passes nothing, because a panel of several
+  // candidates may be revised in any order and being thrown out of the page after
+  // each one would be worse than the extra click.
+  onRevised?: () => void
 }) {
   const router = useRouter()
   // You score as yourself, always.
@@ -74,8 +81,45 @@ export function EvaluationForm({
   // delegated write nobody made. Who sat on the panel is still recorded -- that is
   // the group's staff roster, shown on the dossier and the group list -- it just is
   // not a thing you switch between mid-session.
-  const mine = evaluations.find((e) => e.evaluatorId === viewerId)
-  const others = evaluations.filter((e) => e.id !== mine?.id)
+  const serverMine = evaluations.find((e) => e.evaluatorId === viewerId)
+  const others = evaluations.filter((e) => e.id !== serverMine?.id)
+
+  // The row the server last confirmed to THIS client, values included.
+  //
+  // Without it the form's only source of truth is the RSC payload, and a
+  // revision always mints a new row id -- so a refresh that had not yet seen the
+  // write would re-seed every field from the pre-write row and visibly undo the
+  // save. Adopting the returned row is the same thing SessionControls does with
+  // the session every action hands back.
+  const [adopted, setAdopted] = useState<ConsoleEvaluation | null>(null)
+
+  // Whichever version is newer wins, so a legitimate refresh (another evaluator,
+  // a later revision from a second tab) is never ignored, and a stale one never
+  // clobbers what this client just saved. The rule is pure and unit-checked.
+  const mine = newerOf(adopted, serverMine ?? null)
+
+  // Build the adoptable row from what the server confirmed plus the values this
+  // client sent: the server does not echo scores back, and it does not need to.
+  function adopt(
+    saved: SavedEvaluation,
+    sent: { scores: Record<string, number>; remarks: string | null; recommendation: string | null },
+  ) {
+    setAdopted({
+      id: saved.id,
+      evaluatorId: viewerId,
+      evaluatorRole: serverMine?.evaluatorRole ?? "",
+      evaluatorName: serverMine?.evaluatorName ?? null,
+      evaluatorEmail: serverMine?.evaluatorEmail ?? null,
+      scores: sent.scores,
+      overall: saved.overall,
+      remarks: sent.remarks,
+      recommendation: sent.recommendation,
+      state: saved.state,
+      version: saved.version,
+      submittedAt: saved.submittedAt,
+      isMine: true,
+    })
+  }
 
   const [scores, setScores] = useState<Record<string, string>>(() =>
     Object.fromEntries(criteria.map((c) => [c.key, mine?.scores[c.key]?.toString() ?? ""])),
@@ -157,6 +201,11 @@ export function EvaluationForm({
           toast.error(result.error)
           return
         }
+        adopt(result.saved, {
+          scores: numericScores,
+          remarks: remarks.trim() || null,
+          recommendation: recommendation || null,
+        })
         dirtyRef.current = false
         setSaveState("saved")
         onSaved?.()
@@ -181,9 +230,28 @@ export function EvaluationForm({
   // finishes", so the console never promises something finish would skip.
   const ready = validation.ok && Boolean(recommendation)
 
+  // Has anything actually changed since the row the server last confirmed?
+  //
+  // Revise used to supersede the row and write a fresh version plus an audit
+  // event even when nothing differed, which filled the trail with revisions that
+  // revised nothing and buried the real ones.
+  function unchanged(): boolean {
+    if (!mine) return false
+    const sameScores =
+      criteria.every((c) => (mine.scores[c.key] ?? null) === (numericScores[c.key] ?? null))
+    const sameRemarks = (mine.remarks ?? "") === remarks.trim()
+    const sameRecommendation = (mine.recommendation ?? null) === (recommendation || null)
+    return sameScores && sameRemarks && sameRecommendation
+  }
+
   // Revising an already-submitted score. A first score never comes through here:
   // it autosaves as a draft and is submitted when the session finishes.
   function save() {
+    if (unchanged()) {
+      toast.info(t("recruitment.evaluation.noChanges"))
+      onRevised?.()
+      return
+    }
     startTransition(async () => {
       const payload = {
         candidateId,
@@ -207,9 +275,17 @@ export function EvaluationForm({
         result.errors?.slice(0, 3).forEach((e) => toast.error(e))
         return
       }
+      // Adopt before refreshing: the screen is then correct whether or not the
+      // refresh has seen the write yet.
+      adopt(result.saved, {
+        scores: numericScores,
+        remarks: remarks.trim() || null,
+        recommendation: recommendation || null,
+      })
       toast.success(t("recruitment.evaluation.submitted"))
       onSaved?.()
       router.refresh()
+      onRevised?.()
     })
   }
 
@@ -309,11 +385,21 @@ export function EvaluationForm({
           </div>
 
           <div className="flex flex-wrap items-center justify-between gap-2">
+            {/* Whatever state this form is in, it says so. A disabled control
+                that explains nothing is exactly how Skip GD and Hold were
+                reported as broken when they were merely gated. */}
             <p className="text-xs text-muted-foreground">
-              {submitted && t("recruitment.evaluation.revisedNote")}
-              {!validation.ok &&
-                Object.keys(numericScores).length > 0 &&
-                validation.errors[0]}
+              {locked
+                ? t("recruitment.evaluation.lockedNote")
+                : submitted && !validation.ok
+                  ? t("recruitment.evaluation.needsScores")
+                  : submitted && !recommendation
+                    ? t("recruitment.evaluation.needsRecommendation")
+                    : submitted
+                      ? t("recruitment.evaluation.revisedNote")
+                      : !validation.ok && Object.keys(numericScores).length > 0
+                        ? validation.errors[0]
+                        : null}
             </p>
 
             <div className="flex items-center gap-3">
