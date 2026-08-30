@@ -122,8 +122,11 @@ for (const route of [
   }
   assert.match(manager, /Photo URL \(optional fallback\)/, "photo storage outages need a usable fallback")
 
-  const publicTeam = read("src/app/(marketing)/team/page.tsx")
+  const publicTeam = read("src/app/(marketing)/team/_components/team-directory.tsx")
   assert.match(publicTeam, /TEAM_LEVELS\.map/, "the public roster must preserve council hierarchy")
+  assert.match(publicTeam, /snap-mandatory/, "large councils must use compact horizontal rails")
+  assert.match(publicTeam, /Instagram/, "team cards must expose Instagram profiles")
+  assert.match(publicTeam, /LinkedIn/, "team cards must expose LinkedIn profiles")
 
   assert.match(manager, /prepareTeamPhoto/, "team photos must be resized before upload")
   assert.match(
