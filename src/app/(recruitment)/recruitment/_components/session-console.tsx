@@ -1,28 +1,17 @@
 "use client"
 
-import { useEffect, useState, useTransition } from "react"
-import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { toast } from "sonner"
-import { Loader2, Pause, Play, Square, TriangleAlert, Users } from "lucide-react"
-import { Button, buttonVariants } from "@/components/ui/button"
+import { TriangleAlert, Users } from "lucide-react"
+import { buttonVariants } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
 import { t } from "@/content/strings"
 import type { EvaluationCriterion } from "@/lib/schemas/recruitment"
 import type { SessionDisplayState } from "@/lib/recruitment/session"
-import { SessionTimer } from "../../_components/session-timer"
-import { SessionStateBadge, StageBadge } from "../../_components/status-badges"
+import { StageBadge } from "../../_components/status-badges"
 import { useRecruitmentLive } from "@/components/recruitment/use-recruitment-live"
-import {
-  abortSession,
-  finishSession,
-  pauseSession,
-  resumeSession,
-  startSession,
-  takeSessionControl,
-  type SerializedSession,
-} from "../session-actions"
+import type { SerializedSession } from "../session-actions"
+import { SessionControls } from "./session-controls"
 import { EvaluationForm, type ConsoleEvaluation } from "./evaluation-form"
 
 export interface ConsoleMember {
@@ -58,232 +47,37 @@ export interface SessionConsoleProps {
   }
 }
 
-// The live session console: server-authoritative timer, roster and scoring.
+// The group discussion console: server-authoritative timer, roster and scoring.
 //
-// Every control action returns the server's current session state. On conflict we
-// adopt that state rather than retrying, which is what makes a queued click from a
-// stale tab lose instead of overwriting newer state.
+// An interview is one person and gets its own screen (InterviewConsole); this one
+// is the roster case. They share SessionControls, which carries the clock and the
+// conflict-adoption logic.
 export function SessionConsole({
   cycleId,
   group,
-  session: initialSession,
+  session,
   displayState,
   members,
   criteria,
   viewerId,
   permissions,
 }: SessionConsoleProps) {
-  const router = useRouter()
   const { notify } = useRecruitmentLive(cycleId)
-  const [session, setSession] = useState(initialSession)
-  const [pending, startTransition] = useTransition()
-
-  // The server is the source of truth: whenever a fresh payload arrives from an
-  // RSC refresh, it replaces whatever the client was holding.
-  useEffect(() => setSession(initialSession), [initialSession])
-
-  function run(
-    action: () => Promise<
-      { ok: true; idempotent: boolean; session: SerializedSession } | { ok: false; error: string; conflict?: SerializedSession }
-    >,
-    successMessage?: string,
-    // What to say when the server reports the change had already been applied,
-    // a retry, a second tab, or another maintainer getting there first.
-    idempotentMessage?: string,
-  ) {
-    startTransition(async () => {
-      const result = await action()
-      if (result.ok) {
-        setSession(result.session)
-        // An idempotent outcome is a success, not an error: say so quietly.
-        if (result.idempotent) toast.info(idempotentMessage ?? t("recruitment.session.alreadyRunning"))
-        else if (successMessage) toast.success(successMessage)
-        notify("session")
-        router.refresh()
-        return
-      }
-      toast.error(result.error)
-      if (result.conflict) {
-        // Adopt the newer server state so the UI stops lying immediately.
-        setSession(result.conflict)
-        router.refresh()
-      }
-    })
-  }
-
-  const state = session?.state ?? "NOT_STARTED"
-  const controlledByOther =
-    !!session?.controllerId && session.controllerId !== viewerId && state !== "COMPLETED" && state !== "ABORTED"
 
   return (
     <div className="space-y-6">
-      <Card className="p-5">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="min-w-0">
-            <div className="flex items-center gap-2">
-              <SessionStateBadge state={displayState} />
-              {session && session.attempt > 1 && (
-                <span className="text-xs text-muted-foreground">#{session.attempt}</span>
-              )}
-            </div>
-            <p className="mt-2 data-label text-muted-foreground">
-              {t("recruitment.session.elapsed")}
-            </p>
-            {session ? (
-              <SessionTimer session={session} className="text-4xl" />
-            ) : (
-              <p className="text-2xl text-muted-foreground">{t("recruitment.session.notStartedYet")}</p>
-            )}
-            {session?.startedAt && (
-              <p className="mt-1 text-xs text-muted-foreground">
-                {t("recruitment.session.startedAt")}:{" "}
-                <time dateTime={session.startedAt}>
-                  {session.startedAt.slice(0, 19).replace("T", " ")}
-                </time>
-              </p>
-            )}
-          </div>
-
-          {permissions.control && session && (
-            <div className="flex flex-wrap items-center gap-2">
-              {state === "NOT_STARTED" && (
-                <Button
-                  size="sm"
-                  className="gap-1.5"
-                  disabled={pending}
-                  onClick={() =>
-                    run(
-                      () => startSession({ sessionId: session.id, expectedVersion: session.version }),
-                      t("recruitment.session.start"),
-                    )
-                  }
-                >
-                  <Play className="size-3.5" />
-                  {t("recruitment.session.start")}
-                </Button>
-              )}
-
-              {state === "ACTIVE" && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="gap-1.5"
-                  disabled={pending}
-                  onClick={() =>
-                    run(() => pauseSession({ sessionId: session.id, expectedVersion: session.version }))
-                  }
-                >
-                  <Pause className="size-3.5" />
-                  {t("recruitment.session.pause")}
-                </Button>
-              )}
-
-              {state === "PAUSED" && (
-                <Button
-                  size="sm"
-                  className="gap-1.5"
-                  disabled={pending}
-                  onClick={() =>
-                    run(() => resumeSession({ sessionId: session.id, expectedVersion: session.version }))
-                  }
-                >
-                  <Play className="size-3.5" />
-                  {t("recruitment.session.resume")}
-                </Button>
-              )}
-
-              {(state === "ACTIVE" || state === "PAUSED") && (
-                <>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-1.5"
-                    disabled={pending}
-                    onClick={() => {
-                      if (!confirm(t("recruitment.session.confirmFinish"))) return
-                      run(
-                        () => finishSession({ sessionId: session.id, expectedVersion: session.version }),
-                        t("recruitment.session.finish"),
-                        t("recruitment.session.alreadyFinished"),
-                      )
-                    }}
-                  >
-                    {/* Finishing now submits every complete draft on the panel
-                        before it applies the verdict, so it is doing real work and
-                        has to look like it. */}
-                    {pending ? (
-                      <Loader2 className="size-3.5 animate-spin" />
-                    ) : (
-                      <Square className="size-3.5" />
-                    )}
-                    {pending
-                      ? t("recruitment.session.finishing")
-                      : t("recruitment.session.finish")}
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="text-muted-foreground"
-                    disabled={pending}
-                    onClick={() => {
-                      const reason = prompt(t("recruitment.session.abortReasonLabel")) ?? ""
-                      if (!reason.trim()) return
-                      run(() =>
-                        abortSession({
-                          sessionId: session.id,
-                          expectedVersion: session.version,
-                          reason: reason.trim(),
-                        }),
-                      )
-                    }}
-                  >
-                    {t("recruitment.session.abort")}
-                  </Button>
-                </>
-              )}
-
-              {/* Recovery path when the assigned maintainer disconnected: their
-                  claim lapses and another maintainer can take over. */}
-              {controlledByOther && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  disabled={pending}
-                  onClick={() =>
-                    run(
-                      () =>
-                        takeSessionControl({ sessionId: session.id, expectedVersion: session.version }),
-                      t("recruitment.session.takeControl"),
-                    )
-                  }
-                >
-                  {t("recruitment.session.takeControl")}
-                </Button>
-              )}
-            </div>
-          )}
-        </div>
-
-        {displayState === "STALE" && (
-          <p className="mt-4 flex items-center gap-2 rounded-md bg-[var(--signal-soft)] px-3 py-2 text-sm text-[var(--ink-soft)]">
-            <TriangleAlert className="size-4 shrink-0" />
-            {t("recruitment.session.staleWarning")}
-          </p>
-        )}
-
-        {controlledByOther && (
-          <p className="mt-3 text-xs text-muted-foreground">
-            {t("recruitment.session.controller")}: {session?.controllerId}
-          </p>
-        )}
-      </Card>
+      <SessionControls
+        cycleId={cycleId}
+        session={session}
+        displayState={displayState}
+        viewerId={viewerId}
+        canControl={permissions.control}
+      />
 
       <section className="space-y-3">
         <h2 className="section-label flex items-center gap-2">
           <Users className="size-3.5" />
-          {group.kind === "PI"
-            ? t("recruitment.groups.interviewCandidate")
-            : t("recruitment.groups.candidateCount", { count: members.length })}
+          {t("recruitment.groups.candidateCount", { count: members.length })}
         </h2>
 
         <ul className="space-y-3">
@@ -295,7 +89,7 @@ export function SessionConsole({
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-medium">{m.candidate.fullName}</p>
                       <StageBadge stage={m.candidate.stage} />
-                      {group.kind === "GD" && m.previousGdAttempts > 0 && (
+                      {m.previousGdAttempts > 0 && (
                         <span className="inline-flex items-center gap-1 rounded-full bg-[var(--signal-soft)] px-2 py-0.5 text-xs text-[var(--ink-soft)]">
                           <TriangleAlert className="size-3" />
                           {t("recruitment.dossier.previousGdAttempts", {

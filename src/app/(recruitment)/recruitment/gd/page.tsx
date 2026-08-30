@@ -6,7 +6,7 @@ import { RecruitmentPageHeader } from "../../_components/page-header"
 import { LiveRefresh } from "@/components/recruitment/live-refresh"
 import { GroupList } from "../_components/group-list"
 import { CreateGroupDialog } from "../_components/create-group-dialog"
-import { listGroups } from "../_lib/queries"
+import { LIVE_GROUP_STATES, PAST_GROUP_STATES, listGroups } from "../_lib/queries"
 
 export default async function GdGroupsPage() {
   const { cycle } = await requireRecruitmentAccess()
@@ -17,8 +17,9 @@ export default async function GdGroupsPage() {
 
   const canCreate = mayPerform(ctx, "group.create")
 
-  const [groups, assignable, staff] = await Promise.all([
-    listGroups(ctx, "GD"),
+  const [live, past, assignable, staff] = await Promise.all([
+    listGroups(ctx, "GD", LIVE_GROUP_STATES),
+    listGroups(ctx, "GD", PAST_GROUP_STATES),
     // Candidates who still need a GD and are not already seated in one.
     canCreate
       ? prisma.recruitmentCandidate.findMany({
@@ -65,7 +66,7 @@ export default async function GdGroupsPage() {
         )}
       </RecruitmentPageHeader>
 
-      <GroupList groups={groups} kind="GD" scoped={ctx.role === "JC"} />
+      <GroupList live={live} past={past} kind="GD" scoped={ctx.role === "JC"} />
     </div>
   )
 }

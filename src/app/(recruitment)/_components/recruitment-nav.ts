@@ -16,7 +16,15 @@ export interface RecruitmentNavItem {
 export const RECRUITMENT_NAV: RecruitmentNavItem[] = [
   { href: "/recruitment", icon: LayoutDashboard, labelKey: "recruitment.nav.overview" },
   { href: "/recruitment/gd", icon: MessagesSquare, labelKey: "recruitment.nav.gd" },
-  { href: "/recruitment/pi", icon: UserSquare2, labelKey: "recruitment.nav.pi" },
+  // Interviews are a maintainer surface. A JC helps run the GD they were put on
+  // and scores it; they have no business in the interview queue, which lists every
+  // candidate past GD by name and email.
+  {
+    href: "/recruitment/pi",
+    icon: UserSquare2,
+    labelKey: "recruitment.nav.pi",
+    requires: "group.create",
+  },
   { href: "/recruitment/candidates", icon: Users2, labelKey: "recruitment.nav.candidates" },
   {
     href: "/recruitment/responses",

@@ -1,4 +1,6 @@
+import { redirect } from "next/navigation"
 import { requireRecruitmentAccess, resolveCycleContext, mayPerform } from "@/lib/recruitment/authz"
+import { can } from "@/lib/recruitment/permissions"
 import { t } from "@/content/strings"
 import { prisma } from "@/lib/prisma"
 import { RecruitmentPageHeader } from "../../_components/page-header"
@@ -19,9 +21,16 @@ export default async function PiQueuePage() {
   const ctx = await resolveCycleContext(cycle.id)
   if (!ctx) return null
 
+  // Interviews are not a Junior Council surface. The nav hides this destination
+  // for them, but the nav is cosmetic: without this guard a JC could type the URL
+  // and read the name, email and branch of every candidate in the queue, which is
+  // not scoped by visibleGroupIds the way the candidate list is. Capability rather
+  // than role name, so it tracks the matrix.
+  if (!can(ctx.role, "group.create")) redirect("/recruitment")
+
   const canStart = mayPerform(ctx, "group.create")
 
-  const [waiting, live, starterMembership] = await Promise.all([
+  const [waiting, live, past, starterMembership] = await Promise.all([
     // Anyone past GD: completed, bypassed, or configured not to need one. This is
     // the query that has to work for direct-to-PI candidates.
     prisma.recruitmentCandidate.findMany({
@@ -51,6 +60,29 @@ export default async function PiQueuePage() {
         },
       },
     }),
+    // Interviews already done. Without this the finished ones were unreachable:
+    // the group leaves DRAFT/READY/RUNNING on finish, and the candidate is filtered
+    // out of `waiting` by their new PI membership, so nothing linked to them at all
+    // and a mis-scored interview could not be corrected.
+    prisma.recruitmentGroup.findMany({
+      where: { cycleId: cycle.id, kind: "PI", state: "DONE" },
+      orderBy: { updatedAt: "desc" },
+      take: 200,
+      select: {
+        id: true,
+        title: true,
+        members: {
+          where: { attendance: { not: "REASSIGNED" } },
+          select: { candidate: { select: { id: true, fullName: true, stage: true, result: true } } },
+          take: 1,
+        },
+        sessions: {
+          orderBy: { attempt: "desc" },
+          take: 1,
+          select: { endedAt: true, _count: { select: { evaluations: true } } },
+        },
+      },
+    }),
     prisma.recruitmentMember.findUnique({
       where: { cycleId_userId: { cycleId: cycle.id, userId: ctx.userId } },
       select: { id: true, isActive: true },
@@ -74,6 +106,15 @@ export default async function PiQueuePage() {
           groupId: g.id,
           candidateName: g.members[0]?.candidate.fullName ?? g.title,
           state: g.state,
+        }))}
+        past={past.map((g) => ({
+          groupId: g.id,
+          candidateId: g.members[0]?.candidate.id ?? null,
+          candidateName: g.members[0]?.candidate.fullName ?? g.title,
+          stage: g.members[0]?.candidate.stage ?? "PI_COMPLETE",
+          result: g.members[0]?.candidate.result ?? "PENDING",
+          endedAt: g.sessions[0]?.endedAt?.toISOString() ?? null,
+          evaluationCount: g.sessions[0]?._count.evaluations ?? 0,
         }))}
         canStart={canStart}
         starterMemberId={starterMembership?.isActive ? starterMembership.id : null}

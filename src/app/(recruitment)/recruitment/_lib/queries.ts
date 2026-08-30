@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { displayState, type SessionSnapshot } from "@/lib/recruitment/session"
+import type { GroupState } from "@/generated/prisma/client"
 import type { RecruitmentContext } from "@/lib/recruitment/authz"
 import { visibleGroupIds } from "@/lib/recruitment/authz"
 import type { TimerSession } from "../../_components/session-timer"
@@ -19,11 +20,21 @@ export interface GroupListItem {
   staff: { name: string | null; email: string; role: string; canEvaluate: boolean }[]
   session: (TimerSession & { id: string; version: number; attempt: number; controllerId: string | null }) | null
   displayState: string
+  // When the latest session ended, for ordering finished panels newest-first.
+  endedAt: string | null
 }
+
+// Panels still to run, or running now.
+export const LIVE_GROUP_STATES = ["DRAFT", "READY", "RUNNING"] as const
+// Panels that have been finished. Not ARCHIVED, which is a soft delete.
+export const PAST_GROUP_STATES = ["DONE"] as const
 
 export async function listGroups(
   ctx: RecruitmentContext,
   kind: "GD" | "PI",
+  // Which lifecycle states to include. Defaults to everything but ARCHIVED, the
+  // behaviour before Live/Past tabs existed.
+  states?: readonly GroupState[],
 ): Promise<GroupListItem[]> {
   const scoped = await visibleGroupIds(ctx)
   const serverNow = new Date()
@@ -32,7 +43,7 @@ export async function listGroups(
     where: {
       cycleId: ctx.cycle.id,
       kind,
-      state: { not: "ARCHIVED" },
+      ...(states ? { state: { in: [...states] } } : { state: { not: "ARCHIVED" } }),
       // `null` means unrestricted (maintainer/admin); an array restricts a JC to
       // their own assignments.
       ...(scoped ? { id: { in: scoped } } : {}),
@@ -95,8 +106,13 @@ export async function listGroups(
           }
         : null,
       displayState: snapshot ? displayState(snapshot, serverNow) : "NOT_STARTED",
+      endedAt: s?.endedAt?.toISOString() ?? null,
     }
   })
+  // Finished panels read newest-first; unstarted ones keep the scheduled order
+  // the query already applied. Sorting here rather than in SQL avoids an index on
+  // a column only this one list orders by.
+  .sort((a, b) => (a.endedAt && b.endedAt ? b.endedAt.localeCompare(a.endedAt) : 0))
 }
 
 // The group console: roster, each candidate's own evaluation state, and the session.
