@@ -1,5 +1,5 @@
 import { RecruitmentLoading } from "@/app/(recruitment)/_components/loading-skeleton"
 
 export default function Loading() {
-  return <RecruitmentLoading shape="detail" />
+  return <RecruitmentLoading shape="board" rows={3} />
 }

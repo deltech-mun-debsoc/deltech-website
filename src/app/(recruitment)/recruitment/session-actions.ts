@@ -22,8 +22,11 @@ import {
   type SessionStateName,
 } from "@/lib/recruitment/session"
 import {
+  criteriaFor,
+  parseCycleConfig,
   resolvePanelRecommendation,
   sessionActionSchema,
+  validateScores,
   type PanelRecommendation,
 } from "@/lib/schemas/recruitment"
 import type { Prisma } from "@/generated/prisma/client"
@@ -81,6 +84,7 @@ type SessionRow = {
   pausedMs: number
   lastActivityAt: Date | null
   plannedSeconds: number | null
+  cycle: { config: unknown }
 }
 
 const SESSION_SELECT = {
@@ -99,6 +103,8 @@ const SESSION_SELECT = {
   pausedMs: true,
   lastActivityAt: true,
   plannedSeconds: true,
+  // Needed on finish, to validate which drafts are complete enough to submit.
+  cycle: { select: { config: true } },
 } as const
 
 function toSnapshot(row: SessionRow): SessionSnapshot {
@@ -396,9 +402,39 @@ async function transition(
       if (kind === "finish") {
         const roster = await tx.recruitmentGroupMember.findMany({
           where: { groupId: row.groupId, attendance: { not: "REASSIGNED" } },
-          select: { candidateId: true },
+          select: { candidateId: true, candidate: { select: { fullName: true } } },
         })
-        const evaluations = await tx.recruitmentEvaluation.findMany({
+
+        // Finishing submits the panel's work. Scoring a group used to mean
+        // pressing Submit once per candidate and then Finish -- eight taps for a
+        // group of seven, and a refusal if you missed one. The console autosaves
+        // each score as a draft, and finishing promotes every complete draft of
+        // yours in the same transaction that applies the verdict.
+        //
+        // DECIDE FIRST, WRITE SECOND. Returning a value from a Prisma transaction
+        // COMMITS it -- only a throw rolls back -- so promoting drafts before the
+        // completeness check left half the panel submitted by a finish that was
+        // then refused. Nothing below writes until the whole roster is settled.
+        const criteria = criteriaFor(parseCycleConfig(row.cycle.config), row.kind)
+        const promotable = (
+          await tx.recruitmentEvaluation.findMany({
+            where: {
+              sessionId: row.id,
+              evaluatorId: ctx.userId,
+              state: "DRAFT",
+              candidateId: { in: roster.map((member) => member.candidateId) },
+            },
+            select: { id: true, candidateId: true, scores: true, recommendation: true, overall: true },
+          })
+        ).filter(
+          (draft) =>
+            Boolean(draft.recommendation) &&
+            validateScores((draft.scores ?? {}) as Record<string, number>, criteria, {
+              requireAll: true,
+            }).ok,
+        )
+
+        const submitted = await tx.recruitmentEvaluation.findMany({
           where: {
             sessionId: row.id,
             candidateId: { in: roster.map((member) => member.candidateId) },
@@ -406,7 +442,17 @@ async function transition(
           },
           select: { candidateId: true, recommendation: true },
         })
+        // The drafts about to be promoted count towards the verdict, exactly as
+        // they will once written.
+        const evaluations = [
+          ...submitted,
+          ...promotable.map((draft) => ({
+            candidateId: draft.candidateId,
+            recommendation: draft.recommendation,
+          })),
+        ]
 
+        const missing: string[] = []
         for (const member of roster) {
           const recommendation = resolvePanelRecommendation(
             evaluations
@@ -414,12 +460,42 @@ async function transition(
               .map((evaluation) => evaluation.recommendation as PanelRecommendation | null),
           )
           if (!recommendation) {
-            return {
-              ok: false as const,
-              error: "Submit a Selected, Hold, or Reject recommendation for every candidate before finishing.",
-            }
+            // Name them. "Every candidate" sends the panel hunting through a
+            // group of seven for the one card they have not finished, and now
+            // that scores save themselves the only thing that can be missing is
+            // a recommendation.
+            missing.push(member.candidate.fullName)
+            continue
           }
           finishRecommendations.set(member.candidateId, recommendation)
+        }
+
+        if (missing.length > 0) {
+          return {
+            ok: false as const,
+            error: `Choose Selected, Hold or Reject for ${missing.join(", ")} before finishing.`,
+          }
+        }
+
+        // Settled. Now write.
+        for (const draft of promotable) {
+          await tx.recruitmentEvaluation.update({
+            where: { id: draft.id },
+            data: { state: "SUBMITTED", submittedAt: serverNow },
+          })
+          await auditRecruitmentTx(tx, {
+            eventType: "evaluation.submit",
+            actor: { id: ctx.userId, email: ctx.email, role: ctx.role },
+            cycleId: row.cycleId,
+            candidateId: draft.candidateId,
+            sessionId: row.id,
+            evaluationId: draft.id,
+            groupId: row.groupId,
+            previousState: { state: "DRAFT" },
+            newState: { state: "SUBMITTED", overall: draft.overall },
+            meta: { kind: row.kind, submittedOnFinish: true },
+            requestId,
+          })
         }
       }
 

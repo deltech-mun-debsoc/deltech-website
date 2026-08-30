@@ -102,11 +102,14 @@ assert.equal(
     /recommendation === "SELECT"[\s\S]*?"SELECTED"[\s\S]*?recommendation === "HOLD"[\s\S]*?"ON_HOLD"/,
     "PI recommendations must become final candidate results",
   )
+  // A session must not finish with an unassessed candidate -- and the refusal has
+  // to name who, rather than sending the panel hunting through a group of seven.
   assert.match(
     src,
-    /Submit a Selected, Hold, or Reject recommendation for every candidate/,
-    "a session must not finish with an unassessed candidate",
+    /Choose Selected, Hold or Reject for \$\{missing\.join/,
+    "a session must not finish with an unassessed candidate, and must name them",
   )
+  assert.match(src, /missing\.push\(member\.candidate\.fullName\)/, "by name")
   assert.match(
     src,
     /reason: `\$\{recommendation\} panel recommendation applied/,
@@ -415,12 +418,28 @@ assert.equal(
   assert.doesNotMatch(dialog, /fetch\(|router\.push/, "filtering must not touch the server")
 }
 
-// --- the dossier answers immediately ---------------------------------------
+// --- every recruitment route answers immediately ----------------------------
+//
+// A route that resolves a session, a cycle and a membership before it renders
+// anything leaves the previous screen on the glass with no sign it heard the
+// click. That reads as a slow site rather than a loading one.
 {
-  assert.ok(
-    existsSync("src/app/(recruitment)/recruitment/candidates/[id]/loading.tsx"),
-    "the dossier needs a loading skeleton: prefetch has nothing to land on without one",
-  )
+  for (const route of [
+    "recruitment",
+    "recruitment/candidates",
+    "recruitment/candidates/[id]",
+    "recruitment/responses",
+    "recruitment/gd",
+    "recruitment/gd/[groupId]",
+    "recruitment/pi",
+    "recruitment/pi/[groupId]",
+    "recruitment/audit",
+  ]) {
+    assert.ok(
+      existsSync(`src/app/(recruitment)/${route}/loading.tsx`),
+      `${route} needs a loading skeleton`,
+    )
+  }
   const authz = readFileSync("src/lib/recruitment/authz.ts", "utf8")
   assert.match(
     authz,
@@ -428,6 +447,69 @@ assert.equal(
     "session and cycle resolution must be memoised per request",
   )
   assert.match(authz, /const sessionUser = cache\(/, "the layout and the page must share one session lookup")
+}
+
+// --- scoring a panel is not a per-candidate chore ---------------------------
+//
+// Submit used to be pressed once per candidate before Finish would accept the
+// session: eight taps for a group of seven, and a refusal naming whoever was
+// missed. The score now autosaves as a draft and finishing promotes every
+// complete draft in the same transaction that applies the verdict.
+{
+  const form = readFileSync(
+    "src/app/(recruitment)/recruitment/_components/evaluation-form.tsx",
+    "utf8",
+  )
+  assert.match(form, /const autosave = useCallback/, "a first score must save itself")
+  // The submit button survives only for revising work already agreed.
+  assert.match(
+    form,
+    /\{submitted && \(\s*<Button/,
+    "a submit button must appear only for a revision",
+  )
+  assert.match(form, /recruitment\.evaluation\.saving/, "and the panel must see it saving")
+
+  const sessionActions = readFileSync(
+    "src/app/(recruitment)/recruitment/session-actions.ts",
+    "utf8",
+  )
+  assert.match(
+    sessionActions,
+    /state: "SUBMITTED", submittedAt: serverNow/,
+    "finishing must promote complete drafts",
+  )
+  // Only complete ones: finish must not submit a half-scored candidate.
+  assert.match(
+    sessionActions,
+    /validateScores\([\s\S]{0,120}requireAll: true/,
+    "an incomplete draft must be left alone",
+  )
+  // And nothing may be written before the whole roster is known to be settled:
+  // returning from a Prisma transaction COMMITS it, so promoting drafts before
+  // the completeness check left half a panel submitted by a refused finish.
+  assert.ok(
+    sessionActions.indexOf("Choose Selected, Hold or Reject for") <
+      sessionActions.indexOf('data: { state: "SUBMITTED", submittedAt: serverNow }'),
+    "the refusal must come before any promotion is written",
+  )
+  assert.match(
+    sessionActions,
+    /evaluatorId: ctx\.userId,\s*state: "DRAFT"/,
+    "finishing promotes only the caller's own drafts",
+  )
+}
+
+// --- a reason for skipping GD, not an essay --------------------------------
+{
+  const schema = readFileSync("src/lib/schemas/recruitment.ts", "utf8")
+  assert.doesNotMatch(schema, /min\(10, "Explain why GD/, "the arbitrary character floor must stay gone")
+  assert.match(schema, /reason: z\.string\(\)\.trim\(\)\.min\(1/, "but a reason is still required")
+  const button = readFileSync(
+    "src/app/(recruitment)/recruitment/_components/bypass-gd-button.tsx",
+    "utf8",
+  )
+  // A disabled control that says nothing reads as a broken one.
+  assert.match(button, /bypassReasonRequired/, "an empty reason must say what it needs")
 }
 
 console.log("recruitment pipeline checks passed (three-way decisions, final selections, popups)")

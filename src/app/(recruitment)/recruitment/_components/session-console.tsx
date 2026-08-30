@@ -4,7 +4,7 @@ import { useEffect, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { toast } from "sonner"
-import { Pause, Play, Square, TriangleAlert, Users } from "lucide-react"
+import { Loader2, Pause, Play, Square, TriangleAlert, Users } from "lucide-react"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { cn } from "@/lib/utils"
@@ -208,8 +208,17 @@ export function SessionConsole({
                       )
                     }}
                   >
-                    <Square className="size-3.5" />
-                    {t("recruitment.session.finish")}
+                    {/* Finishing now submits every complete draft on the panel
+                        before it applies the verdict, so it is doing real work and
+                        has to look like it. */}
+                    {pending ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <Square className="size-3.5" />
+                    )}
+                    {pending
+                      ? t("recruitment.session.finishing")
+                      : t("recruitment.session.finish")}
                   </Button>
                   <Button
                     size="sm"
