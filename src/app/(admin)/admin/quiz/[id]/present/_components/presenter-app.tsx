@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useRef, useState, useCallback } from "react"
-import { AnimatePresence, motion } from "framer-motion"
 import { getSupabase } from "@/lib/supabase"
 import { LobbyScreen } from "./lobby-screen"
 import { QuestionScreen } from "./question-screen"
@@ -14,9 +13,8 @@ import type {
   PresenceEntry,
   QuizBroadcast,
   PresentationData,
-  MCQConfig,
 } from "@/lib/quiz-types"
-import { asMCQ, isScoredType } from "@/lib/quiz-types"
+import { asMCQ, isScoredType, redactSlide } from "@/lib/quiz-types"
 import { APP_URL } from "@/lib/app-url"
 
 type Screen = "lobby" | "question" | "leaderboard"
@@ -114,14 +112,10 @@ export function PresenterApp({ session, presentation, slides }: Props) {
     setTimerRunning(true)
     setScreen("question")
 
-    // Strip correct indices from MCQ before broadcasting
-    let broadcastSlide: SlideData = slide
-    if (slide.type === "MCQ") {
-      broadcastSlide = {
-        ...slide,
-        config: { ...asMCQ(slide.config), correct: [] } as MCQConfig,
-      }
-    }
+    // Never broadcast the answer. redactSlide covers every scored type; this
+    // used to strip MCQ only, so true/false, typed and numeric questions were
+    // sending their own answers to the room.
+    const broadcastSlide: SlideData = redactSlide(slide)
 
     // Authoritative record of which slide is live and from when. The
     // broadcast below is for latency; this is what scoring trusts.
@@ -247,16 +241,14 @@ export function PresenterApp({ session, presentation, slides }: Props) {
   const screenKey =
     screen === "lobby" ? "lobby" : screen === "leaderboard" ? "leaderboard" : `slide-${currentSlide?.id ?? slideIndex}`
 
+  // A keyed div, not AnimatePresence. `mode="wait"` holds the incoming screen
+  // until the outgoing one's exit animation reports completion, so anything that
+  // swallowed that callback left the projector frozen on the lobby with the
+  // audience already on question one -- which is the shape of the intermittent
+  // "Start doesn't advance" fault. Remounting on the key replays the entrance
+  // with no completion callback in the path, and costs only the exit tween.
   return (
-    <AnimatePresence mode="wait">
-      <motion.div
-        key={screenKey}
-        className="h-full"
-        initial={{ opacity: 0, x: 32 }}
-        animate={{ opacity: 1, x: 0 }}
-        exit={{ opacity: 0, x: -32 }}
-        transition={{ duration: 0.25, ease: "easeOut" }}
-      >
+    <div key={screenKey} className="h-full animate-in fade-in slide-in-from-right-8 duration-300 motion-reduce:animate-none">
         {screen === "lobby" ? (
           <LobbyScreen
             roomCode={session.roomCode}
@@ -295,7 +287,6 @@ export function PresenterApp({ session, presentation, slides }: Props) {
             onTimerExpire={handleTimerExpire}
           />
         ) : null}
-      </motion.div>
-    </AnimatePresence>
+    </div>
   )
 }

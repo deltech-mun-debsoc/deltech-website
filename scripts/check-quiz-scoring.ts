@@ -21,7 +21,12 @@ import {
   DEFAULT_NUMERIC_CONFIG,
   DEFAULT_TRUE_FALSE_CONFIG,
   DEFAULT_TYPE_ANSWER_CONFIG,
+  DEFAULT_WORDCLOUD_CONFIG,
+  asMCQ,
+  asNumeric,
+  asTypeAnswer,
   isScoredType,
+  redactSlide,
   type MCQConfig,
   type NumericConfig,
   type TypeAnswerConfig,
@@ -274,4 +279,138 @@ import {
   assert.match(participant, /revealed && result\.correct !== null/, "the verdict waits for it")
 }
 
-console.log("quiz scoring checks passed (5 types, partial credit, speed curve, streaks)")
+// --- the answer never reaches the phone ------------------------------------
+//
+// The presenter stripped `correct` from MCQ before broadcasting, from when MCQ
+// was the only scored type. The three formats added since went out intact:
+// TRUE_FALSE carried `correct`, TYPE_ANSWER the whole `accepted` list, NUMERIC
+// the `target`. Not on screen, but one devtools panel away, on the questions
+// being scored. redactSlide is the single path, so a new scored type cannot leak
+// by being forgotten in a second place.
+{
+  const timed = { timerSeconds: 20 }
+  const mcq = redactSlide({
+    id: "s", order: 0, type: "MCQ", prompt: "",
+    config: { ...DEFAULT_MCQ_CONFIG, ...timed, options: ["a", "b", "c"], correct: [2] },
+  })
+  assert.deepEqual(asMCQ(mcq.config).correct, [], "MCQ must not broadcast its answer")
+  assert.deepEqual(asMCQ(mcq.config).options, ["a", "b", "c"], "but must keep its options")
+
+  const tf = redactSlide({
+    id: "s", order: 0, type: "TRUE_FALSE", prompt: "",
+    config: { ...DEFAULT_TRUE_FALSE_CONFIG, ...timed, correct: [1] },
+  })
+  assert.deepEqual(asMCQ(tf.config).correct, [], "true/false must not broadcast its answer")
+
+  const ta = redactSlide({
+    id: "s", order: 0, type: "TYPE_ANSWER", prompt: "",
+    config: { ...DEFAULT_TYPE_ANSWER_CONFIG, ...timed, accepted: ["Trygve Lie"] },
+  })
+  assert.deepEqual(asTypeAnswer(ta.config).accepted, [], "typed answers must not broadcast the list")
+
+  const num = redactSlide({
+    id: "s", order: 0, type: "NUMERIC", prompt: "",
+    config: { ...DEFAULT_NUMERIC_CONFIG, ...timed, target: 193, tolerance: 5, unit: "states" },
+  })
+  assert.equal(asNumeric(num.config).target, 0, "numeric must not broadcast its target")
+  assert.equal(asNumeric(num.config).tolerance, 0, "nor how wide the band is")
+  assert.equal(asNumeric(num.config).unit, "states", "but the phone still needs to label its input")
+
+  // The timer survives every redaction, or the phone has no countdown.
+  for (const s of [mcq, tf, ta, num]) {
+    assert.equal(
+      (s.config as { timerSeconds?: number | null }).timerSeconds,
+      20,
+      `${s.type}: redaction must not strip the timer`,
+    )
+  }
+
+  // An opinion has nothing to hide, and must come through untouched.
+  const wc = redactSlide({
+    id: "s", order: 0, type: "WORDCLOUD", prompt: "", config: DEFAULT_WORDCLOUD_CONFIG,
+  })
+  assert.deepEqual(wc.config, DEFAULT_WORDCLOUD_CONFIG, "unscored slides pass through")
+
+  const presenter = readFileSync(
+    "src/app/(admin)/admin/quiz/[id]/present/_components/presenter-app.tsx",
+    "utf8",
+  )
+  assert.match(presenter, /redactSlide\(slide\)/, "the broadcast must go through redactSlide")
+  assert.doesNotMatch(
+    presenter,
+    /slide\.type === "MCQ"\s*\)\s*\{/,
+    "the MCQ-only stripping must stay gone",
+  )
+  const route = readFileSync("src/app/api/quiz/sessions/route.ts", "utf8")
+  assert.match(route, /redactSlide\(/, "the recovery fetch must redact too")
+}
+
+// --- one run of a presentation is one set of results ----------------------
+//
+// Reopening the presenter view used to resume whatever session was still marked
+// live. That put the previous audience's scores on the board, and refused
+// anyone who had already answered a slide with `already_submitted` when it came
+// round again. A run is now the unit of results.
+{
+  const session = readFileSync("src/lib/quiz-session.ts", "utf8")
+  // An untouched session is still shared, so two staff opening the presenter
+  // view at once land in one room rather than splitting the audience.
+  assert.match(
+    session,
+    /tx\.response\.findFirst\(\{\s*where: \{ sessionId: live\.id \}/,
+    "a live session is only reused when it holds no responses",
+  )
+  // One that already has answers is ended, so its room code stops admitting.
+  assert.match(
+    session,
+    /status: "ended", endedAt: new Date\(\)/,
+    "the previous run must be ended, not left live alongside the new one",
+  )
+  assert.match(session, /export async function resumeQuizSession/, "a reload must be able to resume by id")
+
+  // The run id lives in the URL: a reload resumes it, arriving without one is a
+  // deliberate fresh run.
+  const page = readFileSync("src/app/(admin)/admin/quiz/[id]/present/page.tsx", "utf8")
+  assert.match(page, /await props\.searchParams/, "the presenter page must read the run from the URL")
+  assert.match(page, /resumeSession\(id, requested\)/, "and resume it by id")
+  assert.match(page, /redirect\(`\/admin\/quiz\/\$\{id\}\/present\?session=/, "and pin a new run into the URL")
+
+  // A 409 means "a response exists for this nickname and slide" and nothing
+  // more. Guessing "someone took your name" threw people back to the nickname
+  // screen every time the host stepped backwards.
+  const participant = readFileSync(
+    "src/app/(public)/quiz/[code]/_components/participant-app.tsx",
+    "utf8",
+  )
+  assert.match(
+    participant,
+    /res\.status === 409 && answeredRef\.current\.has\(slideId\)/,
+    "a repeat answer must be told apart from a nickname collision",
+  )
+}
+
+// --- the participant can feel the clock -----------------------------------
+{
+  const participant = readFileSync(
+    "src/app/(public)/quiz/[code]/_components/participant-app.tsx",
+    "utf8",
+  )
+  // Drained in CSS against the question's own duration, not stepped by the JS
+  // interval: a 1s-stepped bar reads as a progress meter, not as pressure.
+  assert.match(participant, /quiz-drain-bar/, "the countdown bar must be the CSS-driven one")
+  assert.match(participant, /"--quiz-duration"/, "and take its duration from the slide")
+  assert.doesNotMatch(
+    participant,
+    /width: `\$\{\(secondsLeft \/ timerDuration\)/,
+    "the per-second stepped width must stay gone",
+  )
+  assert.match(participant, /aria-valuenow=\{secondsLeft\}/, "and still report itself to a screen reader")
+
+  const css = readFileSync("src/app/globals.css", "utf8")
+  assert.match(css, /@keyframes quiz-drain/, "the drain keyframes must exist")
+  assert.match(css, /transform: scaleX\(0\)/, "and finish empty")
+  // Colour turns at fractions of the question, so 10s and 90s feel alike.
+  assert.match(css, /70%\s*\{ background-color/, "the colour ramp is proportional, not absolute")
+}
+
+console.log("quiz scoring checks passed (5 types, partial credit, speed curve, streaks, redaction, run isolation, countdown)")

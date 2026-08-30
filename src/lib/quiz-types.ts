@@ -203,6 +203,49 @@ export const PRESET_THEMES: Record<string, PresentationTheme> = {
 
 export const DEFAULT_THEME = PRESET_THEMES.classic
 
+// Which preset a theme *is*, or null once its colours have been hand-edited.
+// The builder's theme trigger used to print "Classic" unconditionally, so every
+// theme looked unapplied: you picked Ocean, the projector went blue, and the
+// control still read Classic.
+export function presetThemeKey(theme: PresentationTheme): string | null {
+  const match = Object.entries(PRESET_THEMES).find(
+    ([, p]) =>
+      p.background === theme.background &&
+      p.textColor === theme.textColor &&
+      p.accentColor === theme.accentColor &&
+      p.font === theme.font,
+  )
+  return match ? match[0] : null
+}
+
+// Everything a participant must NOT be given before they answer.
+//
+// The presenter used to strip only MCQ's `correct` before broadcasting, back
+// when MCQ was the only scored type. The three formats added since shipped the
+// answer to every phone in the room: TRUE_FALSE carried `correct`, TYPE_ANSWER
+// carried the whole `accepted` list, and NUMERIC carried `target` and
+// `tolerance`. None of it was on screen, but it was one devtools panel -- or one
+// look at the realtime frames -- away, on the exact questions being scored.
+//
+// One function, used by every path that hands a slide to a participant, so a
+// new scored type cannot leak by being forgotten in a second place.
+export function redactSlide(slide: SlideData): SlideData {
+  switch (slide.type) {
+    case "MCQ":
+    case "TRUE_FALSE":
+      return { ...slide, config: { ...asMCQ(slide.config), correct: [] } }
+    case "TYPE_ANSWER":
+      return { ...slide, config: { ...asTypeAnswer(slide.config), accepted: [] } }
+    case "NUMERIC": {
+      const config = asNumeric(slide.config)
+      // The unit stays: the phone has to label its own input box.
+      return { ...slide, config: { ...config, target: 0, tolerance: 0 } }
+    }
+    default:
+      return slide
+  }
+}
+
 // ── Cast helpers ──────────────────────────────────────────────────────────────
 
 export const asMCQ        = (c: SlideConfig) => c as MCQConfig

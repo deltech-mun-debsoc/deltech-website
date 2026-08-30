@@ -2,6 +2,7 @@
 
 import { QRCodeSVG } from "qrcode.react"
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion"
+import { readableOn } from "@/lib/quiz-theme"
 import { t } from "@/content/strings"
 import type { PresenceEntry, PresentationTheme } from "@/lib/quiz-types"
 
@@ -85,15 +86,30 @@ export function LobbyScreen({ roomCode, joinUrl, participants, theme, onStart }:
         </div>
       </div>
 
-      {/* Start button */}
-      <button
-        onClick={onStart}
-        className="absolute bottom-9 right-10 z-10 px-10 py-4 text-lg font-bold transition-transform hover:-translate-y-1 disabled:cursor-not-allowed disabled:opacity-35"
-        style={{ background: theme.accentColor, color: "#fff" }}
-        disabled={participants.length === 0}
-      >
-        Start the broadcast →
-      </button>
+      {/* Start button.
+          It used to be disabled whenever the participant count was zero, and
+          that is the whole intermittent "Start does nothing" fault: the count comes
+          from the Supabase presence channel, so it is 0 until presence syncs,
+          0 for a host who opens the projector before the room joins, and 0
+          FOREVER wherever realtime is unconfigured -- `getSupabase()` returns
+          null by design there, so the quiz could never be started at all. No
+          error, no console entry, nothing written: just a click that did
+          nothing, which is exactly how it was reported.
+          The host decides when to start. An empty room is a warning, not a
+          lock: nobody has to join before the first slide is on screen, and
+          latecomers join mid-quiz anyway. */}
+      <div className="absolute bottom-9 right-10 z-10 flex items-center gap-4">
+        {participants.length === 0 && (
+          <p className="text-sm opacity-55">{t("quiz.noOneJoinedYet")}</p>
+        )}
+        <button
+          onClick={onStart}
+          className="px-10 py-4 text-lg font-bold transition-transform hover:-translate-y-1"
+          style={{ background: theme.accentColor, color: readableOn(theme.accentColor) }}
+        >
+          {t("quiz.startBroadcast")}
+        </button>
+      </div>
     </div>
   )
 }

@@ -147,4 +147,41 @@ for (const route of [
   assert.match(src, /quiz\.nicknameTaken/, "the collision needs its own message")
 }
 
+// --- a menu label without its group is a crash, not a style bug -----------
+//
+// Base UI's Menu.GroupLabel reads MenuGroupContext and throws when there is
+// none. Under Radix the same component renders fine on its own, so writing it
+// that way is the natural mistake -- and it does not fail the build, it fails
+// on the click: the theme picker in the quiz builder replaced the whole page
+// with "Something went wrong" the first time it was opened.
+{
+  for (const file of ["src/app/(admin)/admin/quiz/[id]/_components/builder-header.tsx"]) {
+    const src = read(file)
+    if (!src.includes("<DropdownMenuLabel")) continue
+    assert.match(src, /<DropdownMenuGroup>/, `${file}: a DropdownMenuLabel needs a DropdownMenuGroup around it`)
+    // And the group has to open BEFORE the label, not merely exist somewhere.
+    assert.ok(
+      src.indexOf("<DropdownMenuGroup>") < src.indexOf("<DropdownMenuLabel"),
+      `${file}: the group must enclose the label`,
+    )
+  }
+}
+
+// --- the host can always start ---------------------------------------------
+//
+// The lobby's start button was disabled until the presence channel reported a
+// participant. Presence is 0 before it syncs, 0 when the projector is opened
+// first, and 0 permanently wherever realtime is unconfigured -- and there
+// getSupabase() returns null by design, so the quiz could never be started at
+// all. It failed as a click that did nothing: no error, no console line.
+{
+  const src = read("src/app/(admin)/admin/quiz/[id]/present/_components/lobby-screen.tsx")
+  assert.doesNotMatch(
+    src,
+    /disabled=\{participants\.length === 0\}/,
+    "starting the broadcast must not depend on the presence channel",
+  )
+  assert.match(src, /quiz\.noOneJoinedYet/, "an empty room is a warning, not a lock")
+}
+
 console.log("✅ check-dead-ends passed")

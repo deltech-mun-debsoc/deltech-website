@@ -59,6 +59,10 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
   // someone taps spoiled the projected reveal for everyone still answering, and
   // let the front row read the room's phones.
   const [revealed, setRevealed] = useState(false)
+  // True when voting closed on this slide before this phone answered. The
+  // "submitted" screen is reached both ways, and it used to say "Answer
+  // received!" to someone who had answered nothing at all.
+  const [missed, setMissed] = useState(false)
   // Seconds left on the current slide, mirrored from the slide's own timer so a
   // phone shows the same countdown as the projector.
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null)
@@ -79,6 +83,62 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
   const channelRef = useRef<ReturnType<NonNullable<ReturnType<typeof getSupabase>>["channel"]> | null>(null)
   const userIdRef = useRef(randomUserId())
   const submittedRef = useRef(false)
+  // Which slides this phone has already answered. A 409 from the server means
+  // "a response for this nickname and slide exists" and nothing more, so without
+  // this we cannot tell "someone else took your name" from "you answered this
+  // one already" -- and the code guessed the first, which threw a participant
+  // back to the nickname screen mid-quiz every time the host stepped backwards.
+  const answeredRef = useRef<Set<string>>(new Set())
+  // When this question runs out, as a timestamp rather than a countdown. A
+  // decrementing counter is wrong on a phone: setInterval is throttled the
+  // moment the browser is backgrounded, so a participant who glanced at a
+  // message came back to a clock that had lost seconds. Deriving the remaining
+  // time from a deadline cannot drift, however badly the timer is throttled.
+  const deadlineRef = useRef<number | null>(null)
+  const barRef = useRef<HTMLDivElement | null>(null)
+  // Which slide is on screen, readable from a callback that must not re-subscribe
+  // every time it changes.
+  const slideIdRef = useRef<string | null>(null)
+
+  // Put a question on screen. Reached two ways: the host's GOTO broadcast, and
+  // the recovery fetch below. `remaining` is the server's own count of the time
+  // left, used when picking a question up part-way through; null means the
+  // question is starting now.
+  const adoptSlide = useCallback(
+    (slide: SlideData, index: number, count: number, remaining: number | null) => {
+      submittedRef.current = false
+      slideIdRef.current = slide.id
+      setCurrentSlide(slide)
+      setSlideIndex(index)
+      setSlideCount(count)
+      setLocked(false)
+      setResult(null)
+      setSelectedIndices([])
+      setWords([""])
+      setOpenText("")
+      setTypedAnswer("")
+      setNumericAnswer("")
+      setRevealed(false)
+      setMissed(false)
+
+      // Mirror the slide's timer locally. The score is computed from the
+      // SERVER's start time regardless; this is only the visible clock.
+      const timer = (slide.config as { timerSeconds?: number | null }).timerSeconds
+      const duration = typeof timer === "number" && timer > 0 ? timer : null
+      const left = remaining === null ? duration : Math.min(remaining, duration ?? remaining)
+      deadlineRef.current = left === null ? null : Date.now() + left * 1000
+      setTimerDuration(duration)
+      setSecondsLeft(left === null ? null : Math.ceil(left))
+
+      if (slide.type === "SCALE") {
+        const sc = asScale(slide.config)
+        setScaleValues(sc.statements.map(() => Math.round((sc.min + sc.max) / 2)))
+      }
+
+      setAppState("question")
+    },
+    [],
+  )
 
   const joinChannel = useCallback((nick: string, ava: string) => {
     const supabase = getSupabase()
@@ -91,39 +151,19 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
         if (payload.event === "START") {
           // Host has started, remain in lobby until GOTO
         } else if (payload.event === "GOTO") {
-          submittedRef.current = false
-          setCurrentSlide(payload.slide)
-          setSlideIndex(payload.slideIndex)
-          setSlideCount(payload.slideCount)
-          setLocked(false)
-          setResult(null)
-          setSelectedIndices([])
-          setWords([""])
-          setOpenText("")
-          setTypedAnswer("")
-          setNumericAnswer("")
-          setRevealed(false)
-
-          // Mirror the slide's timer locally. The score is computed from the
-          // SERVER's start time regardless; this is only the visible clock.
-          const timer = (payload.slide.config as { timerSeconds?: number | null }).timerSeconds
-          const duration = typeof timer === "number" && timer > 0 ? timer : null
-          setTimerDuration(duration)
-          setSecondsLeft(duration)
-
-          // Initialise scale values
-          if (payload.slide.type === "SCALE") {
-            const sc = asScale(payload.slide.config)
-            setScaleValues(sc.statements.map(() => Math.round((sc.min + sc.max) / 2)))
-          }
-
-          setAppState("question")
+          adoptSlide(payload.slide, payload.slideIndex, payload.slideCount, null)
         } else if (payload.event === "LOCK") {
           setLocked(true)
-          if (!submittedRef.current) setAppState("submitted") // didn't answer in time
+          if (!submittedRef.current) {
+            setMissed(true)
+            setAppState("submitted")
+          }
         } else if (payload.event === "UNLOCK") {
           setLocked(false)
-          if (!submittedRef.current) setAppState("question")
+          if (!submittedRef.current) {
+            setMissed(false)
+            setAppState("question")
+          }
         } else if (payload.event === "REVEAL") {
           // NOW the verdict is allowed on screen, in time with the projector.
           setRevealed(true)
@@ -159,7 +199,7 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
       })
 
     channelRef.current = channel
-  }, [roomCode])
+  }, [roomCode, adoptSlide])
 
   useEffect(() => {
     return () => {
@@ -191,18 +231,101 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
     setAppState("lobby")
   }
 
-  // Local countdown, one interval, stopped at zero. Only ever cosmetic: the
-  // points come from the server's record of when the slide went live, so a phone
-  // with a wrong clock scores exactly the same as one without.
+  // Local countdown, read off the deadline rather than decremented, so a
+  // throttled interval loses accuracy but never loses time. Only ever cosmetic:
+  // the points come from the server's record of when the slide went live, so a
+  // phone with a wrong clock scores exactly the same as one without.
   useEffect(() => {
     if (secondsLeft === null || secondsLeft <= 0) return
-    const id = setInterval(() => setSecondsLeft((v) => (v === null ? null : Math.max(0, v - 1))), 1000)
+    const id = setInterval(() => {
+      const deadline = deadlineRef.current
+      if (deadline === null) return
+      setSecondsLeft(Math.max(0, Math.ceil((deadline - Date.now()) / 1000)))
+    }, 250)
     return () => clearInterval(id)
+  }, [secondsLeft])
+
+  // Seat the bar against the deadline rather than against its own start.
+  //
+  // Two reasons it cannot be left to run on its own. The browser PAUSES a CSS
+  // animation while the tab is hidden, so a participant who glanced at a message
+  // came back to a bar frozen where they left it, which would then run seconds
+  // past the real deadline. And a phone that picks a question up part-way
+  // through -- a latecomer, or a recovered socket -- must start the bar part-way
+  // through with it, not from full.
+  useEffect(() => {
+    if (timerDuration === null) return
+    function resync() {
+      const deadline = deadlineRef.current
+      const animation = barRef.current?.getAnimations()[0]
+      if (!animation || deadline === null || timerDuration === null) return
+      const remaining = Math.max(0, (deadline - Date.now()) / 1000)
+      animation.currentTime = (timerDuration - remaining) * 1000
+    }
+    resync()
+    document.addEventListener("visibilitychange", resync)
+    return () => document.removeEventListener("visibilitychange", resync)
+  }, [timerDuration, currentSlide?.id])
+
+  // Recovery. The room is driven by realtime broadcasts, which are
+  // fire-and-forget: a phone that slept through a GOTO, or dropped its socket
+  // walking out of range, never hears the question and sits on a stale screen
+  // for the rest of the quiz. Ask the server what is actually live, on joining
+  // and on every wake, and catch up. One request each time, and it is also what
+  // lets someone who joins mid-question answer it instead of watching the room
+  // from a lobby screen until the next slide.
+  useEffect(() => {
+    // Both, not just the nickname: the avatar is set at the same moment the
+    // realtime channel is joined, so this is the test for "actually in the
+    // room". Gating on the nickname alone pulled people out of the avatar
+    // picker and into the live question without ever joining the channel.
+    if (!nickname || !avatar) return
+    async function catchUp(fromEvent: boolean) {
+      // A visibilitychange fires on the way out as well as the way in.
+      if (fromEvent && document.visibilityState !== "visible") return
+      try {
+        const res = await fetch(`/api/quiz/sessions?code=${roomCode}`)
+        if (!res.ok) return
+        const data = (await res.json()) as {
+          session: { status: string }
+          live: { slide: SlideData; slideIndex: number; slideCount: number; secondsLeft: number | null } | null
+        }
+        if (data.session.status === "ended") {
+          setAppState("ended")
+          return
+        }
+        const live = data.live
+        if (!live) return
+        // Only step in when this phone is genuinely behind. Adopting the slide
+        // it is already on would wipe an answer it has already given.
+        if (slideIdRef.current !== live.slide.id) {
+          adoptSlide(live.slide, live.slideIndex, live.slideCount, live.secondsLeft)
+        }
+      } catch {
+        // Offline, or the request was cut short. The next wake tries again.
+      }
+    }
+    const onVisible = () => void catchUp(true)
+    void catchUp(false)
+    document.addEventListener("visibilitychange", onVisible)
+    return () => document.removeEventListener("visibilitychange", onVisible)
+  }, [nickname, avatar, roomCode, adoptSlide])
+
+  // A buzz at ten, at five, and at nothing left. Half the room is looking at the
+  // projector, not at their hand: the phone has to be able to interrupt them.
+  // Android only -- iOS Safari has no Vibration API -- so it is an addition to
+  // the bar, never the only warning.
+  useEffect(() => {
+    if (secondsLeft === null || submittedRef.current) return
+    if (typeof navigator === "undefined" || typeof navigator.vibrate !== "function") return
+    if (secondsLeft === 10 || secondsLeft === 5) navigator.vibrate(70)
+    else if (secondsLeft === 0) navigator.vibrate([90, 70, 90])
   }, [secondsLeft])
 
   // ── Answer submit ──────────────────────────────────────────────────────────
   async function submitAnswer(answer: unknown) {
     if (submittedRef.current || !currentSlide) return
+    const slideId = currentSlide.id
     submittedRef.current = true
     setSubmitting(true)
 
@@ -220,9 +343,14 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
 
     setSubmitting(false)
     if (res.ok) {
+      answeredRef.current.add(slideId)
       const data = (await res.json()) as ResultData
       setResult(data)
       setAppState("result")
+    } else if (res.status === 409 && answeredRef.current.has(slideId)) {
+      // This phone already answered this slide, and the host has stepped back to
+      // it. Not a collision: the first answer stands, so say so and stop.
+      setAppState("submitted")
     } else if (res.status === 409) {
       // Someone else already answered under this nickname. Saying "answer
       // received" here is what let a collided participant score zero for a
@@ -230,6 +358,10 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
       submittedRef.current = false
       setNicknameError(t("quiz.nicknameTaken"))
       setAppState("nickname")
+    } else if (res.status === 400) {
+      // The host started a new run, so this room code is closed. Silently
+      // failing left the phone waiting on a question that would never come.
+      setAppState("ended")
     } else {
       setAppState("submitted")
     }
@@ -454,7 +586,19 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
               {t("quiz.yourRankLabel", { rank: result.rank })}
             </p>
           )}
-          <p className="text-sm text-muted-foreground mt-2">{t("quiz.waitingToStart")}</p>
+          {/* Not "waiting for the host to start": the quiz has started. There
+              are three states here and they are genuinely different -- a verdict
+              already shown, a verdict being withheld until the host reveals it,
+              and a poll, where no verdict is ever coming and promising results
+              would just leave the phone waiting for something that never
+              arrives. */}
+          <p className="text-sm text-muted-foreground mt-2">
+            {t(
+              showVerdict || result.correct === null
+                ? "quiz.waitingForNext"
+                : "quiz.waitingForResults",
+            )}
+          </p>
         </div>
       </Screen>
     )
@@ -464,9 +608,20 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
     return (
       <Screen k={appState}>
         <div className="flex flex-col items-center gap-4 py-8 text-center">
-          <span className="flex size-20 items-center justify-center bg-teal-700 text-4xl text-white">✓</span>
-          <p className="font-heading text-4xl">{t("quiz.answerReceived")}</p>
-          <p className="text-sm text-muted-foreground">{t("quiz.waitingToStart")}</p>
+          <span
+            className={cn(
+              "flex size-20 items-center justify-center text-4xl text-white",
+              missed ? "bg-muted-foreground" : "bg-teal-700",
+            )}
+          >
+            {missed ? "⏱" : "✓"}
+          </span>
+          <p className="font-heading text-4xl">
+            {t(missed ? "quiz.timeUp" : "quiz.answerReceived")}
+          </p>
+          <p className="text-sm text-muted-foreground">
+            {t(missed ? "quiz.missedThisOne" : "quiz.waitingForResults")}
+          </p>
         </div>
       </Screen>
     )
@@ -475,22 +630,57 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
   // Active question
   const isLocked = locked || submittedRef.current
 
+  // The last quarter, or the last five seconds, whichever comes first: a 90
+  // second question should not spend 22 of them screaming, and a 10 second one
+  // must still warn before it is too late to answer.
+  const timed = timerDuration !== null && secondsLeft !== null
+  const urgent = timed && !isLocked && (secondsLeft <= 5 || secondsLeft / timerDuration <= 0.25)
+
   return (
-    <Screen padding k={`${appState}-${currentSlide?.id ?? ""}`}>
+    <Screen
+      padding
+      k={`${appState}-${currentSlide?.id ?? ""}`}
+      urgent={urgent}
+      /* The clock, across the top of the phone rather than tucked beside the
+         question number. Pinned to the viewport, so it is still there once the
+         options have pushed the header off screen, and drained in CSS against
+         the question's own duration -- smooth at 60fps, and unable to drift from
+         the digit beside it. Cosmetic either way: the points come from the
+         server's record of when the slide went live.
+         It is passed in rather than nested in the card because the card carries
+         an entrance transform, and a transformed ancestor would make `fixed`
+         resolve against the card instead of the viewport. */
+      banner={
+        timed ? (
+          <div
+            className="fixed inset-x-0 top-0 z-50 h-2 bg-black/30"
+            role="progressbar"
+            aria-valuemin={0}
+            aria-valuemax={timerDuration}
+            aria-valuenow={secondsLeft}
+            aria-label={t("quiz.timeRemaining")}
+          >
+            <div
+              key={currentSlide.id}
+              ref={barRef}
+              className={cn("quiz-drain-bar h-full", isLocked && "[animation-play-state:paused]")}
+              style={{ "--quiz-duration": `${timerDuration}s` } as React.CSSProperties}
+            />
+          </div>
+        ) : null
+      }
+    >
       <div className="w-full max-w-2xl space-y-7">
         <div className="space-y-1">
           <div className="flex items-baseline justify-between gap-3">
             <p className="font-mono text-xs font-bold uppercase tracking-[0.18em] text-teal-700">
               {t("quiz.slideProgress", { n: slideIndex + 1, total: slideCount })}
             </p>
-            {/* The countdown was projector-only, so anyone looking at their phone
-                had no idea how long they had left. Cosmetic: the score is still
-                computed from the server's own start time. */}
             {secondsLeft !== null && !isLocked && (
               <span
                 className={cn(
-                  "font-mono text-2xl font-bold tabular-nums transition-colors",
-                  secondsLeft <= 5 ? "text-destructive" : "text-teal-700",
+                  "font-mono font-bold tabular-nums transition-all",
+                  urgent ? "scale-110 text-3xl text-destructive" : "text-2xl text-teal-700",
                 )}
                 aria-live="off"
               >
@@ -498,29 +688,6 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
               </span>
             )}
           </div>
-
-          {/* A draining bar as well as the number. On a phone held at arm's
-              length the bar is what gets read: how much is left is a shape, not
-              a figure you have to focus on. Cosmetic only, like the number, the
-              score comes from the server's own start time. */}
-          {timerDuration !== null && secondsLeft !== null && !isLocked && (
-            <div
-              className="h-1.5 w-full overflow-hidden rounded-full bg-black/10"
-              role="progressbar"
-              aria-valuemin={0}
-              aria-valuemax={timerDuration}
-              aria-valuenow={secondsLeft}
-              aria-label={t("quiz.timeRemaining")}
-            >
-              <div
-                className={cn(
-                  "h-full rounded-full transition-[width,background-color] duration-1000 ease-linear",
-                  secondsLeft <= 5 ? "bg-destructive" : "bg-teal-600",
-                )}
-                style={{ width: `${(secondsLeft / timerDuration) * 100}%` }}
-              />
-            </div>
-          )}
           <h2 className="font-heading text-3xl leading-tight sm:text-4xl">{currentSlide.prompt}</h2>
         </div>
 
@@ -769,7 +936,7 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
 // load fast on a few hundred phones on venue wifi. Doing them in CSS keeps
 // framer-motion out of the bundle entirely rather than merely deferring it.
 // motion-reduce: preserves what useReducedMotion() was doing.
-function Screen({ children, padding, k }: { children: React.ReactNode; padding?: boolean; k?: string }) {
+function Screen({ children, padding, k, urgent, banner }: { children: React.ReactNode; padding?: boolean; k?: string; urgent?: boolean; banner?: React.ReactNode }) {
   return (
     <div className={`overscroll-dark relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-[#07100d] ${padding ? "px-4 py-10" : "px-4 py-8"}`}>
       <div className="paper-grid absolute inset-0 opacity-[0.1]" aria-hidden />
@@ -782,12 +949,13 @@ function Screen({ children, padding, k }: { children: React.ReactNode; padding?:
       <div className="absolute left-5 top-5 flex items-center gap-2 font-mono text-xs font-bold uppercase tracking-[0.2em] text-white/45">
         <span className="size-2 animate-pulse bg-teal-300" /> Audience live
       </div>
+      {banner}
       {/* key remounts this on phase change so the entrance replays. */}
       <div
         key={k}
         className={`relative z-10 flex w-full max-w-3xl flex-col items-center bg-[#f3eee2] p-6 text-[#111614] shadow-[14px_14px_0_#14b8a6] sm:p-10 motion-reduce:animate-none ${
           k === undefined ? "" : "animate-in fade-in zoom-in-95 slide-in-from-bottom-4 duration-300"
-        }`}
+        } ${urgent ? "quiz-urgent" : ""}`}
       >
         {children}
       </div>

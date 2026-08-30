@@ -19,18 +19,22 @@ none needs a Vercel token.
 ## Deployments
 
 Vercel builds every push. `vercel.json` points `buildCommand` at
-`npm run build:vercel`, which runs `prisma migrate deploy` on Production and on
-the `development` branch, then `next build`.
+`npm run build:vercel`, which is `next build` and nothing else.
 
-Pull-request previews deliberately do NOT migrate: a PR carrying a migration
-would otherwise apply it before anyone reviewed it.
+**The build does not migrate.** It used to, and that was removed deliberately in
+`d476bd2` so a deployment can never alter the schema on its way out. Every
+migration is applied by hand, before the deploy that needs it.
 
-A failed migration fails the build, so no deployment is created and the previous
-one keeps serving.
+The cost of that is a trap this document previously helped set: merging a PR
+with a migration in it deploys code that expects a column or an enum value the
+database does not have. `20260830120000_quiz_formats_and_avatars` sat unapplied
+for a day that way, and every attempt to add a true/false or typed-answer slide
+came back `invalid input value for enum "SlideType"`. **Apply the migration
+first, then merge.**
 
 ## Migrations
 
-Applied by the Vercel build. To run one by hand:
+Applied by hand. Check first, then run:
 
 ```bash
 DIRECT_URL='<session pooler, port 5432>' npm run db:deploy

@@ -9,13 +9,14 @@ import { Label } from "@/components/ui/label"
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { t } from "@/content/strings"
-import { PRESET_THEMES, type PresentationTheme, type SlideMode } from "@/lib/quiz-types"
+import { PRESET_THEMES, presetThemeKey, type PresentationTheme, type SlideMode } from "@/lib/quiz-types"
 
 interface Props {
   presentationId: string
@@ -50,6 +51,10 @@ export function BuilderHeader({
   presentationId, title, mode, theme, saveStatus, onTitleChange, onModeChange, onThemeChange,
 }: Props) {
   const [themeOpen, setThemeOpen] = useState(false)
+  const activeKey = presetThemeKey(theme)
+  const themeLabel = activeKey
+    ? t(`quiz.builder.themes.${activeKey}` as Parameters<typeof t>[0])
+    : t("quiz.builder.themes.custom")
 
   return (
     <header className="flex h-16 shrink-0 items-center gap-2 overflow-hidden border-b border-white/10 bg-foreground px-3 text-background sm:h-20 sm:gap-4 sm:px-5">
@@ -86,14 +91,21 @@ export function BuilderHeader({
       <DropdownMenu open={themeOpen} onOpenChange={setThemeOpen}>
         <DropdownMenuTrigger aria-label="Choose presentation theme" className="flex h-11 shrink-0 items-center gap-2 border border-white/20 px-2.5 text-sm transition-colors hover:bg-white/10 sm:px-3">
           <span
-            className="inline-block size-3 rounded-sm border border-border/50"
-            style={{ background: theme.accentColor }}
-          />
-          <span className="hidden lg:inline">{t("quiz.builder.themes.classic")}</span>
+            className="inline-flex size-4 shrink-0 items-center justify-center rounded-sm border border-border/50"
+            style={{ background: theme.background }}
+          >
+            <span className="size-2 rounded-[1px]" style={{ background: theme.accentColor }} />
+          </span>
+          <span className="hidden lg:inline">{themeLabel}</span>
           <ChevronDown className="size-4 text-background/55" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-52">
-          <DropdownMenuLabel className="text-xs">{t("quiz.builder.themes.classic")}, presets</DropdownMenuLabel>
+          {/* The label and the presets are one group. Base UI's GroupLabel reads
+              its group from context and THROWS when there is none, so a bare
+              label -- which is how the same component is written under Radix --
+              took the whole builder down the moment this menu was opened. */}
+          <DropdownMenuGroup>
+          <DropdownMenuLabel className="text-xs">{t("quiz.builder.themes.presets")}</DropdownMenuLabel>
           <DropdownMenuSeparator />
           {Object.entries(PRESET_THEMES).map(([key, preset]) => (
             <DropdownMenuItem
@@ -107,9 +119,11 @@ export function BuilderHeader({
               >
                 <span className="size-2.5 rounded-sm" style={{ background: preset.accentColor }} />
               </span>
-              {t(`quiz.builder.themes.${key}` as Parameters<typeof t>[0])}
+              <span className="flex-1">{t(`quiz.builder.themes.${key}` as Parameters<typeof t>[0])}</span>
+              {key === activeKey && <Check className="size-3.5 shrink-0" />}
             </DropdownMenuItem>
           ))}
+          </DropdownMenuGroup>
 
           <DropdownMenuSeparator />
           <div className="px-2 py-2 space-y-0.5">

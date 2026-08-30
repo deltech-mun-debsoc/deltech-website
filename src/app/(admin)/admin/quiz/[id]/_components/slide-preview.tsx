@@ -1,9 +1,10 @@
 "use client"
 
+import { t } from "@/content/strings"
 import {
   type SlideData,
   type PresentationTheme,
-  asMCQ, asWordCloud, asScale, asOpenText, asContent,
+  asMCQ, asWordCloud, asScale, asOpenText, asContent, asTypeAnswer, asNumeric,
 } from "@/lib/quiz-types"
 
 interface Props {
@@ -145,6 +146,79 @@ function PreviewContent({ slide, theme }: Props) {
               </div>
             )}
             <p className="mt-2 text-[10px]" style={{ opacity: 0.35 }}>Max {cfg.maxLength} chars</p>
+          </div>
+        </>
+      )
+    }
+
+    // The three scored formats added alongside MCQ had no case here at all, so
+    // picking one left the builder's canvas blank -- the one panel whose whole
+    // job is to show what the room will see.
+    case "TRUE_FALSE": {
+      const cfg = asMCQ(slide.config)
+      return (
+        <>
+          <Prompt text={slide.prompt} />
+          <div className="mt-auto grid grid-cols-2 gap-4">
+            {(cfg.options.length ? cfg.options : ["True", "False"]).slice(0, 2).map((opt, i) => (
+              <div
+                key={i}
+                className="flex items-center justify-center rounded-xl py-6 text-2xl font-bold"
+                style={{
+                  background: `${accent}22`,
+                  // The correct answer is marked in the builder, where only the
+                  // author is looking. It is stripped before broadcast.
+                  outline: cfg.correct.includes(i) ? `3px solid ${accent}` : "none",
+                }}
+              >
+                {opt}
+              </div>
+            ))}
+          </div>
+        </>
+      )
+    }
+
+    case "TYPE_ANSWER": {
+      const cfg = asTypeAnswer(slide.config)
+      const accepted = cfg.accepted.filter(Boolean)
+      return (
+        <>
+          <Prompt text={slide.prompt} />
+          <div className="mt-auto space-y-3">
+            <div
+              className="rounded-lg px-4 py-3 text-sm"
+              style={{ background: `${accent}18`, border: `1px dashed ${accent}` }}
+            >
+              <span style={{ opacity: 0.45 }}>{t("quiz.typeAnswerPlaceholder")}</span>
+            </div>
+            <p className="text-xs" style={{ opacity: 0.5 }}>
+              {accepted.length
+                ? `${t("quiz.builder.acceptedAnswers")}: ${accepted.join(", ")}`
+                : t("quiz.builder.acceptedAnswersEmpty")}
+            </p>
+          </div>
+        </>
+      )
+    }
+
+    case "NUMERIC": {
+      const cfg = asNumeric(slide.config)
+      return (
+        <>
+          <Prompt text={slide.prompt} />
+          <div className="mt-auto space-y-3">
+            <div className="flex items-baseline justify-center gap-2">
+              <span className="text-5xl font-bold tabular-nums" style={{ color: accent }}>
+                {cfg.target}
+              </span>
+              {cfg.unit && <span className="text-xl" style={{ opacity: 0.55 }}>{cfg.unit}</span>}
+            </div>
+            <p className="text-center text-xs" style={{ opacity: 0.5 }}>
+              {cfg.tolerance > 0
+                ? t("quiz.builder.numericTolerance", { n: cfg.tolerance })
+                : t("quiz.builder.numericExact")}
+            </p>
           </div>
         </>
       )

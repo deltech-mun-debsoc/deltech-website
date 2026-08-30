@@ -2,12 +2,23 @@
 
 import { prisma } from "@/lib/prisma"
 import { requireStaff } from "@/lib/authz"
-import { createOrGetQuizSession } from "@/lib/quiz-session"
+import { createOrGetQuizSession, resumeQuizSession } from "@/lib/quiz-session"
 
 export async function createOrGetSession(presentationId: string): Promise<string> {
   await requireStaff()
   const session = await createOrGetQuizSession(presentationId)
   return session.id
+}
+
+// Resumes the run named in the presenter URL, so a reload keeps its room code
+// and its scores. Null when that run has ended or belongs to another
+// presentation; the caller then starts a fresh one.
+export async function resumeSession(
+  presentationId: string,
+  sessionId: string,
+): Promise<{ id: string; roomCode: string } | null> {
+  await requireStaff()
+  return resumeQuizSession(presentationId, sessionId)
 }
 
 // Records which slide is live and when it went live, so scoring does not have

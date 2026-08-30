@@ -32,24 +32,39 @@ export function CountdownRing({ durationSeconds, running, accentColor,
       return
     }
 
-    function tick(now: number) {
-      if (startRef.current === null) startRef.current = now
-      const elapsed = (now - startRef.current) / 1000
+    if (startRef.current === null) startRef.current = Date.now()
+
+    // Returns false once the question has expired, so both drivers stop.
+    function update(): boolean {
+      const elapsed = (Date.now() - (startRef.current ?? Date.now())) / 1000
       const left = Math.max(0, durationSeconds - elapsed)
       setRemaining(left)
-      if (left === 0 && !expiredRef.current) {
+      if (left > 0) return true
+      if (!expiredRef.current) {
         expiredRef.current = true
         onExpire?.()
-        return
       }
-      if (left > 0) {
-        rafRef.current = requestAnimationFrame(tick)
-      }
+      return false
     }
 
-    rafRef.current = requestAnimationFrame(tick)
+    // Two drivers, deliberately. requestAnimationFrame gives the ring a smooth
+    // sweep, but the browser stops it entirely while the tab is not visible --
+    // so a host who switched away from the projector left the question open
+    // forever while every phone's own countdown, which is deadline-based, had
+    // already run out. The interval is throttled in a background tab but never
+    // stopped, so expiry still fires. Both read the same wall clock, so they
+    // cannot disagree about when time is up.
+    function frame() {
+      if (update()) rafRef.current = requestAnimationFrame(frame)
+    }
+    rafRef.current = requestAnimationFrame(frame)
+    const interval = setInterval(() => {
+      if (!update()) clearInterval(interval)
+    }, 500)
+
     return () => {
       if (rafRef.current !== undefined) cancelAnimationFrame(rafRef.current)
+      clearInterval(interval)
     }
   }, [running, durationSeconds, onExpire])
 
