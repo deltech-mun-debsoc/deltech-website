@@ -10,7 +10,11 @@ export const metadata = {
 
 export const revalidate = 0
 
-const TEAM_LEVELS = ["AC", "SC", "JC"] as const
+const TEAM_LEVELS = [
+  { value: "AC", label: "Administrative Council" },
+  { value: "SC", label: "Senior Council" },
+  { value: "JC", label: "Junior Council" },
+] as const
 
 export default async function TeamPage() {
   const members = await prisma.member.findMany({
@@ -54,15 +58,18 @@ export default async function TeamPage() {
           ) : (
             <div className="space-y-20">
               {TEAM_LEVELS.map((level) => {
-                const sectionMembers = members.filter((member) => member.level === level)
+                const sectionMembers = members.filter((member) => member.level === level.value)
                 if (sectionMembers.length === 0) return null
 
                 return (
-                  <section key={level} aria-labelledby={`team-${level.toLowerCase()}`}>
+                  <section key={level.value} aria-labelledby={`team-${level.value.toLowerCase()}`}>
                     <div className="flex items-end justify-between border-b border-foreground/30 pb-5">
-                      <h2 id={`team-${level.toLowerCase()}`} className="display text-6xl text-primary sm:text-8xl">
-                        {level}
-                      </h2>
+                      <div>
+                        <p className="data-label text-primary">{level.value}</p>
+                        <h2 id={`team-${level.value.toLowerCase()}`} className="mt-2 font-heading text-4xl sm:text-6xl">
+                          {level.label}
+                        </h2>
+                      </div>
                       <span className="font-mono text-xs text-muted-foreground">
                         {String(sectionMembers.length).padStart(2, "0")}
                       </span>

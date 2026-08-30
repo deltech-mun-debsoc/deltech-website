@@ -6,7 +6,7 @@
 // point at production anyway, but it makes a staging environment untestable:
 // every link in a staging email would open production.
 //
-//   Production   NEXT_PUBLIC_APP_URL = https://deltechmun.in
+//   Production   NEXT_PUBLIC_APP_URL = https://www.deltechmun.in
 //   Staging      NEXT_PUBLIC_APP_URL = https://test.deltechmun.in
 //
 // Both variables are NEXT_PUBLIC_, so this resolves identically on the server
@@ -26,7 +26,10 @@ export function resolveAppUrl(
 ): string {
   const set = explicit?.trim()
   const localExplicit = set ? isLoopback(set) : false
-  if (set && !(hosted && localExplicit)) return stripTrailingSlash(set)
+  const deploymentExplicit = set ? isVercelDeploymentUrl(set) : false
+  if (set && !(hosted && (localExplicit || deploymentExplicit))) {
+    return canonicalizeProductionDomain(stripTrailingSlash(set))
+  }
 
   const production = productionUrl?.trim()
   if (production) {
@@ -56,10 +59,28 @@ function isLoopback(value: string): boolean {
   }
 }
 
+function isVercelDeploymentUrl(value: string): boolean {
+  try {
+    return new URL(value).hostname.endsWith(".vercel.app")
+  } catch {
+    return false
+  }
+}
+
+function canonicalizeProductionDomain(value: string): string {
+  try {
+    const url = new URL(value)
+    if (url.hostname === "deltechmun.in") url.hostname = "www.deltechmun.in"
+    return stripTrailingSlash(url.toString())
+  } catch {
+    return value
+  }
+}
+
 export const APP_URL: string = resolveAppUrl(
   process.env.NEXT_PUBLIC_APP_URL,
   process.env.NEXT_PUBLIC_VERCEL_URL,
-  process.env.VERCEL_PROJECT_PRODUCTION_URL,
+  process.env.VERCEL === "1" ? "www.deltechmun.in" : process.env.VERCEL_PROJECT_PRODUCTION_URL,
   // Any Vercel deployment, not just production: a preview must not hand out
   // localhost links either.
   process.env.VERCEL === "1",

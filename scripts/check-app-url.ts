@@ -8,11 +8,17 @@ import { readFileSync } from "node:fs"
 import { resolveAppUrl } from "../src/lib/app-url"
 
 // Explicit value wins, and is normalised.
-assert.equal(resolveAppUrl("https://deltechmun.in", undefined), "https://deltechmun.in")
+assert.equal(resolveAppUrl("https://deltechmun.in", undefined), "https://www.deltechmun.in")
 assert.equal(
   resolveAppUrl("https://test.deltechmun.in/", "ignored.vercel.app"),
   "https://test.deltechmun.in",
   "an explicit origin must win over the Vercel fallback, trailing slash stripped",
+)
+
+assert.equal(
+  resolveAppUrl("https://deltech-website.vercel.app", undefined, "www.deltechmun.in", true),
+  "https://www.deltechmun.in",
+  "a hosted production link must not leak the deployment hostname",
 )
 
 // A Vercel deployment with no explicit origin falls back to its own URL.

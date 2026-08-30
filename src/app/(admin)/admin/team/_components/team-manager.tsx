@@ -29,7 +29,13 @@ export interface MemberRow {
   isActive: boolean
 }
 
-const TEAM_LEVELS = ["AC", "SC", "JC"] as const
+type TeamLevel = "AC" | "SC" | "JC"
+
+const TEAM_LEVELS: { value: TeamLevel; label: string }[] = [
+  { value: "AC", label: "Administrative Council" },
+  { value: "SC", label: "Senior Council" },
+  { value: "JC", label: "Junior Council" },
+]
 
 async function prepareTeamPhoto(file: File): Promise<{ file?: File; error?: string }> {
   if (!file.type.startsWith("image/")) return { error: "Choose an image file." }
@@ -70,7 +76,7 @@ export function TeamManager({ members, isAdmin }: { members: MemberRow[]; isAdmi
 
   const [name, setName] = useState("")
   const [designation, setDesignation] = useState("")
-  const [level, setLevel] = useState<(typeof TEAM_LEVELS)[number]>("JC")
+  const [level, setLevel] = useState<TeamLevel>("JC")
   const [order, setOrder] = useState(0)
   const [imageUrl, setImageUrl] = useState("")
   const [instagram, setInstagram] = useState("")
@@ -235,18 +241,19 @@ export function TeamManager({ members, isAdmin }: { members: MemberRow[]; isAdmi
       ) : (
         <div className="space-y-7">
           {TEAM_LEVELS.map((teamLevel) => {
-            const sectionMembers = members.filter((member) => member.level === teamLevel)
+            const sectionMembers = members.filter((member) => member.level === teamLevel.value)
             return (
-              <section key={teamLevel} className="space-y-3">
+              <section key={teamLevel.value} className="space-y-3">
                 <div className="flex items-baseline gap-3 border-b border-border pb-2">
-                  <h2 className="font-heading text-2xl">{teamLevel}</h2>
+                  <h2 className="font-heading text-2xl">{teamLevel.label}</h2>
+                  <Badge variant="outline">{teamLevel.value}</Badge>
                   <span className="text-xs text-muted-foreground">
                     {sectionMembers.length} {sectionMembers.length === 1 ? "member" : "members"}
                   </span>
                 </div>
                 {sectionMembers.length === 0 ? (
                   <p className="rounded-xl border border-dashed border-border p-4 text-sm text-muted-foreground">
-                    No {teamLevel} members yet.
+                    No {teamLevel.label} members yet.
                   </p>
                 ) : (
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -374,12 +381,12 @@ export function TeamManager({ members, isAdmin }: { members: MemberRow[]; isAdmi
                 <Label className="text-xs">Council</Label>
                 <select
                   value={level}
-                  onChange={(event) => setLevel(event.target.value as (typeof TEAM_LEVELS)[number])}
+                  onChange={(event) => setLevel(event.target.value as TeamLevel)}
                   className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm"
                 >
                   {TEAM_LEVELS.map((teamLevel) => (
-                    <option key={teamLevel} value={teamLevel}>
-                      {teamLevel}
+                    <option key={teamLevel.value} value={teamLevel.value}>
+                      {teamLevel.label} ({teamLevel.value})
                     </option>
                   ))}
                 </select>
