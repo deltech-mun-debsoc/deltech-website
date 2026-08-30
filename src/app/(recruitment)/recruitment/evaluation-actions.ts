@@ -17,7 +17,6 @@ import {
   validateScores,
   type EvaluationInput,
 } from "@/lib/schemas/recruitment"
-import { can } from "@/lib/recruitment/permissions"
 
 // Evaluations are append-only. A revision inserts a NEW row and marks the previous
 // one SUPERSEDED in the same transaction: an earlier score is never overwritten,
@@ -105,22 +104,14 @@ async function saveEvaluation(
   try {
     // Group-scoped when there is a group (enforces the JC canEvaluate flag);
     // cycle-scoped otherwise.
-    let ctx: RecruitmentContext
-    if (target.groupId) {
-      const viewAccess = await requireGroupAccess(target.groupId, "session.view")
-      const delegated =
-        Boolean(data.panelistUserId) && data.panelistUserId !== viewAccess.ctx.userId
-      if (delegated) {
-        // A panel lead may operate a group without being one of its scorers, but
-        // the cycle must still permit the requested evaluation mutation.
-        await requireRecruitmentAction(target.cycleId, action)
-        ctx = viewAccess.ctx
-      } else {
-        ctx = (await requireGroupAccess(target.groupId, action)).ctx
-      }
-    } else {
-      ctx = await requireRecruitmentAction(target.cycleId, action)
-    }
+    // Everyone scores as themselves. The delegated path that used to sit here --
+    // a panel lead recording a score on another panelist's behalf from a shared
+    // laptop -- is gone along with its picker: one operator drives the site while
+    // the panel deliberates off it, so nobody ever used it. Who sat on the panel
+    // is still recorded, on the group's staff roster.
+    const ctx: RecruitmentContext = target.groupId
+      ? (await requireGroupAccess(target.groupId, action)).ctx
+      : await requireRecruitmentAction(target.cycleId, action)
 
     if (mode === "submit" && !data.recommendation) {
       return {
@@ -153,26 +144,8 @@ async function saveEvaluation(
       if (isMember === 0) return { ok: false, error: "That candidate is not in this group." }
     }
 
-    let evaluatorId = ctx.userId
-    let evaluatorRole = ctx.role
-    if (data.panelistUserId && data.panelistUserId !== ctx.userId) {
-      if (!target.groupId || !can(ctx.role, "evaluation.viewOthers")) {
-        return { ok: false, error: "Only a panel lead can record an evaluation for another panelist." }
-      }
-      const assignment = await prisma.recruitmentStaffAssignment.findFirst({
-        where: {
-          groupId: target.groupId,
-          canEvaluate: true,
-          member: { userId: data.panelistUserId, isActive: true },
-        },
-        select: { role: true, member: { select: { userId: true } } },
-      })
-      if (!assignment) {
-        return { ok: false, error: "That person is not an active evaluator on this panel." }
-      }
-      evaluatorId = assignment.member.userId
-      evaluatorRole = assignment.role
-    }
+    const evaluatorId = ctx.userId
+    const evaluatorRole = ctx.role
 
     const requestId = newRequestId()
     return await prisma.$transaction(async (tx) => {
@@ -408,61 +381,6 @@ export async function submitEvaluation(input: EvaluationInput): Promise<Evaluati
 // ---------------------------------------------------------------------------
 // Void: admin repair. Marks a score void without deleting it.
 // ---------------------------------------------------------------------------
-
-export async function voidEvaluation(input: {
-  evaluationId: string
-  reason: string
-}): Promise<{ ok: boolean; error?: string }> {
-  if (!input.reason || input.reason.trim().length < 10) {
-    return { ok: false, error: "Give a reason of at least 10 characters." }
-  }
-
-  const evaluation = await prisma.recruitmentEvaluation.findUnique({
-    where: { id: input.evaluationId },
-    select: {
-      id: true,
-      cycleId: true,
-      candidateId: true,
-      sessionId: true,
-      groupId: true,
-      state: true,
-      overall: true,
-      evaluatorId: true,
-    },
-  })
-  if (!evaluation) return { ok: false, error: "Evaluation not found." }
-  if (evaluation.state === "VOIDED") return { ok: true } // idempotent
-
-  try {
-    const ctx = await requireRecruitmentAction(evaluation.cycleId, "evaluation.void")
-
-    await prisma.$transaction(async (tx) => {
-      await tx.recruitmentEvaluation.update({
-        where: { id: evaluation.id },
-        data: { state: "VOIDED", overrideById: ctx.userId, overrideReason: input.reason.trim() },
-      })
-      await auditRecruitmentTx(tx, {
-        eventType: "evaluation.void",
-        actor: { id: ctx.userId, email: ctx.email, role: ctx.role },
-        cycleId: evaluation.cycleId,
-        candidateId: evaluation.candidateId,
-        sessionId: evaluation.sessionId,
-        evaluationId: evaluation.id,
-        groupId: evaluation.groupId,
-        previousState: { state: evaluation.state, overall: evaluation.overall },
-        newState: { state: "VOIDED" },
-        reason: input.reason.trim(),
-        meta: { evaluatorId: evaluation.evaluatorId, implicit: ctx.implicit },
-      })
-    })
-
-    revalidatePath("/recruitment")
-    return { ok: true }
-  } catch (err) {
-    const r = denied(err)
-    return { ok: false, error: r.ok ? undefined : r.error }
-  }
-}
 
 // Keeps `lastActivityAt` fresh so a session with a working panel is never reported
 // stale, and so a controller's claim does not lapse mid-GD.

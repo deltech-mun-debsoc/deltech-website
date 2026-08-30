@@ -510,26 +510,6 @@ export async function recruitCandidate(input: {
   }
 }
 
-// Read-side helper for the monitor page. Staff-visible (not admin-only) because a
-// MAINTAINER may open the admin dashboard and see recruitment progress.
-export async function listCycles() {
-  await requireStaff()
-  return prisma.recruitmentCycle.findMany({
-    orderBy: [{ createdAt: "desc" }],
-    select: {
-      id: true,
-      name: true,
-      slug: true,
-      state: true,
-      version: true,
-      openedAt: true,
-      closedAt: true,
-      createdAt: true,
-      _count: { select: { candidates: true, groups: true, members: true } },
-    },
-  })
-}
-
 class AlreadyRecruited extends Error {}
 
 function isUniqueViolation(err: unknown): boolean {

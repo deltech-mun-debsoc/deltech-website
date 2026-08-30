@@ -69,21 +69,3 @@ export function SessionStateBadge({ state }: { state: SessionDisplayState }) {
     </Badge>
   )
 }
-
-export function AttendanceBadge({ attendance }: { attendance: string }) {
-  // Present is the default and the common case: badging it would be noise on every
-  // row. Only the exceptions are worth a badge.
-  if (attendance === "PRESENT") return null
-  return (
-    <Badge
-      className={cn(
-        "font-normal",
-        attendance === "ABSENT"
-          ? "bg-[var(--signal-soft)] text-[var(--ink-soft)]"
-          : "bg-secondary text-secondary-foreground",
-      )}
-    >
-      {t(`recruitment.attendance.${attendance}` as StringKey)}
-    </Badge>
-  )
-}

@@ -47,7 +47,6 @@ export interface SessionConsoleProps {
   session: SerializedSession | null
   displayState: SessionDisplayState
   members: ConsoleMember[]
-  panelists: { userId: string; name: string | null; email: string }[]
   criteria: EvaluationCriterion[]
   viewerId: string
   permissions: {
@@ -70,7 +69,6 @@ export function SessionConsole({
   session: initialSession,
   displayState,
   members,
-  panelists,
   criteria,
   viewerId,
   permissions,
@@ -323,7 +321,6 @@ export function SessionConsole({
                   kind={group.kind}
                   criteria={criteria}
                   evaluations={m.evaluations}
-                  panelists={panelists}
                   viewerId={viewerId}
                   canEvaluate={permissions.evaluate}
                   canRevise={permissions.revise}

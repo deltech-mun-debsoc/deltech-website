@@ -10,7 +10,7 @@
 // Also pins that a GD panel cannot record SELECT: selecting someone is a hiring
 // decision made after PI, not on a discussion round.
 import assert from "node:assert"
-import { readFileSync } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
 import {
   nextNaturalStage,
   type CandidateSnapshot,
@@ -315,17 +315,119 @@ assert.equal(
     "src/app/(recruitment)/recruitment/evaluation-actions.ts",
     "utf8",
   )
+  // Everyone scores as themselves. The "Whose evaluation is this?" picker and the
+  // delegated write behind it are gone: one operator drives the site while the rest
+  // of the panel deliberate off it, so the picker was a one-entry dropdown of raw
+  // email addresses guarding a path nobody took. Who sat on the panel is still
+  // recorded on the group's staff roster, which is asserted below.
+  assert.doesNotMatch(
+    evaluationActions,
+    /panelistUserId/,
+    "an evaluation must be attributed to its author, not recorded on someone's behalf",
+  )
   assert.match(
     evaluationActions,
-    /member: \{ userId: data\.panelistUserId, isActive: true \}/,
-    "delegated scores must resolve to an active assigned panelist",
+    /const evaluatorId = ctx\.userId/,
+    "the evaluator is the caller",
   )
+  const evaluationForm = readFileSync(
+    "src/app/(recruitment)/recruitment/_components/evaluation-form.tsx",
+    "utf8",
+  )
+  assert.doesNotMatch(evaluationForm, /panelistDevice|switchEvaluator/, "the picker must stay gone")
+
+  // The panel roster is the audit record of who ran the session, so it must
+  // survive the picker's removal and stay on screen.
+  const dossierPage = readFileSync(
+    "src/app/(recruitment)/recruitment/candidates/[id]/page.tsx",
+    "utf8",
+  )
+  assert.match(dossierPage, /s\.staff\.map/, "the dossier must still name the panel that sat")
+  const groupList = readFileSync(
+    "src/app/(recruitment)/recruitment/_components/group-list.tsx",
+    "utf8",
+  )
+  assert.match(groupList, /g\.staff\.map/, "and so must the group list")
 
   const consoleQueries = readFileSync(
     "src/app/(recruitment)/recruitment/_lib/queries.ts",
     "utf8",
   )
   assert.match(consoleQueries, /previousGdAttempts/, "judges must see earlier completed GD attempts")
+}
+
+// --- a decision has to be reachable ---------------------------------------
+//
+// The Selected/Hold/Reject buttons were gated on `hasCompletedPi` alone, which
+// needs a PI group membership joined to a COMPLETED PI session. On real data that
+// was false for exactly the people awaiting a call -- the candidates resting at
+// PI_COMPLETE and DECISION -- so the Hold button was never clickable anywhere. It
+// was reported as "Hold is not working"; it was never rendered.
+{
+  const list = readFileSync(
+    "src/app/(recruitment)/recruitment/_components/candidates-list.tsx",
+    "utf8",
+  )
+  assert.match(list, /function decidable\(/, "a decidable() predicate must gate the decision buttons")
+  for (const stage of ["PI_COMPLETE", "DECISION", "CLOSED"]) {
+    assert.match(
+      list,
+      new RegExp(`DECIDED_STAGES[\\s\\S]{0,120}${stage}`),
+      `a candidate at ${stage} must be able to receive a decision`,
+    )
+  }
+  assert.doesNotMatch(
+    list,
+    /\{c\.hasCompletedPi && \(canHold \|\| canFinalise\)/,
+    "the PI-session-only gate must stay gone",
+  )
+
+  // "Send to GD" only flipped a stage badge that createGroup sets anyway.
+  assert.doesNotMatch(list, /advanceToGd/, "the redundant Send to GD button must stay gone")
+  // Advancing to PI is NOT redundant: it is the deliberate "no time for a GD"
+  // call, and nothing else makes it.
+  assert.match(list, /advanceToPi/, "advancing to PI must remain available")
+}
+
+// --- a hold is a question still open, not an answer ------------------------
+{
+  const sessionActions = readFileSync(
+    "src/app/(recruitment)/recruitment/session-actions.ts",
+    "utf8",
+  )
+  assert.match(
+    sessionActions,
+    /candidate\.result !== "PENDING" && candidate\.result !== "ON_HOLD"/,
+    "re-interviewing a held candidate must apply the new panel verdict, not discard it",
+  )
+}
+
+// --- the panel list is searchable, in the browser --------------------------
+{
+  const dialog = readFileSync(
+    "src/app/(recruitment)/recruitment/_components/create-group-dialog.tsx",
+    "utf8",
+  )
+  assert.match(dialog, /const \[staffQuery, setStaffQuery\]/, "the panel needs its own filter")
+  assert.match(dialog, /visibleStaff/, "and a filtered list to render")
+  // Both lists filter in memory. A server round trip per keystroke is what this
+  // whole surface was moved off.
+  assert.doesNotMatch(dialog, /fetch\(|router\.push/, "filtering must not touch the server")
+}
+
+// --- the dossier answers immediately ---------------------------------------
+{
+  assert.ok(
+    existsSync("src/app/(recruitment)/recruitment/candidates/[id]/loading.tsx"),
+    "the dossier needs a loading skeleton: prefetch has nothing to land on without one",
+  )
+  const authz = readFileSync("src/lib/recruitment/authz.ts", "utf8")
+  assert.match(
+    authz,
+    /import \{ cache \} from "react"/,
+    "session and cycle resolution must be memoised per request",
+  )
+  assert.match(authz, /const sessionUser = cache\(/, "the layout and the page must share one session lookup")
 }
 
 console.log("recruitment pipeline checks passed (three-way decisions, final selections, popups)")

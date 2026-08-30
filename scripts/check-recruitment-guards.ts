@@ -18,18 +18,22 @@ const RECRUITMENT_DIR = "src/app/(recruitment)"
 
 // Exported actions that must NOT be reachable by a JC, whatever guard they use.
 // These are the spec's explicit withholdings.
+// Ten actions were removed from this list along with the code behind them, which
+// no component had ever called: reopenSession, reverseGdBypass, editCandidate,
+// reassignCandidate, addCandidatesToGroup, assignGroupStaff, archiveGroup,
+// voidEvaluation, setAttendance and listCycles. They were guarded and audited
+// correctly, and entirely unreachable. Withholding an action from a JC means
+// nothing when nobody can invoke it at all.
 const JC_MUST_NOT_REACH = new Set([
   "startSession", "pauseSession", "resumeSession", "finishSession", "abortSession",
-  "reopenSession", "takeSessionControl",
-  "bypassGd", "reverseGdBypass", "moveCandidateStage", "setCandidateResult",
-  "editCandidate", "createGroup", "reassignCandidate", "addCandidatesToGroup",
-  "assignGroupStaff", "archiveGroup",
+  "takeSessionControl",
+  "bypassGd", "moveCandidateStage", "setCandidateResult",
+  "createGroup",
   "saveSheetSource", "previewImport", "applyImport",
-  "voidEvaluation",
 ])
 
 // Actions a JC legitimately performs.
-const JC_MAY_REACH = new Set(["saveEvaluationDraft", "submitEvaluation", "setAttendance"])
+const JC_MAY_REACH = new Set(["saveEvaluationDraft", "submitEvaluation"])
 
 function walk(dir: string): string[] {
   const out: string[] = []

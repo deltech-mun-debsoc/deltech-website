@@ -44,7 +44,6 @@ export function EvaluationForm({
   kind,
   criteria,
   evaluations,
-  panelists,
   viewerId,
   canEvaluate,
   canRevise,
@@ -58,7 +57,6 @@ export function EvaluationForm({
   kind: "GD" | "PI"
   criteria: EvaluationCriterion[]
   evaluations: ConsoleEvaluation[]
-  panelists: { userId: string; name: string | null; email: string }[]
   viewerId: string
   canEvaluate: boolean
   canRevise: boolean
@@ -66,12 +64,16 @@ export function EvaluationForm({
   onSaved?: () => void
 }) {
   const router = useRouter()
-  const initialEvaluatorId =
-    panelists.some((panelist) => panelist.userId === viewerId) || !canViewOthers
-      ? viewerId
-      : panelists[0]?.userId ?? viewerId
-  const [evaluationUserId, setEvaluationUserId] = useState(initialEvaluatorId)
-  const mine = evaluations.find((e) => e.evaluatorId === evaluationUserId)
+  // You score as yourself, always.
+  //
+  // There used to be a "Whose evaluation is this?" picker here, so one operator on
+  // a shared panel laptop could record a score on another panelist's behalf. In
+  // practice a single person drives the site while the rest of the panel deliberate
+  // off it, so the picker was a one-entry dropdown of raw email addresses guarding a
+  // delegated write nobody made. Who sat on the panel is still recorded -- that is
+  // the group's staff roster, shown on the dossier and the group list -- it just is
+  // not a thing you switch between mid-session.
+  const mine = evaluations.find((e) => e.evaluatorId === viewerId)
   const others = evaluations.filter((e) => e.id !== mine?.id)
 
   const [scores, setScores] = useState<Record<string, string>>(() =>
@@ -84,17 +86,7 @@ export function EvaluationForm({
     setScores(Object.fromEntries(criteria.map((c) => [c.key, mine?.scores[c.key]?.toString() ?? ""])))
     setRemarks(mine?.remarks ?? "")
     setRecommendation(mine?.recommendation ?? null)
-  }, [criteria, evaluationUserId, mine?.id])
-
-  function switchEvaluator(userId: string) {
-    const next = evaluations.find((evaluation) => evaluation.evaluatorId === userId)
-    setEvaluationUserId(userId)
-    setScores(
-      Object.fromEntries(criteria.map((criterion) => [criterion.key, next?.scores[criterion.key]?.toString() ?? ""])),
-    )
-    setRemarks(next?.remarks ?? "")
-    setRecommendation(next?.recommendation ?? null)
-  }
+  }, [criteria, mine?.id])
 
   const recommendationItems = useMemo(
     () =>
@@ -144,12 +136,11 @@ export function EvaluationForm({
           | "HOLD"
           | "REJECT"
           | undefined,
-        panelistUserId: evaluationUserId,
         // Derived from the evaluator, candidate, session and content: a retry of
         // the SAME submission reuses it; a genuine revision produces a new one.
         idempotencyKey:
           mode === "submit"
-            ? `ev:${evaluationUserId}:${candidateId}:${sessionId ?? "none"}:${(mine?.version ?? 0) + 1}`
+            ? `ev:${viewerId}:${candidateId}:${sessionId ?? "none"}:${(mine?.version ?? 0) + 1}`
             : undefined,
         expectedVersion: mine?.version,
       }
@@ -195,29 +186,6 @@ export function EvaluationForm({
           )}
         </div>
       </div>
-
-      {kind === "GD" && canEvaluate && canViewOthers && panelists.length > 0 && (
-        <div className="space-y-2 rounded-md border border-border/70 bg-background p-3">
-          <div>
-            <p className="text-sm font-medium">{t("recruitment.evaluation.panelistDeviceTitle")}</p>
-            <p className="text-xs text-muted-foreground">
-              {t("recruitment.evaluation.panelistDeviceDescription")}
-            </p>
-          </div>
-          <select
-            value={evaluationUserId}
-            onChange={(event) => switchEvaluator(event.target.value)}
-            className="h-9 w-full rounded-md border border-input bg-transparent px-3 text-sm sm:w-72"
-            aria-label={t("recruitment.evaluation.panelistDeviceTitle")}
-          >
-            {panelists.map((panelist) => (
-              <option key={panelist.userId} value={panelist.userId}>
-                {panelist.name ?? panelist.email}
-              </option>
-            ))}
-          </select>
-        </div>
-      )}
 
       {canEvaluate ? (
         <>

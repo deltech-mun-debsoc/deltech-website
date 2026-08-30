@@ -500,9 +500,16 @@ async function transition(
           })
 
           for (const candidate of advancing) {
-            // Never overwrite a concurrent manual decision made while the
-            // session was live. Its version/result remains authoritative.
-            if (candidate.result !== "PENDING") continue
+            // Never overwrite a concurrent manual decision made while the session
+            // was live. Its version/result remains authoritative.
+            //
+            // ON_HOLD is the exception, and it has to be: the PI queue deliberately
+            // re-offers held candidates, so re-interviewing one is a supported move.
+            // Treating their existing hold as "already decided" meant the second
+            // panel's verdict was silently discarded and the candidate came to rest
+            // at PI_COMPLETE with no queue and no decision. A hold is a question
+            // still open, not an answer.
+            if (candidate.result !== "PENDING" && candidate.result !== "ON_HOLD") continue
             const recommendation = finishRecommendations.get(candidate.id)
             if (!recommendation) continue
 
@@ -714,133 +721,9 @@ export async function takeSessionControl(input: {
 // Reopen: admin repair for a wrongly-completed session
 // ---------------------------------------------------------------------------
 
-// Creates the NEXT attempt rather than mutating the completed row, so the original
-// timings, evaluations and audit trail survive intact.
-export async function reopenSession(input: {
-  sessionId: string
-  reason: string
-}): Promise<SessionResult> {
-  const found = await prisma.recruitmentSession.findUnique({
-    where: { id: input.sessionId },
-    select: { cycleId: true, groupId: true },
-  })
-  if (!found) return { ok: false, error: "Session not found." }
-  if (!input.reason || input.reason.trim().length < 10) {
-    return { ok: false, error: "Give a reason of at least 10 characters for reopening." }
-  }
-
-  try {
-    const ctx = await requireRecruitmentAction(found.cycleId, "session.reopen")
-
-    return await prisma.$transaction(async (tx) => {
-      const serverNow = new Date()
-      const row = (await tx.recruitmentSession.findUnique({
-        where: { id: input.sessionId },
-        select: SESSION_SELECT,
-      })) as SessionRow | null
-      if (!row) return { ok: false as const, error: "Session not found." }
-
-      if (decideReopen(toSnapshot(row)) === "noop") {
-        return { ok: false as const, error: "That session is still live: there is nothing to reopen." }
-      }
-
-      // The partial unique index refuses a second non-terminal session per group,
-      // so a concurrent reopen fails here rather than creating two live attempts.
-      let created
-      try {
-        created = await tx.recruitmentSession.create({
-          data: {
-            cycleId: row.cycleId,
-            groupId: row.groupId,
-            kind: row.kind,
-            attempt: row.attempt + 1,
-            state: "NOT_STARTED",
-            plannedSeconds: row.plannedSeconds,
-            reopenedFromId: row.id,
-            reopenReason: input.reason.trim(),
-          },
-          select: SESSION_SELECT,
-        })
-      } catch (createErr) {
-        if (isUniqueViolation(createErr)) {
-          throw new SessionConflict("This group already has a live session: reopening again would duplicate it.")
-        }
-        throw createErr
-      }
-
-      await tx.recruitmentGroup.update({ where: { id: row.groupId }, data: { state: "READY" } })
-
-      await auditRecruitmentTx(tx, {
-        eventType: "session.reopen",
-        actor: { id: ctx.userId, email: ctx.email, role: ctx.role },
-        cycleId: row.cycleId,
-        sessionId: created.id,
-        groupId: row.groupId,
-        previousState: { sessionId: row.id, state: row.state, attempt: row.attempt },
-        newState: { sessionId: created.id, state: "NOT_STARTED", attempt: created.attempt },
-        reason: input.reason.trim(),
-        meta: { implicit: ctx.implicit, reopenedFrom: row.id },
-      })
-
-      revalidatePath("/recruitment")
-      return {
-        ok: true as const,
-        idempotent: false,
-        session: serialize(created as SessionRow, serverNow),
-      }
-    })
-  } catch (err) {
-    if (err instanceof SessionConflict) return { ok: false, error: err.message, conflict: err.conflict }
-    return denied(err)
-  }
-}
-
 // ---------------------------------------------------------------------------
 // Attendance
 // ---------------------------------------------------------------------------
-
-export async function setAttendance(input: {
-  groupMemberId: string
-  attendance: "EXPECTED" | "PRESENT" | "LATE" | "ABSENT"
-}): Promise<{ ok: boolean; error?: string }> {
-  const member = await prisma.recruitmentGroupMember.findUnique({
-    where: { id: input.groupMemberId },
-    select: { groupId: true, candidateId: true, attendance: true, group: { select: { cycleId: true } } },
-  })
-  if (!member) return { ok: false, error: "Not found." }
-
-  try {
-    const { ctx } = await requireGroupAccess(member.groupId, "session.markAttendance")
-    if (member.attendance === input.attendance) return { ok: true } // idempotent
-
-    await prisma.$transaction(async (tx) => {
-      await tx.recruitmentGroupMember.update({
-        where: { id: input.groupMemberId },
-        data: {
-          attendance: input.attendance,
-          // A late arrival is recorded with the moment they actually joined.
-          joinedAt:
-            input.attendance === "PRESENT" || input.attendance === "LATE" ? new Date() : null,
-        },
-      })
-      await auditRecruitmentTx(tx, {
-        eventType: "candidate.attendance",
-        actor: { id: ctx.userId, email: ctx.email, role: ctx.role },
-        cycleId: member.group.cycleId,
-        candidateId: member.candidateId,
-        groupId: member.groupId,
-        previousState: { attendance: member.attendance },
-        newState: { attendance: input.attendance },
-      })
-    })
-
-    revalidatePath("/recruitment")
-    return { ok: true }
-  } catch (err) {
-    const r = denied(err)
-    return { ok: false, error: r.ok ? undefined : r.error }
-  }
-}
 
 // ---------------------------------------------------------------------------
 

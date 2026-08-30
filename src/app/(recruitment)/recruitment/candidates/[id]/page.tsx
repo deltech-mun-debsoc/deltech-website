@@ -51,7 +51,7 @@ export default async function CandidateDossierPage({
         <div className="space-y-6">
           {/* ---- GD record, or an explicit explanation of its absence ---- */}
           <section className="space-y-3">
-            <h2 className="section-label">
+            <h2 className="font-heading text-lg leading-tight text-foreground">
               {t("recruitment.dossier.gdRecord")}
             </h2>
 
@@ -63,7 +63,7 @@ export default async function CandidateDossierPage({
                   <p className="text-sm font-medium">{t("recruitment.dossier.gdBypassedTitle")}</p>
                   <p className="text-sm">
                     {t("recruitment.dossier.gdBypassedBody", {
-                      actor: dossier.gdStatus.actorName ?? ", ",
+                      actor: dossier.gdStatus.actorName ?? t("recruitment.dossier.unknownActor"),
                       role: t(`recruitment.roles.${dossier.gdStatus.actorRole}` as StringKey),
                       date: dossier.gdStatus.at.toISOString().slice(0, 16).replace("T", " "),
                     })}
@@ -83,7 +83,7 @@ export default async function CandidateDossierPage({
             ) : dossier.gdStatus.kind === "pending" ? (
               <p className="text-sm text-muted-foreground">{t("recruitment.dossier.gdPending")}</p>
             ) : (
-              <SessionSummary sessions={dossier.gdSessions} />
+              <SessionSummary sessions={dossier.gdSessions} kind="GD" />
             )}
 
             {dossier.gdEvaluations.length > 0 && (
@@ -97,7 +97,7 @@ export default async function CandidateDossierPage({
 
           {/* ---- PI record ---- */}
           <section className="space-y-3">
-            <h2 className="section-label">
+            <h2 className="font-heading text-lg leading-tight text-foreground">
               {t("recruitment.dossier.piRecord")}
             </h2>
             {dossier.previousPiAttempts > 1 && (
@@ -105,18 +105,21 @@ export default async function CandidateDossierPage({
                 {t("recruitment.dossier.previousPiAttempts", { count: dossier.previousPiAttempts })}
               </p>
             )}
-            <SessionSummary sessions={dossier.piSessions} />
+            <SessionSummary sessions={dossier.piSessions} kind="PI" />
+            {/* PI recommendations are shown. `showRecommendations={false}` was
+                correct only while PI had no recommendations at all; they were
+                reinstated for both rounds, so this was hiding the single most
+                important thing the panel recorded. */}
             <EvaluationList
               evaluations={dossier.piEvaluations}
               aggregate={dossier.piAggregate}
               ownOnly={!canViewOthers}
-              showRecommendations={false}
             />
           </section>
 
           {/* ---- Imported form response, verbatim ---- */}
           <section className="space-y-3">
-            <h2 className="section-label">
+            <h2 className="font-heading text-lg leading-tight text-foreground">
               {t("recruitment.dossier.formResponse")}
             </h2>
             {Object.keys(dossier.formResponse).length === 0 ? (
@@ -125,11 +128,18 @@ export default async function CandidateDossierPage({
               </p>
             ) : (
               <Card className="p-4">
-                <dl className="grid gap-3 sm:grid-cols-2">
+                {/* One column, not two. These keys are whole question sentences
+                    from the form, so a half-width column wrapped the longest
+                    strings on the page into the smallest, faintest type on it.
+                    The question is now readable and the answer is plainly the
+                    content: the answer is what a panel reads in the room. */}
+                <dl className="space-y-4">
                   {Object.entries(dossier.formResponse).map(([key, value]) => (
-                    <div key={key} className="min-w-0">
-                      <dt className="text-xs text-muted-foreground">{key}</dt>
-                      <dd className="whitespace-pre-wrap break-words text-sm">{value}</dd>
+                    <div key={key} className="min-w-0 space-y-1">
+                      <dt className="text-sm font-medium text-muted-foreground">{key}</dt>
+                      <dd className="whitespace-pre-wrap break-words text-base leading-relaxed">
+                        {value}
+                      </dd>
                     </div>
                   ))}
                 </dl>
@@ -141,14 +151,14 @@ export default async function CandidateDossierPage({
         {/* ---- Sidebar: profile, provenance, history ---- */}
         <aside className="space-y-6">
           <Card className="space-y-2 p-4">
-            <h2 className="section-label">
+            <h2 className="text-sm font-semibold text-foreground">
               {t("recruitment.dossier.profile")}
             </h2>
             <dl className="space-y-1.5 text-sm">
-              <Row label={t("recruitment.responses.labelLabel")} value={c.email} />
-              {c.phone && <Row label=", " value={c.phone} />}
-              {c.branch && <Row label=", " value={c.branch} />}
-              {c.year && <Row label=", " value={c.year} />}
+              <Row label={t("recruitment.dossier.email")} value={c.email} />
+              {c.phone && <Row label={t("recruitment.dossier.phone")} value={c.phone} />}
+              {c.branch && <Row label={t("recruitment.dossier.branch")} value={c.branch} />}
+              {c.year && <Row label={t("recruitment.dossier.year")} value={c.year} />}
             </dl>
             <p className="pt-2 text-xs text-muted-foreground">
               {dossier.importProvenance.sourceSheetKey
@@ -172,7 +182,7 @@ export default async function CandidateDossierPage({
           </Card>
 
           <Card className="space-y-3 p-4">
-            <h2 className="section-label">
+            <h2 className="text-sm font-semibold text-foreground">
               {t("recruitment.dossier.history")}
             </h2>
             {dossier.history.length === 0 ? (
@@ -196,7 +206,7 @@ export default async function CandidateDossierPage({
                       )}
                     </p>
                     <p className="mt-0.5 text-muted-foreground">
-                      {h.actorName ?? ", "} ·{" "}
+                      {h.actorName ?? t("recruitment.dossier.unknownActor")} ·{" "}
                       {t(`recruitment.roles.${h.actorRole}` as StringKey)} ·{" "}
                       <time dateTime={h.createdAt.toISOString()}>
                         {h.createdAt.toISOString().slice(0, 16).replace("T", " ")}
@@ -217,16 +227,20 @@ export default async function CandidateDossierPage({
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-baseline justify-between gap-3">
-      <dt className="sr-only">{label}</dt>
-      <dd className="min-w-0 break-words">{value}</dd>
+      <dt className="shrink-0 text-xs text-muted-foreground">{label}</dt>
+      <dd className="min-w-0 break-words text-right">{value}</dd>
     </div>
   )
 }
 
 // Sessions with the exact duration the PI evaluator needs to see.
-function SessionSummary({ sessions }: { sessions: DossierSession[] }) {
+function SessionSummary({ sessions, kind }: { sessions: DossierSession[]; kind: "GD" | "PI" }) {
   if (sessions.length === 0) {
-    return <p className="text-sm text-muted-foreground">{t("recruitment.dossier.gdPending")}</p>
+    return (
+      <p className="text-sm text-muted-foreground">
+        {t(kind === "GD" ? "recruitment.dossier.gdPending" : "recruitment.dossier.piPending")}
+      </p>
+    )
   }
   return (
     <ul className="space-y-2">
@@ -280,7 +294,9 @@ function EvaluationList({
           {t("recruitment.evaluation.aggregate")}
         </p>
         <p className="font-mono text-lg tabular-nums">
-          {aggregate != null ? t("recruitment.evaluation.overallOutOf", { score: aggregate }) : ", "}
+          {aggregate != null
+            ? t("recruitment.evaluation.overallOutOf", { score: aggregate })
+            : t("recruitment.evaluation.notScored")}
         </p>
       </div>
 
@@ -312,7 +328,9 @@ function EvaluationList({
                 )}
               </Badge>
               <span className="font-mono tabular-nums">
-                {e.overall != null ? t("recruitment.evaluation.overallOutOf", { score: e.overall }) : ", "}
+                {e.overall != null
+                  ? t("recruitment.evaluation.overallOutOf", { score: e.overall })
+                  : t("recruitment.evaluation.notScored")}
               </span>
               <span className="text-xs text-muted-foreground">
                 {t("recruitment.evaluation.submittedBy", {

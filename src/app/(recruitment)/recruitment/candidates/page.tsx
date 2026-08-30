@@ -102,6 +102,9 @@ export default async function CandidatesPage({
       gdRequired: true,
       piRequired: true,
       version: true,
+      // Has this candidate actually sat a PI that finished? Kept because it is
+      // the strongest signal, but it is NO LONGER the only way to reach a
+      // decision -- see decidable() below.
       groupMemberships: {
         where: {
           kind: "PI",
