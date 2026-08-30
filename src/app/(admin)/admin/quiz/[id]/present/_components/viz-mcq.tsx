@@ -21,32 +21,38 @@ export function VizMCQ({ tally, config, theme, revealedIndices, layout = "BARS" 
 
   if (layout === "BARS") {
     return (
-      <div className="w-full space-y-3 px-4">
+      <div className="w-full space-y-4 px-4">
         {options.map((opt, i) => {
           const pct = totalVotes > 0 ? Math.round((counts[i] ?? 0) / totalVotes * 100) : 0
           const width = Math.round(((counts[i] ?? 0) / max) * 100)
           const revealed = revealedIndices !== undefined
           const isCorrect = revealedIndices?.includes(i)
           return (
-            <div key={i} className="space-y-1">
-              <div className="flex justify-between text-sm" style={{ color: theme.textColor }}>
-                <span>{opt}</span>
-                <span className="font-semibold tabular-nums">{pct}%</span>
+            <div key={i} className="grid grid-cols-[2.75rem_1fr_5rem] items-center gap-3">
+              <span
+                className="flex size-10 items-center justify-center border font-mono text-sm font-black"
+                style={{ borderColor: isCorrect ? "#22c55e" : surface.border, color: isCorrect ? "#22c55e" : theme.textColor }}
+              >
+                {isCorrect ? "✓" : String.fromCharCode(65 + i)}
+              </span>
+              <div className="space-y-1.5">
+                <div className="flex items-baseline justify-between gap-4" style={{ color: theme.textColor }}>
+                  <span className="truncate font-heading text-2xl leading-none">{opt}</span>
+                  <span className="font-mono text-xs font-black tabular-nums opacity-60">{counts[i] ?? 0}</span>
+                </div>
+                <div className="relative h-5 w-full overflow-hidden" style={{ background: surface.track }}>
+                  <div
+                    className="absolute inset-y-0 left-0 transition-all duration-700"
+                    style={{
+                      width: `${width}%`,
+                      background: revealed
+                        ? isCorrect ? "#22c55e" : surface.border
+                        : theme.accentColor,
+                    }}
+                  />
+                </div>
               </div>
-              <div className="relative h-10 w-full overflow-hidden rounded" style={{ background: surface.track }}>
-                <div
-                  className="absolute inset-y-0 left-0 flex items-center rounded transition-all duration-700"
-                  style={{
-                    width: `${width}%`,
-                    background: revealed
-                      ? isCorrect ? "#22c55e" : surface.border
-                      : theme.accentColor,
-                  }}
-                />
-                <span className="relative flex h-full items-center px-2 text-xs font-medium" style={{ color: theme.textColor }}>
-                  {counts[i] ?? 0}
-                </span>
-              </div>
+              <span className="text-right font-mono text-lg font-black tabular-nums" style={{ color: theme.textColor }}>{pct}%</span>
             </div>
           )
         })}
