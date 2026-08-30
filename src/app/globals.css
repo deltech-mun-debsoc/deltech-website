@@ -428,6 +428,44 @@
   50% { opacity: 1; transform: scale(1.08); }
 }
 
+/* The participant's countdown, as a bar rather than a digit. Driven entirely by
+   CSS: the width and the colour ramp are two channels of one animation whose
+   duration is the question's own timer, so it drains smoothly on a phone at 60fps
+   instead of stepping once a second, and no JS timer can drift against it.
+   scaleX (not width) keeps it on the compositor.
+   The colour turns at fixed FRACTIONS of the question, so a 10-second question
+   and a 90-second one feel the same shape of urgency. */
+@keyframes quiz-drain {
+  0%   { transform: scaleX(1); background-color: #0d9488; }
+  50%  { background-color: #0d9488; }
+  70%  { background-color: #f59e0b; }
+  85%  { background-color: #ea580c; }
+  100% { transform: scaleX(0); background-color: #dc2626; }
+}
+
+/* The last stretch, on the card itself: a slow red breath so the pressure is
+   felt without having to be looking at the bar. */
+@keyframes quiz-urgent {
+  0%, 100% { box-shadow: 14px 14px 0 #14b8a6, 0 0 0 0 rgba(220, 38, 38, 0); }
+  50%      { box-shadow: 14px 14px 0 #14b8a6, 0 0 0 6px rgba(220, 38, 38, 0.35); }
+}
+
+.quiz-drain-bar {
+  transform-origin: left center;
+  animation: quiz-drain var(--quiz-duration, 30s) linear forwards;
+}
+
+.quiz-urgent {
+  animation: quiz-urgent 1s ease-in-out infinite;
+}
+
+/* Someone who has asked for less motion still needs to know the time is going.
+   The bar keeps draining -- that is information, not decoration -- but the
+   breathing card stops. */
+@media (prefers-reduced-motion: reduce) {
+  .quiz-urgent { animation: none; }
+}
+
 .orbit-spin {
   animation: orbit-spin 32s linear infinite;
 }

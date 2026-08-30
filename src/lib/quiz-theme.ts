@@ -31,6 +31,15 @@ function rgba(hex: string, alpha: number): string {
   return `rgba(${r},${g},${b},${alpha})`
 }
 
+// Ink that stays readable on a given fill. Every accent-coloured button on the
+// projector was hardcoded `color: "#fff"`, which is fine on the teal default and
+// close to invisible on Ocean's #38bdf8 or the amber lock button -- the host
+// could not read their own controls, and on the lobby the start button read as
+// disabled when it was not.
+export function readableOn(hex: string): string {
+  return isDark(hex) ? "#ffffff" : "#111614"
+}
+
 export interface QuizSurface {
   /** Hairlines between regions. */
   border: string

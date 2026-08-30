@@ -1,12 +1,15 @@
-import { notFound } from "next/navigation"
+import { notFound, redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import { auth } from "@/lib/auth"
 import { parseConfig, parseTheme } from "@/lib/quiz-types"
 import type { SlideType, SlideData } from "@/lib/quiz-types"
-import { createOrGetSession } from "./actions"
+import { createOrGetSession, resumeSession } from "./actions"
 import { PresenterApp } from "./_components/presenter-app"
 
-export default async function PresentPage(props: { params: Promise<{ id: string }> }) {
+export default async function PresentPage(props: {
+  params: Promise<{ id: string }>
+  searchParams: Promise<{ session?: string }>
+}) {
   const authSession = await auth()
   const role = (authSession?.user as { role?: string } | undefined)?.role
   if (!authSession || (role !== "ADMIN" && role !== "MAINTAINER")) {
@@ -32,12 +35,15 @@ export default async function PresentPage(props: { params: Promise<{ id: string 
     }
   })
 
-  const sessionId = await createOrGetSession(id)
-  const session = await prisma.quizSession.findUnique({
-    where: { id: sessionId },
-    select: { id: true, roomCode: true },
-  })
-  if (!session) notFound()
+  // Which run this is. The id lives in the URL so a reload resumes the same run
+  // -- same code, same scores -- while arriving here without one (clicking
+  // Present again) deliberately starts a fresh run instead of inheriting the
+  // last audience's answers.
+  const { session: requested } = await props.searchParams
+  const session = requested ? await resumeSession(id, requested) : null
+  if (!session) {
+    redirect(`/admin/quiz/${id}/present?session=${await createOrGetSession(id)}`)
+  }
 
   const presentation = {
     id: raw.id,

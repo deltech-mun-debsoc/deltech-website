@@ -15,7 +15,7 @@ import type {
   TypeAnswerTally, NumericTally, PresentationTheme,
 } from "@/lib/quiz-types"
 import { asMCQ, asWordCloud, asScale, asOpenText, asNumeric, isScoredType } from "@/lib/quiz-types"
-import { quizSurface } from "@/lib/quiz-theme"
+import { quizSurface, readableOn } from "@/lib/quiz-theme"
 
 interface Props {
   slide: SlideData
@@ -174,7 +174,7 @@ export function QuestionScreen({
           <button
             onClick={onLock}
             className="flex items-center gap-2 px-4 py-2.5 text-sm font-bold transition-opacity hover:opacity-90"
-            style={{ background: "#f59e0b", color: "#fff" }}
+            style={{ background: "#f59e0b", color: readableOn("#f59e0b") }}
           >
             <Lock className="size-3" /> {t("quiz.lockVoting")}
           </button>
@@ -197,7 +197,7 @@ export function QuestionScreen({
           <button
             onClick={onReveal}
             className="flex items-center gap-2 px-4 py-2.5 text-sm font-bold transition-opacity hover:opacity-90"
-            style={{ background: "#22c55e", color: "#fff" }}
+            style={{ background: "#22c55e", color: readableOn("#22c55e") }}
           >
             <Eye className="size-3" /> {t("quiz.revealResults")}
           </button>
@@ -218,7 +218,7 @@ export function QuestionScreen({
         <button
           onClick={onNext}
           className="flex items-center gap-2 px-6 py-3 text-base font-bold transition-transform hover:-translate-y-0.5"
-          style={{ background: theme.accentColor, color: "#fff" }}
+          style={{ background: theme.accentColor, color: readableOn(theme.accentColor) }}
         >
           {t("quiz.nextSlide")} <ChevronRight className="size-4" />
         </button>

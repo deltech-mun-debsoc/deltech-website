@@ -11,29 +11,46 @@ function isRetryable(err: unknown): boolean {
   return code === "P2002" || code === "P2034"
 }
 
-// Returns the live session for a presentation, creating one only if there
-// isn't one already.
+// A *run* is the unit of results: one room code, one set of responses, one
+// leaderboard. Opening the presenter view starts a new run rather than resuming
+// whatever session happened to still be marked live, because resuming one meant
+// the previous audience's scores were still on the board, and anyone who had
+// already answered a slide was refused with `already_submitted` when it came
+// round again.
 //
-// This logic existed twice, in the presenter server action and in the sessions
-// route handler, and both had the same two faults. The find-then-create was
-// unguarded, and createOrGetSession runs during *page render*, so two staff
-// opening the presenter view at once each created a session: two room codes
-// for one presentation, half the audience in each, and a leaderboard split
-// down the middle. Separately, the old five-try roomCode pre-check was itself
-// a read-then-write, and an unlucky collision threw an unhandled P2002.
+// Two cases must still resume, so the rule is not simply "always create":
 //
-// Now the unique index on roomCode is the guard, and a retry resolves both
-// cases: it either mints a fresh code or finds the session the winner just
-// committed.
+//   - Two staff opening the presenter view at once have to land in ONE room. An
+//     untouched session is exactly that case, so it is shared. (This is the
+//     race the Serializable transaction below was added for.)
+//   - A presenter whose page reloads mid-run must not lose the run. That one is
+//     explicit: the presenter URL carries ?session=, so a reload resumes by id
+//     through `resumeQuizSession`, and never lands here.
+//
+// The old run is ended rather than left live, so its room code stops admitting
+// anyone and the audience cannot end up split across two codes. Its responses
+// stay attached to it, which is what makes the previous results still readable.
 export async function createOrGetQuizSession(presentationId: string) {
   for (let attempt = 0; ; attempt++) {
     try {
       return await prisma.$transaction(
         async (tx) => {
-          const existing = await tx.quizSession.findFirst({
+          const live = await tx.quizSession.findFirst({
             where: { presentationId, status: { in: ["lobby", "active"] } },
           })
-          if (existing) return existing
+
+          if (live) {
+            const used = await tx.response.findFirst({
+              where: { sessionId: live.id },
+              select: { id: true },
+            })
+            if (!used) return live
+
+            await tx.quizSession.updateMany({
+              where: { presentationId, status: { in: ["lobby", "active"] } },
+              data: { status: "ended", endedAt: new Date() },
+            })
+          }
 
           return tx.quizSession.create({
             data: { presentationId, roomCode: generateRoomCode(), status: "lobby" },
@@ -45,4 +62,14 @@ export async function createOrGetQuizSession(presentationId: string) {
       if (attempt >= 4 || !isRetryable(err)) throw err
     }
   }
+}
+
+// Resumes one specific run, for a presenter whose page reloaded. Null if the id
+// is not this presentation's or the run has already ended, in which case the
+// caller starts a fresh one.
+export async function resumeQuizSession(presentationId: string, sessionId: string) {
+  return prisma.quizSession.findFirst({
+    where: { id: sessionId, presentationId, status: { in: ["lobby", "active"] } },
+    select: { id: true, roomCode: true },
+  })
 }

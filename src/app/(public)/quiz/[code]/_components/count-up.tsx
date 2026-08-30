@@ -13,7 +13,12 @@ export function CountUp({ to, durationMs = 700 }: { to: number; durationMs?: num
 
   useEffect(() => {
     const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches
-    if (reduced || to <= 0) {
+    // A hidden tab does not run requestAnimationFrame. Starting from zero there
+    // meant a phone that locked, or an app switched away from, at the moment of
+    // the reveal came back showing "+0 points" for an answer that had actually
+    // scored -- and stayed there, because the frame that would have corrected it
+    // never came.
+    if (reduced || to <= 0 || document.visibilityState !== "visible") {
       setValue(to)
       return
     }
@@ -30,9 +35,17 @@ export function CountUp({ to, durationMs = 700 }: { to: number; durationMs?: num
     }
     frame = requestAnimationFrame(tick)
 
+    // Whatever happens to the frames, the real number is on screen shortly.
+    // Timers are throttled in a background tab but they are not stopped.
+    const settle = setTimeout(() => setValue(to), durationMs + 150)
+    const onHide = () => setValue(to)
+    document.addEventListener("visibilitychange", onHide)
+
     // Land on the exact total if the component unmounts mid-animation.
     return () => {
       cancelAnimationFrame(frame)
+      clearTimeout(settle)
+      document.removeEventListener("visibilitychange", onHide)
       setValue(to)
     }
   }, [to, durationMs])

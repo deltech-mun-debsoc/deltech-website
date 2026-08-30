@@ -6,7 +6,7 @@ import { FALLBACK_AVATAR } from "@/lib/quiz-types"
 import { ConfettiBurst } from "./confetti-burst"
 import { t } from "@/content/strings"
 import type { LBEntry, PresentationTheme } from "@/lib/quiz-types"
-import { quizSurface } from "@/lib/quiz-theme"
+import { quizSurface, readableOn } from "@/lib/quiz-theme"
 
 interface Props {
   entries: LBEntry[]
@@ -114,7 +114,7 @@ export function LeaderboardScreen({ entries, final, theme, onNext, onEnd }: Prop
           <button
             onClick={onNext}
             className="rounded-xl px-8 py-2.5 font-semibold transition-opacity hover:opacity-90"
-            style={{ background: theme.accentColor, color: "#fff" }}
+            style={{ background: theme.accentColor, color: readableOn(theme.accentColor) }}
           >
             {t("quiz.nextSlide")}
           </button>
