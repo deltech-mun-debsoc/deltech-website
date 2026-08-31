@@ -16,7 +16,7 @@ import { RecruitmentMobileNav } from "./_components/recruitment-mobile-nav"
 // Note what is NOT here: no requireStaff, no admin sidebar, no dashboard links. A
 // SUB_MAINTAINER lives entirely inside this shell.
 export default async function RecruitmentLayout({ children }: { children: React.ReactNode }) {
-  const { actor, cycle, role } = await requireRecruitmentAccess()
+  const { actor, cycle, role, reason } = await requireRecruitmentAccess()
 
   // This area's own theme, rendered server-side. See src/lib/theme.ts.
   const theme = parseTheme((await cookies()).get(THEME_COOKIES.recruitment)?.value)
@@ -29,8 +29,19 @@ export default async function RecruitmentLayout({ children }: { children: React.
           <p className="data-label text-muted-foreground">
             {t("recruitment.brand")}
           </p>
-          <h1 className="mt-3 font-heading text-2xl">{t("recruitment.shell.noCycleTitle")}</h1>
-          <p className="mt-2 text-sm text-muted-foreground">{t("recruitment.shell.noCycleBody")}</p>
+          {/* "Nothing is running" is a lie for a JC who was invited but never put
+              on the live cycle, which is the state they land in straight off the
+              invite email. Say which one it actually is. */}
+          <h1 className="mt-3 font-heading text-2xl">
+            {reason === "unassigned"
+              ? t("recruitment.shell.deniedTitle")
+              : t("recruitment.shell.noCycleTitle")}
+          </h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {reason === "unassigned"
+              ? t("recruitment.shell.deniedBody")
+              : t("recruitment.shell.noCycleBody")}
+          </p>
           <div className="mt-6 flex items-center gap-2">
             <AreaThemeToggle area="recruitment" initial={theme} />
             <SignOutButton />

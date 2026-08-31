@@ -8,6 +8,10 @@ assert.equal(roleHome("MAINTAINER"), "/admin")
 assert.equal(roleHome("MEMBER"), "/account")
 assert.equal(roleHome("AUTHOR"), "/write")
 assert.equal(roleHome("REGISTERER"), "/dashboard")
+// The one home that is inside a route group whose own layout can reject the
+// caller. src/lib/recruitment/authz.ts must therefore never redirect a
+// SUB_MAINTAINER "home" from /recruitment; scripts/check-dead-ends.ts pins that.
+assert.equal(roleHome("SUB_MAINTAINER"), "/recruitment")
 assert.equal(roleHome(undefined), "/")
 assert.equal(roleHome("NONSENSE"), "/")
 

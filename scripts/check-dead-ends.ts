@@ -314,4 +314,22 @@ for (const route of [
   assert.doesNotMatch(consolePage, /reopen:/, "the reopen capability has no UI and must not be plumbed")
 }
 
+// --- /recruitment must never bounce someone "home" to itself ---------------
+//
+// roleHome("SUB_MAINTAINER") is "/recruitment". requireRecruitmentAccess used to
+// redirect(roleHome(appRole)) on both no-authority paths, so a Junior Council
+// account -- invited with a User row and no RecruitmentMember, which is exactly
+// the state the invite email drops them in -- redirected /recruitment to itself
+// until the browser gave up. Every bounce out of that gate goes through
+// bounceHome, which declines to redirect when home is inside this area.
+{
+  const authz = read("src/lib/recruitment/authz.ts")
+  assert.match(authz, /function bounceHome/, "requireRecruitmentAccess needs the bounceHome loop guard")
+  assert.doesNotMatch(
+    authz,
+    /redirect\(roleHome\(/,
+    "bounce out of /recruitment via bounceHome, not redirect(roleHome(...)) -- a SUB_MAINTAINER's home is /recruitment itself",
+  )
+}
+
 console.log("✅ check-dead-ends passed")
