@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import { RecruitmentDenied, mayPerform, requireGroupAccess } from "@/lib/recruitment/authz"
 import { criteriaFor, parseCycleConfig } from "@/lib/schemas/recruitment"
-import { can } from "@/lib/recruitment/permissions"
+import { atLeast, can } from "@/lib/recruitment/permissions"
 import {
   gdWasBypassed,
   type CandidateResultName,
@@ -41,11 +41,9 @@ export async function GroupConsolePage({
   const { ctx, canEvaluate } = access
 
   // Interviews are not a Junior Council surface, and that has to hold on the
-  // console too. The nav hides the destination and the queue redirects, but a JC
-  // who had ever been put on a PI group could still read the whole interview by
-  // typing its URL -- the guarantee was "hidden unless unassigned", which is not
-  // the guarantee that was asked for.
-  if (kind === "PI" && !can(ctx.role, "group.create")) redirect("/recruitment")
+  // console too. requireGroupAccess above already refuses a JC on a PI group; this
+  // redirect is what turns that refusal into a redirect rather than an error page.
+  if (kind === "PI" && !can(ctx.role, "interview.conduct")) redirect("/recruitment")
 
   const group = await prisma.recruitmentGroup.findUnique({
     where: { id: groupId },
@@ -63,10 +61,10 @@ export async function GroupConsolePage({
   const permissions = {
     control: mayPerform(ctx, "session.start"),
     // Both the capability AND the per-group grant must hold: a JC only scores
-    // where a maintainer ticked "may score".
-    evaluate:
-      (canEvaluate || can(ctx.role, "evaluation.viewOthers")) &&
-      mayPerform(ctx, "evaluation.submit"),
+    // where a maintainer ticked "may score". The tier test is the role, not
+    // `evaluation.viewOthers` -- JCs hold that now, and reading it here would
+    // have collapsed the whole expression to true and killed the grant.
+    evaluate: (canEvaluate || atLeast(ctx.role, "MAINTAINER")) && mayPerform(ctx, "evaluation.submit"),
     revise: mayPerform(ctx, "evaluation.revise"),
     viewOthers: can(ctx.role, "evaluation.viewOthers"),
   }

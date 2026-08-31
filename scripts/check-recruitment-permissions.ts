@@ -19,59 +19,96 @@ import {
   type RecruitmentRoleName,
 } from "../src/lib/recruitment/permissions"
 
-// ── JC is recruitment-only and near-powerless ────────────────────────────────
-// The spec is explicit that a JC may view assigned work, assist a live session,
-// and evaluate only where permitted. Everything else must be denied.
+// ── The Junior Council boundary ──────────────────────────────────────────────
+// A JC runs group discussions end to end: forms the panel, drives the session,
+// scores it, pulls the responses sheet, reads the audit trail. Exactly two things
+// are withheld, and this list is the authority on which.
 const JC_MUST_NOT: RecruitmentAction[] = [
+  // 1. Interviews. Never the queue, never a PI console, never the scores behind it.
+  "interview.conduct",
+  // 2. Ending a candidacy. A JC moves people along the pipeline; it never decides
+  //    where one stops.
+  "candidate.finalise",
+  "candidate.recruit",
+  "candidate.withdraw",
+  "candidate.disqualify",
+  // Bypassing GD routes someone straight into an interview, so it belongs to (1).
+  "candidate.bypassGd",
+  "candidate.reverseBypass",
+  // Admin break-glass: repairing invalid state and re-opening settled decisions.
+  "candidate.reconsider",
+  "candidate.override",
+  "session.reopen",
+  "evaluation.void",
+  // Cycle administration, and re-pointing the sheet the imports read from.
   "cycle.create",
   "cycle.configure",
   "cycle.transition",
   "cycle.assignStaff",
-  "group.create",
-  "group.edit",
-  "group.assignCandidates",
-  "group.assignStaff",
-  "group.archive",
-  "session.start",
-  "session.pause",
-  "session.resume",
-  "session.finish",
-  "session.abort",
-  "session.reopen",
-  // The headline rule: JCs never bypass GD.
-  "candidate.bypassGd",
-  "candidate.reverseBypass",
-  "candidate.advance",
-  "candidate.edit",
-  "candidate.hold",
-  "candidate.withdraw",
-  "candidate.disqualify",
-  "candidate.reconsider",
-  "candidate.override",
-  "candidate.finalise",
-  "candidate.recruit",
   "import.configure",
-  "import.preview",
-  "import.apply",
-  "evaluation.void",
-  // Panels stay independent: a JC cannot read other evaluators' scores.
-  "evaluation.viewOthers",
-  "audit.view",
 ]
 for (const action of JC_MUST_NOT) {
   assert.equal(can("JC", action), false, `JC must NOT be able to ${action}`)
 }
 
 const JC_MAY: RecruitmentAction[] = [
+  // Their own panels, without waiting on a maintainer.
+  "group.create",
+  "group.edit",
+  "group.assignCandidates",
+  "group.assignStaff",
+  "group.archive",
+  // ...and driving them.
   "session.view",
+  "session.start",
+  "session.pause",
+  "session.resume",
+  "session.finish",
+  "session.abort",
   "session.markAttendance",
-  "candidate.view",
   "evaluation.draft",
   "evaluation.submit",
+  "evaluation.revise",
+  "evaluation.viewOthers",
+  "candidate.view",
+  "candidate.edit",
+  "candidate.advance",
+  "candidate.hold",
+  // Refetching the sheet already configured, and reading the trail.
+  "import.preview",
+  "import.apply",
+  "audit.view",
 ]
 for (const action of JC_MAY) {
   assert.equal(can("JC", action), true, `JC must be able to ${action}`)
 }
+
+// Every action is on exactly one of the two lists, so widening a capability
+// without deciding which side of the boundary it falls on fails here.
+{
+  const listed = new Set<string>([...JC_MUST_NOT, ...JC_MAY])
+  for (const action of Object.keys(CAPABILITIES)) {
+    assert.ok(
+      listed.has(action),
+      `${action} is on neither JC list — decide whether a JC may do it`,
+    )
+  }
+  assert.equal(listed.size, JC_MUST_NOT.length + JC_MAY.length, "an action is on both JC lists")
+}
+
+// ── The trap this refactor exists to close ──────────────────────────────────
+// `group.create` used to gate the interview surface, standing in for "is a
+// maintainer". The moment a JC could create groups, that stand-in opened the PI
+// nav item, the PI queue and the PI console in one edit. These two assertions are
+// the pair that must never both be true of the same capability again.
+assert.equal(can("JC", "group.create"), true, "a JC forms their own GD panels")
+assert.equal(can("JC", "interview.conduct"), false, "...and still never conducts an interview")
+
+// Same shape, second instance: `evaluation.viewOthers` was the tier test guarding
+// the per-group canEvaluate grant in group-console-page.tsx. A JC holds it now, so
+// that expression MUST test the role instead, or the grant silently dies.
+assert.equal(can("JC", "evaluation.viewOthers"), true)
+assert.equal(atLeast("JC", "MAINTAINER"), false)
 
 // ── Maintainer runs operations but cannot administer the cycle ───────────────
 const MAINTAINER_MAY: RecruitmentAction[] = [
@@ -264,7 +301,18 @@ const permitted = (role: RecruitmentRoleName, state: CycleStateName, a: Recruitm
   can(role, a) && cycleAllows(state, a)
 assert.equal(permitted("MAINTAINER", "IN_PROGRESS", "session.start"), true)
 assert.equal(permitted("MAINTAINER", "PAUSED", "session.start"), false)
-assert.equal(permitted("JC", "IN_PROGRESS", "session.start"), false)
+// A JC drives their own session while the cycle runs...
+assert.equal(permitted("JC", "IN_PROGRESS", "session.start"), true)
+assert.equal(permitted("JC", "PAUSED", "session.start"), false)
+// ...and conducts an interview in no state whatsoever, which is the role boundary
+// expressed the way every server action actually evaluates it.
+for (const state of Object.keys(CYCLE_STATE_ALLOWS) as CycleStateName[]) {
+  assert.equal(
+    permitted("JC", state, "interview.conduct"),
+    false,
+    `a JC must not conduct an interview in ${state}`,
+  )
+}
 assert.equal(permitted("ADMIN", "COMPLETED", "session.start"), false) // even admins
 assert.equal(permitted("ADMIN", "COMPLETED", "candidate.recruit"), true)
 

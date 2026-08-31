@@ -152,7 +152,14 @@ export function ResponsesManager({
         </h2>
 
         {sources.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t("recruitment.responses.noSources")}</p>
+          <p className="text-sm text-muted-foreground">
+            {/* A JC may refetch the sheet but not point at one, so the empty state
+                has to say who can -- otherwise it reads as instructions for a
+                control they will never find. */}
+            {canConfigure
+              ? t("recruitment.responses.noSources")
+              : t("recruitment.responses.noSourcesReadOnly")}
+          </p>
         ) : (
           <ul className="space-y-2">
             {sources.map((s) => (
@@ -210,7 +217,10 @@ export function ResponsesManager({
             ))}
           </ul>
         )}
-        <p className="text-xs text-muted-foreground">{t("recruitment.responses.shareHint")}</p>
+        {/* Sharing the sheet is the configurer's job, so only they are told about it. */}
+        {canConfigure && (
+          <p className="text-xs text-muted-foreground">{t("recruitment.responses.shareHint")}</p>
+        )}
       </section>
 
       {/* ---- Preview: exactly the plan that apply will execute ---- */}

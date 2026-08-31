@@ -443,8 +443,12 @@ export function EvaluationForm({
           </div>
         </>
       ) : (
+        // No form because scoring was not enabled for this viewer on this panel.
+        // It used to say "you can see your own evaluations only", which described
+        // a different restriction entirely -- and one that no longer exists, since
+        // every recruitment role can now read the panel's other scores.
         <p className="text-xs text-muted-foreground">
-          {t("recruitment.evaluation.ownOnly")}
+          {t("recruitment.evaluation.notAnEvaluator")}
         </p>
       )}
 

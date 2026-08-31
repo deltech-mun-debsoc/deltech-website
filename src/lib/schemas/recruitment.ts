@@ -40,7 +40,20 @@ export const stageRulesSchema = z.object({
   allowGdBypass: z.boolean().default(true),
 })
 
+// What goes into the "you're in" email, and the link the admin will not have
+// until after selections close. Both optional on purpose: the email is still
+// sendable without a group link, and the link can be pasted in later without
+// touching any other configuration.
+export const selectionEmailSchema = z.object({
+  // Validated as a URL so a half-pasted invite cannot go out to everyone at once.
+  // Empty string means "not set yet", which is the normal state until it is.
+  whatsappUrl: z.union([z.literal(""), z.string().url().max(500)]).default(""),
+  // An optional line from the secretariat, above the standard body.
+  note: z.string().max(1000).default(""),
+})
+
 export const recruitmentCycleConfigSchema = z.object({
+  selectionEmail: selectionEmailSchema.default(selectionEmailSchema.parse({})),
   stages: stageRulesSchema.default(stageRulesSchema.parse({})),
   gdCriteria: z.array(evaluationCriterionSchema).max(12).default([
     { key: "content", label: "Content & research", max: 10, weight: 1 },

@@ -42,6 +42,12 @@ export type RecruitmentAction =
   | "session.abort"
   | "session.reopen"
   | "session.markAttendance"
+  // interviews
+  // The PI surface, named. It used to be gated on `group.create`, which was a
+  // stand-in for "is a maintainer" -- fine while a JC could not create groups,
+  // and a silent hole the moment they could. A capability that means one thing
+  // cannot be widened by accident from somewhere else.
+  | "interview.conduct"
   // evaluations
   | "evaluation.draft"
   | "evaluation.submit"
@@ -72,52 +78,68 @@ const ALL: readonly RecruitmentRoleName[] = ["JC", "MAINTAINER", "ADMIN"]
 const MAINTAINER_UP: readonly RecruitmentRoleName[] = ["MAINTAINER", "ADMIN"]
 const ADMIN_ONLY: readonly RecruitmentRoleName[] = ["ADMIN"]
 
-// Which roles may perform each action. A JC is deliberately near-powerless: it
-// can see what it is assigned to, help run a session, and record an evaluation
-// where a maintainer enabled it. It can never bypass GD, configure anything,
-// move a candidate between stages, or manage people.
+// Which roles may perform each action.
+//
+// A JC used to be deliberately near-powerless. That was wrong for how the
+// council actually works: JCs run group discussions, so they now form their own
+// panels, drive the sessions, refetch the responses sheet, and read the audit
+// trail without waiting on a maintainer.
+//
+// Two things are withheld, and they are the whole point of the role boundary:
+//
+//   1. Interviews. `interview.conduct` is maintainer-and-up. A JC never sees the
+//      PI queue, a PI console, or the interview scores behind them.
+//   2. Ending a candidacy. Selecting, rejecting, withdrawing, disqualifying,
+//      recruiting into the society, and bypassing GD straight into an interview
+//      all stay above the JC. A JC moves candidates along the pipeline; it never
+//      decides where a candidacy stops.
 export const CAPABILITIES: Record<RecruitmentAction, readonly RecruitmentRoleName[]> = {
   "cycle.create": ADMIN_ONLY,
   "cycle.configure": ADMIN_ONLY,
   "cycle.transition": ADMIN_ONLY,
   "cycle.assignStaff": ADMIN_ONLY,
 
-  "group.create": MAINTAINER_UP,
-  "group.edit": MAINTAINER_UP,
-  "group.assignCandidates": MAINTAINER_UP,
-  "group.assignStaff": MAINTAINER_UP,
-  "group.archive": MAINTAINER_UP,
+  // A JC forms their own GD panels. requireGroupAccess still scopes them to the
+  // groups they staff, and createGroup puts the creator on their own group so
+  // making one is not a way to lose it.
+  "group.create": ALL,
+  "group.edit": ALL,
+  "group.assignCandidates": ALL,
+  "group.assignStaff": ALL,
+  "group.archive": ALL,
 
-  // A JC may watch and help run a session it is assigned to (scoping is enforced
-  // separately by requireGroupAccess) but may not change its lifecycle.
   "session.view": ALL,
-  "session.start": MAINTAINER_UP,
-  "session.pause": MAINTAINER_UP,
-  "session.resume": MAINTAINER_UP,
-  "session.finish": MAINTAINER_UP,
-  "session.abort": MAINTAINER_UP,
+  "session.start": ALL,
+  "session.pause": ALL,
+  "session.resume": ALL,
+  "session.finish": ALL,
+  "session.abort": ALL,
   // Reopening a session that was wrongly completed rewrites history; admin only.
   "session.reopen": ADMIN_ONLY,
   "session.markAttendance": ALL,
+
+  // The one operational surface a JC never reaches.
+  "interview.conduct": MAINTAINER_UP,
 
   // A JC can only draft/submit where a maintainer set canEvaluate on their
   // group assignment: checked in authz, on top of this matrix.
   "evaluation.draft": ALL,
   "evaluation.submit": ALL,
-  // Revising your own submitted score is allowed for maintainers and admins;
-  // a JC's submission is final to stop score-shopping under pressure.
-  "evaluation.revise": MAINTAINER_UP,
+  "evaluation.revise": ALL,
+  // Voiding is not revising: it erases a score rather than correcting it.
   "evaluation.void": ADMIN_ONLY,
-  // JCs see only their own scores, so panels stay independent.
-  "evaluation.viewOthers": MAINTAINER_UP,
+  "evaluation.viewOthers": ALL,
 
   "candidate.view": ALL,
-  "candidate.edit": MAINTAINER_UP,
-  "candidate.advance": MAINTAINER_UP,
-  // Explicitly withheld from JCs, per spec.
+  "candidate.edit": ALL,
+  // Moving a candidate along the pipeline, and parking one, are routine panel
+  // work. Neither ends a candidacy.
+  "candidate.advance": ALL,
+  "candidate.hold": ALL,
+  // Everything below terminates a candidacy or routes one into an interview,
+  // which is the boundary a JC does not cross.
   "candidate.bypassGd": MAINTAINER_UP,
   "candidate.reverseBypass": ADMIN_ONLY,
-  "candidate.hold": MAINTAINER_UP,
   "candidate.withdraw": MAINTAINER_UP,
   "candidate.disqualify": MAINTAINER_UP,
   "candidate.reconsider": ADMIN_ONLY,
@@ -126,11 +148,13 @@ export const CAPABILITIES: Record<RecruitmentAction, readonly RecruitmentRoleNam
   "candidate.finalise": ADMIN_ONLY,
   "candidate.recruit": ADMIN_ONLY,
 
+  // Re-pointing the sheet is configuration; pulling from the sheet already
+  // configured is the "refetch" a JC needs, so only the latter opens up.
   "import.configure": ADMIN_ONLY,
-  "import.preview": MAINTAINER_UP,
-  "import.apply": MAINTAINER_UP,
+  "import.preview": ALL,
+  "import.apply": ALL,
 
-  "audit.view": MAINTAINER_UP,
+  "audit.view": ALL,
 }
 
 export function can(role: RecruitmentRoleName | null | undefined, action: RecruitmentAction): boolean {
@@ -184,6 +208,7 @@ const OPERATIONS: readonly RecruitmentAction[] = [
   "session.abort",
   "session.reopen",
   "session.markAttendance",
+  "interview.conduct",
   "evaluation.draft",
   "evaluation.submit",
   "evaluation.revise",

@@ -52,7 +52,7 @@ export interface RecruitmentContext extends RecruitmentActor {
 export class RecruitmentDenied extends Error {
   constructor(
     readonly action: RecruitmentAction,
-    readonly detail: "not-permitted" | "cycle-state" | "not-assigned",
+    readonly detail: "not-permitted" | "cycle-state" | "not-assigned" | "interview-only",
   ) {
     super(`recruitment: ${action} denied (${detail})`)
     this.name = "RecruitmentDenied"
@@ -267,6 +267,16 @@ export async function requireRecruitmentAction(
   return ctx
 }
 
+function reasonFor(ctx: RecruitmentContext, action: RecruitmentAction, err: unknown): string {
+  if (!(err instanceof RecruitmentDenied)) return `Role ${ctx.role} may not ${action}.`
+  if (err.detail === "cycle-state") return `Cycle state ${ctx.cycle.state} forbids ${action}.`
+  if (err.detail === "interview-only") {
+    return `Role ${ctx.role} may not ${action} on an interview, which needs interview.conduct.`
+  }
+  if (err.detail === "not-assigned") return `Role ${ctx.role} is not assigned to that group.`
+  return `Role ${ctx.role} may not ${action}.`
+}
+
 export async function recordDenied(
   ctx: RecruitmentContext,
   action: RecruitmentAction,
@@ -276,10 +286,7 @@ export async function recordDenied(
     eventType: "action.denied",
     actor: { id: ctx.userId, email: ctx.email, role: ctx.role },
     cycleId: ctx.cycle.id,
-    reason:
-      err instanceof RecruitmentDenied && err.detail === "cycle-state"
-        ? `Cycle state ${ctx.cycle.state} forbids ${action}.`
-        : `Role ${ctx.role} may not ${action}.`,
+    reason: reasonFor(ctx, action, err),
     meta: { action, cycleState: ctx.cycle.state, role: ctx.role, implicit: ctx.implicit },
     outcome: "REJECTED",
   })
@@ -298,11 +305,24 @@ export async function requireGroupAccess(
 ): Promise<{ ctx: RecruitmentContext; canEvaluate: boolean }> {
   const group = await prisma.recruitmentGroup.findUnique({
     where: { id: groupId },
-    select: { id: true, cycleId: true },
+    select: { id: true, cycleId: true, kind: true },
   })
   if (!group) throw new RecruitmentDenied(action, "not-assigned")
 
   const ctx = await requireRecruitmentAction(group.cycleId, action)
+
+  // Interviews, at the chokepoint. Every group-scoped action -- reading the
+  // console, starting or finishing the session, drafting or submitting a score,
+  // editing or archiving the group -- comes through here, so one check covers
+  // all of them and a new action cannot forget it. A JC put on a PI group by
+  // mistake is refused rather than quietly admitted.
+  if (group.kind === "PI" && !can(ctx.role, "interview.conduct")) {
+    // Its own detail, so the audit trail says the interview refused them rather
+    // than "Role JC may not session.view" -- which a JC plainly may, and which
+    // would send whoever reads that row looking in the wrong place.
+    await recordDenied(ctx, action, new RecruitmentDenied(action, "interview-only"))
+    throw new RecruitmentDenied(action, "interview-only")
+  }
 
   if (ctx.role === "ADMIN") return { ctx, canEvaluate: true }
 

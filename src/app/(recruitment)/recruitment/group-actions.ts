@@ -64,6 +64,10 @@ export async function createGroup(input: {
 
   try {
     const ctx = await requireRecruitmentAction(input.cycleId, "group.create")
+    // A JC may form GD panels but never an interview. "Start interview" creates a
+    // PI group, so without this the widened group.create would hand them the one
+    // surface they are meant to stay out of.
+    if (data.kind === "PI") await requireRecruitmentAction(input.cycleId, "interview.conduct")
     const config = parseCycleConfig(ctx.cycle.config)
     const requestId = newRequestId()
 
@@ -84,6 +88,14 @@ export async function createGroup(input: {
     if (members.length !== data.staff.length) {
       return { ok: false, error: "Some of those staff members are not active on this cycle." }
     }
+
+    // The creator's own membership row, so they can be seated on the group below.
+    // An implicit admin has no membership row and needs none: visibleGroupIds
+    // never restricts them.
+    const creator = await prisma.recruitmentMember.findUnique({
+      where: { cycleId_userId: { cycleId: input.cycleId, userId: ctx.userId } },
+      select: { id: true, role: true, isActive: true },
+    })
 
     const group = await prisma.$transaction(async (tx) => {
       const created = await tx.recruitmentGroup.create({
@@ -136,6 +148,24 @@ export async function createGroup(input: {
               assignedById: ctx.userId,
             }
           }),
+        })
+      }
+
+      // Put the creator on their own group unless they already listed themselves.
+      //
+      // visibleGroupIds scopes a JC to the groups they STAFF, not the ones they
+      // created, so a JC who forms a panel and forgets to add themselves watches
+      // it disappear -- and requireGroupAccess then refuses them the URL too.
+      // createdById alone is a record, not an access grant.
+      if (creator?.isActive && !data.staff.some((s) => s.memberId === creator.id)) {
+        await tx.recruitmentStaffAssignment.create({
+          data: {
+            groupId: created.id,
+            memberId: creator.id,
+            role: creator.role,
+            canEvaluate: true,
+            assignedById: ctx.userId,
+          },
         })
       }
 
