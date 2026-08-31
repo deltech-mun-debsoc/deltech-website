@@ -20,6 +20,7 @@ import {
   sheetSourceSchema,
   type CandidateMapping,
 } from "@/lib/schemas/recruitment"
+import { isSchemaDrift, SCHEMA_DRIFT_MESSAGE } from "@/lib/prisma-errors"
 
 // Google Sheets response import for a recruitment cycle.
 //
@@ -68,6 +69,10 @@ function denied(error: unknown): { ok: false; error: string } {
           : "You are not permitted to import responses.",
     }
   }
+  // A migration merged but never applied leaves the code writing values the
+  // database does not have. That is a skipped deploy step, not a bug in here,
+  // and saying so is the difference between a two-minute fix and a hunt.
+  if (isSchemaDrift(error)) return { ok: false, error: SCHEMA_DRIFT_MESSAGE }
   console.error("[recruitment/import]", error)
   return { ok: false, error: "Something went wrong. Reload and try again." }
 }

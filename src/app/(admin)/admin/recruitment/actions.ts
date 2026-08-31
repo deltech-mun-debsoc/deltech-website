@@ -14,6 +14,7 @@ import {
   recruitmentCycleConfigSchema,
 } from "@/lib/schemas/recruitment"
 import type { RecruitmentRole, Role } from "@/generated/prisma/client"
+import { isSchemaDrift, SCHEMA_DRIFT_MESSAGE } from "@/lib/prisma-errors"
 
 // The admin CONTROL PLANE for recruitment. Operational screens live under
 // /recruitment; this file only creates and configures cycles, assigns staff,
@@ -34,6 +35,10 @@ function denied(err: unknown): ActionResult {
           : "You are not permitted to do that.",
     }
   }
+  // A migration merged but never applied leaves the code writing values the
+  // database does not have. That is a skipped deploy step, not a bug in
+  // here, and saying so is the difference between a two-minute fix and a hunt.
+  if (isSchemaDrift(err)) return { ok: false, error: SCHEMA_DRIFT_MESSAGE }
   console.error("[admin/recruitment]", err)
   return { ok: false, error: "Something went wrong. Reload and try again." }
 }
