@@ -138,29 +138,44 @@ export const recruitmentRoleFor = cache(async function recruitmentRoleFor(
 // Route guards (redirect on failure: for layouts and pages)
 // ---------------------------------------------------------------------------
 
+// Send someone with no recruitment authority back to their own home -- unless their
+// home IS this area. roleHome("SUB_MAINTAINER") is "/recruitment", so redirecting a
+// Junior Council account "home" from the /recruitment layout pointed the page at
+// itself: an invited JC, who has a User row but no RecruitmentMember until someone
+// assigns them, clicked their magic link and got an infinite redirect. Returning
+// instead lets the layout render its empty state, which carries a sign-out button.
+function bounceHome(appRole: string): void {
+  const home = roleHome(appRole)
+  if (!home.startsWith("/recruitment")) redirect(home)
+}
+
 // Gate for the /recruitment layout. Anyone authenticated may reach the route; only
 // someone with real recruitment authority on a live cycle gets past this.
 // Returning `null` cycle is a legitimate state ("you're staff, nothing is running")
 // and renders an empty-state rather than bouncing into a redirect loop.
 export async function requireRecruitmentAccess(): Promise<
-  | { actor: Omit<RecruitmentActor, "role" | "implicit">; cycle: null; role: null; implicit: false }
-  | { actor: Omit<RecruitmentActor, "role" | "implicit">; cycle: RecruitmentContext["cycle"]; role: RecruitmentRoleName; implicit: boolean }
+  | { actor: Omit<RecruitmentActor, "role" | "implicit">; cycle: null; role: null; implicit: false; reason: "no-cycle" | "unassigned" }
+  | { actor: Omit<RecruitmentActor, "role" | "implicit">; cycle: RecruitmentContext["cycle"]; role: RecruitmentRoleName; implicit: boolean; reason: null }
 > {
   const user = await sessionUser()
   if (!user) redirect("/signin")
 
   const cycle = await activeCycleForUser(user.id, user.appRole)
   const actor = { userId: user.id, email: user.email, name: user.name, appRole: user.appRole }
+  const empty = { actor, cycle: null, role: null, implicit: false } as const
 
   if (!cycle) {
     // No live cycle. A global admin still belongs here (to see the empty state);
     // anyone else with no assignment anywhere is sent to their own home.
-    if (user.appRole === "ADMIN") return { actor, cycle: null, role: null, implicit: false }
+    if (user.appRole === "ADMIN") return { ...empty, reason: "no-cycle" }
     const anyMembership = await prisma.recruitmentMember.count({
       where: { userId: user.id, isActive: true },
     })
-    if (anyMembership === 0) redirect(roleHome(user.appRole))
-    return { actor, cycle: null, role: null, implicit: false }
+    if (anyMembership === 0) {
+      bounceHome(user.appRole)
+      return { ...empty, reason: "unassigned" }
+    }
+    return { ...empty, reason: "no-cycle" }
   }
 
   const { role, implicit } = await recruitmentRoleFor(user.id, user.appRole, cycle.id)
@@ -172,10 +187,11 @@ export async function requireRecruitmentAccess(): Promise<
       reason: "No active recruitment membership for the live cycle.",
       outcome: "REJECTED",
     })
-    redirect(roleHome(user.appRole))
+    bounceHome(user.appRole)
+    return { ...empty, reason: "unassigned" }
   }
 
-  return { actor, cycle: cycle as RecruitmentContext["cycle"], role, implicit }
+  return { actor, cycle: cycle as RecruitmentContext["cycle"], role, implicit, reason: null }
 }
 
 // Full context for a specific cycle, asserting one capability. Used by pages that
