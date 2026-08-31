@@ -245,6 +245,11 @@ for (const route of [
     /submittedRef\.current = true[\s\S]{0,500}?setAppState\("submitted"\)[\s\S]{0,1000}?keepalive: true/,
     "a phone must acknowledge a tap immediately while its durable write finishes across reloads",
   )
+  assert.match(
+    participant,
+    /ANSWER_ACK_HOLD_MS = 2_000[\s\S]*?setTimeout\([\s\S]{0,500}?setAppState\("result"\)[\s\S]{0,100}?ANSWER_ACK_HOLD_MS\)/,
+    "the tap acknowledgement needs a deterministic two-second beat before the reveal wait",
+  )
   assert.match(participant, /setInterval\(\(\) => void catchUp\(false\), 5_000\)/, "phones must reconcile missed realtime events")
   assert.match(answers, /FOR SHARE/, "answer, lock and end must not have a last-millisecond race")
   assert.match(answers, /pendingReveal: true/, "the answer API must not leak correctness before reveal")
