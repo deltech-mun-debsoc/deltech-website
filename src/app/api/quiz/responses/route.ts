@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server"
+import { randomUUID } from "node:crypto"
 import { prisma } from "@/lib/prisma"
 import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit"
 import { cachedLiveQuizSnapshot, cachedScoringSlide } from "@/lib/quiz-cache"
@@ -8,7 +9,6 @@ import type { SlideConfig } from "@/lib/quiz-types"
 import type { SlideType } from "@/lib/quiz-types"
 import { scoreAnswer } from "@/lib/quiz-scoring"
 import { normalizeQuizNickname } from "@/lib/quiz-live"
-import { admitQuizAnswer } from "@/lib/quiz-answer-batcher"
 
 type LockedQuizSession = {
   status: string
@@ -17,6 +17,12 @@ type LockedQuizSession = {
   currentSlideDeadlineAt: Date | null
   currentSlideLockedAt: Date | null
   currentSlideRevealedAt: Date | null
+}
+
+type AnswerAdmission = LockedQuizSession & {
+  inserted: boolean
+  awardedPoints: number
+  streakBonus: number
 }
 
 type AnswerOutcome =
@@ -174,19 +180,58 @@ export async function POST(request: Request) {
       const streakStep = scored.correct === true && typeof configuredStreakStep === "number" && configuredStreakStep > 0
         ? Math.round(configuredStreakStep)
         : 0
+      const responseId = randomUUID()
       const avatar = typeof body.avatar === "string" ? body.avatar : null
-      // Requests that land on the same Fluid Compute instance within 100ms are
-      // committed by one guarded statement. Each request still resolves with
-      // its own admission and server-computed score.
-      const admitted = await admitQuizAnswer({
-        sessionId,
-        slideId,
-        nickname,
-        avatar,
-        answer,
-        basePoints: scored.points,
-        streakStep,
-      })
+      // One implicit database transaction. The shared row lock and guarded
+      // INSERT happen in the same statement, so lock/reveal/end cannot cross
+      // answer admission, but 150 requests do not occupy Prisma interactive
+      // transaction slots while waiting for a connection.
+      const admittedRows = await prisma.$queryRaw<AnswerAdmission[]>`
+        WITH live AS MATERIALIZED (
+          SELECT "status", "currentSlideId", "currentSlideStartedAt", "currentSlideDeadlineAt",
+                 "currentSlideLockedAt", "currentSlideRevealedAt"
+          FROM "QuizSession"
+          WHERE "id" = ${sessionId}
+          FOR SHARE
+        ), history AS (
+          SELECT BOOL_AND(recent."points" > 0) OVER (
+            ORDER BY recent."createdAt" DESC
+            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+          ) AS leading_correct
+          FROM (
+            SELECT "points", "createdAt"
+            FROM "Response"
+            WHERE "sessionId" = ${sessionId} AND LOWER("nickname") = LOWER(${nickname})
+            ORDER BY "createdAt" DESC
+            LIMIT 5
+          ) recent
+        ), scored AS (
+          SELECT ${scored.points}::int +
+            (LEAST(5, COALESCE((SELECT COUNT(*) FROM history WHERE leading_correct), 0))::int * ${streakStep}::int)
+            AS points,
+            (LEAST(5, COALESCE((SELECT COUNT(*) FROM history WHERE leading_correct), 0))::int * ${streakStep}::int)
+            AS streak_bonus
+        ), inserted AS (
+          INSERT INTO "Response" ("id", "sessionId", "slideId", "nickname", "avatar", "answer", "points", "createdAt")
+          SELECT ${responseId}, ${sessionId}, ${slideId}, ${nickname}, ${avatar},
+                 ${JSON.stringify(answer)}::jsonb, scored.points, NOW()
+          FROM live CROSS JOIN scored
+          WHERE live."status" = 'active'
+            AND live."currentSlideId" = ${slideId}
+            AND live."currentSlideLockedAt" IS NULL
+            AND live."currentSlideRevealedAt" IS NULL
+            AND (live."currentSlideDeadlineAt" IS NULL OR live."currentSlideDeadlineAt" > NOW())
+            AND (SELECT COUNT(*) FROM "Response" cap
+                 WHERE cap."sessionId" = ${sessionId} AND cap."slideId" = ${slideId}) < 500
+          ON CONFLICT DO NOTHING
+          RETURNING "id", "points"
+        )
+        SELECT live.*, EXISTS (SELECT 1 FROM inserted) AS "inserted",
+               COALESCE((SELECT "points" FROM inserted LIMIT 1), 0)::int AS "awardedPoints",
+               COALESCE((SELECT streak_bonus FROM scored LIMIT 1), 0)::int AS "streakBonus"
+        FROM live
+      `
+      const admitted = admittedRows[0]
       if (!admitted || admitted.status === "ended") outcome = { error: "session_ended", status: 410 }
       else if (admitted.status !== "active" || admitted.currentSlideId !== slideId) {
         outcome = { error: "slide_not_active", status: 409 }

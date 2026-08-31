@@ -160,7 +160,7 @@ const read = (p: string) => readFileSync(p, "utf8")
     /@@unique\(\[sessionId, slideId, nickname\]\)/,
     "Response needs a unique index; the findFirst check alone loses the race",
   )
-  const route = `${read("src/lib/quiz-answer-batcher.ts")}\n${read("src/app/api/quiz/responses/route.ts")}`
+  const route = read("src/app/api/quiz/responses/route.ts")
   assert.match(route, /ON CONFLICT DO NOTHING/, "the database must decide one winner for a double submission")
   assert.match(route, /alreadySubmitted: true/, "the constraint violation needs an idempotent receipt")
   assert.match(route, /FOR SHARE/, "answer admission must serialize with lock, reveal and end")
