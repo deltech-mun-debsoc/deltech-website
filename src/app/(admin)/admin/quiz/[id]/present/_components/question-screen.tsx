@@ -131,8 +131,7 @@ export function QuestionScreen({
       <div className="paper-grid pointer-events-none absolute inset-0 opacity-[0.055]" aria-hidden />
       <div className="pointer-events-none absolute -right-20 -top-44 size-[32rem] rounded-full border opacity-20" style={{ borderColor: theme.accentColor }} aria-hidden />
 
-      {/* Stage status. Big counts make it readable from the back of a room. */}
-      <div className="relative flex min-h-24 items-center gap-6 border-b px-9 py-4" style={{ borderColor: surface.border }}>
+      <div className="relative flex min-h-20 items-center gap-6 border-b px-8 py-3" style={{ borderColor: surface.border }}>
         <div>
           <span className="flex items-center gap-2 font-mono text-xs font-black uppercase tracking-[0.22em] opacity-55">
             <span className="size-2 animate-pulse" style={{ background: revealed ? "#22c55e" : theme.accentColor }} />
@@ -144,7 +143,7 @@ export function QuestionScreen({
         </div>
         <span className="flex-1" />
         <div className="text-right">
-          <span className="block font-heading text-4xl leading-none tabular-nums">{voteCount}</span>
+          <span className="block font-heading text-3xl leading-none tabular-nums">{voteCount}</span>
           <span className="font-mono text-[0.65rem] font-black uppercase tracking-[0.16em] opacity-50">
             {t("quiz.responsesIn", { count: voteCount })} · {t("quiz.playersInRoom", { count: participantCount ?? "?" })}
           </span>
@@ -161,14 +160,14 @@ export function QuestionScreen({
       </div>
 
       {/* Prompt */}
-      <div className="relative px-10 pb-6 pt-7">
-        <h1 className="max-w-[22ch] font-heading text-[clamp(3.4rem,6vw,6.5rem)] leading-[0.92] tracking-[-0.04em]">
+      <div className="relative px-9 pb-4 pt-5">
+        <h1 className="max-w-[28ch] font-heading text-[clamp(2.25rem,4.2vw,4.75rem)] leading-[1.02] tracking-[-0.035em]">
           {slide.prompt || t("quiz.builder.promptPlaceholder")}
         </h1>
       </div>
 
       {/* Viz */}
-      <div className="relative min-h-0 flex-1 overflow-auto px-6 pb-4">
+      <div className="relative min-h-0 flex-1 overflow-hidden px-6 pb-4">
         {renderViz()}
         {type === "CONTENT" && (
           <div className="max-w-5xl px-4 font-heading text-4xl opacity-80" style={{ lineHeight: 1.35 }}>
@@ -179,7 +178,7 @@ export function QuestionScreen({
 
       {/* Host controls */}
       <div
-        className="relative flex min-h-24 items-center gap-3 border-t px-8 py-4"
+        className="relative flex min-h-20 items-center gap-3 border-t px-8 py-3"
         style={{ borderColor: surface.border }}
       >
         <span className="mr-2 hidden font-mono text-[0.65rem] font-black uppercase tracking-[0.18em] opacity-40 xl:block">

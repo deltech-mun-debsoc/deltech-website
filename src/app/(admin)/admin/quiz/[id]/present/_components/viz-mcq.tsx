@@ -22,7 +22,7 @@ export function VizMCQ({ tally, config, theme, revealedIndices, layout = "BARS" 
   if (layout === "BARS") {
     return (
       <div
-        className="grid h-full min-h-[20rem] w-full items-end gap-3 px-4"
+        className="grid h-full min-h-0 w-full items-stretch gap-4 px-4"
         style={{ gridTemplateColumns: `repeat(${Math.max(options.length, 1)}, minmax(0, 1fr))` }}
       >
         {options.map((opt, i) => {
@@ -31,14 +31,14 @@ export function VizMCQ({ tally, config, theme, revealedIndices, layout = "BARS" 
           const revealed = revealedIndices !== undefined
           const isCorrect = revealedIndices?.includes(i)
           return (
-            <div key={i} className="flex h-full min-w-0 flex-col items-center">
-              <div className="mb-2 text-center font-mono tabular-nums" style={{ color: theme.textColor }}>
-                <span className="block text-lg font-black">{pct}%</span>
-                <span className="block text-[0.65rem] font-bold uppercase opacity-50">{counts[i] ?? 0}</span>
+            <div key={i} className="grid h-full min-w-0 grid-rows-[2.75rem_minmax(0,1fr)_3.5rem] items-center">
+              <div className="text-center font-mono tabular-nums" style={{ color: theme.textColor }}>
+                <span className="text-xl font-black">{pct}%</span>
+                <span className="ml-2 text-[0.65rem] font-bold uppercase opacity-50">{counts[i] ?? 0}</span>
               </div>
-              <div className="relative flex min-h-0 w-full flex-1 items-end overflow-hidden" style={{ background: surface.track }}>
+              <div className="relative flex h-full min-h-0 w-full items-end overflow-hidden" style={{ background: surface.track }}>
                   <div
-                    className="w-full transition-[height,background-color] duration-700 ease-out"
+                    className="absolute inset-x-0 bottom-0 transition-[height,background-color] duration-500 ease-out motion-reduce:transition-none"
                     style={{
                       height: `${height}%`,
                       background: revealed
@@ -58,7 +58,7 @@ export function VizMCQ({ tally, config, theme, revealedIndices, layout = "BARS" 
                   </span>
               </div>
               <span
-                className="mt-3 line-clamp-2 min-h-12 w-full text-center font-heading text-lg leading-tight"
+                className="line-clamp-2 w-full self-start pt-3 text-center font-heading text-[clamp(0.95rem,1.4vw,1.25rem)] leading-tight"
                 style={{ color: theme.textColor }}
                 title={opt}
               >
