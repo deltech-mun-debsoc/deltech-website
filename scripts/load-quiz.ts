@@ -7,6 +7,7 @@ import { prisma } from "../src/lib/prisma"
 const baseUrl = (process.env.QUIZ_LOAD_BASE_URL ?? "https://www.deltechmun.in").replace(/\/$/, "")
 const participantCount = Number(process.env.QUIZ_LOAD_PARTICIPANTS ?? "150")
 const rampMs = Number(process.env.QUIZ_LOAD_RAMP_MS ?? "0")
+const warmBeforeAnswers = process.env.QUIZ_LOAD_WARM !== "0"
 const keepFixture = process.env.QUIZ_LOAD_KEEP_FIXTURE === "1"
 
 if (!Number.isInteger(participantCount) || participantCount < 1 || participantCount > 500) {
@@ -91,7 +92,7 @@ try {
         basePoints: 1000,
         speedWeight: 0.5,
         streakBonus: 50,
-        timerSeconds: 120,
+        timerSeconds: 300,
       },
     },
   })
@@ -104,9 +105,30 @@ try {
       status: "active",
       currentSlideId: slideId,
       currentSlideStartedAt: startedAt,
-      currentSlideDeadlineAt: new Date(startedAt.getTime() + 120_000),
+      currentSlideDeadlineAt: new Date(startedAt.getTime() + 300_000),
     },
   })
+
+  const joinStartedAt = performance.now()
+  const joinResults = warmBeforeAnswers
+    ? await Promise.all(
+        Array.from({ length: participantCount }, async () => {
+          const started = performance.now()
+          try {
+            const response = await fetch(`${baseUrl}/quiz/${roomCode}`)
+            return { status: response.status, error: null, elapsedMs: performance.now() - started }
+          } catch (error) {
+            return {
+              status: 0,
+              error: error instanceof Error ? error.message : "transport_error",
+              elapsedMs: performance.now() - started,
+            }
+          }
+        }),
+      )
+    : []
+  const joinWallMs = performance.now() - joinStartedAt
+  if (warmBeforeAnswers) await delay(500)
 
   const wallStartedAt = performance.now()
   const results = await Promise.all(
@@ -167,6 +189,7 @@ try {
     baseUrl,
     participants: participantCount,
     rampMs,
+    joinWarmup: warmBeforeAnswers ? summarize(joinResults, joinWallMs) : null,
     answers: summarize(results, wallMs),
     recoveryPoll: summarize(pollResults, pollWallMs),
     encryptedReceipts: results.filter((result) => result.resultToken).length,

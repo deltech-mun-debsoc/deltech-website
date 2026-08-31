@@ -82,7 +82,7 @@ for (const p of ["src/app/(admin)/admin/page.tsx", "src/app/(marketing)/page.tsx
 
 // --- quiz answers stay concurrent, and rank is a DB aggregate --------------
 {
-  const src = read("src/app/api/quiz/responses/route.ts")
+  const src = `${read("src/lib/quiz-answer-batcher.ts")}\n${read("src/app/api/quiz/responses/route.ts")}`
   assert.match(src, /FOR SHARE/, "answers need a shared lock so phones remain concurrent while close/end is atomic")
   assert.doesNotMatch(src, /FOR UPDATE/, "answer submission must not serialize every phone behind one exclusive lock")
   assert.match(src, /having: \{ points: \{ _sum: \{ gt: myTotal \} \} \}/, "rank must be counted in the DB")

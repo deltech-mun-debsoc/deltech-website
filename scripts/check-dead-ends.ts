@@ -227,7 +227,7 @@ for (const route of [
   const actions = read("src/app/(admin)/admin/quiz/[id]/present/actions.ts")
   const presenter = read("src/app/(admin)/admin/quiz/[id]/present/_components/presenter-app.tsx")
   const participant = read("src/app/(public)/quiz/[code]/_components/participant-app.tsx")
-  const answers = read("src/app/api/quiz/responses/route.ts")
+  const answers = `${read("src/lib/quiz-answer-batcher.ts")}\n${read("src/app/api/quiz/responses/route.ts")}`
   const tally = read("src/app/api/quiz/tally/[sessionId]/[slideId]/route.ts")
 
   for (const field of ["currentSlideDeadlineAt", "currentSlideLockedAt", "currentSlideRevealedAt"]) {
