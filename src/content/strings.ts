@@ -629,6 +629,8 @@ saving: "Saving…",
         "Pull the Google Form response sheet, check what will change, then import. Re-importing the same sheet does nothing.",
       sourcesTitle: "Sheet sources",
       noSources: "No sheet is configured for this cycle yet.",
+      noSourcesReadOnly:
+        "No sheet is configured for this cycle yet. An admin sets that up; once it exists you can pull from it here.",
       addSource: "Add a sheet",
       editSource: "Edit",
       labelLabel: "Label",
