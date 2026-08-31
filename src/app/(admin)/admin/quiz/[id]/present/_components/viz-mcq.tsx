@@ -22,7 +22,7 @@ export function VizMCQ({ tally, config, theme, revealedIndices, layout = "BARS" 
   if (layout === "BARS") {
     return (
       <div
-        className="grid h-full min-h-0 w-full items-stretch gap-4 px-4"
+        className="mx-auto grid h-full min-h-0 w-full max-w-6xl items-stretch gap-4 px-4"
         style={{ gridTemplateColumns: `repeat(${Math.max(options.length, 1)}, minmax(0, 1fr))` }}
       >
         {options.map((opt, i) => {
@@ -37,7 +37,7 @@ export function VizMCQ({ tally, config, theme, revealedIndices, layout = "BARS" 
                 <span className="ml-2 text-[0.65rem] font-bold uppercase opacity-50">{counts[i] ?? 0}</span>
               </div>
               <div
-                className="relative flex h-full min-h-0 w-full items-end overflow-hidden border-b"
+                className="relative mx-auto flex h-full min-h-0 w-3/4 max-w-28 items-end overflow-hidden border-b"
                 style={{ borderColor: surface.border }}
               >
                   <div

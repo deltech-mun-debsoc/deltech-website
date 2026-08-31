@@ -27,6 +27,7 @@ interface ResultData {
   streakBonus?: number
   alreadySubmitted?: boolean
   resultToken?: string
+  pendingReveal?: boolean
 }
 
 type ReceiptPayload = {
@@ -117,6 +118,10 @@ const INCORRECT_FEEDBACK: StringKey[] = [
   "quiz.incorrectFeedback3",
   "quiz.incorrectFeedback4",
 ]
+
+// Interaction rhythm, not network timing: acknowledge the tap for exactly two
+// seconds before entering the quieter wait-for-reveal screen.
+const ANSWER_ACK_HOLD_MS = 2_000
 
 // The feedback should feel varied, but never flicker to a different sentence
 // because React rendered again. A stable seed gives each player/question one
@@ -596,6 +601,15 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
     // an auditorium burst. Lock the phone locally now; the server remains the
     // authority and sends us back to the question if it rejects the answer.
     setAppState("submitted")
+    setResult({ correct: null, points: 0, rank: null, pendingReveal: true })
+    const acknowledgementTimer = setTimeout(() => {
+      if (
+        submissionAttemptRef.current === submissionAttempt &&
+        slideIdRef.current === slideId &&
+        submittedRef.current &&
+        !revealedResultRef.current.has(slideId)
+      ) setAppState("result")
+    }, ANSWER_ACK_HOLD_MS)
 
     const requestBody = JSON.stringify({ sessionId, slideId, nickname, avatar, answer })
     const retryStartedAt = Date.now()
@@ -613,6 +627,7 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
           keepalive: true,
         })
       } catch {
+        clearTimeout(acknowledgementTimer)
         if (submissionAttemptRef.current === submissionAttempt) {
           submittedRef.current = false
           setSubmitting(false)
@@ -646,21 +661,28 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
       const data = (await res.json()) as ResultData
       if (data.resultToken) rememberReceipt(slideId, data.resultToken)
       setResult(data)
-      setAppState("result")
+      if (!data.pendingReveal) {
+        clearTimeout(acknowledgementTimer)
+        setAppState("result")
+      }
     } else if (res.status === 410) {
+      clearTimeout(acknowledgementTimer)
       setAppState("ended")
     } else if (res.status === 409 && problem?.error === "slide_not_active") {
+      clearTimeout(acknowledgementTimer)
       // The host transition ultimately failed or this phone is stale. Recovery
       // will reconcile the live slide; keep the answer retryable meanwhile.
       submittedRef.current = false
       setAppState("question")
     } else if (res.status === 408 || res.status === 409 || res.status === 423) {
+      clearTimeout(acknowledgementTimer)
       // The server, not the phone, is authoritative about deadline, lock,
       // reveal and the live slide. A direct request after any of those gates
       // lands in the same honest missed-answer state as the realtime event.
       setMissed(true)
       setAppState("submitted")
     } else {
+      clearTimeout(acknowledgementTimer)
       // A transport failure is retryable. Do not permanently consume the one
       // local submission attempt when the server never accepted it.
       submittedRef.current = false
