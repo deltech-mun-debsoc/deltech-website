@@ -609,27 +609,71 @@ assert.equal(
 }
 
 // --- interviews are not a Junior Council surface ----------------------------
+//
+// Every one of these gates used to read `group.create`, which was standing in for
+// "is a maintainer". That was true right up until a JC could create groups, at
+// which point one edit to the matrix would have opened the nav item, the queue and
+// the console at once. The capability is now named after what it protects.
 {
-  const nav = readFileSync("src/app/(recruitment)/_components/recruitment-nav.ts", "utf8")
-  assert.match(
-    nav,
-    /href: "\/recruitment\/pi",[\s\S]*?requires: "group\.create"/,
-    "the PI destination must be gated",
+  const PI_GATED = {
+    "src/app/(recruitment)/_components/recruitment-nav.ts":
+      /href: "\/recruitment\/pi",[\s\S]*?requires: "interview\.conduct"/,
+    // The nav is cosmetic. The queue names every candidate past GD and is NOT
+    // scoped by visibleGroupIds, so the page has to guard itself.
+    "src/app/(recruitment)/recruitment/pi/page.tsx":
+      /if \(!can\(ctx\.role, "interview\.conduct"\)\) redirect\("\/recruitment"\)/,
+    // The console too: being staffed on a PI group must not become a way around a
+    // gate the nav and the queue both enforce.
+    "src/app/(recruitment)/recruitment/_components/group-console-page.tsx":
+      /kind === "PI" && !can\(ctx\.role, "interview\.conduct"\)/,
+  }
+  for (const [file, pattern] of Object.entries(PI_GATED)) {
+    const src = readFileSync(file, "utf8")
+    assert.match(src, pattern, `${file}: the interview surface must be gated on interview.conduct`)
+    // The proxy must not come back by copy-paste. Nothing in a PI-gating file may
+    // decide anything from group.create, which every JC now holds.
+    assert.doesNotMatch(
+      src,
+      /"group\.create"/,
+      `${file}: gates the interview surface on group.create, which a JC holds — use interview.conduct`,
+    )
+  }
+
+  // Same trap, second instance. The per-group "may score" grant was ANDed against
+  // `can(role, "evaluation.viewOthers")` as a maintainer test; a JC holds that now,
+  // so reading it there would collapse the expression to true and hand every JC on
+  // a panel the right to score whether or not a maintainer ticked the box.
+  const console_ = readFileSync(
+    "src/app/(recruitment)/recruitment/_components/group-console-page.tsx",
+    "utf8",
   )
-  const pi = readFileSync("src/app/(recruitment)/recruitment/pi/page.tsx", "utf8")
-  // The nav is cosmetic. The queue names every candidate past GD and is NOT scoped
-  // by visibleGroupIds, so the page has to guard itself.
   assert.match(
-    pi,
-    /if \(!can\(ctx\.role, "group\.create"\)\) redirect\("\/recruitment"\)/,
-    "and the page must refuse a JC who types the URL",
+    console_,
+    /evaluate: \(canEvaluate \|\| atLeast\(ctx\.role, "MAINTAINER"\)\)/,
+    "the canEvaluate grant must be ORed against the role tier, not a capability a JC holds",
   )
-  // The console too: being staffed on a PI group must not become a way around a
-  // gate the nav and the queue both enforce.
+
+  // Creating a PI group is starting an interview, so the server action says so
+  // rather than trusting the page that called it.
   assert.match(
-    readFileSync("src/app/(recruitment)/recruitment/_components/group-console-page.tsx", "utf8"),
-    /kind === "PI" && !can\(ctx\.role, "group\.create"\)/,
-    "the interview console must refuse a JC as well",
+    readFileSync("src/app/(recruitment)/recruitment/group-actions.ts", "utf8"),
+    /data\.kind === "PI"[\s\S]{0,120}"interview\.conduct"/,
+    "createGroup must refuse a JC an interview group",
+  )
+
+  // A JC who forms a panel must still be able to open it: visibleGroupIds scopes
+  // them to groups they STAFF, so createGroup seats the creator on their own group.
+  assert.match(
+    readFileSync("src/app/(recruitment)/recruitment/group-actions.ts", "utf8"),
+    /recruitmentStaffAssignment\.create\(\{[\s\S]{0,200}memberId: creator\.id/,
+    "createGroup must seat its creator, or a JC's own group vanishes from their list",
+  )
+
+  // And the chokepoint: one kind check covering every group-scoped action.
+  assert.match(
+    readFileSync("src/lib/recruitment/authz.ts", "utf8"),
+    /group\.kind === "PI" && !can\(ctx\.role, "interview\.conduct"\)/,
+    "requireGroupAccess must refuse a JC on a PI group, whatever the action",
   )
 }
 

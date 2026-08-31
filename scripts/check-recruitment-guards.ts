@@ -24,15 +24,31 @@ const RECRUITMENT_DIR = "src/app/(recruitment)"
 // voidEvaluation, setAttendance and listCycles. They were guarded and audited
 // correctly, and entirely unreachable. Withholding an action from a JC means
 // nothing when nobody can invoke it at all.
+// An action belongs here when at least one capability it guards on excludes a JC.
+//
+// For the dynamically-dispatched actions (moveCandidateStage, setCandidateResult)
+// that is deliberately the weaker claim the static check can support: a JC may call
+// them, but only for the destinations it holds the capability for -- advance and
+// hold -- while bypass, withdraw, disqualify, finalise and reconsider stay shut.
+//
+// `createGroup` is the interesting one. It guards on group.create, which a JC now
+// holds, AND on interview.conduct, which it does not, because creating a PI group
+// IS starting an interview. Its presence here is therefore an automatic assertion
+// that the second guard still exists: delete that line and this check goes red.
 const JC_MUST_NOT_REACH = new Set([
-  "startSession", "pauseSession", "resumeSession", "finishSession", "abortSession",
   "bypassGd", "moveCandidateStage", "setCandidateResult",
   "createGroup",
-  "saveSheetSource", "previewImport", "applyImport",
+  "saveSheetSource",
 ])
 
-// Actions a JC legitimately performs.
-const JC_MAY_REACH = new Set(["saveEvaluationDraft", "submitEvaluation"])
+// Actions a JC legitimately performs. The session lifecycle is here because a JC
+// now runs its own group discussions end to end rather than assisting someone
+// else's, and the imports because refetching the responses sheet is theirs too.
+const JC_MAY_REACH = new Set([
+  "saveEvaluationDraft", "submitEvaluation",
+  "startSession", "pauseSession", "resumeSession", "finishSession", "abortSession",
+  "previewImport", "applyImport",
+])
 
 function walk(dir: string): string[] {
   const out: string[] = []

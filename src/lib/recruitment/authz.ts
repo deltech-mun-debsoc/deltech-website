@@ -298,11 +298,21 @@ export async function requireGroupAccess(
 ): Promise<{ ctx: RecruitmentContext; canEvaluate: boolean }> {
   const group = await prisma.recruitmentGroup.findUnique({
     where: { id: groupId },
-    select: { id: true, cycleId: true },
+    select: { id: true, cycleId: true, kind: true },
   })
   if (!group) throw new RecruitmentDenied(action, "not-assigned")
 
   const ctx = await requireRecruitmentAction(group.cycleId, action)
+
+  // Interviews, at the chokepoint. Every group-scoped action -- reading the
+  // console, starting or finishing the session, drafting or submitting a score,
+  // editing or archiving the group -- comes through here, so one check covers
+  // all of them and a new action cannot forget it. A JC put on a PI group by
+  // mistake is refused rather than quietly admitted.
+  if (group.kind === "PI" && !can(ctx.role, "interview.conduct")) {
+    await recordDenied(ctx, action, new RecruitmentDenied(action, "not-permitted"))
+    throw new RecruitmentDenied(action, "not-permitted")
+  }
 
   if (ctx.role === "ADMIN") return { ctx, canEvaluate: true }
 

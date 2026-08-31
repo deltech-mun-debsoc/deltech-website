@@ -24,11 +24,13 @@ export default async function PiQueuePage() {
   // Interviews are not a Junior Council surface. The nav hides this destination
   // for them, but the nav is cosmetic: without this guard a JC could type the URL
   // and read the name, email and branch of every candidate in the queue, which is
-  // not scoped by visibleGroupIds the way the candidate list is. Capability rather
-  // than role name, so it tracks the matrix.
-  if (!can(ctx.role, "group.create")) redirect("/recruitment")
+  // not scoped by visibleGroupIds the way the candidate list is.
+  if (!can(ctx.role, "interview.conduct")) redirect("/recruitment")
 
-  const canStart = mayPerform(ctx, "group.create")
+  // Starting an interview creates its PI group, but the capability to test is
+  // conducting one -- group.create is every JC's now, and createGroup demands
+  // interview.conduct for a PI group regardless of what this button decides.
+  const canStart = mayPerform(ctx, "interview.conduct")
 
   const [waiting, live, past, starterMembership] = await Promise.all([
     // Anyone past GD: completed, bypassed, or configured not to need one. This is
