@@ -22,7 +22,7 @@ import type {
   PresentationData,
 } from "@/lib/quiz-types"
 import { isScoredType, redactSlide } from "@/lib/quiz-types"
-import { correctAnswersForSlide, correctIndicesForSlide } from "@/lib/quiz-live"
+import { correctAnswersForSlide, correctIndicesForSlide, slideTimerSeconds } from "@/lib/quiz-live"
 import { APP_URL } from "@/lib/app-url"
 import { t } from "@/content/strings"
 
@@ -48,6 +48,8 @@ interface LiveRecovery {
   } | null
 }
 
+type LeaderboardScore = { nickname: string; avatar: string; totalPoints: number; rank: number }
+
 export function PresenterApp({ session, presentation, slides }: Props) {
   const [screen, setScreen] = useState<Screen>("lobby")
   const [slideIndex, setSlideIndex] = useState(0)
@@ -68,6 +70,7 @@ export function PresenterApp({ session, presentation, slides }: Props) {
   const prevRanksRef = useRef<Map<string, number>>(new Map())
   const actionRef = useRef(false)
   const recoveryDoneRef = useRef(false)
+  const leaderboardPromiseRef = useRef<Promise<LeaderboardScore[]> | null>(null)
 
   const currentSlide = slides[slideIndex]
 
@@ -172,14 +175,31 @@ export function PresenterApp({ session, presentation, slides }: Props) {
     const slide = slides[index]
     if (!slide) return
 
+    const previous = {
+      screen,
+      slideIndex,
+      tally,
+      locked,
+      revealed,
+      revealedIndices,
+      timerRunning,
+      timerRemaining,
+    }
+
+    // Start the persistence request, then switch the projector and phones in
+    // the same click frame. Waiting for a free-tier database round trip here
+    // made Next feel broken even though the click had registered.
+    const startedAt = Date.now()
+    const persistStart = startSlide(session.id, slide.id, startedAt)
+    const timer = slideTimerSeconds(slide)
     stopTallyPoll()
-    const timing = await startSlide(session.id, slide.id)
+    leaderboardPromiseRef.current = null
     setSlideIndex(index)
     setTally(null)
     setLocked(false)
     setRevealed(false)
     setRevealedIndices([])
-    setTimerRemaining(timing.secondsLeft)
+    setTimerRemaining(timer)
     setTimerRunning(true)
     setScreen("question")
 
@@ -191,6 +211,49 @@ export function PresenterApp({ session, presentation, slides }: Props) {
       slide: redactSlide(slide),
     })
     startTallyPoll(slide.id)
+    try {
+      await persistStart
+    } catch (error) {
+      // Optimism must not become a dead end. If activation fails, put both the
+      // presenter and every phone back on the last real screen so Next can be
+      // tried again safely.
+      stopTallyPoll()
+      setSlideIndex(previous.slideIndex)
+      setTally(previous.tally)
+      setLocked(previous.locked)
+      setRevealed(previous.revealed)
+      setRevealedIndices(previous.revealedIndices)
+      setTimerRunning(previous.timerRunning)
+      setTimerRemaining(previous.timerRemaining)
+      setScreen(previous.screen)
+
+      if (previous.screen === "lobby") {
+        broadcast({ event: "LOBBY" })
+      } else if (previous.screen === "leaderboard") {
+        broadcast({ event: "LEADERBOARD", entries: lbEntries, final: lbFinal })
+      } else {
+        const previousSlide = slides[previous.slideIndex]
+        if (previousSlide) {
+          broadcast({
+            event: "GOTO",
+            slideId: previousSlide.id,
+            slideIndex: previous.slideIndex,
+            slideCount: slides.length,
+            slide: redactSlide(previousSlide),
+          })
+          if (previous.locked) broadcast({ event: "LOCK" })
+          if (previous.revealed) {
+            broadcast({
+              event: "REVEAL",
+              correctIndices: correctIndicesForSlide(previousSlide),
+              correctAnswers: correctAnswersForSlide(previousSlide),
+            })
+          }
+          if (!previous.locked) startTallyPoll(previousSlide.id)
+        }
+      }
+      throw error
+    }
   }
 
   async function runHostAction(action: () => Promise<void>) {
@@ -244,6 +307,13 @@ export function PresenterApp({ session, presentation, slides }: Props) {
       setRevealed(true)
       setRevealedIndices(indices)
       broadcast({ event: "REVEAL", correctIndices: indices, correctAnswers })
+      // Build the standings while everyone reads the answer. By the time the
+      // host clicks Next, the leaderboard is normally already available.
+      const prefetch = computeLeaderboard(session.id)
+      leaderboardPromiseRef.current = prefetch
+      void prefetch.catch(() => {
+        if (leaderboardPromiseRef.current === prefetch) leaderboardPromiseRef.current = null
+      })
     })
   }
 
@@ -254,7 +324,7 @@ export function PresenterApp({ session, presentation, slides }: Props) {
   async function showLeaderboard(final = false) {
     stopTallyPoll()
     setLbFinal(final)
-    const scores = await computeLeaderboard(session.id)
+    const scores = await (leaderboardPromiseRef.current ?? computeLeaderboard(session.id))
     const presenceAvatars = new Map(participants.map((p) => [p.nickname, p.avatar]))
     const entries: LBEntry[] = scores.map((score) => {
       const previous = prevRanksRef.current.get(score.nickname)

@@ -120,11 +120,10 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
   const channelRef = useRef<ReturnType<NonNullable<ReturnType<typeof getSupabase>>["channel"]> | null>(null)
   const userIdRef = useRef(randomUserId())
   const submittedRef = useRef(false)
-  // Which slides this phone has already answered. A 409 from the server means
-  // "a response for this nickname and slide exists" and nothing more, so without
-  // this we cannot tell "someone else took your name" from "you answered this
-  // one already" -- and the code guessed the first, which threw a participant
-  // back to the nickname screen mid-quiz every time the host stepped backwards.
+  const submissionAttemptRef = useRef(0)
+  // Which slides this phone has already answered. The server is idempotent too,
+  // but this keeps the local UI from reopening an already-used input while a
+  // recovery request is in flight.
   const answeredRef = useRef<Set<string>>(new Set())
   const recoveryCheckedRef = useRef<Set<string>>(new Set())
   const revealedResultRef = useRef<Set<string>>(new Set())
@@ -171,7 +170,9 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
   // question is starting now.
   const adoptSlide = useCallback(
     (slide: SlideData, index: number, count: number, remaining: number | null) => {
+      submissionAttemptRef.current++
       submittedRef.current = false
+      setSubmitting(false)
       slideIdRef.current = slide.id
       setCurrentSlide(slide)
       setSlideIndex(index)
@@ -217,6 +218,13 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
       .on("broadcast", { event: "quiz" }, ({ payload }: { payload: QuizBroadcast }) => {
         if (payload.event === "START") {
           // Host has started, remain in lobby until GOTO
+        } else if (payload.event === "LOBBY") {
+          submissionAttemptRef.current++
+          submittedRef.current = false
+          slideIdRef.current = null
+          setCurrentSlide(null)
+          setSubmitting(false)
+          setAppState("lobby")
         } else if (payload.event === "GOTO") {
           adoptSlide(payload.slide, payload.slideIndex, payload.slideCount, null)
         } else if (payload.event === "LOCK") {
@@ -477,21 +485,49 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
   async function submitAnswer(answer: unknown) {
     if (submittedRef.current || !currentSlide) return
     const slideId = currentSlide.id
+    const submissionAttempt = ++submissionAttemptRef.current
     submittedRef.current = true
     setSubmitting(true)
 
-    const res = await fetch("/api/quiz/responses", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sessionId,
-        slideId: currentSlide.id,
-        nickname,
-        avatar,
-        answer,
-      }),
-    })
+    const requestBody = JSON.stringify({ sessionId, slideId, nickname, avatar, answer })
+    const retryStartedAt = Date.now()
+    let res: Response
+    let problem: { error?: string } | null = null
+    let attempt = 0
+    while (true) {
+      try {
+        res = await fetch("/api/quiz/responses", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: requestBody,
+        })
+      } catch {
+        if (submissionAttemptRef.current === submissionAttempt) {
+          submittedRef.current = false
+          setSubmitting(false)
+          setAppState("question")
+        }
+        return
+      }
+      if (submissionAttemptRef.current !== submissionAttempt) return
+      problem = res.ok
+        ? null
+        : await res.clone().json().catch(() => null) as { error?: string } | null
+      // The projector and phones switch immediately, while the authenticated
+      // session update runs behind them. A very fast answer can beat that one
+      // database write on a cold free-tier function; retry only this transient
+      // state, invisibly, while preserving the original question and answer.
+      if (
+        res.status !== 409 || problem?.error !== "slide_not_active" ||
+        Date.now() - retryStartedAt >= 8_000
+      ) break
+      const delay = Math.min(1_500, 200 * 2 ** attempt)
+      attempt++
+      await new Promise((resolve) => setTimeout(resolve, delay))
+      if (submissionAttemptRef.current !== submissionAttempt) return
+    }
 
+    if (submissionAttemptRef.current !== submissionAttempt) return
     setSubmitting(false)
     if (res.ok) {
       answeredRef.current.add(slideId)
@@ -501,6 +537,11 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
       setAppState("result")
     } else if (res.status === 410) {
       setAppState("ended")
+    } else if (res.status === 409 && problem?.error === "slide_not_active") {
+      // The host transition ultimately failed or this phone is stale. Recovery
+      // will reconcile the live slide; keep the answer retryable meanwhile.
+      submittedRef.current = false
+      setAppState("question")
     } else if (res.status === 408 || res.status === 409 || res.status === 423) {
       // The server, not the phone, is authoritative about deadline, lock,
       // reveal and the live slide. A direct request after any of those gates
@@ -645,8 +686,7 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
   }
 
   if (appState === "leaderboard") {
-    const visibleEntries = lbEntries.slice(0, 5)
-    const maxScore = Math.max(...visibleEntries.map((entry) => entry.totalPoints), 1)
+    const visibleEntries = lbEntries.slice(0, 10)
     return (
       <Screen k={appState}>
         <div className="w-full max-w-xl space-y-6 py-2">
@@ -656,51 +696,42 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
             {lbFinal ? t("quiz.finalResults") : t("quiz.leaderboard")}
             </h2>
           </div>
-          <div
-            className="grid h-72 items-end gap-2 sm:h-80 sm:gap-3"
-            style={{ gridTemplateColumns: `repeat(${Math.max(visibleEntries.length, 1)}, minmax(0, 1fr))` }}
-          >
+          <div className="space-y-2">
             {visibleEntries.map((entry, index) => {
-              const height = Math.max(8, (entry.totalPoints / maxScore) * 100)
               const isMe = entry.nickname === nickname
               const movement = entry.delta ?? 0
               return (
               <div
                 key={entry.nickname}
                 className={cn(
-                  "quiz-rank-enter flex h-full min-w-0 flex-col items-center",
-                  isMe && "text-teal-900",
+                  "quiz-rank-enter grid grid-cols-[2.5rem_2.75rem_minmax(0,1fr)_auto] items-center gap-2 border px-3 py-2.5",
+                  isMe ? "border-teal-700 bg-teal-50 text-teal-950" : "border-black/10 bg-white/45",
                 )}
                 style={{
                   animationDelay: `${index * 55}ms`,
-                  "--quiz-rank-from": `${entry.delta === undefined ? 10 : entry.delta * 32}px`,
+                  "--quiz-rank-from": `${entry.delta === undefined ? 10 : entry.delta * 50}px`,
                 } as React.CSSProperties}
               >
-                <span
-                  className={cn(
-                    "mb-1 max-w-full truncate px-1 py-0.5 font-mono text-[0.52rem] font-black uppercase tracking-tight",
-                    movement > 0 && "bg-emerald-100 text-emerald-800",
-                    movement < 0 && "bg-rose-100 text-rose-800",
-                    movement === 0 && "bg-black/5 text-black/50",
-                  )}
-                >
-                  {movementText(entry.delta)}
+                <span className="text-right font-heading text-2xl tabular-nums text-teal-800">
+                  {t("quiz.rankN", { n: entry.rank })}
                 </span>
-                <span className="mb-1 font-mono text-xs font-black tabular-nums sm:text-sm">
-                  {entry.totalPoints.toLocaleString()} <span className="text-[0.5rem] text-black/45">{t("quiz.pointsShort")}</span>
-                </span>
-                <div className={cn("relative flex min-h-0 w-full flex-1 items-end overflow-hidden border", isMe ? "border-teal-700 bg-teal-50" : "border-black/10 bg-black/[0.03]")}>
-                  <div
-                    aria-hidden
-                    className={cn("quiz-score-column w-full", isMe ? "bg-teal-600/80" : "bg-teal-500/55")}
-                    style={{ "--quiz-score-height": `${height}%` } as React.CSSProperties}
-                  />
-                  <span className="absolute bottom-2 left-1/2 -translate-x-1/2 font-mono text-[0.65rem] font-black text-black/65">
-                    {t("quiz.rankN", { n: entry.rank })}
+                <span className="text-2xl" aria-hidden>{entry.avatar || FALLBACK_AVATAR}</span>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-bold">{entry.nickname}</p>
+                  <span
+                    className={cn(
+                      "inline-block font-mono text-[0.6rem] font-black uppercase tracking-wide",
+                      movement > 0 && "text-emerald-700",
+                      movement < 0 && "text-rose-700",
+                      movement === 0 && "text-black/45",
+                    )}
+                  >
+                    {movementText(entry.delta)}
                   </span>
                 </div>
-                <span className="mt-2 text-2xl" aria-hidden>{entry.avatar || FALLBACK_AVATAR}</span>
-                <span className="w-full truncate text-center text-xs font-bold">{entry.nickname}</span>
+                <span className="text-right font-mono text-sm font-black tabular-nums">
+                  {entry.totalPoints.toLocaleString()} <span className="text-[0.55rem] text-black/45">{t("quiz.pointsShort")}</span>
+                </span>
               </div>
               )
             })}

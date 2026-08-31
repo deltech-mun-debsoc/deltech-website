@@ -33,9 +33,10 @@ const read = (p: string) => readFileSync(p, "utf8")
   // The server can only know when a slide went live if the presenter says so.
   const presentActions = read("src/app/(admin)/admin/quiz/[id]/present/actions.ts")
   assert.match(presentActions, /export async function startSlide/, "startSlide must exist")
-  assert.match(presentActions, /currentSlideStartedAt: now/, "and must stamp the start time")
+  assert.match(presentActions, /"currentSlideStartedAt" = \$\{startedAt\}/, "and must stamp the bounded host click time")
+  assert.match(presentActions, /slide\."presentationId" = qs\."presentationId"/, "the one-query start must still verify slide ownership")
   const presenter = read("src/app/(admin)/admin/quiz/[id]/present/_components/presenter-app.tsx")
-  assert.match(presenter, /startSlide\(session\.id, slide\.id\)/, "the presenter must call it on GOTO")
+  assert.match(presenter, /startSlide\(session\.id, slide\.id, startedAt\)/, "the presenter must persist the exact GOTO click time")
 }
 
 // --- rate limits exist and are sane ---------------------------------------

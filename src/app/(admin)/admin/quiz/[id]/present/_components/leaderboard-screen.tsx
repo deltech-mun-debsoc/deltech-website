@@ -37,7 +37,6 @@ export function LeaderboardScreen({ entries, final, theme, onNext, onEnd }: Prop
   const surface = quizSurface(theme)
   const reduce = useReducedMotion()
   const top = entries.slice(0, 10)
-  const maxScore = Math.max(...top.map((entry) => entry.totalPoints), 1)
 
   return (
     <div className="relative flex h-full flex-col overflow-hidden px-8 py-7" style={{ background: theme.background, color: theme.textColor }}>
@@ -72,47 +71,38 @@ export function LeaderboardScreen({ entries, final, theme, onNext, onEnd }: Prop
         )}
       </header>
 
-      <div className="relative min-h-0 flex-1">
+      <div className="relative min-h-0 flex-1 space-y-2 overflow-hidden">
         {top.length > 0 ? (
-          <div className="grid h-full items-end gap-3" style={{ gridTemplateColumns: `repeat(${top.length}, minmax(0, 1fr))` }}>
+          <div className="space-y-2">
             <AnimatePresence initial={false}>
               {top.map((entry, index) => {
-                const height = Math.max(8, (entry.totalPoints / maxScore) * 100)
                 return (
                   <motion.div
                     key={entry.nickname}
                     layout
-                    initial={reduce ? false : { x: entry.delta === undefined ? 18 : entry.delta * 72, opacity: 0 }}
-                    animate={{ x: 0, opacity: 1 }}
-                    exit={reduce ? undefined : { opacity: 0 }}
+                    // The leaderboard is remounted between questions. Begin a
+                    // row at its previous rank so a +3 visibly climbs three
+                    // places and a -2 visibly drops two.
+                    initial={reduce ? false : { y: entry.delta === undefined ? 18 : entry.delta * 58, opacity: 0 }}
+                    animate={{ y: 0, opacity: 1 }}
+                    exit={reduce ? undefined : { y: -18, opacity: 0 }}
                     transition={{ layout: { type: "spring", stiffness: 210, damping: 24 }, delay: reduce ? 0 : index * 0.045 }}
-                    className="flex h-full min-w-0 flex-col items-center"
+                    className="grid grid-cols-[4rem_3.25rem_minmax(0,1fr)_7rem_8rem] items-center gap-3 border px-4 py-2.5"
+                    style={{
+                      borderColor: index === 0 ? theme.accentColor : surface.border,
+                      background: index === 0 ? `${theme.accentColor}14` : surface.track,
+                    }}
                   >
-                    <div className="mb-2 flex h-5 items-center justify-center"><Movement delta={entry.delta} /></div>
-                    <p className="mb-2 font-mono text-base font-black tabular-nums">
+                    <span className="text-right font-heading text-3xl tabular-nums opacity-70">
+                      {t("quiz.rankN", { n: entry.rank })}
+                    </span>
+                    <span className="text-3xl" aria-hidden>{entry.avatar || FALLBACK_AVATAR}</span>
+                    <span className="min-w-0 truncate text-xl font-bold">{entry.nickname}</span>
+                    <div className="flex justify-center"><Movement delta={entry.delta} /></div>
+                    <span className="text-right font-mono text-lg font-black tabular-nums">
                       {entry.totalPoints.toLocaleString()}
-                      <span className="ml-1 text-[0.55rem] uppercase opacity-45">{t("quiz.pointsShort")}</span>
-                    </p>
-                    <div className="relative flex min-h-0 w-full flex-1 items-end overflow-hidden" style={{ background: surface.track }}>
-                      <motion.div
-                        className="w-full"
-                        initial={reduce ? false : { height: 0 }}
-                        animate={{ height: `${height}%` }}
-                        transition={{ duration: reduce ? 0 : 0.75, ease: [0.2, 0.8, 0.2, 1], delay: reduce ? 0 : 0.08 + index * 0.045 }}
-                        style={{
-                          background: surface.dark
-                            ? `${theme.accentColor}${index === 0 ? "88" : "66"}`
-                            : index === 0 ? theme.accentColor : `${theme.accentColor}8f`,
-                        }}
-                      />
-                      <span className="absolute bottom-2 left-1/2 -translate-x-1/2 font-mono text-xs font-black opacity-65">
-                        {t("quiz.rankN", { n: entry.rank })}
-                      </span>
-                    </div>
-                    <div className="mt-3 flex w-full min-w-0 flex-col items-center gap-1 text-center">
-                      <span className="text-3xl" aria-hidden>{entry.avatar || FALLBACK_AVATAR}</span>
-                      <span className="w-full truncate text-sm font-bold">{entry.nickname}</span>
-                    </div>
+                      <span className="ml-1 text-[0.6rem] uppercase opacity-45">{t("quiz.pointsShort")}</span>
+                    </span>
                   </motion.div>
                 )
               })}
