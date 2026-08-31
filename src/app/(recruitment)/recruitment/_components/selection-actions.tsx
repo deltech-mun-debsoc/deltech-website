@@ -84,14 +84,21 @@ export function SelectionActions({
 
       {status && (
         <div className="flex flex-wrap items-center gap-2">
-          <Button size="sm" className="gap-1.5" disabled={pending || status.pending === 0} onClick={send}>
+          <Button
+            size="sm"
+            className="gap-1.5"
+            disabled={pending || status.pending === 0 || !status.cycleReady}
+            onClick={send}
+          >
             {pending ? <Loader2 className="size-4 animate-spin" /> : <Mail className="size-4" />}
             {t("recruitment.selection.emailSelected", { count: status.pending })}
           </Button>
           {/* Never a disabled control with no explanation: say which of the three
               reasons this is, because they need different things done about them. */}
           <p className="text-xs text-muted-foreground">
-            {status.selected === 0
+            {!status.cycleReady
+              ? t("recruitment.selection.notFinalising")
+              : status.selected === 0
               ? t("recruitment.selection.noneSelected")
               : status.pending === 0
                 ? t("recruitment.selection.allEmailed", { count: status.alreadyEmailed })

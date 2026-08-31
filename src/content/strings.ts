@@ -579,6 +579,8 @@ saving: "Saving…",
       sentPartial: "Sent to {sent}. {failed} failed and will be retried the next time you press this.",
       sentNone: "Everyone selected has already been emailed.",
       noneSelected: "Nobody has been selected yet.",
+      notFinalising:
+        "Results go out once the cycle moves to Finalisation. An admin changes that from Recruitment control.",
       allEmailed: "All {count} selected candidates have been emailed.",
       readyWithLink: "The WhatsApp group link is set and will be included.",
       readyNoLink:

@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache"
 import { prisma } from "@/lib/prisma"
-import { RecruitmentDenied, requireRecruitmentAction } from "@/lib/recruitment/authz"
+import { RecruitmentDenied, requireRecruitmentAction, resolveCycleContext } from "@/lib/recruitment/authz"
+import { can, cycleAllows } from "@/lib/recruitment/permissions"
 import { auditRecruitment, newRequestId } from "@/lib/recruitment/audit"
 import {
   RECRUITMENT_SELECTED_TEMPLATE,
@@ -32,23 +33,34 @@ export interface SelectionEmailStatus {
   alreadyEmailed: number
   pending: number
   hasGroupLink: boolean
+  // The cycle has to be in FINALISATION (or COMPLETED) before results go out.
+  // Reported rather than folded into a null, so an admin looking for the button
+  // during IN_PROGRESS is told what to do instead of finding nothing.
+  cycleReady: boolean
 }
 
 // What the button needs to describe itself honestly before it is pressed.
+//
+// Guards on candidate.recruit through `can` rather than requireRecruitmentAction,
+// deliberately: the role decides whether the control exists, while the cycle state
+// only decides whether it is pressable, and asserting both would hide the button
+// from the person who needs to be told the cycle is not in Finalisation yet.
+// @recruitment-guard candidate.recruit
 export async function selectionEmailStatus(cycleId: string): Promise<SelectionEmailStatus | null> {
-  try {
-    const ctx = await requireRecruitmentAction(cycleId, "candidate.recruit")
-    const { pending, selected, emailed } = await pendingRecipients(ctx.cycle.id)
-    const config = parseCycleConfig(ctx.cycle.config)
-    return {
-      selected: selected.length,
-      alreadyEmailed: emailed.size,
-      pending: pending.length,
-      hasGroupLink: config.selectionEmail.whatsappUrl.length > 0,
-    }
-  } catch {
-    // A read used only to render a control. Callers hide it when this is null.
-    return null
+  // The ROLE decides whether the control exists at all; the cycle STATE only
+  // decides whether it can be pressed yet. Asserting both here would hide the
+  // button from the one person who needs to know why it is not there.
+  const ctx = await resolveCycleContext(cycleId)
+  if (!ctx || !can(ctx.role, "candidate.recruit")) return null
+
+  const { pending, selected, emailed } = await pendingRecipients(ctx.cycle.id)
+  const config = parseCycleConfig(ctx.cycle.config)
+  return {
+    selected: selected.length,
+    alreadyEmailed: emailed.size,
+    pending: pending.length,
+    hasGroupLink: config.selectionEmail.whatsappUrl.length > 0,
+    cycleReady: cycleAllows(ctx.cycle.state, "candidate.recruit"),
   }
 }
 

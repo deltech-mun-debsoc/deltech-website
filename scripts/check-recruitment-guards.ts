@@ -39,6 +39,11 @@ const JC_MUST_NOT_REACH = new Set([
   "bypassGd", "moveCandidateStage", "setCandidateResult",
   "createGroup",
   "saveSheetSource",
+  // Telling the selected they are in is the last outward-facing act of a cycle,
+  // and it is the admin's. The status read is listed too: it counts and names the
+  // selected candidates, which is the decision a JC does not get to see forming.
+  "sendSelectionEmails",
+  "selectionEmailStatus",
 ])
 
 // Actions a JC legitimately performs. The session lifecycle is here because a JC
