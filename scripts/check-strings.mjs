@@ -23,6 +23,13 @@ const SKIP_DIRS = ["src/components/ui"];
 // Attributes where hardcoded English is flagged
 const FLAGGED_ATTRS = ["placeholder", "aria-label", "title", "alt"];
 
+// `placeholder` is on that list for form fields, but next/image uses the same
+// attribute name for an API enum with exactly two values. Neither is ever shown
+// to a reader, so exempt those two literals and nothing else -- a placeholder of
+// "type your name here" is still a violation, which is asserted by removing this
+// set and watching the gallery's own `placeholder="blur"` come back as one.
+const NON_COPY_ATTR_VALUES = new Set(['placeholder="blur"', 'placeholder="empty"']);
+
 // Regex patterns that are violations
 const ATTR_RE = new RegExp(
   `\\b(${FLAGGED_ATTRS.join("|")})="([A-Za-z][^"]{2,})"`,
@@ -83,6 +90,7 @@ for (const file of walk(SRC)) {
     let m;
     ATTR_RE.lastIndex = 0;
     while ((m = ATTR_RE.exec(line)) !== null) {
+      if (NON_COPY_ATTR_VALUES.has(`${m[1]}="${m[2]}"`)) continue;
       console.error(`${rel}:${i + 1}  hardcoded ${m[1]}="${m[2]}"`);
       violations++;
     }
