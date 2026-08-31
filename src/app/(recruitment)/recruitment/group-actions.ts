@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma"
 import { RecruitmentDenied, requireGroupAccess, requireRecruitmentAction } from "@/lib/recruitment/authz"
 import { auditRecruitmentTx, newRequestId } from "@/lib/recruitment/audit"
 import { createGroupSchema, parseCycleConfig } from "@/lib/schemas/recruitment"
+import { isSchemaDrift, SCHEMA_DRIFT_MESSAGE } from "@/lib/prisma-errors"
 
 // GD / PI group management. A group is a draft roster plus its staff; the session
 // that runs it is a separate row (see session-actions.ts) so a group can be
@@ -30,6 +31,10 @@ function denied(err: unknown): GroupResult {
       error: "One of those candidates already has a live seat for this round. Reassign them first.",
     }
   }
+  // A migration merged but never applied leaves the code writing values the
+  // database does not have. That is a skipped deploy step, not a bug in
+  // here, and saying so is the difference between a two-minute fix and a hunt.
+  if (isSchemaDrift(err)) return { ok: false, error: SCHEMA_DRIFT_MESSAGE }
   console.error("[recruitment/group]", err)
   return { ok: false, error: "Something went wrong. Reload and try again." }
 }

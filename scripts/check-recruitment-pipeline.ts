@@ -742,4 +742,35 @@ assert.equal(
   }
 }
 
+// --- a database behind the code says so ------------------------------------
+//
+// Twice now a migration has been merged and never applied to production, and both
+// times the operator saw only "Something went wrong": the quiz could not present a
+// TRUE_FALSE slide, and recruitment could not add anyone to the society because
+// the Role enum had no MEMBER. build:vercel deliberately does not migrate, so this
+// will happen again; the only question is whether the screen names the cause.
+{
+  for (const file of [
+    "src/app/(recruitment)/recruitment/evaluation-actions.ts",
+    "src/app/(recruitment)/recruitment/candidate-actions.ts",
+    "src/app/(recruitment)/recruitment/session-actions.ts",
+    "src/app/(recruitment)/recruitment/group-actions.ts",
+    "src/app/(recruitment)/recruitment/import-actions.ts",
+    "src/app/(admin)/admin/recruitment/actions.ts",
+  ]) {
+    const src = readFileSync(file, "utf8")
+    // The GUARD, not the import line -- matching the import made this vacuous.
+    const guard = /if \(isSchemaDrift\((?:err|error)\)\) return \{ ok: false, error: SCHEMA_DRIFT_MESSAGE \}/
+    assert.match(src, guard, `${file} must tell an operator when the database is behind`)
+    // And it has to come BEFORE the generic fallback, or it never runs.
+    assert.ok(
+      src.search(guard) < src.indexOf("Something went wrong"),
+      `${file} must check for drift before falling back to the generic message`,
+    )
+  }
+  // The message has to name the command, or it is just a nicer dead end.
+  const errors = readFileSync("src/lib/prisma-errors.ts", "utf8")
+  assert.match(errors, /npm run db:deploy/, "the drift message must name the fix")
+}
+
 console.log("recruitment pipeline checks passed (three-way decisions, final selections, popups)")

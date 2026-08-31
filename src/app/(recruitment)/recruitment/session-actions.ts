@@ -30,6 +30,7 @@ import {
   type PanelRecommendation,
 } from "@/lib/schemas/recruitment"
 import type { Prisma } from "@/generated/prisma/client"
+import { isSchemaDrift, SCHEMA_DRIFT_MESSAGE } from "@/lib/prisma-errors"
 
 // Session lifecycle. Every mutation here follows the same shape:
 //
@@ -151,6 +152,10 @@ function denied(err: unknown): SessionResult {
           : "You do not have permission to do that.",
     }
   }
+  // A migration merged but never applied leaves the code writing values the
+  // database does not have. That is a skipped deploy step, not a bug in
+  // here, and saying so is the difference between a two-minute fix and a hunt.
+  if (isSchemaDrift(err)) return { ok: false, error: SCHEMA_DRIFT_MESSAGE }
   console.error("[recruitment/session]", err)
   return { ok: false, error: "Something went wrong. Reload and try again." }
 }

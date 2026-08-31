@@ -15,6 +15,7 @@ import {
 } from "@/lib/recruitment/transitions"
 import { parseCycleConfig } from "@/lib/schemas/recruitment"
 import { bypassGdSchema, resultMoveSchema, stageMoveSchema } from "@/lib/schemas/recruitment"
+import { isSchemaDrift, SCHEMA_DRIFT_MESSAGE } from "@/lib/prisma-errors"
 
 // Candidate stage and result changes. Every move goes through the pure state
 // machine in src/lib/recruitment/transitions.ts, is applied as a conditional
@@ -47,6 +48,10 @@ function denied(err: unknown): CandidateResultResponse {
             : "You are not permitted to do that.",
     }
   }
+  // A migration merged but never applied leaves the code writing values the
+  // database does not have. That is a skipped deploy step, not a bug in
+  // here, and saying so is the difference between a two-minute fix and a hunt.
+  if (isSchemaDrift(err)) return { ok: false, error: SCHEMA_DRIFT_MESSAGE }
   console.error("[recruitment/candidate]", err)
   return { ok: false, error: "Something went wrong. Reload and try again." }
 }
