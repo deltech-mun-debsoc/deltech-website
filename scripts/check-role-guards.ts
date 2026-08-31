@@ -37,8 +37,7 @@ const ADMIN_REQUIRED = new Set([
 // the ADMIN recruitment role: a MAINTAINER must not be able to configure a cycle
 // or convert a candidate into a member from here.
 const RECRUITMENT_ADMIN_REQUIRED = new Set([
-  "updateCycleConfig", "transitionCycle", "assignRecruitmentMember",
-  "revokeRecruitmentMember", "recruitCandidate",
+  "updateCycleConfig", "transitionCycle", "recruitCandidate",
 ])
 
 function walk(dir: string): string[] {

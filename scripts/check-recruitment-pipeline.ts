@@ -200,7 +200,6 @@ assert.equal(
   // trigger reads "ADVANCE" instead of "Advance".
   for (const file of [
     "src/app/(recruitment)/recruitment/_components/evaluation-form.tsx",
-    "src/app/(admin)/admin/recruitment/_components/cycle-staff-panel.tsx",
   ]) {
     const src = readFileSync(file, "utf8")
     assert.doesNotMatch(src, /<SelectTrigger[^>]*\/>/, `${file} has a self-closing SelectTrigger`)

@@ -26,7 +26,6 @@ export type RecruitmentAction =
   | "cycle.create"
   | "cycle.configure"
   | "cycle.transition"
-  | "cycle.assignStaff"
   // groups
   | "group.create"
   | "group.edit"
@@ -97,7 +96,6 @@ export const CAPABILITIES: Record<RecruitmentAction, readonly RecruitmentRoleNam
   "cycle.create": ADMIN_ONLY,
   "cycle.configure": ADMIN_ONLY,
   "cycle.transition": ADMIN_ONLY,
-  "cycle.assignStaff": ADMIN_ONLY,
 
   // A JC forms their own GD panels. requireGroupAccess still scopes them to the
   // groups they staff, and createGroup puts the creator on their own group so
@@ -182,7 +180,6 @@ const ALWAYS_ALLOWED: readonly RecruitmentAction[] = [
 const SETUP: readonly RecruitmentAction[] = [
   "cycle.configure",
   "cycle.transition",
-  "cycle.assignStaff",
   "import.configure",
 ]
 
@@ -250,7 +247,6 @@ export const CYCLE_STATE_ALLOWS: Record<CycleStateName, readonly RecruitmentActi
   PAUSED: [
     "cycle.transition",
     "cycle.configure",
-    "cycle.assignStaff",
     "evaluation.draft",
     "evaluation.submit",
     "session.pause",
@@ -262,7 +258,7 @@ export const CYCLE_STATE_ALLOWS: Record<CycleStateName, readonly RecruitmentActi
     "candidate.hold",
   ],
   // Sessions are done; results are being decided.
-  FINALISATION: ["cycle.transition", "cycle.assignStaff", ...FINALISATION],
+  FINALISATION: ["cycle.transition", ...FINALISATION],
   // Closed. Recruiting a candidate who was already selected is still allowed,
   // because finalisation and adding to the society are separate actions and the
   // second may legitimately happen later.

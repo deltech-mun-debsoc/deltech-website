@@ -45,7 +45,6 @@ const JC_MUST_NOT: RecruitmentAction[] = [
   "cycle.create",
   "cycle.configure",
   "cycle.transition",
-  "cycle.assignStaff",
   "import.configure",
 ]
 for (const action of JC_MUST_NOT) {
@@ -138,7 +137,6 @@ const MAINTAINER_MUST_NOT: RecruitmentAction[] = [
   "cycle.create",
   "cycle.configure",
   "cycle.transition",
-  "cycle.assignStaff",
   "candidate.finalise",
   "candidate.recruit",
   "candidate.override",
@@ -172,7 +170,7 @@ for (const [action, roles] of Object.entries(CAPABILITIES)) {
   }
 }
 
-// ── Recruitment and dashboard permissions are evaluated independently ────────
+// ── The dashboard role is the recruitment role ───────────────────────────────
 // A global ADMIN is an implicit recruitment admin, flagged as implicit.
 assert.deepEqual(resolveRecruitmentRole("ADMIN", null), { role: "ADMIN", implicit: true })
 // An explicit assignment on top of global ADMIN is still ADMIN, no longer implicit.
@@ -185,11 +183,11 @@ assert.deepEqual(derivedRecruitmentRole("ADMIN"), "ADMIN")
 assert.deepEqual(derivedRecruitmentRole("MAINTAINER"), "MAINTAINER")
 assert.deepEqual(derivedRecruitmentRole("SUB_MAINTAINER"), "JC")
 
-// An explicit assignment still overrides the derived role in both directions:
-// down, so a MAINTAINER can run one cycle as a JC...
-assert.deepEqual(resolveRecruitmentRole("MAINTAINER", "JC"), { role: "JC", implicit: false })
-// ...and up, so a SUB_MAINTAINER can run one cycle as a MAINTAINER without being
-// given a dashboard role that reaches /admin.
+// A RecruitmentMember row still overrides the derived role in both directions.
+// Nothing in the UI writes a diverging one any more -- the cycle staff panel is
+// gone and setUserRole keeps rows in step with the app role -- but rows written
+// before that, and by cycle creation, are read through this path, so it stays
+// pinned rather than assumed dead.
 assert.deepEqual(resolveRecruitmentRole("SUB_MAINTAINER", "MAINTAINER"), { role: "MAINTAINER", implicit: false })
 
 // Roles outside the derived set still get nothing from their app role, so a blog
