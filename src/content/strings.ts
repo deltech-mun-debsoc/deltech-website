@@ -559,6 +559,7 @@ saving: "Saving…",
       needsRecommendation: "Choose Selected, Hold or Reject to enable Revise.",
       noneYet: "No evaluations recorded yet.",
       ownOnly: "You can see your own evaluations only.",
+      notAnEvaluator: "You are on this panel to observe. Scoring was not enabled for you here.",
       overallOutOf: "{score} / 10",
     },
     recommendation: {
