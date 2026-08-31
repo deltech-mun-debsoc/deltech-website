@@ -1,7 +1,7 @@
 "use client"
 
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion"
-import { ArrowDown, ArrowUp, Minus, Sparkles, Trophy } from "lucide-react"
+import { ArrowDown, ArrowUp, Minus, Trophy } from "lucide-react"
 import { FALLBACK_AVATAR } from "@/lib/quiz-types"
 import { ConfettiBurst } from "./confetti-burst"
 import { t } from "@/content/strings"
@@ -18,7 +18,11 @@ interface Props {
 
 function Movement({ delta }: { delta: number | undefined }) {
   if (delta === undefined) {
-    return <span title={t("quiz.joinedBoard")}><Sparkles className="size-4 opacity-55" /></span>
+    return (
+      <span className="font-mono text-[0.65rem] font-black uppercase tracking-[0.12em] opacity-55">
+        {t("quiz.joinedBoard")}
+      </span>
+    )
   }
   if (delta > 0) {
     return <span className="flex items-center font-mono text-xs font-black text-emerald-500"><ArrowUp className="size-4" />{delta}</span>

@@ -209,6 +209,8 @@ for (const route of [
   assert.match(board, /entry\.delta \* 72/, "projector columns must travel from their previous rank")
   assert.match(board, /entry\.totalPoints \/ maxScore/, "projector bars must represent relative score")
   assert.match(board, /<Movement delta=\{entry\.delta\}/, "projector must show position jumps")
+  assert.match(board, /t\("quiz\.joinedBoard"\)/, "a new leaderboard entry needs a clear text label")
+  assert.doesNotMatch(board, /Sparkles/, "the new-entry marker must not look like an unexplained AI control")
   assert.match(stage, /font-heading/, "the presenter must use the site's display typography")
   assert.match(stage, /const canAdvance = !scoredQuiz \|\| revealed/, "a scored question cannot skip its reveal")
   assert.match(stage, /mode === "QUIZ" && canAdvance/, "standings must not jump ahead of the answer reveal")
