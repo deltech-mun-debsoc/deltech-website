@@ -1,5 +1,6 @@
 "use client"
 
+import { formatDateTime } from "@/lib/datetime"
 import { useCallback, useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Search } from "lucide-react"
@@ -56,12 +57,6 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "
 const PAY_STATUS_LABEL: Record<string, string> = {
   PENDING: "Awaiting payment", SENT: "Payment link sent", PAID: "Paid",
   OFFLINE: "Confirmed (UPI)", COMPED: "Comped", FAILED: "Payment failed",
-}
-
-function formatTime(iso: string) {
-  return new Date(iso).toLocaleString("en-IN", {
-    day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
-  })
 }
 
 function buildUrl(filters: Filters) {
@@ -209,7 +204,7 @@ export function CheckinClient({ delegates, filters, capped }: Props) {
                     {d.checkedInAt ? (
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-muted-foreground">
-                          {t("checkin.checkedInAt", { time: formatTime(d.checkedInAt), by: d.checkedInBy ?? "-" })}
+                          {t("checkin.checkedInAt", { time: formatDateTime(d.checkedInAt), by: d.checkedInBy ?? "-" })}
                         </span>
                         <Button
                           size="sm"

@@ -1,3 +1,4 @@
+import { formatDate } from "@/lib/datetime"
 import Link from "next/link"
 import { ArrowUpRight, Clock3, Plus, Presentation, RadioTower, Sparkles } from "lucide-react"
 import { prisma } from "@/lib/prisma"
@@ -63,7 +64,7 @@ export default async function AdminQuizPage() {
                 </div>
                 <p className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
                   <Clock3 className="size-4" />
-                  {new Date(presentation.createdAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                  {formatDate(presentation.createdAt)}
                 </p>
               </Link>
             ))}

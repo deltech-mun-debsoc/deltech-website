@@ -1,5 +1,6 @@
 "use client"
 
+import { formatDateTime } from "@/lib/datetime"
 import { useState } from "react"
 import Link from "next/link"
 import { Card } from "@/components/ui/card"
@@ -92,14 +93,14 @@ export function GroupList({
                     {/* A finished panel wants a date, not a running clock. */}
                     {g.endedAt ? (
                       <time className="text-sm" dateTime={g.endedAt}>
-                        {g.endedAt.slice(0, 16).replace("T", " ")}
+                        {formatDateTime(g.endedAt)}
                       </time>
                     ) : g.session?.startedAt ? (
                       <SessionTimer session={g.session} className="text-xl" />
                     ) : (
                       <p className="text-sm">
                         {g.scheduledAt
-                          ? new Date(g.scheduledAt).toISOString().slice(0, 16).replace("T", " ")
+                          ? formatDateTime(g.scheduledAt)
                           : t("recruitment.groups.unscheduled")}
                       </p>
                     )}

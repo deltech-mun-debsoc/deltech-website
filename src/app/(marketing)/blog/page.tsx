@@ -1,3 +1,4 @@
+import { formatDate } from "@/lib/datetime"
 import type { Metadata } from "next"
 import Link from "next/link"
 import { ArrowRight } from "lucide-react"
@@ -13,7 +14,7 @@ function metaLine(post: { author: { name: string | null }; publishedAt: Date | n
   const parts = [
     post.author.name ?? t("marketing.anonymousAuthor"),
     post.publishedAt
-      ? new Date(post.publishedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })
+      ? formatDate(post.publishedAt)
       : null,
     post.readMin ? t("blog.readMin", { n: post.readMin }) : null,
   ].filter(Boolean)

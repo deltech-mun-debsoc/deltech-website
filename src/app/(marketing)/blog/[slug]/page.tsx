@@ -1,3 +1,4 @@
+import { formatDateLong } from "@/lib/datetime"
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import Link from "next/link"
@@ -64,7 +65,7 @@ export default async function BlogArticlePage({ params }: Props) {
           <p className="font-semibold text-foreground">{post.author.name ?? t("marketing.anonymousAuthor")}</p>
           {post.publishedAt && (
             <time className="mt-2 block" dateTime={post.publishedAt.toISOString()}>
-              {new Date(post.publishedAt).toLocaleDateString("en-IN", { day: "numeric", month: "long", year: "numeric" })}
+              {formatDateLong(post.publishedAt)}
             </time>
           )}
           {post.readMin && <p className="mt-2 flex items-center gap-2"><Clock className="size-4" /> {t("blog.readMin", { n: post.readMin })}</p>}

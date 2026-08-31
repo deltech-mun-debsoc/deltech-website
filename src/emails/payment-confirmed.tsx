@@ -1,3 +1,4 @@
+import { formatDateLong } from "@/lib/datetime"
 import { EmailShell, P, B, Cta, Panel, Row, Contacts } from "./_shell"
 
 interface Props {
@@ -40,11 +41,7 @@ export function PaymentConfirmedEmail({
         <Row label="Portfolio" value={portfolioName} />
         <Row
           label="Confirmed on"
-          value={confirmedAt.toLocaleDateString("en-IN", {
-            day: "2-digit",
-            month: "long",
-            year: "numeric",
-          })}
+          value={formatDateLong(confirmedAt)}
         />
       </Panel>
 

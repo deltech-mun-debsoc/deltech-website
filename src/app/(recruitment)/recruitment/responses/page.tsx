@@ -1,3 +1,4 @@
+import { formatDateTime } from "@/lib/datetime"
 import { redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import { RecruitmentDenied, requireRecruitmentAccess, requireRecruitmentAction, mayPerform, resolveCycleContext } from "@/lib/recruitment/authz"
@@ -105,7 +106,7 @@ export default async function ResponsesPage() {
                         className="text-xs text-muted-foreground"
                         dateTime={(i.finishedAt ?? i.startedAt).toISOString()}
                       >
-                        {(i.finishedAt ?? i.startedAt).toISOString().slice(0, 16).replace("T", " ")}
+                        {formatDateTime((i.finishedAt ?? i.startedAt))}
                       </time>
                     </div>
                     {/* Rejected rows are shown, not dropped. */}

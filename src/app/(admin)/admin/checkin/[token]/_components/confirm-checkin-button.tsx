@@ -1,5 +1,6 @@
 "use client"
 
+import { formatDateTime } from "@/lib/datetime"
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -10,12 +11,6 @@ interface Props {
   delegateId: string
   checkedInAt: string | null
   checkedInBy: string | null
-}
-
-function formatTime(iso: string) {
-  return new Date(iso).toLocaleString("en-IN", {
-    day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
-  })
 }
 
 export function ConfirmCheckinButton({ delegateId, checkedInAt, checkedInBy }: Props) {
@@ -47,7 +42,7 @@ export function ConfirmCheckinButton({ delegateId, checkedInAt, checkedInBy }: P
     return (
       <div className="space-y-3 text-center">
         <p className="text-sm text-muted-foreground">
-          {t("checkin.alreadyCheckedIn", { time: formatTime(state.checkedInAt), by: state.checkedInBy ?? "-" })}
+          {t("checkin.alreadyCheckedIn", { time: formatDateTime(state.checkedInAt), by: state.checkedInBy ?? "-" })}
         </p>
         <Button variant="outline" size="lg" className="w-full" disabled={isPending} onClick={handleUndo}>
           {t("checkin.undoButton")}
