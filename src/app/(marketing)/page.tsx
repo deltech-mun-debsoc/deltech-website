@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { FadeUp } from "./_components/motion";
 import { SocietyHero } from "./_components/society-hero";
 import { ActiveEvent } from "./_components/active-event";
+import { ConferenceCarousel } from "./_components/conference-carousel";
 import { deriveEventState } from "@/lib/event-state";
 
 const TYPE_LABEL: Record<string, string> = {
@@ -91,6 +92,8 @@ export default async function LandingPage() {
           </div>
         </div>
       </section>
+
+      <ConferenceCarousel />
 
       {content.publicSections.committees && <section className="py-24 sm:py-32">
         <div className="section-shell">
