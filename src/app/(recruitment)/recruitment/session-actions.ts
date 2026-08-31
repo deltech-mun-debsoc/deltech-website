@@ -7,7 +7,7 @@ import {
   requireGroupAccess,
   requireRecruitmentAction,
 } from "@/lib/recruitment/authz"
-import { auditRecruitmentTx, newRequestId } from "@/lib/recruitment/audit"
+import { auditRecruitmentTx, auditRecruitmentManyTx, newRequestId } from "@/lib/recruitment/audit"
 import {
   accumulatedPauseMs,
   decideAbort,
@@ -16,7 +16,6 @@ import {
   decideReopen,
   decideResume,
   decideStart,
-  decideTakeControl,
   nextControlExpiry,
   type SessionSnapshot,
   type SessionStateName,
@@ -30,7 +29,12 @@ import {
   type PanelRecommendation,
 } from "@/lib/schemas/recruitment"
 import type { Prisma } from "@/generated/prisma/client"
-import { isSchemaDrift, SCHEMA_DRIFT_MESSAGE } from "@/lib/prisma-errors"
+import {
+  isSchemaDrift,
+  SCHEMA_DRIFT_MESSAGE,
+  failureRef,
+  unexpectedFailureMessage,
+} from "@/lib/prisma-errors"
 
 // Session lifecycle. Every mutation here follows the same shape:
 //
@@ -156,8 +160,11 @@ function denied(err: unknown): SessionResult {
   // database does not have. That is a skipped deploy step, not a bug in
   // here, and saying so is the difference between a two-minute fix and a hunt.
   if (isSchemaDrift(err)) return { ok: false, error: SCHEMA_DRIFT_MESSAGE }
-  console.error("[recruitment/session]", err)
-  return { ok: false, error: "Something went wrong. Reload and try again." }
+  // A reference the operator can read off the screen and quote. It is logged
+  // beside the exception, so diagnosing the next one is a grep rather than a hunt.
+  const ref = failureRef(err)
+  console.error("[recruitment/session]", ref.ref, ref.code ?? "-", err)
+  return { ok: false, error: unexpectedFailureMessage(ref) }
 }
 
 // ---------------------------------------------------------------------------
@@ -482,25 +489,33 @@ async function transition(
           }
         }
 
-        // Settled. Now write.
-        for (const draft of promotable) {
-          await tx.recruitmentEvaluation.update({
-            where: { id: draft.id },
+        // Settled. Now write -- in two round trips rather than two per candidate.
+        //
+        // This loop used to issue an update and an audit insert per draft. Inside a
+        // transaction with a five-second ceiling that is a cost that grows with the
+        // size of the panel, and on a remote database a large enough panel would
+        // simply run out of budget mid-finish.
+        if (promotable.length > 0) {
+          await tx.recruitmentEvaluation.updateMany({
+            where: { id: { in: promotable.map((draft) => draft.id) } },
             data: { state: "SUBMITTED", submittedAt: serverNow },
           })
-          await auditRecruitmentTx(tx, {
-            eventType: "evaluation.submit",
-            actor: { id: ctx.userId, email: ctx.email, role: ctx.role },
-            cycleId: row.cycleId,
-            candidateId: draft.candidateId,
-            sessionId: row.id,
-            evaluationId: draft.id,
-            groupId: row.groupId,
-            previousState: { state: "DRAFT" },
-            newState: { state: "SUBMITTED", overall: draft.overall },
-            meta: { kind: row.kind, submittedOnFinish: true },
-            requestId,
-          })
+          await auditRecruitmentManyTx(
+            tx,
+            promotable.map((draft) => ({
+              eventType: "evaluation.submit",
+              actor: { id: ctx.userId, email: ctx.email, role: ctx.role },
+              cycleId: row.cycleId,
+              candidateId: draft.candidateId,
+              sessionId: row.id,
+              evaluationId: draft.id,
+              groupId: row.groupId,
+              previousState: { state: "DRAFT" },
+              newState: { state: "SUBMITTED", overall: draft.overall },
+              meta: { kind: row.kind, submittedOnFinish: true },
+              requestId,
+            })),
+          )
         }
       }
 
@@ -580,6 +595,9 @@ async function transition(
             select: { id: true, stage: true, result: true, gdRequired: true, piRequired: true, version: true },
           })
 
+          const handoffs: Prisma.RecruitmentHandoffCreateManyInput[] = []
+          const transitions: Parameters<typeof auditRecruitmentManyTx>[1][number][] = []
+
           for (const candidate of advancing) {
             // Never overwrite a concurrent manual decision made while the session
             // was live. Its version/result remains authoritative.
@@ -615,22 +633,24 @@ async function transition(
             })
             if (moved.count === 0) continue
 
-            await tx.recruitmentHandoff.create({
-              data: {
-                cycleId: row.cycleId,
-                candidateId: candidate.id,
-                fromStage: candidate.stage,
-                toStage: to,
-                reason: `${recommendation} panel recommendation applied when the ${row.kind} session finished.`,
-                actorId: ctx.userId,
-                actorRole: ctx.role,
-                sessionId: row.id,
-                previousState: { stage: candidate.stage },
-                newState: { stage: to, result },
-              },
+            // Collected, not written yet. The stage move above has to stay
+            // per-candidate -- it is guarded on that candidate's own stage and
+            // version, which a bulk update cannot express -- but its handoff and
+            // audit rows are plain inserts, so they go out together below.
+            handoffs.push({
+              cycleId: row.cycleId,
+              candidateId: candidate.id,
+              fromStage: candidate.stage,
+              toStage: to,
+              reason: `${recommendation} panel recommendation applied when the ${row.kind} session finished.`,
+              actorId: ctx.userId,
+              actorRole: ctx.role,
+              sessionId: row.id,
+              previousState: { stage: candidate.stage },
+              newState: { stage: to, result },
             })
 
-            await auditRecruitmentTx(tx, {
+            transitions.push({
               eventType: "candidate.transition",
               actor: { id: ctx.userId, email: ctx.email, role: ctx.role },
               cycleId: row.cycleId,
@@ -644,6 +664,9 @@ async function transition(
               requestId,
             })
           }
+
+          if (handoffs.length > 0) await tx.recruitmentHandoff.createMany({ data: handoffs })
+          await auditRecruitmentManyTx(tx, transitions)
         } else {
           // An abort returns everyone to the queue so the group can be re-run.
           await tx.recruitmentCandidate.updateMany({
@@ -676,7 +699,14 @@ async function transition(
 
       revalidatePath("/recruitment", "layout")
       return { ok: true as const, idempotent: false, session: serialize(fresh, serverNow) }
-    })
+      },
+      // Finishing writes the panel's verdict for every candidate at once. Prisma's
+      // default interactive ceiling is five seconds, which is generous in-process
+      // and thin against a remote database: the fixed cost is a dozen round trips
+      // before any candidate is even considered. Batched writes keep this well
+      // inside the limit; the raised ceiling is headroom, not a licence to grow.
+      { timeout: 30_000 },
+    )
   } catch (err) {
     if (err instanceof SessionConflict) return { ok: false, error: err.message, conflict: err.conflict }
     return denied(err)
@@ -711,92 +741,6 @@ export async function abortSession(input: {
   return transition("abort", input)
 }
 
-// ---------------------------------------------------------------------------
-// Take control: recovers a session whose owner disconnected
-// ---------------------------------------------------------------------------
-
-export async function takeSessionControl(input: {
-  sessionId: string
-  expectedVersion?: number
-}): Promise<SessionResult> {
-  const parsed = sessionActionSchema.safeParse(input)
-  if (!parsed.success) return { ok: false, error: "Invalid request." }
-
-  const found = await prisma.recruitmentSession.findUnique({
-    where: { id: parsed.data.sessionId },
-    select: { groupId: true },
-  })
-  if (!found) return { ok: false, error: "Session not found." }
-
-  try {
-    const { ctx } = await requireGroupAccess(found.groupId, "session.takeControl")
-
-    return await prisma.$transaction(async (tx) => {
-      const serverNow = new Date()
-      await tx.$queryRaw`SELECT id FROM "RecruitmentSession" WHERE id = ${parsed.data.sessionId} FOR UPDATE`
-
-      const row = (await tx.recruitmentSession.findUnique({
-        where: { id: parsed.data.sessionId },
-        select: SESSION_SELECT,
-      })) as SessionRow | null
-      if (!row) return { ok: false as const, error: "Session not found." }
-
-      const decision = decideTakeControl(toSnapshot(row), {
-        actorId: ctx.userId,
-        expectedVersion: parsed.data.expectedVersion,
-        serverNow,
-      })
-      if (decision === "noop") {
-        return { ok: true as const, idempotent: true, session: serialize(row, serverNow) }
-      }
-      if (decision === "conflict") {
-        return {
-          ok: false as const,
-          error: "Another maintainer still holds this session. Wait for their claim to lapse.",
-          conflict: serialize(row, serverNow),
-        }
-      }
-
-      const updated = await tx.recruitmentSession.updateMany({
-        where: { id: row.id, version: row.version },
-        data: {
-          controllerId: ctx.userId,
-          controlExpiresAt: nextControlExpiry(serverNow),
-          lastActivityAt: serverNow,
-          version: { increment: 1 },
-        },
-      })
-      if (updated.count === 0) {
-        const fresh = (await tx.recruitmentSession.findUnique({
-          where: { id: row.id },
-          select: SESSION_SELECT,
-        })) as SessionRow
-        throw new SessionConflict("Someone else claimed control first.", serialize(fresh, serverNow))
-      }
-
-      await auditRecruitmentTx(tx, {
-        eventType: "session.takeControl",
-        actor: { id: ctx.userId, email: ctx.email, role: ctx.role },
-        cycleId: row.cycleId,
-        sessionId: row.id,
-        groupId: row.groupId,
-        previousState: { controllerId: row.controllerId },
-        newState: { controllerId: ctx.userId },
-        reason: "Previous controller's claim had lapsed.",
-      })
-
-      const fresh = (await tx.recruitmentSession.findUnique({
-        where: { id: row.id },
-        select: SESSION_SELECT,
-      })) as SessionRow
-      revalidatePath("/recruitment", "layout")
-      return { ok: true as const, idempotent: false, session: serialize(fresh, serverNow) }
-    })
-  } catch (err) {
-    if (err instanceof SessionConflict) return { ok: false, error: err.message, conflict: err.conflict }
-    return denied(err)
-  }
-}
 
 // ---------------------------------------------------------------------------
 // Reopen: admin repair for a wrongly-completed session

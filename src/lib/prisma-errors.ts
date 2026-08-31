@@ -20,10 +20,42 @@ export function isUniqueViolation(err: unknown): boolean {
 // enum type does not. In practice this is always an unapplied migration -- the
 // generated client and the schema agree, and only the deployed database disagrees.
 export function isSchemaDrift(err: unknown): boolean {
-  if (code(err) === "P2007") return true
-  return /invalid input value for enum|column .* does not exist|relation .* does not exist/i.test(
+  // P2007 validation, P2021 missing table, P2022 missing column. Prisma words
+  // P2021 as "The table `X` does not exist", which the driver-level "relation ...
+  // does not exist" pattern below does NOT match -- so a table left behind by an
+  // unapplied migration used to fall through to the generic message, which is the
+  // exact outcome this module exists to prevent.
+  const c = code(err)
+  if (c === "P2007" || c === "P2021" || c === "P2022") return true
+  return /invalid input value for enum|column .* does not exist|relation .* does not exist|table .* does not exist/i.test(
     message(err),
   )
+}
+
+// A short, safe handle on one failure.
+//
+// Everything that is not a known-and-named failure ends at "Something went wrong",
+// and nothing tied the string an operator reads off the screen to the stack trace
+// in the runtime log. Diagnosing one then meant guessing. Now the operator quotes
+// six characters and it greps straight to the exception.
+//
+// Carries no data: a random handle, plus the Prisma error code when there is one,
+// which is an identifier like "P2028", never a message or a value.
+export interface FailureRef {
+  ref: string
+  code: string | null
+}
+
+export function failureRef(err: unknown): FailureRef {
+  return {
+    ref: Math.random().toString(36).slice(2, 8),
+    code: code(err),
+  }
+}
+
+// The one place the generic message is written, so all six action files agree.
+export function unexpectedFailureMessage(ref: FailureRef): string {
+  return `Something went wrong (ref ${ref.ref}${ref.code ? ` · ${ref.code}` : ""}). Reload and try again, and quote that reference if it keeps happening.`
 }
 
 // Says which deploy step was missed, because that is the actionable part.

@@ -102,13 +102,19 @@ function versionConflict(s: SessionSnapshot, input: DecisionInput): boolean {
   return input.expectedVersion !== undefined && input.expectedVersion !== s.version
 }
 
-// Does this actor currently hold operational control?
-export function holdsControl(s: SessionSnapshot, actorId: string, serverNow: Date): boolean {
-  if (!s.controllerId) return true // unclaimed
-  if (s.controllerId === actorId) return true
-  // An expired lease is up for grabs: the disconnected-maintainer recovery path.
-  return !!s.controlExpiresAt && s.controlExpiresAt.getTime() <= serverNow.getTime()
-}
+// controllerId records WHO IS DRIVING. It no longer decides who MAY.
+//
+// It used to be a lease: whoever started the session held it, and every other
+// maintainer was refused pause/resume/finish until the lease lapsed or they
+// pressed "Take control". One person marks while the panel deliberates off the
+// site, so the takeover button was ceremony -- and the lease it guarded could
+// lock out the very person trying to finish, with the only way through being a
+// button they had no reason to understand.
+//
+// The column is still written on every action, so "who ran this session" is still
+// answerable, and every audit row already names its actor. What is gone is the
+// refusal. Concurrent drivers are still safe: `expectedVersion` makes a stale
+// tab's click lose rather than overwrite.
 
 export function decideStart(s: SessionSnapshot, input: DecisionInput): SessionDecision {
   if (s.state === "ACTIVE") return "noop" // double-click, retry, or second tab
@@ -122,7 +128,6 @@ export function decidePause(s: SessionSnapshot, input: DecisionInput): SessionDe
   if (s.state === "PAUSED") return "noop"
   if (s.state !== "ACTIVE") return "conflict"
   if (versionConflict(s, input)) return "conflict"
-  if (!holdsControl(s, input.actorId, input.serverNow)) return "conflict"
   return "apply"
 }
 
@@ -130,7 +135,6 @@ export function decideResume(s: SessionSnapshot, input: DecisionInput): SessionD
   if (s.state === "ACTIVE") return "noop"
   if (s.state !== "PAUSED") return "conflict"
   if (versionConflict(s, input)) return "conflict"
-  if (!holdsControl(s, input.actorId, input.serverNow)) return "conflict"
   return "apply"
 }
 
@@ -139,7 +143,6 @@ export function decideFinish(s: SessionSnapshot, input: DecisionInput): SessionD
   if (s.state === "ABORTED") return "conflict"
   if (s.state === "NOT_STARTED") return "conflict" // nothing to finish
   if (versionConflict(s, input)) return "conflict"
-  if (!holdsControl(s, input.actorId, input.serverNow)) return "conflict"
   return "apply"
 }
 
@@ -150,13 +153,6 @@ export function decideAbort(s: SessionSnapshot, input: DecisionInput): SessionDe
   return "apply"
 }
 
-export function decideTakeControl(s: SessionSnapshot, input: DecisionInput): SessionDecision {
-  if (s.controllerId === input.actorId) return "noop"
-  if (s.state === "COMPLETED" || s.state === "ABORTED") return "conflict"
-  // Only a lapsed or unclaimed lease may be taken; a live one belongs to its holder.
-  if (!holdsControl(s, input.actorId, input.serverNow)) return "conflict"
-  return "apply"
-}
 
 // A reopen never mutates the completed row: it creates the next attempt. This
 // keeps the original timings, evaluations and audit trail intact.

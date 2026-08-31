@@ -17,7 +17,12 @@ import {
   validateScores,
   type EvaluationInput,
 } from "@/lib/schemas/recruitment"
-import { isSchemaDrift, SCHEMA_DRIFT_MESSAGE } from "@/lib/prisma-errors"
+import {
+  isSchemaDrift,
+  SCHEMA_DRIFT_MESSAGE,
+  failureRef,
+  unexpectedFailureMessage,
+} from "@/lib/prisma-errors"
 
 // Evaluations are append-only. A revision inserts a NEW row and marks the previous
 // one SUPERSEDED in the same transaction: an earlier score is never overwritten,
@@ -91,8 +96,11 @@ function denied(err: unknown): EvaluationResult {
   // database does not have. That is a skipped deploy step, not a bug in
   // here, and saying so is the difference between a two-minute fix and a hunt.
   if (isSchemaDrift(err)) return { ok: false, error: SCHEMA_DRIFT_MESSAGE }
-  console.error("[recruitment/evaluation]", err)
-  return { ok: false, error: "Something went wrong. Reload and try again." }
+  // A reference the operator can read off the screen and quote. It is logged
+  // beside the exception, so diagnosing the next one is a grep rather than a hunt.
+  const ref = failureRef(err)
+  console.error("[recruitment/evaluation]", ref.ref, ref.code ?? "-", err)
+  return { ok: false, error: unexpectedFailureMessage(ref) }
 }
 
 interface Target {

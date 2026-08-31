@@ -762,15 +762,97 @@ assert.equal(
     // The GUARD, not the import line -- matching the import made this vacuous.
     const guard = /if \(isSchemaDrift\((?:err|error)\)\) return \{ ok: false, error: SCHEMA_DRIFT_MESSAGE \}/
     assert.match(src, guard, `${file} must tell an operator when the database is behind`)
-    // And it has to come BEFORE the generic fallback, or it never runs.
+    // And it has to come BEFORE the generic fallback, or it never runs. The
+    // fallback is now unexpectedFailureMessage(), which is the single place the
+    // generic string is written, so all six files phrase it identically.
+    const fallback = src.indexOf("unexpectedFailureMessage(ref)")
+    assert.ok(fallback > -1, `${file} must use the shared generic-failure message`)
     assert.ok(
-      src.search(guard) < src.indexOf("Something went wrong"),
+      src.search(guard) < fallback,
       `${file} must check for drift before falling back to the generic message`,
+    )
+    // Every generic failure carries a reference the operator can quote, and that
+    // reference is logged beside the exception. Without it, "Something went wrong"
+    // is unbacktrackable -- which is what made the GD-finish report a hunt.
+    assert.match(
+      src,
+      /const ref = failureRef\((?:err|error)\)/,
+      `${file} must mint a reference for an unexpected failure`,
+    )
+    assert.match(
+      src,
+      /console\.error\("\[[^"]+\]", ref\.ref, ref\.code \?\? "-", (?:err|error)\)/,
+      `${file} must log that reference beside the exception`,
     )
   }
   // The message has to name the command, or it is just a nicer dead end.
   const errors = readFileSync("src/lib/prisma-errors.ts", "utf8")
   assert.match(errors, /npm run db:deploy/, "the drift message must name the fix")
+}
+
+// --- finishing is not a per-candidate write storm -------------------------
+//
+// The finish transaction used to issue five round trips per candidate: an update
+// and an audit insert to promote each draft, then a handoff and an audit insert
+// per advancing candidate. Prisma's default interactive ceiling is five seconds,
+// which is free in-process and thin against a remote database, so a large enough
+// panel could run out of budget mid-finish. Only the guarded stage move stays
+// per-candidate; everything else goes out in one call.
+{
+  const src = readFileSync("src/app/(recruitment)/recruitment/session-actions.ts", "utf8")
+  assert.match(src, /\{ timeout: 30_000 \}/, "the finish transaction must set its own ceiling")
+  assert.match(src, /auditRecruitmentManyTx\(/, "audit rows must be written in one call")
+  assert.match(src, /tx\.recruitmentHandoff\.createMany/, "so must handoffs")
+  assert.match(
+    src,
+    /tx\.recruitmentEvaluation\.updateMany\(\{\s*where: \{ id: \{ in: promotable/,
+    "drafts must be promoted in one call, not one per draft",
+  )
+
+  // The advancing loop keeps exactly ONE write: the stage move, which is guarded
+  // on that candidate's own stage and version and cannot be expressed in bulk.
+  const loop = src.slice(
+    src.indexOf("for (const candidate of advancing)"),
+    src.indexOf("if (handoffs.length > 0)"),
+  )
+  assert.ok(loop.length > 0, "could not find the advancing loop")
+  assert.equal(
+    (loop.match(/await tx\./g) ?? []).length,
+    1,
+    "only the guarded stage move may remain inside the per-candidate loop",
+  )
+
+  // #87's guarantee has to survive the batching: nothing is written until the
+  // whole roster is settled, because returning from a transaction COMMITS.
+  assert.ok(
+    src.indexOf("Choose Selected, Hold or Reject for") < src.indexOf("Settled. Now write"),
+    "the refusal must still come before any promotion is written",
+  )
+}
+
+// --- one person drives; controllerId records, it does not gate --------------
+{
+  const session = readFileSync("src/lib/recruitment/session.ts", "utf8")
+  assert.doesNotMatch(session, /holdsControl/, "the control lease must no longer gate anything")
+  assert.doesNotMatch(session, /decideTakeControl/, "and the takeover decision is gone")
+  // Still recorded: who ran the session is an audit question, and STALE reads the
+  // expiry. Only the refusal was removed.
+  assert.match(session, /controlExpiresAt/, "the lease columns are still read for staleness")
+
+  const actions = readFileSync("src/app/(recruitment)/recruitment/session-actions.ts", "utf8")
+  assert.doesNotMatch(actions, /takeSessionControl/, "the action is gone")
+  assert.match(actions, /controllerId: ctx\.userId/, "but the controller is still recorded")
+
+  const controls = readFileSync(
+    "src/app/(recruitment)/recruitment/_components/session-controls.tsx",
+    "utf8",
+  )
+  assert.doesNotMatch(controls, /takeControl/i, "and so is the button")
+  // It used to print a raw user id at the bottom of the card.
+  assert.doesNotMatch(controls, /session\?\.controllerId\}/, "no raw cuid on screen")
+
+  const permissions = readFileSync("src/lib/recruitment/permissions.ts", "utf8")
+  assert.doesNotMatch(permissions, /session\.takeControl/, "the capability is gone too")
 }
 
 console.log("recruitment pipeline checks passed (three-way decisions, final selections, popups)")

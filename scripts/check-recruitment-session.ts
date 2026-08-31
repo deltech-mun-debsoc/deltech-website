@@ -19,11 +19,9 @@ import {
   decideReopen,
   decideResume,
   decideStart,
-  decideTakeControl,
   displayState,
   elapsedMs,
   formatElapsed,
-  holdsControl,
   isStale,
   nextControlExpiry,
   skewCorrectedNow,
@@ -135,32 +133,41 @@ assert.equal(decideFinish(s({ state: "ABORTED" }), input()), "conflict")
 // A paused session can be finished directly.
 assert.equal(decideFinish(s({ state: "PAUSED", pausedAt: at(MIN), ...mine }), input()), "apply")
 
-// ── Two maintainers cannot both control one session ────────────────────────
+// ── controllerId records who is driving; it does NOT gate who may ──────────
+//
+// It used to be a lease: whoever started the session owned it, and everyone else
+// was refused until it lapsed or they pressed "Take control". One person marks
+// while the panel deliberates off the site, so that button was ceremony -- and
+// the lease behind it could lock out the very person trying to finish. The gate
+// is gone; the column is still written, so "who ran this" is still answerable.
 const heldByOther = s({
   state: "ACTIVE",
   controllerId: OTHER,
   controlExpiresAt: at(11 * MIN), // lease still live
 })
-assert.equal(holdsControl(heldByOther, ME, at(10 * MIN)), false)
-assert.equal(holdsControl(heldByOther, OTHER, at(10 * MIN)), true)
-assert.equal(decideFinish(heldByOther, input()), "conflict", "cannot end someone else's session")
-assert.equal(decidePause(heldByOther, input()), "conflict")
-assert.equal(decideResume({ ...heldByOther, state: "PAUSED", pausedAt: at(MIN) }, input()), "conflict")
-assert.equal(decideTakeControl(heldByOther, input()), "conflict", "a live lease is not up for grabs")
-// The holder themselves is fine.
+assert.equal(
+  decideFinish(heldByOther, input()),
+  "apply",
+  "a live lease held by someone else must NOT block finishing",
+)
+assert.equal(decidePause(heldByOther, input()), "apply")
+assert.equal(
+  decideResume({ ...heldByOther, state: "PAUSED", pausedAt: at(MIN) }, input()),
+  "apply",
+)
+// The holder themselves is obviously still fine.
 assert.equal(decideFinish(heldByOther, input({ actorId: OTHER })), "apply")
-
-// ── A disconnected maintainer's session can be recovered ───────────────────
+// An abandoned session needs no recovery step any more: anyone permitted closes it.
 const lapsed = s({ state: "ACTIVE", controllerId: OTHER, controlExpiresAt: at(9 * MIN) })
-assert.equal(holdsControl(lapsed, ME, at(10 * MIN)), true, "an expired lease is claimable")
-assert.equal(decideTakeControl(lapsed, input()), "apply")
-assert.equal(decideFinish(lapsed, input()), "apply", "another maintainer can close an abandoned session")
-// Taking control you already hold is a no-op.
-assert.equal(decideTakeControl(s({ state: "ACTIVE", controllerId: ME }), input()), "noop")
-// An unclaimed session is controllable by anyone permitted.
-assert.equal(holdsControl(s({ state: "ACTIVE" }), ME, at(10 * MIN)), true)
-// Control is meaningless once the session is over.
-assert.equal(decideTakeControl(done, input()), "conflict")
+assert.equal(decideFinish(lapsed, input()), "apply")
+
+// Concurrency is still guarded -- by the version, which is what actually stops a
+// stale tab from overwriting newer state.
+assert.equal(
+  decideFinish(s({ state: "ACTIVE", version: 4 }), input({ expectedVersion: 2 })),
+  "conflict",
+  "a stale click must still lose",
+)
 assert.equal(nextControlExpiry(T0).getTime(), T0.getTime() + CONTROL_LEASE_MS)
 
 // ── Pause / resume ─────────────────────────────────────────────────────────
