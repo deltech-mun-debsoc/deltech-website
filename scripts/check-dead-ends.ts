@@ -240,6 +240,11 @@ for (const route of [
   assert.match(presenter, /api\/quiz\/sessions\?sessionId=/, "a refreshed presenter must recover the live question")
   assert.match(participant, /localStorage\.setItem\(identityStorageKey/, "a refreshed phone must retain its identity")
   assert.match(participant, /recoverOnly: true/, "a refreshed phone must recover its existing answer without creating one")
+  assert.match(
+    participant,
+    /submittedRef\.current = true[\s\S]{0,500}?setAppState\("submitted"\)[\s\S]{0,1000}?keepalive: true/,
+    "a phone must acknowledge a tap immediately while its durable write finishes across reloads",
+  )
   assert.match(participant, /setInterval\(\(\) => void catchUp\(false\), 5_000\)/, "phones must reconcile missed realtime events")
   assert.match(answers, /FOR SHARE/, "answer, lock and end must not have a last-millisecond race")
   assert.match(answers, /pendingReveal: true/, "the answer API must not leak correctness before reveal")

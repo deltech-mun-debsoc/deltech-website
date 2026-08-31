@@ -36,7 +36,10 @@ export function VizMCQ({ tally, config, theme, revealedIndices, layout = "BARS" 
                 <span className="text-xl font-black">{pct}%</span>
                 <span className="ml-2 text-[0.65rem] font-bold uppercase opacity-50">{counts[i] ?? 0}</span>
               </div>
-              <div className="relative flex h-full min-h-0 w-full items-end overflow-hidden" style={{ background: surface.track }}>
+              <div
+                className="relative flex h-full min-h-0 w-full items-end overflow-hidden border-b"
+                style={{ borderColor: surface.border }}
+              >
                   <div
                     className="absolute inset-x-0 bottom-0 transition-[height,background-color] duration-500 ease-out motion-reduce:transition-none"
                     style={{

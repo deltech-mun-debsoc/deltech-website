@@ -591,6 +591,11 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
     const submissionAttempt = ++submissionAttemptRef.current
     submittedRef.current = true
     setSubmitting(true)
+    setMissed(false)
+    // A tap should feel instant even when the free database tier is absorbing
+    // an auditorium burst. Lock the phone locally now; the server remains the
+    // authority and sends us back to the question if it rejects the answer.
+    setAppState("submitted")
 
     const requestBody = JSON.stringify({ sessionId, slideId, nickname, avatar, answer })
     const retryStartedAt = Date.now()
@@ -603,6 +608,9 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: requestBody,
+          // Let the small answer request finish if the participant backgrounds
+          // or reloads the tab immediately after tapping.
+          keepalive: true,
         })
       } catch {
         if (submissionAttemptRef.current === submissionAttempt) {
