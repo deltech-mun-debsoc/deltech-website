@@ -161,7 +161,7 @@ export function QuestionScreen({
 
       {/* Prompt */}
       <div className="relative px-9 pb-4 pt-5">
-        <h1 className="max-w-[28ch] font-heading text-[clamp(2.25rem,4.2vw,4.75rem)] leading-[1.02] tracking-[-0.035em]">
+        <h1 className="max-w-[32ch] font-heading text-[clamp(1.9rem,3.6vw,4.1rem)] leading-[1.06] tracking-[-0.03em]">
           {slide.prompt || t("quiz.builder.promptPlaceholder")}
         </h1>
       </div>
