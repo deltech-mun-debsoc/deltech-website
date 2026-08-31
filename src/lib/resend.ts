@@ -15,6 +15,8 @@ import { BlogChangesRequestedEmail } from "@/emails/blog-changes-requested"
 import { BlogRejectedEmail } from "@/emails/blog-rejected"
 import { StaffInviteEmail } from "@/emails/staff-invite"
 import { MagicLinkEmail } from "@/emails/magic-link"
+import { RecruitmentSelectedEmail } from "@/emails/recruitment-selected"
+import { parseCycleConfig } from "@/lib/schemas/recruitment"
 import { MAGIC_LINK_MAX_AGE_MIN } from "@/lib/magic-link"
 import { deriveEventState } from "@/lib/event-state"
 import { publicPaymentLink } from "@/lib/payments/public-link"
@@ -407,6 +409,51 @@ export async function sendBlogRejected(postId: string): Promise<void> {
       authorName: post.author.name ?? "Author",
       postTitle: post.title,
       reviewNote: post.reviewNote ?? "",
+    }),
+  })
+}
+
+// The "you're in" email for one selected candidate.
+//
+// Deliberately NOT fired by finalisation. The WhatsApp invite usually does not
+// exist yet when the decision is recorded, and a result should not wait on a
+// link -- so sending is its own action the secretariat runs once, when they are
+// ready, over everyone selected.
+export const RECRUITMENT_SELECTED_TEMPLATE = "recruitment-selected"
+
+export async function sendRecruitmentSelected(candidateId: string): Promise<void> {
+  const candidate = await prisma.recruitmentCandidate.findUniqueOrThrow({
+    where: { id: candidateId },
+    select: {
+      fullName: true,
+      email: true,
+      result: true,
+      societyRole: true,
+      cycle: { select: { name: true, config: true } },
+    },
+  })
+
+  // Belt and braces: the action filters on this, but a template that can mail
+  // "you're in" to a rejected candidate is not one to leave unguarded.
+  if (candidate.result !== "SELECTED") {
+    throw new Error(`Candidate ${candidateId} is ${candidate.result}, not SELECTED`)
+  }
+
+  const selection = parseCycleConfig(candidate.cycle.config).selectionEmail
+  const content = await getContent()
+
+  await loggedSend({
+    template: RECRUITMENT_SELECTED_TEMPLATE,
+    toEmail: candidate.email,
+    subject: STRINGS.email.subjects.recruitmentSelected,
+    reactElement: RecruitmentSelectedEmail({
+      fullName: candidate.fullName,
+      cycleName: candidate.cycle.name,
+      societyRole: candidate.societyRole,
+      whatsappUrl: selection.whatsappUrl,
+      note: selection.note,
+      contactEmail: content.secretariatEmail,
+      contacts: content.queryContacts,
     }),
   })
 }

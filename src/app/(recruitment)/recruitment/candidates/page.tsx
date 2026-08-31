@@ -9,6 +9,8 @@ import { t } from "@/content/strings"
 import { RecruitmentPageHeader } from "../../_components/page-header"
 import { LiveRefresh } from "@/components/recruitment/live-refresh"
 import { CandidatesList } from "../_components/candidates-list"
+import { SelectionActions } from "../_components/selection-actions"
+import { selectionEmailStatus } from "../selection-email-actions"
 import type { CandidateResult, CandidateStage, Prisma } from "@/generated/prisma/client"
 
 const STAGES: CandidateStage[] = [
@@ -87,6 +89,9 @@ export default async function CandidatesPage({
   //
   // ponytail: ~250 bytes per row, so a few hundred candidates is ~60 KB. Paginate
   // on the server again if a cycle ever runs to thousands.
+  // Returns null for anyone who may not send, which is what hides the control.
+  const emailStatus = await selectionEmailStatus(cycle.id)
+
   const candidates = await prisma.recruitmentCandidate.findMany({
     where,
     orderBy: [{ fullName: "asc" }],
@@ -125,7 +130,15 @@ export default async function CandidatesPage({
         eyebrow={cycle.name}
         title={t("recruitment.candidates.title")}
         description={t("recruitment.candidates.description")}
-      />
+      >
+        <SelectionActions
+          cycleId={cycle.id}
+          // A JC's list is scoped to their own panels, so their "export all" would
+          // be a partial cycle presented as the whole thing. Unscoped viewers only.
+          canExport={scopedGroups === null}
+          email={emailStatus}
+        />
+      </RecruitmentPageHeader>
 
       <CandidatesList
         candidates={candidates.map(({ groupMemberships, ...candidate }) => ({

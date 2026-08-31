@@ -151,11 +151,36 @@ const read = (p: string) => readFileSync(p, "utf8")
 // --- things that were already right and must stay that way ----------------
 {
   // Delegate PII export is staff-only.
+  //
+  // The route now has two doors, because recruitment authority is per-cycle and
+  // independent of the dashboard role: a recruitment ADMIN may hold a
+  // SUB_MAINTAINER app account and still need the candidate sheet. Both doors are
+  // asserted, and so is the fact that EVERY other entity still needs the
+  // dashboard one -- that second assertion is what stops the recruitment door
+  // from becoming a way to export the delegate list.
   const exportRoute = read("src/app/api/admin/export/route.ts")
   assert.match(
     exportRoute,
-    /role !== "ADMIN" && role !== "MAINTAINER"/,
-    "the export route must stay gated to staff",
+    /role === "ADMIN" \|\| role === "MAINTAINER"/,
+    "the export route must stay gated to dashboard staff",
+  )
+  assert.match(
+    exportRoute,
+    /atLeast\(recruitmentCtx\?\.role, "MAINTAINER"\)/,
+    "the recruitment door must require a recruitment MAINTAINER or above, never a JC",
+  )
+  // Delegates and the portfolio matrix: dashboard staff only, no second door.
+  assert.match(
+    exportRoute,
+    /if \(!isDashboardStaff\) \{\s*return new NextResponse\("Unauthorized", \{ status: 401 \}\)/,
+    "every non-candidate export must still require a dashboard role",
+  )
+  // And the candidate branch must return before that check, or the second door
+  // is decorative.
+  assert.ok(
+    exportRoute.indexOf('return exportCandidates(format, sp.get("status"), cycleId)') <
+      exportRoute.indexOf("if (!isDashboardStaff) {"),
+    "the candidate export must be reachable through the recruitment door",
   )
 
   // Webhooks verify signatures timing-safely and fail closed on a missing secret.

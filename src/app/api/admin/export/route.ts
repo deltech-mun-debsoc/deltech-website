@@ -3,6 +3,8 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import * as XLSX from "xlsx"
 import { buildDelegateWhere } from "@/app/(admin)/admin/registrations/_lib/build-where"
+import { resolveCycleContext } from "@/lib/recruitment/authz"
+import { atLeast } from "@/lib/recruitment/permissions"
 
 function sheetResponse(
   rows: Record<string, string | number>[],
@@ -125,9 +127,7 @@ async function exportMatrix(format: "csv" | "xlsx", committeeId?: string | null)
 export async function GET(request: NextRequest) {
   const session = await auth()
   const role = (session?.user as { role?: string } | undefined)?.role
-  if (!session || (role !== "ADMIN" && role !== "MAINTAINER")) {
-    return new NextResponse("Unauthorized", { status: 401 })
-  }
+  const isDashboardStaff = !!session && (role === "ADMIN" || role === "MAINTAINER")
 
   const sp = request.nextUrl.searchParams
   const format = sp.get("format") === "csv" ? "csv" : "xlsx"
@@ -135,7 +135,22 @@ export async function GET(request: NextRequest) {
   // "applicants" is kept as an alias so existing bookmarks and the operator guide
   // keep working after the recruitment refactor.
   if (sp.get("entity") === "candidates" || sp.get("entity") === "applicants") {
-    return exportCandidates(format, sp.get("status"), sp.get("cycleId"))
+    // Recruitment authority is per-cycle and independent of the dashboard role: a
+    // recruitment ADMIN can be a SUB_MAINTAINER app account, which this route used
+    // to refuse outright. Either door opens it, and neither is widened -- a JC is
+    // still out, because their candidate list is scoped to their own panels and an
+    // export of part of the cycle presented as the whole is worse than none.
+    const cycleId = sp.get("cycleId")
+    const recruitmentCtx = cycleId ? await resolveCycleContext(cycleId) : null
+    const isRecruitmentStaff = atLeast(recruitmentCtx?.role, "MAINTAINER")
+    if (!isDashboardStaff && !isRecruitmentStaff) {
+      return new NextResponse("Unauthorized", { status: 401 })
+    }
+    return exportCandidates(format, sp.get("status"), cycleId)
+  }
+
+  if (!isDashboardStaff) {
+    return new NextResponse("Unauthorized", { status: 401 })
   }
   if (sp.get("entity") === "matrix") {
     return exportMatrix(format, sp.get("committeeId"))

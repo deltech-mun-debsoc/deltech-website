@@ -33,6 +33,9 @@ export function CycleConfigForm({
   const setStages = (patch: Partial<RecruitmentCycleConfig["stages"]>) =>
     setConfig((c) => ({ ...c, stages: { ...c.stages, ...patch } }))
 
+  const setSelection = (patch: Partial<RecruitmentCycleConfig["selectionEmail"]>) =>
+    setConfig((c) => ({ ...c, selectionEmail: { ...c.selectionEmail, ...patch } }))
+
   const setCriteria = (key: "gdCriteria" | "piCriteria", next: EvaluationCriterion[]) =>
     setConfig((c) => ({ ...c, [key]: next }))
 
@@ -48,8 +51,55 @@ export function CycleConfigForm({
     })
   }
 
+  // Only an http(s) URL is accepted server-side, so say so before the save fails.
+  const link = config.selectionEmail.whatsappUrl.trim()
+  const linkInvalid = link.length > 0 && !/^https?:\/\/\S+$/.test(link)
+
   return (
     <div className="space-y-6">
+      {/* ---- Selection email ---- */}
+      <Card className="space-y-4 p-4">
+        <h2 className="section-label">{t("recruitment.control.selectionEmailTitle")}</h2>
+        <p className="text-xs text-muted-foreground">
+          {t("recruitment.control.selectionEmailHelp")}
+        </p>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="selection-whatsapp" className="text-xs">
+            {t("recruitment.control.selectionWhatsapp")}
+          </Label>
+          <Input
+            id="selection-whatsapp"
+            type="url"
+            inputMode="url"
+            placeholder="https://chat.whatsapp.com/..."
+            disabled={disabled}
+            aria-invalid={linkInvalid}
+            value={config.selectionEmail.whatsappUrl}
+            onChange={(e) => setSelection({ whatsappUrl: e.target.value })}
+          />
+          <p className="text-xs text-muted-foreground">
+            {linkInvalid
+              ? t("recruitment.control.selectionWhatsappInvalid")
+              : t("recruitment.control.selectionWhatsappHint")}
+          </p>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="selection-note" className="text-xs">
+            {t("recruitment.control.selectionNote")}
+          </Label>
+          <Input
+            id="selection-note"
+            disabled={disabled}
+            maxLength={1000}
+            placeholder={t("recruitment.control.selectionNotePlaceholder")}
+            value={config.selectionEmail.note}
+            onChange={(e) => setSelection({ note: e.target.value })}
+          />
+        </div>
+      </Card>
+
       {/* ---- Stage rules ---- */}
       <Card className="space-y-4 p-4">
         <h2 className="section-label">
