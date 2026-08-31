@@ -26,7 +26,6 @@ const RECRUITMENT_DIR = "src/app/(recruitment)"
 // nothing when nobody can invoke it at all.
 const JC_MUST_NOT_REACH = new Set([
   "startSession", "pauseSession", "resumeSession", "finishSession", "abortSession",
-  "takeSessionControl",
   "bypassGd", "moveCandidateStage", "setCandidateResult",
   "createGroup",
   "saveSheetSource", "previewImport", "applyImport",

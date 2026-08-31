@@ -64,6 +64,20 @@ export async function auditRecruitmentTx(db: Db, input: RecruitmentAuditInput): 
   await db.recruitmentAuditEvent.create({ data: toData(input) })
 }
 
+// Many rows, one round trip.
+//
+// Finishing a session writes an audit row per candidate, and each one used to be
+// its own trip inside a transaction with a five-second ceiling. On a database in
+// the same process that is free; on a remote one it is a linear cost that grows
+// with the size of the panel.
+export async function auditRecruitmentManyTx(
+  db: Db,
+  inputs: readonly RecruitmentAuditInput[],
+): Promise<void> {
+  if (inputs.length === 0) return
+  await db.recruitmentAuditEvent.createMany({ data: inputs.map(toData) })
+}
+
 // Outside a transaction: best-effort, mirroring the contract of src/lib/audit.ts.
 // Use this for refusals and read-side events, where failing the user's request
 // because the audit insert failed would be the worse outcome.

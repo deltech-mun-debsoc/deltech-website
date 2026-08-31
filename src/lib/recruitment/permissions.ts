@@ -41,7 +41,6 @@ export type RecruitmentAction =
   | "session.finish"
   | "session.abort"
   | "session.reopen"
-  | "session.takeControl"
   | "session.markAttendance"
   // evaluations
   | "evaluation.draft"
@@ -99,7 +98,6 @@ export const CAPABILITIES: Record<RecruitmentAction, readonly RecruitmentRoleNam
   "session.abort": MAINTAINER_UP,
   // Reopening a session that was wrongly completed rewrites history; admin only.
   "session.reopen": ADMIN_ONLY,
-  "session.takeControl": MAINTAINER_UP,
   "session.markAttendance": ALL,
 
   // A JC can only draft/submit where a maintainer set canEvaluate on their
@@ -185,7 +183,6 @@ const OPERATIONS: readonly RecruitmentAction[] = [
   "session.finish",
   "session.abort",
   "session.reopen",
-  "session.takeControl",
   "session.markAttendance",
   "evaluation.draft",
   "evaluation.submit",

@@ -83,7 +83,6 @@ const MAINTAINER_MAY: RecruitmentAction[] = [
   "session.resume",
   "session.finish",
   "session.abort",
-  "session.takeControl",
   "candidate.advance",
   "candidate.bypassGd",
   "evaluation.submit",

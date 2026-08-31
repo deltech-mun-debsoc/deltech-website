@@ -14,7 +14,12 @@ import {
   recruitmentCycleConfigSchema,
 } from "@/lib/schemas/recruitment"
 import type { RecruitmentRole, Role } from "@/generated/prisma/client"
-import { isSchemaDrift, SCHEMA_DRIFT_MESSAGE } from "@/lib/prisma-errors"
+import {
+  isSchemaDrift,
+  SCHEMA_DRIFT_MESSAGE,
+  failureRef,
+  unexpectedFailureMessage,
+} from "@/lib/prisma-errors"
 
 // The admin CONTROL PLANE for recruitment. Operational screens live under
 // /recruitment; this file only creates and configures cycles, assigns staff,
@@ -39,8 +44,11 @@ function denied(err: unknown): ActionResult {
   // database does not have. That is a skipped deploy step, not a bug in
   // here, and saying so is the difference between a two-minute fix and a hunt.
   if (isSchemaDrift(err)) return { ok: false, error: SCHEMA_DRIFT_MESSAGE }
-  console.error("[admin/recruitment]", err)
-  return { ok: false, error: "Something went wrong. Reload and try again." }
+  // A reference the operator can read off the screen and quote. It is logged
+  // beside the exception, so diagnosing the next one is a grep rather than a hunt.
+  const ref = failureRef(err)
+  console.error("[admin/recruitment]", ref.ref, ref.code ?? "-", err)
+  return { ok: false, error: unexpectedFailureMessage(ref) }
 }
 
 // ---------------------------------------------------------------------------

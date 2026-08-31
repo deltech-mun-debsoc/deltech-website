@@ -17,7 +17,6 @@ import {
   pauseSession,
   resumeSession,
   startSession,
-  takeSessionControl,
   type SerializedSession,
 } from "../session-actions"
 
@@ -86,8 +85,6 @@ export function SessionControls({
   }
 
   const state = session?.state ?? "NOT_STARTED"
-  const controlledByOther =
-    !!session?.controllerId && session.controllerId !== viewerId && state !== "COMPLETED" && state !== "ABORTED"
   const finished = state === "COMPLETED" || state === "ABORTED"
 
   return (
@@ -229,24 +226,6 @@ export function SessionControls({
               </>
             )}
 
-            {/* Recovery path when the assigned maintainer disconnected: their
-                claim lapses and another maintainer can take over. */}
-            {controlledByOther && (
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={pending}
-                onClick={() =>
-                  run(
-                    () =>
-                      takeSessionControl({ sessionId: session.id, expectedVersion: session.version }),
-                    t("recruitment.session.takeControl"),
-                  )
-                }
-              >
-                {t("recruitment.session.takeControl")}
-              </Button>
-            )}
           </div>
         )}
       </div>
@@ -258,11 +237,7 @@ export function SessionControls({
         </p>
       )}
 
-      {controlledByOther && (
-        <p className="mt-3 text-xs text-muted-foreground">
-          {t("recruitment.session.controller")}: {session?.controllerId}
-        </p>
-      )}
+
     </Card>
   )
 }

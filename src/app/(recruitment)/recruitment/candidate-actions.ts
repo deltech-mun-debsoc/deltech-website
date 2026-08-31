@@ -15,7 +15,12 @@ import {
 } from "@/lib/recruitment/transitions"
 import { parseCycleConfig } from "@/lib/schemas/recruitment"
 import { bypassGdSchema, resultMoveSchema, stageMoveSchema } from "@/lib/schemas/recruitment"
-import { isSchemaDrift, SCHEMA_DRIFT_MESSAGE } from "@/lib/prisma-errors"
+import {
+  isSchemaDrift,
+  SCHEMA_DRIFT_MESSAGE,
+  failureRef,
+  unexpectedFailureMessage,
+} from "@/lib/prisma-errors"
 
 // Candidate stage and result changes. Every move goes through the pure state
 // machine in src/lib/recruitment/transitions.ts, is applied as a conditional
@@ -52,8 +57,11 @@ function denied(err: unknown): CandidateResultResponse {
   // database does not have. That is a skipped deploy step, not a bug in
   // here, and saying so is the difference between a two-minute fix and a hunt.
   if (isSchemaDrift(err)) return { ok: false, error: SCHEMA_DRIFT_MESSAGE }
-  console.error("[recruitment/candidate]", err)
-  return { ok: false, error: "Something went wrong. Reload and try again." }
+  // A reference the operator can read off the screen and quote. It is logged
+  // beside the exception, so diagnosing the next one is a grep rather than a hunt.
+  const ref = failureRef(err)
+  console.error("[recruitment/candidate]", ref.ref, ref.code ?? "-", err)
+  return { ok: false, error: unexpectedFailureMessage(ref) }
 }
 
 const CANDIDATE_SELECT = {

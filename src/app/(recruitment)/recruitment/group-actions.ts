@@ -5,7 +5,12 @@ import { prisma } from "@/lib/prisma"
 import { RecruitmentDenied, requireGroupAccess, requireRecruitmentAction } from "@/lib/recruitment/authz"
 import { auditRecruitmentTx, newRequestId } from "@/lib/recruitment/audit"
 import { createGroupSchema, parseCycleConfig } from "@/lib/schemas/recruitment"
-import { isSchemaDrift, SCHEMA_DRIFT_MESSAGE } from "@/lib/prisma-errors"
+import {
+  isSchemaDrift,
+  SCHEMA_DRIFT_MESSAGE,
+  failureRef,
+  unexpectedFailureMessage,
+} from "@/lib/prisma-errors"
 
 // GD / PI group management. A group is a draft roster plus its staff; the session
 // that runs it is a separate row (see session-actions.ts) so a group can be
@@ -35,8 +40,11 @@ function denied(err: unknown): GroupResult {
   // database does not have. That is a skipped deploy step, not a bug in
   // here, and saying so is the difference between a two-minute fix and a hunt.
   if (isSchemaDrift(err)) return { ok: false, error: SCHEMA_DRIFT_MESSAGE }
-  console.error("[recruitment/group]", err)
-  return { ok: false, error: "Something went wrong. Reload and try again." }
+  // A reference the operator can read off the screen and quote. It is logged
+  // beside the exception, so diagnosing the next one is a grep rather than a hunt.
+  const ref = failureRef(err)
+  console.error("[recruitment/group]", ref.ref, ref.code ?? "-", err)
+  return { ok: false, error: unexpectedFailureMessage(ref) }
 }
 
 export async function createGroup(input: {
