@@ -26,6 +26,66 @@ interface ResultData {
   rank: number | null
   streakBonus?: number
   alreadySubmitted?: boolean
+  resultToken?: string
+}
+
+type ReceiptPayload = {
+  version: 1
+  sessionId: string
+  slideId: string
+  nickname: string
+  correct: boolean | null
+  points: number
+  streakBonus: number
+}
+
+function decodeBase64Url(value: string): ArrayBuffer {
+  const padded = value.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(value.length / 4) * 4, "=")
+  const bytes = Uint8Array.from(atob(padded), (char) => char.charCodeAt(0))
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer
+}
+
+async function openResultReceipt(
+  token: string,
+  resultKey: string,
+  sessionId: string,
+  slideId: string,
+  nickname: string,
+): Promise<ResultData | null> {
+  try {
+    const [version, encodedIv, encodedCiphertext, encodedTag] = token.split(".")
+    if (version !== "v1" || !encodedIv || !encodedCiphertext || !encodedTag) return null
+    const ciphertext = new Uint8Array(decodeBase64Url(encodedCiphertext))
+    const tag = new Uint8Array(decodeBase64Url(encodedTag))
+    const sealed = new Uint8Array(ciphertext.length + tag.length)
+    sealed.set(ciphertext)
+    sealed.set(tag, ciphertext.length)
+    const key = await crypto.subtle.importKey("raw", decodeBase64Url(resultKey), "AES-GCM", false, ["decrypt"])
+    const plaintext = await crypto.subtle.decrypt(
+      {
+        name: "AES-GCM",
+        iv: decodeBase64Url(encodedIv),
+        additionalData: new TextEncoder().encode(`${sessionId}:${slideId}`),
+        tagLength: 128,
+      },
+      key,
+      sealed.buffer,
+    )
+    const payload = JSON.parse(new TextDecoder().decode(plaintext)) as ReceiptPayload
+    if (
+      payload.version !== 1 || payload.sessionId !== sessionId || payload.slideId !== slideId ||
+      payload.nickname.toLocaleLowerCase() !== nickname.toLocaleLowerCase()
+    ) return null
+    return {
+      correct: payload.correct,
+      points: payload.points,
+      rank: null,
+      streakBonus: payload.streakBonus,
+      alreadySubmitted: true,
+    }
+  } catch {
+    return null
+  }
 }
 
 interface Props {
@@ -76,6 +136,7 @@ function movementText(delta: number | undefined): string {
 
 export function ParticipantApp({ sessionId, roomCode, initialStatus, presentationMode, presentationTitle }: Props) {
   const identityStorageKey = `quiz:${sessionId}:identity`
+  const receiptStorageKey = `quiz:${sessionId}:receipts`
   const [appState, setAppState] = useState<AppState>(
     initialStatus === "ended" ? "ended" : "nickname"
   )
@@ -127,6 +188,7 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
   const answeredRef = useRef<Set<string>>(new Set())
   const recoveryCheckedRef = useRef<Set<string>>(new Set())
   const revealedResultRef = useRef<Set<string>>(new Set())
+  const receiptRef = useRef<Map<string, string>>(new Map())
   // When this question runs out, as a timestamp rather than a countdown. A
   // decrementing counter is wrong on a phone: setInterval is throttled the
   // moment the browser is backgrounded, so a participant who glanced at a
@@ -137,6 +199,27 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
   // Which slide is on screen, readable from a callback that must not re-subscribe
   // every time it changes.
   const slideIdRef = useRef<string | null>(null)
+
+  const rememberReceipt = useCallback((slideId: string, token: string) => {
+    receiptRef.current.set(slideId, token)
+    try {
+      localStorage.setItem(receiptStorageKey, JSON.stringify(Object.fromEntries(receiptRef.current)))
+    } catch {
+      // The server recovery path remains available when storage is disabled.
+    }
+  }, [receiptStorageKey])
+
+  const revealOwnReceipt = useCallback(async (slideId: string, nick: string, resultKey: string | null | undefined) => {
+    const token = receiptRef.current.get(slideId)
+    if (!token || !resultKey) return false
+    const opened = await openResultReceipt(token, resultKey, sessionId, slideId, nick)
+    if (!opened) return false
+    revealedResultRef.current.add(slideId)
+    setResult(opened)
+    setMissed(false)
+    setAppState("result")
+    return true
+  }, [sessionId])
 
   const recoverOwnResult = useCallback(async (slideId: string, nick: string, ava: string) => {
     try {
@@ -152,6 +235,7 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
       }
       if (!res.ok) return false
       const data = (await res.json()) as ResultData
+      if (data.resultToken) rememberReceipt(slideId, data.resultToken)
       submittedRef.current = true
       answeredRef.current.add(slideId)
       if (data.correct !== null) revealedResultRef.current.add(slideId)
@@ -162,7 +246,7 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
     } catch {
       return false
     }
-  }, [sessionId])
+  }, [sessionId, rememberReceipt])
 
   // Put a question on screen. Reached two ways: the host's GOTO broadcast, and
   // the recovery fetch below. `remaining` is the server's own count of the time
@@ -248,7 +332,11 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
           setRevealedAnswers(payload.correctAnswers)
           setRevealed(true)
           const slideId = slideIdRef.current
-          if (slideId && submittedRef.current) void recoverOwnResult(slideId, nick, ava)
+          if (slideId && submittedRef.current) {
+            void revealOwnReceipt(slideId, nick, payload.resultKey).then((opened) => {
+              if (!opened) void recoverOwnResult(slideId, nick, ava)
+            })
+          }
         } else if (payload.event === "LEADERBOARD") {
           setLbEntries(payload.entries)
           setLbFinal(payload.final)
@@ -281,7 +369,7 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
       })
 
     channelRef.current = channel
-  }, [roomCode, adoptSlide, recoverOwnResult])
+  }, [roomCode, adoptSlide, recoverOwnResult, revealOwnReceipt])
 
   function rememberIdentity(nick: string, ava: string) {
     try {
@@ -320,6 +408,17 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
       localStorage.removeItem(identityStorageKey)
     }
   }, [avatar, identityStorageKey, initialStatus, joinChannel, nickname])
+
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(localStorage.getItem(receiptStorageKey) ?? "{}") as Record<string, unknown>
+      receiptRef.current = new Map(
+        Object.entries(saved).filter((entry): entry is [string, string] => typeof entry[1] === "string"),
+      )
+    } catch {
+      localStorage.removeItem(receiptStorageKey)
+    }
+  }, [receiptStorageKey])
 
   useEffect(() => {
     return () => {
@@ -419,6 +518,7 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
             revealed: boolean
             correctIndices: number[]
             correctAnswers: string[]
+            resultKey: string | null
           } | null
         }
         if (data.session.status === "ended") {
@@ -432,10 +532,7 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
         if (slideIdRef.current !== live.slide.id) {
           adoptSlide(live.slide, live.slideIndex, live.slideCount, live.secondsLeft)
         }
-        if (
-          !recoveryCheckedRef.current.has(live.slide.id) ||
-          (live.revealed && !revealedResultRef.current.has(live.slide.id))
-        ) {
+        if (!recoveryCheckedRef.current.has(live.slide.id)) {
           await recoverOwnResult(live.slide.id, nickname, avatar)
         }
         // Reconcile every state that realtime can drop. This also extends the
@@ -455,6 +552,12 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
         if (live.revealed) {
           setRevealedAnswers(live.correctAnswers)
           setRevealed(true)
+          if (submittedRef.current && !revealedResultRef.current.has(live.slide.id)) {
+            const opened = await revealOwnReceipt(live.slide.id, nickname, live.resultKey)
+            // A phone that reloaded without local storage still has a safe,
+            // idempotent server fallback. Normal reveal traffic never gets here.
+            if (!opened) await recoverOwnResult(live.slide.id, nickname, avatar)
+          }
         }
       } catch {
         // Offline, or the request was cut short. The next wake tries again.
@@ -468,7 +571,7 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
       clearInterval(interval)
       document.removeEventListener("visibilitychange", onVisible)
     }
-  }, [nickname, avatar, sessionId, adoptSlide, recoverOwnResult])
+  }, [nickname, avatar, sessionId, adoptSlide, recoverOwnResult, revealOwnReceipt])
 
   // A buzz at ten, at five, and at nothing left. Half the room is looking at the
   // projector, not at their hand: the phone has to be able to interrupt them.
@@ -533,6 +636,7 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
       answeredRef.current.add(slideId)
       recoveryCheckedRef.current.add(slideId)
       const data = (await res.json()) as ResultData
+      if (data.resultToken) rememberReceipt(slideId, data.resultToken)
       setResult(data)
       setAppState("result")
     } else if (res.status === 410) {

@@ -13,6 +13,7 @@
     "db:seed:staging": "ALLOW_DESTRUCTIVE_SEED=1 tsx prisma/seed-staging.ts",
     "check:strings": "node scripts/check-strings.mjs",
     "check": "for f in scripts/check-*.ts; do npx tsx \"$f\" || exit 1; done && node scripts/check-strings.mjs",
+    "load:quiz": "tsx scripts/load-quiz.ts",
     "db:deploy": "prisma migrate deploy",
     "db:status": "prisma migrate status",
     "build:vercel": "npm run build"

@@ -301,12 +301,12 @@ export function PresenterApp({ session, presentation, slides }: Props) {
   function handleReveal() {
     if (!currentSlide || !isScoredType(currentSlide.type)) return
     void runHostAction(async () => {
-      await revealSlide(session.id, currentSlide.id)
+      const resultKey = await revealSlide(session.id, currentSlide.id)
       const indices = correctIndicesForSlide(currentSlide)
       const correctAnswers = correctAnswersForSlide(currentSlide)
       setRevealed(true)
       setRevealedIndices(indices)
-      broadcast({ event: "REVEAL", correctIndices: indices, correctAnswers })
+      broadcast({ event: "REVEAL", correctIndices: indices, correctAnswers, resultKey })
       // Build the standings while everyone reads the answer. By the time the
       // host clicks Next, the leaderboard is normally already available.
       const prefetch = computeLeaderboard(session.id)

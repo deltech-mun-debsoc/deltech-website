@@ -1,40 +1,29 @@
 import { NextResponse } from "next/server"
-import { prisma } from "@/lib/prisma"
 import { auth } from "@/lib/auth"
 import { createOrGetQuizSession } from "@/lib/quiz-session"
 import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit"
 import { parseConfig, redactSlide } from "@/lib/quiz-types"
 import type { SlideType } from "@/lib/quiz-types"
 import { correctAnswersForSlide, correctIndicesForSlide, secondsUntil, slideTimerSeconds } from "@/lib/quiz-live"
+import { cachedLiveQuizSnapshot, liveQuizSnapshotByCode, type LiveQuizSnapshot } from "@/lib/quiz-cache"
+import { quizResultRevealKey } from "@/lib/quiz-result-receipt"
 
 // The live question, redacted, with the server's own count of the time left on
 // it. Null when nothing is on screen yet.
-async function liveSlide(session: {
-  presentationId: string
-  currentSlideId: string | null
-  currentSlideStartedAt: Date | null
-  currentSlideDeadlineAt: Date | null
-  currentSlideLockedAt: Date | null
-  currentSlideRevealedAt: Date | null
-}) {
-  if (!session.currentSlideId) return null
+function asDate(value: Date | string | null): Date | null {
+  return value === null ? null : value instanceof Date ? value : new Date(value)
+}
 
-  const [row, slideCount] = await Promise.all([
-    prisma.slide.findUnique({
-      where: { id: session.currentSlideId },
-      select: { id: true, order: true, type: true, prompt: true, config: true },
-    }),
-    prisma.slide.count({ where: { presentationId: session.presentationId } }),
-  ])
-  if (!row) return null
+function liveSlide(session: LiveQuizSnapshot) {
+  if (!session.currentSlideId || !session.slideId || session.slideOrder === null || !session.slideType) return null
 
-  const type = row.type as SlideType
+  const type = session.slideType as SlideType
   const fullSlide = {
-    id: row.id,
-    order: row.order,
+    id: session.slideId,
+    order: session.slideOrder,
     type,
-    prompt: row.prompt,
-    config: parseConfig(row.config, type),
+    prompt: session.slidePrompt ?? "",
+    config: parseConfig(session.slideConfig, type),
   }
   const slide = redactSlide(fullSlide)
 
@@ -42,18 +31,21 @@ async function liveSlide(session: {
   // from anything the phone believes, so a phone rejoining picks up the same
   // deadline everyone else is on.
   const timer = slideTimerSeconds(fullSlide)
-  const secondsLeft = session.currentSlideDeadlineAt
-    ? secondsUntil(session.currentSlideDeadlineAt, session.currentSlideLockedAt ?? new Date())
-    : timer !== null && session.currentSlideStartedAt
-      ? Math.max(0, timer - (Date.now() - session.currentSlideStartedAt.getTime()) / 1000)
+  const deadline = asDate(session.currentSlideDeadlineAt)
+  const lockedAt = asDate(session.currentSlideLockedAt)
+  const startedAt = asDate(session.currentSlideStartedAt)
+  const secondsLeft = deadline
+    ? secondsUntil(deadline, lockedAt ?? new Date())
+    : timer !== null && startedAt
+      ? Math.max(0, timer - (Date.now() - startedAt.getTime()) / 1000)
       : null
 
   const revealed = session.currentSlideRevealedAt !== null
 
   return {
     slide,
-    slideIndex: row.order,
-    slideCount,
+    slideIndex: session.slideOrder,
+    slideCount: session.slideCount,
     secondsLeft,
     // A timer reaching zero closes voting even if the presenter's browser was
     // asleep and never got a chance to persist the automatic lock yet.
@@ -61,6 +53,7 @@ async function liveSlide(session: {
     revealed,
     correctIndices: revealed ? correctIndicesForSlide(fullSlide) : [],
     correctAnswers: revealed ? correctAnswersForSlide(fullSlide) : [],
+    resultKey: revealed ? quizResultRevealKey(session.id, session.slideId) : null,
   }
 }
 
@@ -87,26 +80,10 @@ export async function GET(request: Request) {
   // A CUID is unguessable and comes from the already-rendered participant page,
   // so connected phones can cheaply reconcile state without consuming the
   // six-digit room-code enumeration budget every five seconds.
-  const session = await prisma.quizSession.findFirst({
-    where: sessionId ? { id: sessionId } : { roomCode: code! },
-    select: {
-      id: true,
-      roomCode: true,
-      status: true,
-      presentationId: true,
-      currentSlideId: true,
-      currentSlideStartedAt: true,
-      currentSlideDeadlineAt: true,
-      currentSlideLockedAt: true,
-      currentSlideRevealedAt: true,
-    },
-  })
+  const session = sessionId
+    ? await cachedLiveQuizSnapshot(sessionId)
+    : await liveQuizSnapshotByCode(code!)
   if (!session) return NextResponse.json({ error: "not_found" }, { status: 404 })
-
-  const presentation = await prisma.presentation.findUnique({
-    where: { id: session.presentationId },
-    select: { mode: true, title: true },
-  })
 
   // Which question is live, and how long is left on it.
   //
@@ -117,7 +94,7 @@ export async function GET(request: Request) {
   // doubles as the answer for latecomers.
   //
   // The slide goes out redacted, exactly as the broadcast does.
-  const live = await liveSlide(session)
+  const live = liveSlide(session)
 
   return NextResponse.json({
     session: {
@@ -126,7 +103,7 @@ export async function GET(request: Request) {
       status: session.status,
       presentationId: session.presentationId,
     },
-    presentationMode: presentation?.mode ?? "POLL",
+    presentationMode: session.presentationMode ?? "POLL",
     live,
   })
 }

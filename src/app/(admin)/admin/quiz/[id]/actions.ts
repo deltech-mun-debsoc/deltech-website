@@ -1,10 +1,12 @@
 "use server"
 
+import { updateTag } from "next/cache"
 import { prisma } from "@/lib/prisma"
 import { requireStaff } from "@/lib/authz"
 import type { Prisma } from "@/generated/prisma/client"
 import { DEFAULT_CONFIGS, parseConfig } from "@/lib/quiz-types"
 import type { SlideType, SlideData, PresentationTheme } from "@/lib/quiz-types"
+import { quizSlideCacheTag } from "@/lib/quiz-cache"
 
 export async function updatePresentationMeta(
   id: string,
@@ -70,6 +72,7 @@ export async function updateSlide(
         ...(data.config !== undefined && { config: data.config as Prisma.InputJsonValue }),
       },
     })
+    updateTag(quizSlideCacheTag(slideId))
     return {}
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Failed." }
@@ -80,6 +83,7 @@ export async function deleteSlide(slideId: string): Promise<{ error?: string }> 
   await requireStaff()
   try {
     const deleted = await prisma.slide.delete({ where: { id: slideId } })
+    updateTag(quizSlideCacheTag(slideId))
     const remaining = await prisma.slide.findMany({
       where: { presentationId: deleted.presentationId },
       orderBy: { order: "asc" },

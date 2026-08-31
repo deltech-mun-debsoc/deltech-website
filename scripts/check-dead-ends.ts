@@ -201,7 +201,7 @@ for (const route of [
   const answersViz = read("src/app/(admin)/admin/quiz/[id]/present/_components/viz-mcq.tsx")
 
   assert.match(types, /event: "REVEAL"; correctIndices: number\[\]; correctAnswers: string\[\]/, "reveal must carry safe answer copy")
-  assert.match(presenter, /broadcast\(\{ event: "REVEAL", correctIndices: indices, correctAnswers \}\)/, "answers may be sent only in the reveal event")
+  assert.match(presenter, /broadcast\(\{ event: "REVEAL", correctIndices: indices, correctAnswers, resultKey \}\)/, "answers may be sent only in the reveal event")
   assert.match(participant, /payload\.correctAnswers/, "the phone must adopt the host's revealed answer")
   assert.match(participant, /const showVerdict = revealed/, "a phone verdict must remain gated by host reveal")
   assert.match(participant, /stableFeedback/, "feedback copy must not flicker between renders")
