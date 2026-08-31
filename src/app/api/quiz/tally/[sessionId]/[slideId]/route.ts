@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { auth } from "@/lib/auth"
 import { parseConfig } from "@/lib/quiz-types"
 import { normalizeAnswerText } from "@/lib/quiz-scoring"
 import type {
@@ -17,8 +18,23 @@ export async function GET(
 ) {
   const { sessionId, slideId } = await props.params
 
-  const slide = await prisma.slide.findUnique({
-    where: { id: slideId },
+  // Tallies reveal the distribution and, for typed/numeric questions, enough
+  // information to infer the answer. Keep this presenter-only instead of
+  // handing every participant a public answer oracle.
+  const session = await auth()
+  const role = (session?.user as { role?: string } | undefined)?.role
+  if (!session || (role !== "ADMIN" && role !== "MAINTAINER")) {
+    return NextResponse.json({ error: "unauthorized" }, { status: 401 })
+  }
+
+  const quizSession = await prisma.quizSession.findUnique({
+    where: { id: sessionId },
+    select: { presentationId: true },
+  })
+  if (!quizSession) return NextResponse.json({ error: "not_found" }, { status: 404 })
+
+  const slide = await prisma.slide.findFirst({
+    where: { id: slideId, presentationId: quizSession.presentationId },
     select: { type: true, config: true },
   })
   if (!slide) return NextResponse.json({ error: "not_found" }, { status: 404 })

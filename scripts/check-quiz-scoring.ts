@@ -375,17 +375,16 @@ import {
   assert.match(page, /resumeSession\(id, requested\)/, "and resume it by id")
   assert.match(page, /redirect\(`\/admin\/quiz\/\$\{id\}\/present\?session=/, "and pin a new run into the URL")
 
-  // A 409 means "a response exists for this nickname and slide" and nothing
-  // more. Guessing "someone took your name" threw people back to the nickname
-  // screen every time the host stepped backwards.
+  // A reload recovers the same response idempotently. It must never treat an
+  // existing response as a nickname collision or create another scored row.
   const participant = readFileSync(
     "src/app/(public)/quiz/[code]/_components/participant-app.tsx",
     "utf8",
   )
   assert.match(
     participant,
-    /res\.status === 409 && answeredRef\.current\.has\(slideId\)/,
-    "a repeat answer must be told apart from a nickname collision",
+    /recoverOnly: true/,
+    "a repeat answer must be recovered without creating another response",
   )
 }
 

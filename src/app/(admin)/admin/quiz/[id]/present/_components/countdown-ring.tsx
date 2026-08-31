@@ -7,24 +7,30 @@ interface Props {
   running: boolean
   accentColor: string
   trackColor?: string
+  initialRemainingSeconds?: number | null
   onExpire?: () => void
 }
 
 export function CountdownRing({ durationSeconds, running, accentColor,
   // Derived from the theme by the caller: the ring used to hardcode a white
   // track, invisible on the light preset themes.
-  trackColor = "rgba(128,128,128,0.25)", onExpire }: Props) {
-  const [remaining, setRemaining] = useState(durationSeconds)
-  const startRef = useRef<number | null>(null)
+  trackColor = "rgba(128,128,128,0.25)", initialRemainingSeconds, onExpire }: Props) {
+  const initial = Math.min(durationSeconds, initialRemainingSeconds ?? durationSeconds)
+  const [remaining, setRemaining] = useState(initial)
+  const remainingRef = useRef(initial)
   const rafRef = useRef<number | undefined>(undefined)
   const expiredRef = useRef(false)
+  const onExpireRef = useRef(onExpire)
+
+  useEffect(() => { onExpireRef.current = onExpire }, [onExpire])
 
   useEffect(() => {
-    setRemaining(durationSeconds)
+    const next = Math.min(durationSeconds, initialRemainingSeconds ?? durationSeconds)
+    remainingRef.current = next
+    setRemaining(next)
     expiredRef.current = false
-    startRef.current = null
     if (rafRef.current !== undefined) cancelAnimationFrame(rafRef.current)
-  }, [durationSeconds])
+  }, [durationSeconds, initialRemainingSeconds])
 
   useEffect(() => {
     if (!running) {
@@ -32,17 +38,22 @@ export function CountdownRing({ durationSeconds, running, accentColor,
       return
     }
 
-    if (startRef.current === null) startRef.current = Date.now()
+    // Every running period starts from the last visible remainder. Pausing no
+    // longer counts as elapsed time, so reopening at 34 seconds resumes at 34
+    // instead of expiring immediately because wall time kept moving.
+    const runStartedAt = Date.now()
+    const runStartedWith = remainingRef.current
 
     // Returns false once the question has expired, so both drivers stop.
     function update(): boolean {
-      const elapsed = (Date.now() - (startRef.current ?? Date.now())) / 1000
-      const left = Math.max(0, durationSeconds - elapsed)
+      const elapsed = (Date.now() - runStartedAt) / 1000
+      const left = Math.max(0, runStartedWith - elapsed)
+      remainingRef.current = left
       setRemaining(left)
       if (left > 0) return true
       if (!expiredRef.current) {
         expiredRef.current = true
-        onExpire?.()
+        onExpireRef.current?.()
       }
       return false
     }
@@ -66,7 +77,7 @@ export function CountdownRing({ durationSeconds, running, accentColor,
       if (rafRef.current !== undefined) cancelAnimationFrame(rafRef.current)
       clearInterval(interval)
     }
-  }, [running, durationSeconds, onExpire])
+  }, [running, durationSeconds, initialRemainingSeconds])
 
   const pct = durationSeconds > 0 ? remaining / durationSeconds : 0
   const r = 44

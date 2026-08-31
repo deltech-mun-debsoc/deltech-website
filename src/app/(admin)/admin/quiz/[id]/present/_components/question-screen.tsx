@@ -28,6 +28,8 @@ interface Props {
   revealed: boolean
   revealedIndices: number[]
   timerRunning: boolean
+  timerRemainingSeconds?: number | null
+  busy?: boolean
   // How many people are in the room, so the header can say "12 of 30" instead of
   // "12 of ?". The presenter already tracks this from the presence channel.
   participantCount?: number
@@ -51,6 +53,8 @@ export function QuestionScreen({
   revealed,
   revealedIndices,
   timerRunning,
+  timerRemainingSeconds,
+  busy = false,
   onLock,
   onUnlock,
   onReveal,
@@ -149,6 +153,7 @@ export function QuestionScreen({
           <CountdownRing
             durationSeconds={timerSeconds}
             running={timerRunning && !locked}
+            initialRemainingSeconds={timerRemainingSeconds}
             accentColor={theme.accentColor}
             onExpire={onTimerExpire}
           />
@@ -182,7 +187,7 @@ export function QuestionScreen({
         </span>
         <button
           onClick={onPrev}
-          disabled={slideIndex === 0}
+          disabled={slideIndex === 0 || busy}
           className="border px-4 py-2.5 font-mono text-xs font-black uppercase tracking-[0.1em] transition-opacity disabled:opacity-30 hover:opacity-80"
           style={{ borderColor: theme.accentColor, color: theme.accentColor }}
         >
@@ -192,6 +197,7 @@ export function QuestionScreen({
         {type !== "CONTENT" && !locked && (
           <button
             onClick={onLock}
+            disabled={busy}
             className="flex items-center gap-2 px-4 py-2.5 font-mono text-xs font-black uppercase tracking-[0.1em] transition-opacity hover:opacity-90"
             style={{ background: "#f59e0b", color: readableOn("#f59e0b") }}
           >
@@ -202,6 +208,7 @@ export function QuestionScreen({
         {type !== "CONTENT" && locked && !revealed && (
           <button
             onClick={onUnlock}
+            disabled={busy}
             className="flex items-center gap-2 border px-4 py-2.5 font-mono text-xs font-black uppercase tracking-[0.1em] transition-opacity hover:opacity-80"
             style={{ borderColor: theme.accentColor, color: theme.accentColor }}
           >
@@ -215,6 +222,7 @@ export function QuestionScreen({
         {isScoredType(type) && mode === "QUIZ" && locked && !revealed && (
           <button
             onClick={onReveal}
+            disabled={busy}
             className="flex items-center gap-2 px-4 py-2.5 font-mono text-xs font-black uppercase tracking-[0.1em] transition-transform hover:-translate-y-0.5"
             style={{ background: "#22c55e", color: readableOn("#22c55e") }}
           >
@@ -225,6 +233,7 @@ export function QuestionScreen({
         {mode === "QUIZ" && canAdvance && (
           <button
             onClick={onLeaderboard}
+            disabled={busy}
             className="flex items-center gap-2 border px-4 py-2.5 font-mono text-xs font-black uppercase tracking-[0.1em] transition-opacity hover:opacity-80"
             style={{ borderColor: theme.accentColor, color: theme.accentColor }}
           >
@@ -237,6 +246,7 @@ export function QuestionScreen({
         {canAdvance && (
           <button
             onClick={onNext}
+            disabled={busy}
             className="flex items-center gap-2 px-7 py-3 font-mono text-sm font-black uppercase tracking-[0.1em] transition-transform hover:-translate-y-0.5"
             style={{ background: theme.accentColor, color: readableOn(theme.accentColor) }}
           >

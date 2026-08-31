@@ -1,11 +1,18 @@
 "use client"
 
-import { useEffect, useRef, useState, useCallback } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import { getSupabase } from "@/lib/supabase"
 import { LobbyScreen } from "./lobby-screen"
 import { QuestionScreen } from "./question-screen"
 import { LeaderboardScreen } from "./leaderboard-screen"
-import { endSession, computeLeaderboard, startSlide } from "../actions"
+import {
+  computeLeaderboard,
+  endSession,
+  lockSlide,
+  revealSlide,
+  startSlide,
+  unlockSlide,
+} from "../actions"
 import type {
   SlideData,
   Tally,
@@ -14,7 +21,8 @@ import type {
   QuizBroadcast,
   PresentationData,
 } from "@/lib/quiz-types"
-import { asMCQ, asNumeric, asTypeAnswer, isScoredType, redactSlide } from "@/lib/quiz-types"
+import { isScoredType, redactSlide } from "@/lib/quiz-types"
+import { correctAnswersForSlide, correctIndicesForSlide } from "@/lib/quiz-live"
 import { APP_URL } from "@/lib/app-url"
 import { t } from "@/content/strings"
 
@@ -26,7 +34,19 @@ interface Props {
   slides: SlideData[]
 }
 
-
+interface LiveRecovery {
+  session: { status: string }
+  live: {
+    slide: SlideData
+    slideIndex: number
+    slideCount: number
+    secondsLeft: number | null
+    locked: boolean
+    revealed: boolean
+    correctIndices: number[]
+    correctAnswers: string[]
+  } | null
+}
 
 export function PresenterApp({ session, presentation, slides }: Props) {
   const [screen, setScreen] = useState<Screen>("lobby")
@@ -37,35 +57,40 @@ export function PresenterApp({ session, presentation, slides }: Props) {
   const [revealed, setRevealed] = useState(false)
   const [revealedIndices, setRevealedIndices] = useState<number[]>([])
   const [timerRunning, setTimerRunning] = useState(false)
+  const [timerRemaining, setTimerRemaining] = useState<number | null>(null)
   const [lbEntries, setLbEntries] = useState<LBEntry[]>([])
   const [lbFinal, setLbFinal] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [hostError, setHostError] = useState("")
 
   const channelRef = useRef<ReturnType<NonNullable<ReturnType<typeof getSupabase>>["channel"]> | null>(null)
   const tallyIntervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined)
   const prevRanksRef = useRef<Map<string, number>>(new Map())
+  const actionRef = useRef(false)
+  const recoveryDoneRef = useRef(false)
 
   const currentSlide = slides[slideIndex]
 
-  // ── Broadcast helper ──────────────────────────────────────────────────────
   function broadcast(payload: QuizBroadcast) {
     channelRef.current?.send({ type: "broadcast", event: "quiz", payload })
   }
 
-  // ── Tally polling ─────────────────────────────────────────────────────────
+  const fetchTally = useCallback(async (slideId: string) => {
+    const res = await fetch(`/api/quiz/tally/${session.id}/${slideId}`)
+    if (res.ok) setTally(await res.json())
+  }, [session.id])
+
   const startTallyPoll = useCallback((slideId: string) => {
     clearInterval(tallyIntervalRef.current)
-    tallyIntervalRef.current = setInterval(async () => {
-      const res = await fetch(`/api/quiz/tally/${session.id}/${slideId}`)
-      if (res.ok) setTally(await res.json())
-    }, 1500)
-  }, [session.id])
+    void fetchTally(slideId)
+    tallyIntervalRef.current = setInterval(() => void fetchTally(slideId), 1500)
+  }, [fetchTally])
 
   const stopTallyPoll = useCallback(() => {
     clearInterval(tallyIntervalRef.current)
     tallyIntervalRef.current = undefined
   }, [])
 
-  // ── Supabase presence ──────────────────────────────────────────────────────
   useEffect(() => {
     const supabase = getSupabase()
     if (!supabase) return
@@ -73,7 +98,6 @@ export function PresenterApp({ session, presentation, slides }: Props) {
     const channel = supabase.channel(`quiz:${session.roomCode}`, {
       config: { presence: { key: "host" } },
     })
-
     channel
       .on("presence", { event: "sync" }, () => {
         const state = channel.presenceState()
@@ -94,163 +118,190 @@ export function PresenterApp({ session, presentation, slides }: Props) {
     }
   }, [session.roomCode, stopTallyPoll])
 
-  // ── Handlers ───────────────────────────────────────────────────────────────
-  async function handleStart() {
-    broadcast({ event: "START" })
-    gotoSlide(0)
+  // Realtime has no history. Recover the exact live question, lock/reveal state
+  // and remaining server time after a presenter refresh instead of falling back
+  // to a lobby whose Start button silently restarts question one.
+  useEffect(() => {
+    if (recoveryDoneRef.current) return
+    recoveryDoneRef.current = true
+    void (async () => {
+      try {
+        const res = await fetch(`/api/quiz/sessions?sessionId=${session.id}`)
+        if (!res.ok) return
+        const data = (await res.json()) as LiveRecovery
+        if (data.session.status === "ended" || !data.live) return
+
+        const index = slides.findIndex((slide) => slide.id === data.live?.slide.id)
+        if (index < 0) return
+
+        let recoveredLocked = data.live.locked
+        if (!recoveredLocked && data.live.secondsLeft !== null && data.live.secondsLeft <= 0) {
+          await lockSlide(session.id, data.live.slide.id)
+          recoveredLocked = true
+        }
+
+        setSlideIndex(index)
+        setLocked(recoveredLocked)
+        setRevealed(data.live.revealed)
+        setRevealedIndices(data.live.revealed ? correctIndicesForSlide(slides[index]) : [])
+        setTimerRemaining(data.live.secondsLeft)
+        setTimerRunning(!recoveredLocked && !data.live.revealed)
+        setScreen("question")
+        if (recoveredLocked) void fetchTally(data.live.slide.id)
+        else startTallyPoll(data.live.slide.id)
+      } catch {
+        setHostError(t("quiz.hostActionFailed"))
+      }
+    })()
+  }, [fetchTally, session.id, slides, startTallyPoll])
+
+  function beginAction(): boolean {
+    if (actionRef.current) return false
+    actionRef.current = true
+    setBusy(true)
+    setHostError("")
+    return true
   }
 
-  function gotoSlide(idx: number) {
-    const slide = slides[idx]
+  function finishAction() {
+    actionRef.current = false
+    setBusy(false)
+  }
+
+  async function gotoSlide(index: number) {
+    const slide = slides[index]
     if (!slide) return
 
     stopTallyPoll()
-    setSlideIndex(idx)
+    const timing = await startSlide(session.id, slide.id)
+    setSlideIndex(index)
     setTally(null)
     setLocked(false)
     setRevealed(false)
     setRevealedIndices([])
+    setTimerRemaining(timing.secondsLeft)
     setTimerRunning(true)
     setScreen("question")
-
-    // Never broadcast the answer. redactSlide covers every scored type; this
-    // used to strip MCQ only, so true/false, typed and numeric questions were
-    // sending their own answers to the room.
-    const broadcastSlide: SlideData = redactSlide(slide)
-
-    // Authoritative record of which slide is live and from when. The
-    // broadcast below is for latency; this is what scoring trusts.
-    void startSlide(session.id, slide.id).catch(() => {})
 
     broadcast({
       event: "GOTO",
       slideId: slide.id,
-      slideIndex: idx,
+      slideIndex: index,
       slideCount: slides.length,
-      slide: broadcastSlide,
+      slide: redactSlide(slide),
     })
     startTallyPoll(slide.id)
   }
 
-  function handleLock() {
-    setLocked(true)
-    setTimerRunning(false)
-    stopTallyPoll()
-    // Final tally fetch
-    if (currentSlide) {
-      fetch(`/api/quiz/tally/${session.id}/${currentSlide.id}`)
-        .then((r) => r.json())
-        .then(setTally)
+  async function runHostAction(action: () => Promise<void>) {
+    if (!beginAction()) return
+    try {
+      await action()
+    } catch {
+      setHostError(t("quiz.hostActionFailed"))
+    } finally {
+      finishAction()
     }
-    broadcast({ event: "LOCK" })
+  }
+
+  function handleStart() {
+    void runHostAction(async () => {
+      await gotoSlide(0)
+      broadcast({ event: "START" })
+    })
+  }
+
+  function handleLock() {
+    if (!currentSlide) return
+    void runHostAction(async () => {
+      await lockSlide(session.id, currentSlide.id)
+      setLocked(true)
+      setTimerRunning(false)
+      stopTallyPoll()
+      await fetchTally(currentSlide.id)
+      broadcast({ event: "LOCK" })
+    })
   }
 
   function handleUnlock() {
-    setLocked(false)
-    if (currentSlide) startTallyPoll(currentSlide.id)
-    broadcast({ event: "UNLOCK" })
+    if (!currentSlide) return
+    void runHostAction(async () => {
+      const timing = await unlockSlide(session.id, currentSlide.id)
+      setLocked(false)
+      setTimerRemaining(timing.secondsLeft)
+      setTimerRunning(true)
+      startTallyPoll(currentSlide.id)
+      broadcast({ event: "UNLOCK", secondsLeft: timing.secondsLeft })
+    })
   }
 
   function handleReveal() {
-    // Every scored type can be revealed, not just MCQ. The gate used to be
-    // `type !== "MCQ"`, which would have made a typed or numeric answer
-    // impossible to reveal at all, and left every participant's phone holding a
-    // verdict that never arrived.
     if (!currentSlide || !isScoredType(currentSlide.type)) return
-
-    // Only the option-based types carry indices; the rest reveal against their
-    // own config on the projector and simply unblock the phones.
-    const indices =
-      currentSlide.type === "MCQ" || currentSlide.type === "TRUE_FALSE"
-        ? asMCQ(currentSlide.config).correct
-        : []
-
-    // Answers are broadcast only at reveal time. The question itself remains
-    // redacted on every phone, while the reveal can still explain the result
-    // instead of reducing it to an unexplained green or red card.
-    const correctAnswers = (() => {
-      if (currentSlide.type === "MCQ") {
-        const config = asMCQ(currentSlide.config)
-        return indices.map((index) => config.options[index]).filter(Boolean)
-      }
-      if (currentSlide.type === "TRUE_FALSE") {
-        return indices.map((index) => t(index === 0 ? "quiz.trueLabel" : "quiz.falseLabel"))
-      }
-      if (currentSlide.type === "TYPE_ANSWER") {
-        return asTypeAnswer(currentSlide.config).accepted.slice(0, 3)
-      }
-      if (currentSlide.type === "NUMERIC") {
-        const config = asNumeric(currentSlide.config)
-        return [`${config.target}${config.unit ? ` ${config.unit}` : ""}`]
-      }
-      return []
-    })()
-
-    setRevealed(true)
-    setRevealedIndices(indices)
-    broadcast({ event: "REVEAL", correctIndices: indices, correctAnswers })
+    void runHostAction(async () => {
+      await revealSlide(session.id, currentSlide.id)
+      const indices = correctIndicesForSlide(currentSlide)
+      const correctAnswers = correctAnswersForSlide(currentSlide)
+      setRevealed(true)
+      setRevealedIndices(indices)
+      broadcast({ event: "REVEAL", correctIndices: indices, correctAnswers })
+    })
   }
 
   function handleTimerExpire() {
-    handleLock()
+    if (!locked && !revealed) handleLock()
   }
 
-  function handleNext() {
-    // Standings after every scored question, not only at the end. The board then
-    // stays on screen, on the projector AND on every phone, until the host moves
-    // on: that pause is the point, it is when the room reacts to the scores.
-    //
-    // Unscored slides (a poll, a word cloud, a content slide) have no standings
-    // to show, so they advance straight through.
-    const scored = currentSlide && isScoredType(currentSlide.type) && presentation.mode === "QUIZ"
-    if (scored && screen !== "leaderboard") {
-      void handleShowLeaderboard(slideIndex >= slides.length - 1)
-      return
-    }
-
-    if (slideIndex < slides.length - 1) {
-      gotoSlide(slideIndex + 1)
-    } else {
-      void handleShowLeaderboard(true)
-    }
-  }
-
-  function handlePrev() {
-    if (slideIndex > 0) gotoSlide(slideIndex - 1)
-  }
-
-  async function handleShowLeaderboard(final = false) {
+  async function showLeaderboard(final = false) {
     stopTallyPoll()
     setLbFinal(final)
-
-    // Compute scores
     const scores = await computeLeaderboard(session.id)
-
-    // The stored avatar wins; live presence is the fallback for someone who has
-    // joined but not yet answered anything, so has no response row to read.
     const presenceAvatars = new Map(participants.map((p) => [p.nickname, p.avatar]))
-    const entries: LBEntry[] = scores.map((s) => {
-      const prev = prevRanksRef.current.get(s.nickname)
-      const delta = prev !== undefined ? prev - s.rank : undefined
-      return { ...s, avatar: s.avatar || presenceAvatars.get(s.nickname) || "", delta }
+    const entries: LBEntry[] = scores.map((score) => {
+      const previous = prevRanksRef.current.get(score.nickname)
+      return {
+        ...score,
+        avatar: score.avatar || presenceAvatars.get(score.nickname) || "",
+        delta: previous === undefined ? undefined : previous - score.rank,
+      }
     })
-
-    // Save current ranks for delta next time
-    prevRanksRef.current = new Map(entries.map((e) => [e.nickname, e.rank]))
-
+    prevRanksRef.current = new Map(entries.map((entry) => [entry.nickname, entry.rank]))
     setLbEntries(entries)
     setScreen("leaderboard")
     broadcast({ event: "LEADERBOARD", entries, final })
   }
 
-  async function handleEnd() {
-    broadcast({ event: "END" })
-    await endSession(session.id)
-    // Redirect back to builder
-    window.location.href = `/admin/quiz/${presentation.id}`
+  function handleShowLeaderboard(final = false) {
+    void runHostAction(() => showLeaderboard(final))
   }
 
-  // ── Render ─────────────────────────────────────────────────────────────────
+  function handleNext() {
+    void runHostAction(async () => {
+      const scored = currentSlide && isScoredType(currentSlide.type) && presentation.mode === "QUIZ"
+      if (scored && screen !== "leaderboard") {
+        await showLeaderboard(slideIndex >= slides.length - 1)
+      } else if (slideIndex < slides.length - 1) {
+        await gotoSlide(slideIndex + 1)
+      } else {
+        await showLeaderboard(true)
+      }
+    })
+  }
+
+  function handlePrev() {
+    if (slideIndex <= 0) return
+    void runHostAction(() => gotoSlide(slideIndex - 1))
+  }
+
+  function handleEnd() {
+    void runHostAction(async () => {
+      // Persist first. If realtime drops, every phone's five-second recovery
+      // check still sees ended and closes; no client can keep submitting.
+      await endSession(session.id)
+      broadcast({ event: "END" })
+      window.location.href = `/admin/quiz/${presentation.id}`
+    })
+  }
+
   const theme = presentation.theme ?? {
     background: "#ffffff",
     textColor: "#111827",
@@ -258,57 +309,59 @@ export function PresenterApp({ session, presentation, slides }: Props) {
     font: "Inter",
   }
   const joinUrl = `${APP_URL}/quiz/${session.roomCode}`
+  const screenKey = screen === "lobby"
+    ? "lobby"
+    : screen === "leaderboard"
+      ? "leaderboard"
+      : `slide-${currentSlide?.id ?? slideIndex}`
 
-  // Which screen is live, keyed so AnimatePresence can cross-fade slides too.
-  const screenKey =
-    screen === "lobby" ? "lobby" : screen === "leaderboard" ? "leaderboard" : `slide-${currentSlide?.id ?? slideIndex}`
-
-  // A keyed div, not AnimatePresence. `mode="wait"` holds the incoming screen
-  // until the outgoing one's exit animation reports completion, so anything that
-  // swallowed that callback left the projector frozen on the lobby with the
-  // audience already on question one -- which is the shape of the intermittent
-  // "Start doesn't advance" fault. Remounting on the key replays the entrance
-  // with no completion callback in the path, and costs only the exit tween.
   return (
-    <div key={screenKey} className="h-full animate-in fade-in slide-in-from-right-8 duration-300 motion-reduce:animate-none">
-        {screen === "lobby" ? (
-          <LobbyScreen
-            roomCode={session.roomCode}
-            joinUrl={joinUrl}
-            participants={participants}
-            theme={theme}
-            onStart={handleStart}
-          />
-        ) : screen === "leaderboard" ? (
-          <LeaderboardScreen
-            entries={lbEntries}
-            final={lbFinal}
-            theme={theme}
-            onNext={!lbFinal && slideIndex < slides.length - 1 ? () => gotoSlide(slideIndex + 1) : undefined}
-            onEnd={handleEnd}
-          />
-        ) : currentSlide ? (
-          <QuestionScreen
-            slide={currentSlide}
-            slideIndex={slideIndex}
-            slideCount={slides.length}
-            tally={tally}
-            theme={theme}
-            mode={presentation.mode}
-            locked={locked}
-            revealed={revealed}
-            revealedIndices={revealedIndices}
-            timerRunning={timerRunning}
-            participantCount={participants.length}
-            onLock={handleLock}
-            onUnlock={handleUnlock}
-            onReveal={handleReveal}
-            onNext={handleNext}
-            onPrev={handlePrev}
-            onLeaderboard={() => handleShowLeaderboard(false)}
-            onTimerExpire={handleTimerExpire}
-          />
-        ) : null}
+    <div key={screenKey} className="relative h-full animate-in fade-in slide-in-from-right-8 duration-300 motion-reduce:animate-none">
+      {hostError && (
+        <div className="absolute inset-x-0 top-0 z-[60] bg-destructive px-4 py-2 text-center text-sm font-bold text-destructive-foreground" role="alert">
+          {hostError}
+        </div>
+      )}
+      {screen === "lobby" ? (
+        <LobbyScreen
+          roomCode={session.roomCode}
+          joinUrl={joinUrl}
+          participants={participants}
+          theme={theme}
+          onStart={handleStart}
+        />
+      ) : screen === "leaderboard" ? (
+        <LeaderboardScreen
+          entries={lbEntries}
+          final={lbFinal}
+          theme={theme}
+          onNext={!lbFinal && slideIndex < slides.length - 1 ? handleNext : undefined}
+          onEnd={handleEnd}
+        />
+      ) : currentSlide ? (
+        <QuestionScreen
+          slide={currentSlide}
+          slideIndex={slideIndex}
+          slideCount={slides.length}
+          tally={tally}
+          theme={theme}
+          mode={presentation.mode}
+          locked={locked}
+          revealed={revealed}
+          revealedIndices={revealedIndices}
+          timerRunning={timerRunning}
+          timerRemainingSeconds={timerRemaining}
+          busy={busy}
+          participantCount={participants.length}
+          onLock={handleLock}
+          onUnlock={handleUnlock}
+          onReveal={handleReveal}
+          onNext={handleNext}
+          onPrev={handlePrev}
+          onLeaderboard={() => handleShowLeaderboard(false)}
+          onTimerExpire={handleTimerExpire}
+        />
+      ) : null}
     </div>
   )
 }

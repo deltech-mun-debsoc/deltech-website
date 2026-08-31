@@ -80,10 +80,11 @@ for (const p of ["src/app/(admin)/admin/page.tsx", "src/app/(marketing)/page.tsx
   assert.match(src, /groupBy\(\{\s*by: \["committeeId", "status"\]/, `${p} must use a grouped count`)
 }
 
-// --- the quiz answer path is one round trip, and rank is a DB aggregate ---
+// --- quiz answers stay concurrent, and rank is a DB aggregate --------------
 {
   const src = read("src/app/api/quiz/responses/route.ts")
-  assert.match(src, /Promise\.all\(\[/, "the three independent reads must be parallel")
+  assert.match(src, /FOR SHARE/, "answers need a shared lock so phones remain concurrent while close/end is atomic")
+  assert.doesNotMatch(src, /FOR UPDATE/, "answer submission must not serialize every phone behind one exclusive lock")
   assert.match(src, /having: \{ points: \{ _sum: \{ gt: myTotal \} \} \}/, "rank must be counted in the DB")
   assert.doesNotMatch(
     src,
