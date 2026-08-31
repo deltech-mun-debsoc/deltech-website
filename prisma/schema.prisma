@@ -990,6 +990,11 @@ model QuizSession {
   // it started, and had to take the participant's word for how fast they
   // answered. Both columns are written by startSlide().
   currentSlideStartedAt DateTime?
+  // Authoritative question lifecycle. Realtime tells browsers quickly; these
+  // fields tell reloads and direct API callers what is actually allowed.
+  currentSlideDeadlineAt DateTime?
+  currentSlideLockedAt   DateTime?
+  currentSlideRevealedAt DateTime?
   startedAt      DateTime?
   endedAt        DateTime?
 }

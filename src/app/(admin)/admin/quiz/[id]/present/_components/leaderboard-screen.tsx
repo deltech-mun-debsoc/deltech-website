@@ -18,27 +18,15 @@ interface Props {
 
 function Movement({ delta }: { delta: number | undefined }) {
   if (delta === undefined) {
-    return (
-      <span className="flex items-center gap-1 font-mono text-[0.65rem] font-black uppercase tracking-[0.14em] opacity-55">
-        <Sparkles className="size-3" /> {t("quiz.joinedBoard")}
-      </span>
-    )
+    return <span title={t("quiz.joinedBoard")}><Sparkles className="size-4 opacity-55" /></span>
   }
   if (delta > 0) {
-    return (
-      <span className="flex items-center gap-1 font-mono text-xs font-black text-emerald-500">
-        <ArrowUp className="size-4" /> {delta}
-      </span>
-    )
+    return <span className="flex items-center font-mono text-xs font-black text-emerald-500"><ArrowUp className="size-4" />{delta}</span>
   }
   if (delta < 0) {
-    return (
-      <span className="flex items-center gap-1 font-mono text-xs font-black text-rose-500">
-        <ArrowDown className="size-4" /> {Math.abs(delta)}
-      </span>
-    )
+    return <span className="flex items-center font-mono text-xs font-black text-rose-500"><ArrowDown className="size-4" />{Math.abs(delta)}</span>
   }
-  return <Minus className="size-4 opacity-35" aria-label={t("quiz.heldPosition")} />
+  return <Minus className="size-4 opacity-30" aria-label={t("quiz.heldPosition")} />
 }
 
 export function LeaderboardScreen({ entries, final, theme, onNext, onEnd }: Props) {
@@ -48,16 +36,9 @@ export function LeaderboardScreen({ entries, final, theme, onNext, onEnd }: Prop
   const maxScore = Math.max(...top.map((entry) => entry.totalPoints), 1)
 
   return (
-    <div
-      className="relative flex h-full flex-col overflow-hidden px-8 py-7"
-      style={{ background: theme.background, color: theme.textColor }}
-    >
+    <div className="relative flex h-full flex-col overflow-hidden px-8 py-7" style={{ background: theme.background, color: theme.textColor }}>
       <div className="paper-grid pointer-events-none absolute inset-0 opacity-[0.06]" aria-hidden />
-      <div
-        className="pointer-events-none absolute -right-24 -top-24 size-96 rounded-full border opacity-25"
-        style={{ borderColor: theme.accentColor }}
-        aria-hidden
-      />
+      <div className="pointer-events-none absolute -right-24 -top-24 size-96 rounded-full border opacity-25" style={{ borderColor: theme.accentColor }} aria-hidden />
       <ConfettiBurst active={final} />
 
       <header className="relative mb-5 flex items-end justify-between border-b pb-4" style={{ borderColor: surface.border }}>
@@ -80,91 +61,72 @@ export function LeaderboardScreen({ entries, final, theme, onNext, onEnd }: Prop
           >
             <Trophy className="size-7" style={{ color: theme.accentColor }} />
             <div>
-              <p className="font-mono text-[0.65rem] font-black uppercase tracking-[0.16em] opacity-55">#1</p>
+              <p className="font-mono text-[0.65rem] font-black uppercase tracking-[0.16em] opacity-55">{t("quiz.rankN", { n: 1 })}</p>
               <p className="max-w-52 truncate font-heading text-2xl">{top[0].nickname}</p>
             </div>
           </motion.div>
         )}
       </header>
 
-      <div className="relative min-h-0 flex-1 space-y-2 overflow-hidden">
-        <AnimatePresence initial={false}>
-          {top.map((entry, index) => {
-            const width = Math.max(7, (entry.totalPoints / maxScore) * 100)
-            return (
-              <motion.div
-                key={entry.nickname}
-                layout
-                // The board is intentionally shown between questions, so the
-                // previous rows are no longer mounted for layout animation to
-                // interpolate from. Start each row at its prior rank instead:
-                // a +2 visibly travels up two row-heights.
-                initial={reduce ? false : { y: entry.delta === undefined ? 20 : entry.delta * 56, opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                exit={reduce ? undefined : { y: -20, opacity: 0 }}
-                transition={{ layout: { type: "spring", stiffness: 210, damping: 24 }, delay: reduce ? 0 : index * 0.045 }}
-                className="grid grid-cols-[3rem_1fr_6.5rem] items-center gap-3"
-              >
-                <span className="text-right font-mono text-lg font-black tabular-nums opacity-55">
-                  {t("quiz.rankN", { n: entry.rank })}
-                </span>
-
-                <div className="relative h-12 overflow-hidden" style={{ background: surface.track }}>
+      <div className="relative min-h-0 flex-1">
+        {top.length > 0 ? (
+          <div className="grid h-full items-end gap-3" style={{ gridTemplateColumns: `repeat(${top.length}, minmax(0, 1fr))` }}>
+            <AnimatePresence initial={false}>
+              {top.map((entry, index) => {
+                const height = Math.max(8, (entry.totalPoints / maxScore) * 100)
+                return (
                   <motion.div
-                    className="absolute inset-y-0 left-0"
-                    initial={reduce ? false : { width: 0 }}
-                    animate={{ width: `${width}%` }}
-                    transition={{ duration: reduce ? 0 : 0.7, ease: [0.2, 0.8, 0.2, 1], delay: reduce ? 0 : 0.08 + index * 0.045 }}
-                    style={{
-                      // Light accents on a dark projector theme need to stay
-                      // behind the white labels, not turn into a white-on-cyan
-                      // contrast failure. Alpha blends them into the theme.
-                      background: surface.dark
-                        ? `${theme.accentColor}${index === 0 ? "88" : "66"}`
-                        : index === 0
-                          ? theme.accentColor
-                          : `${theme.accentColor}8f`,
-                    }}
-                  />
-                  <div className="absolute inset-0 flex items-center gap-3 px-4">
-                    <span className="text-2xl" aria-hidden>{entry.avatar || FALLBACK_AVATAR}</span>
-                    <span className="min-w-0 flex-1 truncate text-lg font-bold">{entry.nickname}</span>
-                    <Movement delta={entry.delta} />
-                  </div>
-                </div>
-
-                <span className="text-right font-mono text-lg font-black tabular-nums">
-                  {entry.totalPoints.toLocaleString()}
-                  <span className="ml-1 text-[0.65rem] uppercase opacity-45">{t("quiz.pointsShort")}</span>
-                </span>
-              </motion.div>
-            )
-          })}
-        </AnimatePresence>
-
-        {top.length === 0 && (
-          <div className="flex h-full items-center justify-center font-heading text-4xl opacity-45">
-            {t("quiz.noResponsesYet")}
+                    key={entry.nickname}
+                    layout
+                    initial={reduce ? false : { x: entry.delta === undefined ? 18 : entry.delta * 72, opacity: 0 }}
+                    animate={{ x: 0, opacity: 1 }}
+                    exit={reduce ? undefined : { opacity: 0 }}
+                    transition={{ layout: { type: "spring", stiffness: 210, damping: 24 }, delay: reduce ? 0 : index * 0.045 }}
+                    className="flex h-full min-w-0 flex-col items-center"
+                  >
+                    <div className="mb-2 flex h-5 items-center justify-center"><Movement delta={entry.delta} /></div>
+                    <p className="mb-2 font-mono text-base font-black tabular-nums">
+                      {entry.totalPoints.toLocaleString()}
+                      <span className="ml-1 text-[0.55rem] uppercase opacity-45">{t("quiz.pointsShort")}</span>
+                    </p>
+                    <div className="relative flex min-h-0 w-full flex-1 items-end overflow-hidden" style={{ background: surface.track }}>
+                      <motion.div
+                        className="w-full"
+                        initial={reduce ? false : { height: 0 }}
+                        animate={{ height: `${height}%` }}
+                        transition={{ duration: reduce ? 0 : 0.75, ease: [0.2, 0.8, 0.2, 1], delay: reduce ? 0 : 0.08 + index * 0.045 }}
+                        style={{
+                          background: surface.dark
+                            ? `${theme.accentColor}${index === 0 ? "88" : "66"}`
+                            : index === 0 ? theme.accentColor : `${theme.accentColor}8f`,
+                        }}
+                      />
+                      <span className="absolute bottom-2 left-1/2 -translate-x-1/2 font-mono text-xs font-black opacity-65">
+                        {t("quiz.rankN", { n: entry.rank })}
+                      </span>
+                    </div>
+                    <div className="mt-3 flex w-full min-w-0 flex-col items-center gap-1 text-center">
+                      <span className="text-3xl" aria-hidden>{entry.avatar || FALLBACK_AVATAR}</span>
+                      <span className="w-full truncate text-sm font-bold">{entry.nickname}</span>
+                    </div>
+                  </motion.div>
+                )
+              })}
+            </AnimatePresence>
           </div>
+        ) : (
+          <div className="flex h-full items-center justify-center font-heading text-4xl opacity-45">{t("quiz.noResponsesYet")}</div>
         )}
       </div>
 
       <div className="relative mt-5 flex justify-end gap-3 border-t pt-4" style={{ borderColor: surface.border }}>
         {!final && onNext && (
-          <button
-            onClick={onNext}
-            className="px-8 py-3 font-mono text-sm font-black uppercase tracking-[0.12em] transition-transform hover:-translate-y-0.5"
-            style={{ background: theme.accentColor, color: readableOn(theme.accentColor) }}
-          >
+          <button onClick={onNext} className="px-8 py-3 font-mono text-sm font-black uppercase tracking-[0.12em] transition-transform hover:-translate-y-0.5" style={{ background: theme.accentColor, color: readableOn(theme.accentColor) }}>
             {t("quiz.nextSlide")} →
           </button>
         )}
         {onEnd && (
-          <button
-            onClick={onEnd}
-            className="border px-8 py-3 font-mono text-sm font-black uppercase tracking-[0.12em] transition-opacity hover:opacity-75"
-            style={{ borderColor: theme.accentColor, color: theme.accentColor }}
-          >
+          <button onClick={onEnd} className="border px-8 py-3 font-mono text-sm font-black uppercase tracking-[0.12em] transition-opacity hover:opacity-75" style={{ borderColor: theme.accentColor, color: theme.accentColor }}>
             {t("quiz.endSession")}
           </button>
         )}

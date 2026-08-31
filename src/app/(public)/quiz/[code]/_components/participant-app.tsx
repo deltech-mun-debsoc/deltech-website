@@ -25,6 +25,7 @@ interface ResultData {
   points: number
   rank: number | null
   streakBonus?: number
+  alreadySubmitted?: boolean
 }
 
 interface Props {
@@ -74,6 +75,7 @@ function movementText(delta: number | undefined): string {
 }
 
 export function ParticipantApp({ sessionId, roomCode, initialStatus, presentationMode, presentationTitle }: Props) {
+  const identityStorageKey = `quiz:${sessionId}:identity`
   const [appState, setAppState] = useState<AppState>(
     initialStatus === "ended" ? "ended" : "nickname"
   )
@@ -124,6 +126,8 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
   // one already" -- and the code guessed the first, which threw a participant
   // back to the nickname screen mid-quiz every time the host stepped backwards.
   const answeredRef = useRef<Set<string>>(new Set())
+  const recoveryCheckedRef = useRef<Set<string>>(new Set())
+  const revealedResultRef = useRef<Set<string>>(new Set())
   // When this question runs out, as a timestamp rather than a countdown. A
   // decrementing counter is wrong on a phone: setInterval is throttled the
   // moment the browser is backgrounded, so a participant who glanced at a
@@ -134,6 +138,32 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
   // Which slide is on screen, readable from a callback that must not re-subscribe
   // every time it changes.
   const slideIdRef = useRef<string | null>(null)
+
+  const recoverOwnResult = useCallback(async (slideId: string, nick: string, ava: string) => {
+    try {
+      const res = await fetch("/api/quiz/responses", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessionId, slideId, nickname: nick, avatar: ava, answer: null, recoverOnly: true }),
+      })
+      recoveryCheckedRef.current.add(slideId)
+      if (res.status === 410) {
+        setAppState("ended")
+        return false
+      }
+      if (!res.ok) return false
+      const data = (await res.json()) as ResultData
+      submittedRef.current = true
+      answeredRef.current.add(slideId)
+      if (data.correct !== null) revealedResultRef.current.add(slideId)
+      setResult(data)
+      setMissed(false)
+      setAppState("result")
+      return true
+    } catch {
+      return false
+    }
+  }, [sessionId])
 
   // Put a question on screen. Reached two ways: the host's GOTO broadcast, and
   // the recovery fetch below. `remaining` is the server's own count of the time
@@ -177,6 +207,7 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
   )
 
   const joinChannel = useCallback((nick: string, ava: string) => {
+    if (channelRef.current) return
     const supabase = getSupabase()
     if (!supabase) return
 
@@ -196,6 +227,10 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
           }
         } else if (payload.event === "UNLOCK") {
           setLocked(false)
+          deadlineRef.current = payload.secondsLeft === null
+            ? null
+            : Date.now() + payload.secondsLeft * 1000
+          setSecondsLeft(payload.secondsLeft === null ? null : Math.ceil(payload.secondsLeft))
           if (!submittedRef.current) {
             setMissed(false)
             setAppState("question")
@@ -204,6 +239,8 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
           // NOW the verdict is allowed on screen, in time with the projector.
           setRevealedAnswers(payload.correctAnswers)
           setRevealed(true)
+          const slideId = slideIdRef.current
+          if (slideId && submittedRef.current) void recoverOwnResult(slideId, nick, ava)
         } else if (payload.event === "LEADERBOARD") {
           setLbEntries(payload.entries)
           setLbFinal(payload.final)
@@ -236,7 +273,45 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
       })
 
     channelRef.current = channel
-  }, [roomCode, adoptSlide])
+  }, [roomCode, adoptSlide, recoverOwnResult])
+
+  function rememberIdentity(nick: string, ava: string) {
+    try {
+      localStorage.setItem(identityStorageKey, JSON.stringify({
+        nickname: nick,
+        avatar: ava,
+        userId: userIdRef.current,
+      }))
+    } catch {
+      // Private browsing can disable storage. The server's duplicate guard still
+      // protects the score; this phone simply cannot auto-recover its identity.
+    }
+  }
+
+  // Reloading must resume the same participant, not create a second path to the
+  // nickname screen. The stable presence id also lets the new socket replace
+  // the old one without falsely reporting that its own nickname is taken.
+  useEffect(() => {
+    if (initialStatus === "ended" || nickname || avatar) return
+    try {
+      const raw = localStorage.getItem(identityStorageKey)
+      if (!raw) return
+      const saved = JSON.parse(raw) as { nickname?: unknown; avatar?: unknown; userId?: unknown }
+      if (
+        typeof saved.nickname !== "string" || !saved.nickname.trim() ||
+        typeof saved.avatar !== "string" || !saved.avatar ||
+        typeof saved.userId !== "string" || !saved.userId
+      ) return
+      userIdRef.current = saved.userId
+      setNickname(saved.nickname)
+      setNicknameInput(saved.nickname)
+      setAvatar(saved.avatar)
+      joinChannel(saved.nickname, saved.avatar)
+      setAppState("lobby")
+    } catch {
+      localStorage.removeItem(identityStorageKey)
+    }
+  }, [avatar, identityStorageKey, initialStatus, joinChannel, nickname])
 
   useEffect(() => {
     return () => {
@@ -257,6 +332,7 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
     } else {
       const ava = AVATARS[0]
       setAvatar(ava)
+      rememberIdentity(trimmed, ava)
       joinChannel(trimmed, ava)
       setAppState("lobby")
     }
@@ -264,6 +340,7 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
 
   function handleAvatarSelect(ava: string) {
     setAvatar(ava)
+    rememberIdentity(nickname, ava)
     joinChannel(nickname, ava)
     setAppState("lobby")
   }
@@ -321,11 +398,20 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
       // A visibilitychange fires on the way out as well as the way in.
       if (fromEvent && document.visibilityState !== "visible") return
       try {
-        const res = await fetch(`/api/quiz/sessions?code=${roomCode}`)
+        const res = await fetch(`/api/quiz/sessions?sessionId=${sessionId}`)
         if (!res.ok) return
         const data = (await res.json()) as {
           session: { status: string }
-          live: { slide: SlideData; slideIndex: number; slideCount: number; secondsLeft: number | null } | null
+          live: {
+            slide: SlideData
+            slideIndex: number
+            slideCount: number
+            secondsLeft: number | null
+            locked: boolean
+            revealed: boolean
+            correctIndices: number[]
+            correctAnswers: string[]
+          } | null
         }
         if (data.session.status === "ended") {
           setAppState("ended")
@@ -338,15 +424,43 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
         if (slideIdRef.current !== live.slide.id) {
           adoptSlide(live.slide, live.slideIndex, live.slideCount, live.secondsLeft)
         }
+        if (
+          !recoveryCheckedRef.current.has(live.slide.id) ||
+          (live.revealed && !revealedResultRef.current.has(live.slide.id))
+        ) {
+          await recoverOwnResult(live.slide.id, nickname, avatar)
+        }
+        // Reconcile every state that realtime can drop. This also extends the
+        // phone deadline after the host pauses and reopens voting.
+        setLocked(live.locked)
+        if (!live.locked && live.secondsLeft !== null) {
+          deadlineRef.current = Date.now() + live.secondsLeft * 1000
+          setSecondsLeft(Math.ceil(live.secondsLeft))
+        }
+        if (live.locked && !submittedRef.current) {
+          setMissed(true)
+          setAppState("submitted")
+        } else if (!live.locked && !submittedRef.current) {
+          setMissed(false)
+          setAppState("question")
+        }
+        if (live.revealed) {
+          setRevealedAnswers(live.correctAnswers)
+          setRevealed(true)
+        }
       } catch {
         // Offline, or the request was cut short. The next wake tries again.
       }
     }
     const onVisible = () => void catchUp(true)
     void catchUp(false)
+    const interval = setInterval(() => void catchUp(false), 5_000)
     document.addEventListener("visibilitychange", onVisible)
-    return () => document.removeEventListener("visibilitychange", onVisible)
-  }, [nickname, avatar, roomCode, adoptSlide])
+    return () => {
+      clearInterval(interval)
+      document.removeEventListener("visibilitychange", onVisible)
+    }
+  }, [nickname, avatar, sessionId, adoptSlide, recoverOwnResult])
 
   // A buzz at ten, at five, and at nothing left. Half the room is looking at the
   // projector, not at their hand: the phone has to be able to interrupt them.
@@ -381,26 +495,23 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
     setSubmitting(false)
     if (res.ok) {
       answeredRef.current.add(slideId)
+      recoveryCheckedRef.current.add(slideId)
       const data = (await res.json()) as ResultData
       setResult(data)
       setAppState("result")
-    } else if (res.status === 409 && answeredRef.current.has(slideId)) {
-      // This phone already answered this slide, and the host has stepped back to
-      // it. Not a collision: the first answer stands, so say so and stop.
-      setAppState("submitted")
-    } else if (res.status === 409) {
-      // Someone else already answered under this nickname. Saying "answer
-      // received" here is what let a collided participant score zero for a
-      // whole quiz without ever seeing an error.
-      submittedRef.current = false
-      setNicknameError(t("quiz.nicknameTaken"))
-      setAppState("nickname")
-    } else if (res.status === 400) {
-      // The host started a new run, so this room code is closed. Silently
-      // failing left the phone waiting on a question that would never come.
+    } else if (res.status === 410) {
       setAppState("ended")
-    } else {
+    } else if (res.status === 408 || res.status === 409 || res.status === 423) {
+      // The server, not the phone, is authoritative about deadline, lock,
+      // reveal and the live slide. A direct request after any of those gates
+      // lands in the same honest missed-answer state as the realtime event.
+      setMissed(true)
       setAppState("submitted")
+    } else {
+      // A transport failure is retryable. Do not permanently consume the one
+      // local submission attempt when the server never accepted it.
+      submittedRef.current = false
+      setAppState("question")
     }
   }
 
@@ -534,7 +645,7 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
   }
 
   if (appState === "leaderboard") {
-    const visibleEntries = lbEntries.slice(0, 10)
+    const visibleEntries = lbEntries.slice(0, 5)
     const maxScore = Math.max(...visibleEntries.map((entry) => entry.totalPoints), 1)
     return (
       <Screen k={appState}>
@@ -545,46 +656,51 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
             {lbFinal ? t("quiz.finalResults") : t("quiz.leaderboard")}
             </h2>
           </div>
-          <div className="space-y-3">
+          <div
+            className="grid h-72 items-end gap-2 sm:h-80 sm:gap-3"
+            style={{ gridTemplateColumns: `repeat(${Math.max(visibleEntries.length, 1)}, minmax(0, 1fr))` }}
+          >
             {visibleEntries.map((entry, index) => {
-              const width = Math.max(8, (entry.totalPoints / maxScore) * 100)
+              const height = Math.max(8, (entry.totalPoints / maxScore) * 100)
               const isMe = entry.nickname === nickname
               const movement = entry.delta ?? 0
               return (
               <div
                 key={entry.nickname}
                 className={cn(
-                  "quiz-rank-enter relative overflow-hidden border px-4 py-3",
-                  isMe ? "border-teal-700 bg-teal-50" : "border-black/10 bg-white/45",
+                  "quiz-rank-enter flex h-full min-w-0 flex-col items-center",
+                  isMe && "text-teal-900",
                 )}
                 style={{
                   animationDelay: `${index * 55}ms`,
-                  "--quiz-rank-from": `${entry.delta === undefined ? 10 : entry.delta * 54}px`,
+                  "--quiz-rank-from": `${entry.delta === undefined ? 10 : entry.delta * 32}px`,
                 } as React.CSSProperties}
               >
-                <div
-                  aria-hidden
-                  className="quiz-score-bar absolute inset-y-0 left-0 bg-teal-500/15"
-                  style={{ "--quiz-score-width": `${width}%` } as React.CSSProperties}
-                />
-                <div className="relative flex items-center gap-3">
-                  <span className="w-8 font-mono text-sm font-black text-teal-700">{t("quiz.rankN", { n: entry.rank })}</span>
-                  <span className="text-2xl">{entry.avatar || FALLBACK_AVATAR}</span>
-                  <span className="min-w-0 flex-1 truncate text-sm font-bold">{entry.nickname}</span>
-                  <span
-                    className={cn(
-                      "whitespace-nowrap px-2 py-1 font-mono text-[0.65rem] font-bold uppercase tracking-wide",
-                      movement > 0 && "bg-emerald-100 text-emerald-800",
-                      movement < 0 && "bg-rose-100 text-rose-800",
-                      movement === 0 && "bg-black/5 text-black/50",
-                    )}
-                  >
-                    {movementText(entry.delta)}
-                  </span>
-                  <span className="min-w-16 text-right font-mono text-sm font-black tabular-nums">
-                    {entry.totalPoints.toLocaleString()} <span className="text-[0.6rem] text-black/45">{t("quiz.pointsShort")}</span>
+                <span
+                  className={cn(
+                    "mb-1 max-w-full truncate px-1 py-0.5 font-mono text-[0.52rem] font-black uppercase tracking-tight",
+                    movement > 0 && "bg-emerald-100 text-emerald-800",
+                    movement < 0 && "bg-rose-100 text-rose-800",
+                    movement === 0 && "bg-black/5 text-black/50",
+                  )}
+                >
+                  {movementText(entry.delta)}
+                </span>
+                <span className="mb-1 font-mono text-xs font-black tabular-nums sm:text-sm">
+                  {entry.totalPoints.toLocaleString()} <span className="text-[0.5rem] text-black/45">{t("quiz.pointsShort")}</span>
+                </span>
+                <div className={cn("relative flex min-h-0 w-full flex-1 items-end overflow-hidden border", isMe ? "border-teal-700 bg-teal-50" : "border-black/10 bg-black/[0.03]")}>
+                  <div
+                    aria-hidden
+                    className={cn("quiz-score-column w-full", isMe ? "bg-teal-600/80" : "bg-teal-500/55")}
+                    style={{ "--quiz-score-height": `${height}%` } as React.CSSProperties}
+                  />
+                  <span className="absolute bottom-2 left-1/2 -translate-x-1/2 font-mono text-[0.65rem] font-black text-black/65">
+                    {t("quiz.rankN", { n: entry.rank })}
                   </span>
                 </div>
+                <span className="mt-2 text-2xl" aria-hidden>{entry.avatar || FALLBACK_AVATAR}</span>
+                <span className="w-full truncate text-center text-xs font-bold">{entry.nickname}</span>
               </div>
               )
             })}

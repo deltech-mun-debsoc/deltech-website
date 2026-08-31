@@ -204,15 +204,42 @@ for (const route of [
   assert.match(participant, /payload\.correctAnswers/, "the phone must adopt the host's revealed answer")
   assert.match(participant, /const showVerdict = revealed/, "a phone verdict must remain gated by host reveal")
   assert.match(participant, /stableFeedback/, "feedback copy must not flicker between renders")
-  assert.match(participant, /quiz-score-bar/, "the phone leaderboard needs horizontal score bars")
+  assert.match(participant, /quiz-score-column/, "the phone leaderboard needs vertical score bars")
   assert.match(participant, /movementText\(entry\.delta\)/, "the phone must explain rank movement")
-  assert.match(board, /entry\.delta \* 56/, "projector rows must travel from their previous rank")
+  assert.match(board, /entry\.delta \* 72/, "projector columns must travel from their previous rank")
   assert.match(board, /entry\.totalPoints \/ maxScore/, "projector bars must represent relative score")
   assert.match(board, /<Movement delta=\{entry\.delta\}/, "projector must show position jumps")
   assert.match(stage, /font-heading/, "the presenter must use the site's display typography")
   assert.match(stage, /const canAdvance = !scoredQuiz \|\| revealed/, "a scored question cannot skip its reveal")
   assert.match(stage, /mode === "QUIZ" && canAdvance/, "standings must not jump ahead of the answer reveal")
   assert.doesNotMatch(stage, /fontFamily: theme\.font/, "custom quiz fonts must not replace the site typography on the stage")
+}
+
+// --- quiz lifecycle is server-owned and reload-safe -------------------------
+{
+  const schema = read("prisma/schema.prisma")
+  const migration = read("prisma/migrations/20260831090000_quiz_session_integrity/migration.sql")
+  const actions = read("src/app/(admin)/admin/quiz/[id]/present/actions.ts")
+  const presenter = read("src/app/(admin)/admin/quiz/[id]/present/_components/presenter-app.tsx")
+  const participant = read("src/app/(public)/quiz/[code]/_components/participant-app.tsx")
+  const answers = read("src/app/api/quiz/responses/route.ts")
+  const tally = read("src/app/api/quiz/tally/[sessionId]/[slideId]/route.ts")
+
+  for (const field of ["currentSlideDeadlineAt", "currentSlideLockedAt", "currentSlideRevealedAt"]) {
+    assert.match(schema, new RegExp(field), `${field} must be persisted on QuizSession`)
+  }
+  assert.match(migration, /nickname_normalized_key/, "case and whitespace aliases need one database identity")
+  assert.match(actions, /pausedMs/, "unlocking must resume the remaining time instead of burning the pause")
+  assert.match(actions, /status: "ended"/, "ending must be persisted, not just broadcast")
+  assert.match(presenter, /await endSession[\s\S]{0,120}?broadcast\(\{ event: "END" \}\)/, "persist end before notifying phones")
+  assert.match(presenter, /api\/quiz\/sessions\?sessionId=/, "a refreshed presenter must recover the live question")
+  assert.match(participant, /localStorage\.setItem\(identityStorageKey/, "a refreshed phone must retain its identity")
+  assert.match(participant, /recoverOnly: true/, "a refreshed phone must recover its existing answer without creating one")
+  assert.match(participant, /setInterval\(\(\) => void catchUp\(false\), 5_000\)/, "phones must reconcile missed realtime events")
+  assert.match(answers, /FOR SHARE/, "answer, lock and end must not have a last-millisecond race")
+  assert.match(answers, /pendingReveal: true/, "the answer API must not leak correctness before reveal")
+  assert.match(answers, /currentSlideDeadlineAt[\s\S]{0,500}?time_up/, "the server must enforce the deadline")
+  assert.match(tally, /const session = await auth\(\)/, "the live tally must not be a public answer oracle")
 }
 
 // --- no dead UI in recruitment ---------------------------------------------

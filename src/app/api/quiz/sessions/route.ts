@@ -5,6 +5,7 @@ import { createOrGetQuizSession } from "@/lib/quiz-session"
 import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit"
 import { parseConfig, redactSlide } from "@/lib/quiz-types"
 import type { SlideType } from "@/lib/quiz-types"
+import { correctAnswersForSlide, correctIndicesForSlide, secondsUntil, slideTimerSeconds } from "@/lib/quiz-live"
 
 // The live question, redacted, with the server's own count of the time left on
 // it. Null when nothing is on screen yet.
@@ -12,6 +13,9 @@ async function liveSlide(session: {
   presentationId: string
   currentSlideId: string | null
   currentSlideStartedAt: Date | null
+  currentSlideDeadlineAt: Date | null
+  currentSlideLockedAt: Date | null
+  currentSlideRevealedAt: Date | null
 }) {
   if (!session.currentSlideId) return null
 
@@ -25,45 +29,66 @@ async function liveSlide(session: {
   if (!row) return null
 
   const type = row.type as SlideType
-  const slide = redactSlide({
+  const fullSlide = {
     id: row.id,
     order: row.order,
     type,
     prompt: row.prompt,
     config: parseConfig(row.config, type),
-  })
+  }
+  const slide = redactSlide(fullSlide)
 
   // Remaining time from the SERVER's record of when the slide went live, not
   // from anything the phone believes, so a phone rejoining picks up the same
   // deadline everyone else is on.
-  const timer = (slide.config as { timerSeconds?: number | null }).timerSeconds
-  const secondsLeft =
-    typeof timer === "number" && timer > 0 && session.currentSlideStartedAt
+  const timer = slideTimerSeconds(fullSlide)
+  const secondsLeft = session.currentSlideDeadlineAt
+    ? secondsUntil(session.currentSlideDeadlineAt, session.currentSlideLockedAt ?? new Date())
+    : timer !== null && session.currentSlideStartedAt
       ? Math.max(0, timer - (Date.now() - session.currentSlideStartedAt.getTime()) / 1000)
       : null
 
-  return { slide, slideIndex: row.order, slideCount, secondsLeft }
+  const revealed = session.currentSlideRevealedAt !== null
+
+  return {
+    slide,
+    slideIndex: row.order,
+    slideCount,
+    secondsLeft,
+    // A timer reaching zero closes voting even if the presenter's browser was
+    // asleep and never got a chance to persist the automatic lock yet.
+    locked: session.currentSlideLockedAt !== null || (timer !== null && secondsLeft === 0),
+    revealed,
+    correctIndices: revealed ? correctIndicesForSlide(fullSlide) : [],
+    correctAnswers: revealed ? correctAnswersForSlide(fullSlide) : [],
+  }
 }
 
 // GET ?code=123456 , participant lookup (public)
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url)
   const code = searchParams.get("code")
-  if (!code) return NextResponse.json({ error: "code required" }, { status: 400 })
+  const sessionId = searchParams.get("sessionId")
+  if (!code && !sessionId) return NextResponse.json({ error: "code or sessionId required" }, { status: 400 })
 
   // Unauthenticated oracle over a 6-digit (900k) space, without a throttle,
   // live sessions can be enumerated and then targeted.
-  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown"
-  const limit = await rateLimit(RATE_LIMITS.quizLookup, ip)
-  if (!limit.ok) {
-    return NextResponse.json(
-      { error: "rate_limited" },
-      { status: 429, headers: { "Retry-After": String(limit.retryAfter) } },
-    )
+  if (!sessionId) {
+    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown"
+    const limit = await rateLimit(RATE_LIMITS.quizLookup, ip)
+    if (!limit.ok) {
+      return NextResponse.json(
+        { error: "rate_limited" },
+        { status: 429, headers: { "Retry-After": String(limit.retryAfter) } },
+      )
+    }
   }
 
+  // A CUID is unguessable and comes from the already-rendered participant page,
+  // so connected phones can cheaply reconcile state without consuming the
+  // six-digit room-code enumeration budget every five seconds.
   const session = await prisma.quizSession.findFirst({
-    where: { roomCode: code },
+    where: sessionId ? { id: sessionId } : { roomCode: code! },
     select: {
       id: true,
       roomCode: true,
@@ -71,6 +96,9 @@ export async function GET(request: Request) {
       presentationId: true,
       currentSlideId: true,
       currentSlideStartedAt: true,
+      currentSlideDeadlineAt: true,
+      currentSlideLockedAt: true,
+      currentSlideRevealedAt: true,
     },
   })
   if (!session) return NextResponse.json({ error: "not_found" }, { status: 404 })
