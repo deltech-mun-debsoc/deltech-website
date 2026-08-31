@@ -3,7 +3,6 @@ import {
   mayPerform,
   requireRecruitmentAccess,
   resolveCycleContext,
-  visibleGroupIds,
 } from "@/lib/recruitment/authz"
 import { t } from "@/content/strings"
 import { RecruitmentPageHeader } from "../../_components/page-header"
@@ -67,20 +66,25 @@ export default async function CandidatesPage({
   const ctx = await resolveCycleContext(cycle.id)
   if (!ctx) return null
 
-  // A JC only sees candidates in groups they staff: a capability check alone would
-  // still hand them the whole cycle's candidate list.
-  const scopedGroups = await visibleGroupIds(ctx)
-
   // Opt-in: "search the answers too" is the one filter that cannot run client-side.
   const answersQuery = (await searchParams).answers?.trim() ?? ""
   const answerMatchIds = await formAnswerMatches(cycle.id, answersQuery)
 
+  // Everyone who holds candidate.view sees the whole cycle's candidates, JC
+  // included. This list used to be filtered to the groups a JC staffs, which read
+  // as "recruitment is broken for JCs": they now reach a live cycle from their app
+  // role alone, usually before anyone has seated them on a panel, so the list was
+  // simply empty while maintainers saw everything.
+  //
+  // It was never a real confidentiality boundary either. candidates/[id] resolves a
+  // dossier by id and does not scope by group, so any JC could already open any
+  // candidate by URL; the filter hid rows from a list rather than protecting them.
+  // What actually withholds candidate data from a JC is unchanged and elsewhere:
+  // interview.conduct keeps them out of the PI queue and interview scores, and
+  // requireGroupAccess still scopes every session console to their own panels.
   const where: Prisma.RecruitmentCandidateWhereInput = {
     cycleId: cycle.id,
     ...(answersQuery ? { id: { in: answerMatchIds } } : {}),
-    ...(scopedGroups
-      ? { groupMemberships: { some: { groupId: { in: scopedGroups } } } }
-      : {}),
   }
 
   // The whole cycle in one query, filtered in the browser from here on. Searching
@@ -133,9 +137,11 @@ export default async function CandidatesPage({
       >
         <SelectionActions
           cycleId={cycle.id}
-          // A JC's list is scoped to their own panels, so their "export all" would
-          // be a partial cycle presented as the whole thing. Unscoped viewers only.
-          canExport={scopedGroups === null}
+          // This used to be `scopedGroups === null`, guarding against a JC
+          // exporting their own partial slice as if it were the whole cycle.
+          // Nobody's list is partial any more, so the export matches what is on
+          // screen for everyone who can reach this page.
+          canExport
           email={emailStatus}
         />
       </RecruitmentPageHeader>
