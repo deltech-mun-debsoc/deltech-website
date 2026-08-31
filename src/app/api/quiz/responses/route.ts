@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server"
+import { randomUUID } from "node:crypto"
 import { prisma } from "@/lib/prisma"
 import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit"
+import { cachedLiveQuizSnapshot, cachedScoringSlide } from "@/lib/quiz-cache"
+import { sealQuizResultReceipt, type QuizResultReceipt } from "@/lib/quiz-result-receipt"
 import { asMCQ, asOpenText, asScale, asWordCloud, parseConfig } from "@/lib/quiz-types"
 import type { SlideConfig } from "@/lib/quiz-types"
 import type { SlideType } from "@/lib/quiz-types"
@@ -16,9 +19,15 @@ type LockedQuizSession = {
   currentSlideRevealedAt: Date | null
 }
 
+type AnswerAdmission = LockedQuizSession & {
+  inserted: boolean
+  awardedPoints: number
+  streakBonus: number
+}
+
 type AnswerOutcome =
   | { error: string; status: 404 | 408 | 409 | 410 | 423 }
-  | { pending: true; alreadySubmitted: boolean }
+  | { pending: true; alreadySubmitted: boolean; receipt: QuizResultReceipt }
   | {
       correct: boolean | null
       points: number
@@ -97,19 +106,24 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "invalid_identity" }, { status: 400 })
   }
 
-  const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown"
-  const limit = await rateLimit(RATE_LIMITS.quizAnswer, `${sessionId}:${ip}`)
-  if (!limit.ok) {
-    return NextResponse.json(
-      { error: "rate_limited" },
-      { status: 429, headers: { "Retry-After": String(limit.retryAfter) } },
-    )
+  if (body.recoverOnly) {
+    const ip = request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "unknown"
+    // Recovery can be repeated, so it keeps a per-person throttle. A normal
+    // answer is already one atomic, unique, hard-capped insert below; a second
+    // limiter write would double the hottest path for no additional protection.
+    const limit = await rateLimit(RATE_LIMITS.quizAnswer, `${sessionId}:${nickname}:${ip}`)
+    if (!limit.ok) {
+      return NextResponse.json(
+        { error: "rate_limited" },
+        { status: 429, headers: { "Retry-After": String(limit.retryAfter) } },
+      )
+    }
   }
 
-  const slide = await prisma.slide.findUnique({
-    where: { id: slideId },
-    select: { type: true, config: true },
-  })
+  const liveSnapshot = body.recoverOnly ? null : await cachedLiveQuizSnapshot(sessionId)
+  const slide = liveSnapshot?.currentSlideId === slideId && liveSnapshot.slideType
+    ? { type: liveSnapshot.slideType, config: liveSnapshot.slideConfig }
+    : await cachedScoringSlide(slideId)
   if (!slide) return NextResponse.json({ error: "slide_not_found" }, { status: 404 })
   const type = slide.type as SlideType
   const config = parseConfig(slide.config, type)
@@ -117,106 +131,159 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "invalid_answer" }, { status: 422 })
   }
 
-  // Answers take a shared lock on the session row. They can still arrive in
-  // parallel, but lock/reveal/end must serialize with them. A request either
-  // commits before voting closes or waits and observes the closed state; there
-  // is no read-then-write window for a last-millisecond answer to slip through.
   let outcome: AnswerOutcome
-  try {
-    outcome = await prisma.$transaction<AnswerOutcome>(async (tx) => {
-      const rows = await tx.$queryRaw<LockedQuizSession[]>`
-        SELECT "status", "currentSlideId", "currentSlideStartedAt",
-               "currentSlideDeadlineAt", "currentSlideLockedAt", "currentSlideRevealedAt"
-        FROM "QuizSession"
-        WHERE "id" = ${sessionId}
-        FOR SHARE
-      `
-      const session = rows[0]
-      if (!session || session.status === "ended") return { error: "session_ended", status: 410 }
-      if (session.status !== "active" || session.currentSlideId !== slideId) {
-        return { error: "slide_not_active", status: 409 }
-      }
-
-      const existing = await tx.response.findFirst({
+  if (body.recoverOnly) {
+    const [sessions, existing] = await Promise.all([
+      prisma.$queryRaw<LockedQuizSession[]>`
+        SELECT "status", "currentSlideId", "currentSlideStartedAt", "currentSlideDeadlineAt",
+               "currentSlideLockedAt", "currentSlideRevealedAt"
+        FROM "QuizSession" WHERE "id" = ${sessionId}
+      `,
+      prisma.response.findFirst({
         where: { sessionId, slideId, nickname: { equals: nickname, mode: "insensitive" } },
-      })
-      if (existing) {
-        // Before reveal, a replay gets only a receipt. Returning the stored score
-        // here would make devtools an answer oracle while others are still voting.
-        if (!session.currentSlideRevealedAt) {
-          return { pending: true, alreadySubmitted: true }
-        }
-        const recovered = scoreAnswer({ type, config, answer: existing.answer, elapsedSeconds: null, streak: 0 })
-        return {
-          correct: recovered.correct,
-          points: existing.points,
-          nickname: existing.nickname ?? nickname,
-          streakBonus: 0,
-          alreadySubmitted: true,
-        }
-      }
-
-      if (body.recoverOnly) return { error: "response_not_found", status: 404 }
-
-      if (session.currentSlideRevealedAt) return { error: "answer_revealed", status: 423 }
-      if (session.currentSlideLockedAt) return { error: "voting_locked", status: 423 }
-      if (session.currentSlideDeadlineAt && session.currentSlideDeadlineAt.getTime() <= Date.now()) {
-        return { error: "time_up", status: 408 }
-      }
-
-      const recent = await tx.response.findMany({
-        where: { sessionId, nickname },
-        orderBy: { createdAt: "desc" },
-        select: { points: true },
-        take: 10,
-      })
-      let streak = 0
-      for (const row of recent) {
-        if (row.points <= 0) break
-        streak++
-      }
-      const elapsedSeconds = session.currentSlideStartedAt
-        ? (Date.now() - session.currentSlideStartedAt.getTime()) / 1000
-        : null
-      const scored = scoreAnswer({ type, config, answer, elapsedSeconds, streak })
-
-      await tx.response.create({
-        data: {
-          sessionId,
-          slideId,
-          nickname,
-          avatar: typeof body.avatar === "string" ? body.avatar : null,
-          answer: answer as never,
-          points: scored.points,
-        },
-      })
-      // Score is committed now but intentionally withheld until reveal.
-      return { pending: true, alreadySubmitted: false }
-    })
-  } catch (err) {
-    // A double tap can race through the friendly lookup, but the database's
-    // normalized unique index decides one winner. The losing transaction is
-    // rolled back in full and receives the same neutral receipt.
-    if (
-      typeof err === "object" && err !== null && "code" in err &&
-      (err as { code: unknown }).code === "P2002"
-    ) {
-      return NextResponse.json({
-        correct: null,
-        points: 0,
-        rank: null,
+      }),
+    ])
+    const session = sessions[0]
+    if (!session || session.status === "ended") outcome = { error: "session_ended", status: 410 }
+    else if (session.status !== "active" || session.currentSlideId !== slideId) {
+      outcome = { error: "slide_not_active", status: 409 }
+    } else if (!existing) outcome = { error: "response_not_found", status: 404 }
+    else {
+      const recovered = scoreAnswer({ type, config, answer: existing.answer, elapsedSeconds: null, streak: 0 })
+      const receipt: QuizResultReceipt = {
+        version: 1,
+        sessionId,
+        slideId,
+        nickname: existing.nickname ?? nickname,
+        correct: recovered.correct,
+        points: existing.points,
         streakBonus: 0,
-        alreadySubmitted: true,
-        pendingReveal: true,
-      })
+      }
+      outcome = session.currentSlideRevealedAt
+        ? { ...receipt, alreadySubmitted: true }
+        : { pending: true, alreadySubmitted: true, receipt }
     }
-    throw err
+  } else {
+    const observed = liveSnapshot
+    if (!observed || observed.status === "ended") outcome = { error: "session_ended", status: 410 }
+    else if (observed.status !== "active" || observed.currentSlideId !== slideId) {
+      outcome = { error: "slide_not_active", status: 409 }
+    } else {
+      const startedAt = observed.currentSlideStartedAt
+        ? new Date(observed.currentSlideStartedAt)
+        : null
+      const elapsedSeconds = startedAt
+        ? (Date.now() - startedAt.getTime()) / 1000
+        : null
+      const scored = scoreAnswer({ type, config, answer, elapsedSeconds, streak: 0 })
+      const configuredStreakStep = (config as { streakBonus?: unknown }).streakBonus
+      const streakStep = scored.correct === true && typeof configuredStreakStep === "number" && configuredStreakStep > 0
+        ? Math.round(configuredStreakStep)
+        : 0
+      const responseId = randomUUID()
+      const avatar = typeof body.avatar === "string" ? body.avatar : null
+      // One implicit database transaction. The shared row lock and guarded
+      // INSERT happen in the same statement, so lock/reveal/end cannot cross
+      // answer admission, but 150 requests do not occupy Prisma interactive
+      // transaction slots while waiting for a connection.
+      const admittedRows = await prisma.$queryRaw<AnswerAdmission[]>`
+        WITH live AS MATERIALIZED (
+          SELECT "status", "currentSlideId", "currentSlideStartedAt", "currentSlideDeadlineAt",
+                 "currentSlideLockedAt", "currentSlideRevealedAt"
+          FROM "QuizSession"
+          WHERE "id" = ${sessionId}
+          FOR SHARE
+        ), history AS (
+          SELECT BOOL_AND(recent."points" > 0) OVER (
+            ORDER BY recent."createdAt" DESC
+            ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW
+          ) AS leading_correct
+          FROM (
+            SELECT "points", "createdAt"
+            FROM "Response"
+            WHERE "sessionId" = ${sessionId} AND LOWER("nickname") = LOWER(${nickname})
+            ORDER BY "createdAt" DESC
+            LIMIT 5
+          ) recent
+        ), scored AS (
+          SELECT ${scored.points}::int +
+            (LEAST(5, COALESCE((SELECT COUNT(*) FROM history WHERE leading_correct), 0))::int * ${streakStep}::int)
+            AS points,
+            (LEAST(5, COALESCE((SELECT COUNT(*) FROM history WHERE leading_correct), 0))::int * ${streakStep}::int)
+            AS streak_bonus
+        ), inserted AS (
+          INSERT INTO "Response" ("id", "sessionId", "slideId", "nickname", "avatar", "answer", "points", "createdAt")
+          SELECT ${responseId}, ${sessionId}, ${slideId}, ${nickname}, ${avatar},
+                 ${JSON.stringify(answer)}::jsonb, scored.points, NOW()
+          FROM live CROSS JOIN scored
+          WHERE live."status" = 'active'
+            AND live."currentSlideId" = ${slideId}
+            AND live."currentSlideLockedAt" IS NULL
+            AND live."currentSlideRevealedAt" IS NULL
+            AND (live."currentSlideDeadlineAt" IS NULL OR live."currentSlideDeadlineAt" > NOW())
+            AND (SELECT COUNT(*) FROM "Response" cap
+                 WHERE cap."sessionId" = ${sessionId} AND cap."slideId" = ${slideId}) < 500
+          ON CONFLICT DO NOTHING
+          RETURNING "id", "points"
+        )
+        SELECT live.*, EXISTS (SELECT 1 FROM inserted) AS "inserted",
+               COALESCE((SELECT "points" FROM inserted LIMIT 1), 0)::int AS "awardedPoints",
+               COALESCE((SELECT streak_bonus FROM scored LIMIT 1), 0)::int AS "streakBonus"
+        FROM live
+      `
+      const admitted = admittedRows[0]
+      if (!admitted || admitted.status === "ended") outcome = { error: "session_ended", status: 410 }
+      else if (admitted.status !== "active" || admitted.currentSlideId !== slideId) {
+        outcome = { error: "slide_not_active", status: 409 }
+      } else if (admitted.currentSlideRevealedAt) outcome = { error: "answer_revealed", status: 423 }
+      else if (admitted.currentSlideLockedAt) outcome = { error: "voting_locked", status: 423 }
+      else if (admitted.currentSlideDeadlineAt && admitted.currentSlideDeadlineAt.getTime() <= Date.now()) {
+        outcome = { error: "time_up", status: 408 }
+      } else if (!admitted.inserted) {
+        const existing = await prisma.response.findFirst({
+          where: { sessionId, slideId, nickname: { equals: nickname, mode: "insensitive" } },
+          select: { nickname: true, answer: true, points: true },
+        })
+        if (!existing) outcome = { error: "response_not_found", status: 404 }
+        else {
+          const recovered = scoreAnswer({ type, config, answer: existing.answer, elapsedSeconds: null, streak: 0 })
+          outcome = {
+            pending: true,
+            alreadySubmitted: true,
+            receipt: {
+              version: 1,
+              sessionId,
+              slideId,
+              nickname: existing.nickname ?? nickname,
+              correct: recovered.correct,
+              points: existing.points,
+              streakBonus: 0,
+            },
+          }
+        }
+      } else {
+        outcome = {
+          pending: true,
+          alreadySubmitted: false,
+          receipt: {
+            version: 1,
+            sessionId,
+            slideId,
+            nickname,
+            correct: scored.correct,
+            points: admitted.awardedPoints,
+            streakBonus: admitted.streakBonus,
+          },
+        }
+      }
+    }
   }
 
   if ("error" in outcome) {
     return NextResponse.json({ error: outcome.error }, { status: outcome.status })
   }
   if ("pending" in outcome) {
+    const resultToken = sealQuizResultReceipt(outcome.receipt)
     return NextResponse.json({
       correct: null,
       points: 0,
@@ -224,6 +291,7 @@ export async function POST(request: Request) {
       streakBonus: 0,
       alreadySubmitted: outcome.alreadySubmitted,
       pendingReveal: true,
+      ...(resultToken ? { resultToken } : {}),
     })
   }
 

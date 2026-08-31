@@ -20,7 +20,7 @@ const read = (p: string) => readFileSync(p, "utf8")
     "the client clock must not be read out of the request body",
   )
   assert.doesNotMatch(route, /submittedAt \/ 1000/, "scoring must not use a client-supplied elapsed time")
-  assert.match(route, /session\.currentSlideStartedAt/, "elapsed time must come from the server record")
+  assert.match(route, /observed\.currentSlideStartedAt/, "elapsed time must come from the server record")
   assert.match(
     route,
     /session\.currentSlideId !== slideId/,

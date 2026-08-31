@@ -161,7 +161,7 @@ const read = (p: string) => readFileSync(p, "utf8")
     "Response needs a unique index; the findFirst check alone loses the race",
   )
   const route = read("src/app/api/quiz/responses/route.ts")
-  assert.match(route, /P2002[\s\S]{0,500}?alreadySubmitted: true/, "the constraint violation needs an idempotent receipt")
+  assert.match(route, /ON CONFLICT DO NOTHING[\s\S]{0,2500}?alreadySubmitted: true/, "the constraint violation needs an idempotent receipt")
   assert.match(route, /FOR SHARE/, "answer admission must serialize with lock, reveal and end")
 
   // The migration must clear pre-existing duplicates or the index cannot build.

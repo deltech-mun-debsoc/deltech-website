@@ -1,9 +1,12 @@
 "use server"
 
+import { updateTag } from "next/cache"
 import { prisma } from "@/lib/prisma"
 import { requireStaff } from "@/lib/authz"
 import { createOrGetQuizSession, resumeQuizSession } from "@/lib/quiz-session"
 import { secondsUntil } from "@/lib/quiz-live"
+import { quizSessionCacheTag } from "@/lib/quiz-cache"
+import { quizResultRevealKey } from "@/lib/quiz-result-receipt"
 
 export async function createOrGetSession(presentationId: string): Promise<string> {
   await requireStaff()
@@ -59,6 +62,7 @@ export async function startSlide(
     RETURNING qs."id"
   `
   if (updated.length === 0) throw new Error("SESSION_OR_SLIDE_NOT_AVAILABLE")
+  updateTag(quizSessionCacheTag(sessionId))
 }
 
 export async function lockSlide(sessionId: string, slideId: string): Promise<void> {
@@ -78,6 +82,7 @@ export async function lockSlide(sessionId: string, slideId: string): Promise<voi
     if (!session || session.status === "ended") throw new Error("SESSION_ENDED")
     if (session.currentSlideId !== slideId) throw new Error("STALE_SLIDE")
   }
+  updateTag(quizSessionCacheTag(sessionId))
 }
 
 export async function unlockSlide(
@@ -86,7 +91,7 @@ export async function unlockSlide(
 ): Promise<{ secondsLeft: number | null }> {
   await requireStaff()
 
-  return prisma.$transaction(async (tx) => {
+  const timing = await prisma.$transaction(async (tx) => {
     const session = await tx.quizSession.findUnique({ where: { id: sessionId } })
     if (!session || session.status === "ended") throw new Error("SESSION_ENDED")
     if (session.currentSlideId !== slideId) throw new Error("STALE_SLIDE")
@@ -115,9 +120,11 @@ export async function unlockSlide(
 
     return { secondsLeft: secondsUntil(deadline, now) }
   })
+  updateTag(quizSessionCacheTag(sessionId))
+  return timing
 }
 
-export async function revealSlide(sessionId: string, slideId: string): Promise<void> {
+export async function revealSlide(sessionId: string, slideId: string): Promise<string | null> {
   await requireStaff()
   const updated = await prisma.quizSession.updateMany({
     where: {
@@ -135,6 +142,8 @@ export async function revealSlide(sessionId: string, slideId: string): Promise<v
     if (session.currentSlideId !== slideId) throw new Error("STALE_SLIDE")
     if (!session.currentSlideLockedAt) throw new Error("LOCK_BEFORE_REVEAL")
   }
+  updateTag(quizSessionCacheTag(sessionId))
+  return quizResultRevealKey(sessionId, slideId)
 }
 
 export async function endSession(sessionId: string): Promise<void> {
@@ -151,6 +160,7 @@ export async function endSession(sessionId: string): Promise<void> {
       currentSlideRevealedAt: null,
     },
   })
+  updateTag(quizSessionCacheTag(sessionId))
 }
 
 export async function computeLeaderboard(

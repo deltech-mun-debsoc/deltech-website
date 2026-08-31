@@ -33,7 +33,9 @@ export const RATE_LIMITS = {
   register: { name: "register", limit: 10, windowMs: 60 * 60_000 },
   // Enumerating live sessions across a 6-digit (900k) code space.
   quizLookup: { name: "quizlookup", limit: 30, windowMs: 60_000 },
-  quizAnswer: { name: "quizanswer", limit: 60, windowMs: 60_000 },
+  // Per participant, not per venue IP. A college quiz commonly has everyone
+  // behind one NAT address; sharing this bucket made the 61st phone an abuser.
+  quizAnswer: { name: "quizanswer", limit: 8, windowMs: 60_000 },
 } as const satisfies Record<string, RateLimitRule>
 
 export interface RateLimitResult {
@@ -58,27 +60,24 @@ export async function rateLimit(
   const windowStart = new Date(now.getTime() - rule.windowMs)
 
   try {
-    // Reset the row if its window has expired, otherwise increment it. The
-    // updateMany returns 0 when the row is missing or stale, which is the
-    // signal to (re)start a window.
-    const bumped = await prisma.rateLimit.updateMany({
-      where: { key, windowStart: { gt: windowStart } },
-      data: { count: { increment: 1 } },
-    })
-
-    if (bumped.count === 0) {
-      await prisma.rateLimit.upsert({
-        where: { key },
-        create: { key, count: 1, windowStart: now },
-        update: { count: 1, windowStart: now },
-      })
-      return { ok: true, retryAfter: 0 }
-    }
-
-    const row = await prisma.rateLimit.findUnique({
-      where: { key },
-      select: { count: true, windowStart: true },
-    })
+    // One atomic round trip. The old update -> upsert -> read sequence tripled
+    // database work and, for a shared quiz IP, queued the entire room behind
+    // one locked row. RETURNING gives this request its own incremented count.
+    const rows = await prisma.$queryRaw<{ count: number; windowStart: Date }[]>`
+      INSERT INTO "RateLimit" ("key", "count", "windowStart")
+      VALUES (${key}, 1, ${now})
+      ON CONFLICT ("key") DO UPDATE SET
+        "count" = CASE
+          WHEN "RateLimit"."windowStart" <= ${windowStart} THEN 1
+          ELSE "RateLimit"."count" + 1
+        END,
+        "windowStart" = CASE
+          WHEN "RateLimit"."windowStart" <= ${windowStart} THEN ${now}
+          ELSE "RateLimit"."windowStart"
+        END
+      RETURNING "count", "windowStart"
+    `
+    const row = rows[0]
     if (!row) return { ok: true, retryAfter: 0 }
 
     if (row.count > rule.limit) {

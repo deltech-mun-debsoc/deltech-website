@@ -322,7 +322,7 @@ export type QuizBroadcast =
   | { event: "GOTO"; slideId: string; slideIndex: number; slideCount: number; slide: SlideData }
   | { event: "LOCK" }
   | { event: "UNLOCK"; secondsLeft: number | null }
-  | { event: "REVEAL"; correctIndices: number[]; correctAnswers: string[] }
+  | { event: "REVEAL"; correctIndices: number[]; correctAnswers: string[]; resultKey?: string | null }
   | { event: "LEADERBOARD"; entries: LBEntry[]; final: boolean }
   | { event: "END" }
 
