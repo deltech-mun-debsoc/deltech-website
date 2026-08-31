@@ -7,6 +7,7 @@ import { audit } from "@/lib/audit"
 import { deleteBlockReason } from "@/lib/user-admin"
 import type { Prisma, Role } from "@/generated/prisma/client"
 import { detailedChangeMeta } from "@/lib/audit-change"
+import { derivedRecruitmentRole } from "@/lib/recruitment/permissions"
 
 const ASSIGNABLE: Role[] = ["ADMIN", "MAINTAINER", "AUTHOR", "REGISTERER", "SUB_MAINTAINER"]
 
@@ -114,8 +115,30 @@ export async function setUserRole(userId: string, role: Role): Promise<Result> {
   }
   if (target.role === role) return { success: true }
 
+  const recruitmentRole = derivedRecruitmentRole(role)
+
   try {
-    await withAdminInvariant((tx) => tx.user.update({ where: { id: userId }, data: { role } }))
+    await withAdminInvariant(async (tx) => {
+      await tx.user.update({ where: { id: userId }, data: { role } })
+
+      // The dashboard role IS the recruitment role, so changing it here has to
+      // move the recruitment memberships with it. Cycles keep a row per member
+      // (RecruitmentStaffAssignment points at one), and those rows override the
+      // derived role -- so a stale one left behind would quietly keep granting
+      // the access this change was meant to remove, or cap a promotion at the
+      // old role. Same transaction: never a window where the two disagree.
+      if (recruitmentRole) {
+        await tx.recruitmentMember.updateMany({
+          where: { userId, isActive: true },
+          data: { role: recruitmentRole },
+        })
+      } else {
+        await tx.recruitmentMember.updateMany({
+          where: { userId, isActive: true },
+          data: { isActive: false, revokedAt: new Date(), revokedById: session.user!.id },
+        })
+      }
+    })
   } catch (err) {
     const mapped = mapInvariantError(err)
     if (mapped) return mapped
@@ -130,7 +153,7 @@ export async function setUserRole(userId: string, role: Role): Promise<Result> {
     detailedChangeMeta({
       summary: `Changed ${target.email}'s role.`,
       before: { role: target.role },
-      after: { role },
+      after: { role, recruitmentRole: recruitmentRole ?? "none" },
     }),
   )
   revalidatePath("/admin/users")

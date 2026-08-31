@@ -13,6 +13,7 @@ import {
   cycleAllows,
   isCycleLive,
   resolveRecruitmentRole,
+  derivedRecruitmentRole,
   atLeast,
   type CycleStateName,
   type RecruitmentAction,
@@ -176,20 +177,31 @@ for (const [action, roles] of Object.entries(CAPABILITIES)) {
 assert.deepEqual(resolveRecruitmentRole("ADMIN", null), { role: "ADMIN", implicit: true })
 // An explicit assignment on top of global ADMIN is still ADMIN, no longer implicit.
 assert.deepEqual(resolveRecruitmentRole("ADMIN", "JC"), { role: "ADMIN", implicit: false })
-// A dashboard MAINTAINER gets NOTHING without an explicit recruitment assignment.
-assert.deepEqual(resolveRecruitmentRole("MAINTAINER", null), { role: null, implicit: false })
-// ...and can hold a *lower* recruitment role than their app role suggests.
+// The dashboard role IS the recruitment role, on every live cycle, with no
+// per-cycle assignment. Assigning each JC by hand was the step everyone forgot.
+assert.deepEqual(resolveRecruitmentRole("MAINTAINER", null), { role: "MAINTAINER", implicit: true })
+assert.deepEqual(resolveRecruitmentRole("SUB_MAINTAINER", null), { role: "JC", implicit: true })
+assert.deepEqual(derivedRecruitmentRole("ADMIN"), "ADMIN")
+assert.deepEqual(derivedRecruitmentRole("MAINTAINER"), "MAINTAINER")
+assert.deepEqual(derivedRecruitmentRole("SUB_MAINTAINER"), "JC")
+
+// An explicit assignment still overrides the derived role in both directions:
+// down, so a MAINTAINER can run one cycle as a JC...
 assert.deepEqual(resolveRecruitmentRole("MAINTAINER", "JC"), { role: "JC", implicit: false })
-// An AUTHOR has no recruitment access unless explicitly assigned (spec: AUTHOR).
+// ...and up, so a SUB_MAINTAINER can run one cycle as a MAINTAINER without being
+// given a dashboard role that reaches /admin.
+assert.deepEqual(resolveRecruitmentRole("SUB_MAINTAINER", "MAINTAINER"), { role: "MAINTAINER", implicit: false })
+
+// Roles outside the derived set still get nothing from their app role, so a blog
+// AUTHOR or a delegate never drifts into the candidate data by accident.
 assert.deepEqual(resolveRecruitmentRole("AUTHOR", null), { role: null, implicit: false })
-// ...but may be assigned any recruitment role, including MAINTAINER.
+assert.deepEqual(resolveRecruitmentRole("REGISTERER", null), { role: null, implicit: false })
+assert.deepEqual(resolveRecruitmentRole("MEMBER", null), { role: null, implicit: false })
+assert.equal(derivedRecruitmentRole("AUTHOR"), null)
+assert.equal(derivedRecruitmentRole("REGISTERER"), null)
+assert.equal(derivedRecruitmentRole(null), null)
+// ...but may still be assigned to a single cycle explicitly.
 assert.deepEqual(resolveRecruitmentRole("AUTHOR", "MAINTAINER"), { role: "MAINTAINER", implicit: false })
-// A SUB_MAINTAINER app account still needs the per-cycle row — the app role alone
-// grants nothing, which is what keeps the two systems separate.
-assert.deepEqual(resolveRecruitmentRole("SUB_MAINTAINER", null), { role: null, implicit: false })
-assert.deepEqual(resolveRecruitmentRole("SUB_MAINTAINER", "JC"), { role: "JC", implicit: false })
-// A REGISTERER (delegate) explicitly assigned as a JC works too — recruitment
-// authority never consults the app role except for the ADMIN shortcut.
 assert.deepEqual(resolveRecruitmentRole("REGISTERER", "JC"), { role: "JC", implicit: false })
 assert.deepEqual(resolveRecruitmentRole(null, null), { role: null, implicit: false })
 

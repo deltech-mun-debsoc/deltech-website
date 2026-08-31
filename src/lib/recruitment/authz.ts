@@ -2,22 +2,30 @@
 // on failure, return the resolved context so callers can attribute audit rows) so
 // the same defense-in-depth convention holds: proxy → layout → per-action guard.
 //
-// The critical property: recruitment authority comes from RecruitmentMember, NOT
-// from User.role. The single exception is a global ADMIN, who is an implicit
-// recruitment admin everywhere so a cycle can always be repaired. A dashboard
-// MAINTAINER has no recruitment power until someone assigns them, and a
-// SUB_MAINTAINER has no dashboard power at all: the two systems are independent.
+// Recruitment authority is derived from User.role: ADMIN, MAINTAINER and
+// SUB_MAINTAINER carry recruitment ADMIN, MAINTAINER and JC on every live cycle
+// (see DERIVED_ROLE in ./permissions). RecruitmentMember still exists and still
+// overrides the derived role in both directions, but nobody has to be assigned to
+// a cycle before they can work in it.
+//
+// Two properties survive that change and are load-bearing:
+//   1. An explicit revoke beats the derived role, or the revoke button would be a
+//      no-op for exactly the people it is aimed at. Only a global ADMIN outranks it.
+//   2. Group staffing stays explicit. A JC reaching the cycle sees no candidates
+//      until someone puts them on a group; the app role says nothing about which
+//      GD panel a person runs.
 
 import { cache } from "react"
 import { redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { roleHome } from "@/lib/nav"
-import type { CycleState } from "@/generated/prisma/client"
+import type { CycleState, Role } from "@/generated/prisma/client"
 import { auditRecruitment } from "./audit"
 import {
   can,
   cycleAllows,
+  derivedRecruitmentRole,
   isCycleLive,
   resolveRecruitmentRole,
   type CycleStateName,
@@ -91,19 +99,20 @@ const cycleById = cache(async function cycleById(cycleId: string) {
 // resolved server-side rather than taken from the client, so a JC cannot point
 // themselves at a cycle they were never assigned to by editing a URL.
 export async function activeCycleForUser(userId: string, appRole: string) {
-  const memberships =
-    appRole === "ADMIN"
-      ? []
-      : await prisma.recruitmentMember.findMany({
-          where: { userId, isActive: true },
-          select: { cycleId: true, role: true },
-        })
+  // A role that carries recruitment authority on its own reaches any live cycle.
+  // Everyone else (AUTHOR, MEMBER, REGISTERER) still only sees cycles they were
+  // explicitly assigned to.
+  const derived = derivedRecruitmentRole(appRole)
+  const memberships = derived
+    ? []
+    : await prisma.recruitmentMember.findMany({
+        where: { userId, isActive: true },
+        select: { cycleId: true, role: true },
+      })
 
-  // A global admin sees any live cycle; everyone else only their assigned ones.
-  const where =
-    appRole === "ADMIN"
-      ? { state: { in: LIVE_STATES } }
-      : { id: { in: memberships.map((m) => m.cycleId) }, state: { in: LIVE_STATES } }
+  const where = derived
+    ? { state: { in: LIVE_STATES } }
+    : { id: { in: memberships.map((m) => m.cycleId) }, state: { in: LIVE_STATES } }
 
   return prisma.recruitmentCycle.findFirst({
     where,
@@ -114,6 +123,38 @@ export async function activeCycleForUser(userId: string, appRole: string) {
 
 // Mutable on purpose: Prisma's `in` filter rejects a readonly tuple.
 const LIVE_STATES: CycleState[] = ["OPEN", "IN_PROGRESS", "PAUSED", "FINALISATION"]
+
+// Mutable for the same reason as LIVE_STATES: Prisma's `in` rejects a readonly tuple.
+const DERIVED_APP_ROLES: Role[] = ["ADMIN", "MAINTAINER", "SUB_MAINTAINER"]
+
+// Give every derived-role account a RecruitmentMember row on this cycle.
+//
+// Authority no longer comes from these rows, but two things still need one to
+// exist: RecruitmentStaffAssignment points at a member, and the staff pickers on
+// /recruitment/gd, /recruitment/pi and the admin cycle panel list members. Without
+// this a JC could reach the cycle and yet be impossible to seat on a group,
+// because nothing would offer them in the picker.
+//
+// createMany + skipDuplicates rather than an upsert loop: it is one statement, and
+// leaving existing rows untouched is exactly right -- a revoked member must stay
+// revoked, and an explicit role override must not be reset to the derived one.
+export async function ensureDerivedMembers(cycleId: string, assignedById: string): Promise<void> {
+  const users = await prisma.user.findMany({
+    where: { role: { in: DERIVED_APP_ROLES }, disabledAt: null },
+    select: { id: true, role: true },
+  })
+  if (users.length === 0) return
+
+  await prisma.recruitmentMember.createMany({
+    data: users.map((u) => ({
+      cycleId,
+      userId: u.id,
+      role: derivedRecruitmentRole(u.role)!,
+      assignedById,
+    })),
+    skipDuplicates: true,
+  })
+}
 
 // ---------------------------------------------------------------------------
 // Role resolution
@@ -128,8 +169,15 @@ export const recruitmentRoleFor = cache(async function recruitmentRoleFor(
     where: { cycleId_userId: { cycleId, userId } },
     select: { role: true, isActive: true },
   })
-  // A revoked membership is no membership. This is what makes "role removed while
-  // a page is open" take effect on the next action rather than the next login.
+
+  // A revoked membership is a deliberate act aimed at this person on this cycle,
+  // so it beats the role they would otherwise derive -- otherwise revoking a JC
+  // would silently do nothing, since their app role would hand it straight back.
+  // A global ADMIN still outranks it, so a cycle can always be repaired.
+  if (membership && !membership.isActive && appRole !== "ADMIN") {
+    return { role: null, implicit: false }
+  }
+
   const membershipRole = membership?.isActive ? membership.role : null
   return resolveRecruitmentRole(appRole, membershipRole)
 })

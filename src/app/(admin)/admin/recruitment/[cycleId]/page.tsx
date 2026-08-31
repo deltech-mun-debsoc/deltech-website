@@ -3,6 +3,7 @@ import { requireStaff } from "@/lib/authz"
 import { prisma } from "@/lib/prisma"
 import { parseCycleConfig } from "@/lib/schemas/recruitment"
 import { CYCLE_TRANSITIONS, type CycleStateName } from "@/lib/recruitment/permissions"
+import { ensureDerivedMembers } from "@/lib/recruitment/authz"
 import { Card } from "@/components/ui/card"
 import Link from "next/link"
 import { buttonVariants } from "@/components/ui/button"
@@ -25,6 +26,11 @@ export default async function CycleConfigPage({
   const session = await requireStaff()
   const isAdmin = (session.user as { role?: string }).role === "ADMIN"
   const { cycleId } = await params
+
+  // The roster below must show everyone who can actually work this cycle, which is
+  // now everyone holding a recruitment-carrying app role, not just whoever was
+  // assigned by hand. Idempotent, and it never touches a revoked or overridden row.
+  if (isAdmin) await ensureDerivedMembers(cycleId, (session.user as { id: string }).id)
 
   const cycle = await prisma.recruitmentCycle.findUnique({
     where: { id: cycleId },

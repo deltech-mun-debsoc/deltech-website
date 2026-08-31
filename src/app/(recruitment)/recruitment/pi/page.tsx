@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation"
-import { requireRecruitmentAccess, resolveCycleContext, mayPerform } from "@/lib/recruitment/authz"
+import { ensureDerivedMembers, requireRecruitmentAccess, resolveCycleContext, mayPerform } from "@/lib/recruitment/authz"
 import { can } from "@/lib/recruitment/permissions"
 import { t } from "@/content/strings"
 import { prisma } from "@/lib/prisma"
@@ -31,6 +31,11 @@ export default async function PiQueuePage() {
   // conducting one -- group.create is every JC's now, and createGroup demands
   // interview.conduct for a PI group regardless of what this button decides.
   const canStart = mayPerform(ctx, "interview.conduct")
+
+  // starterMembership below is this interviewer's own row, which seats them on the
+  // PI group they start. Recruitment roles are derived from the app role now, so
+  // that row may not exist yet -- without this the start button has nobody to seat.
+  if (canStart) await ensureDerivedMembers(cycle.id, ctx.userId)
 
   const [waiting, live, past, starterMembership] = await Promise.all([
     // Anyone past GD: completed, bypassed, or configured not to need one. This is
