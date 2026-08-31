@@ -21,38 +21,49 @@ export function VizMCQ({ tally, config, theme, revealedIndices, layout = "BARS" 
 
   if (layout === "BARS") {
     return (
-      <div className="w-full space-y-4 px-4">
+      <div
+        className="grid h-full min-h-[20rem] w-full items-end gap-3 px-4"
+        style={{ gridTemplateColumns: `repeat(${Math.max(options.length, 1)}, minmax(0, 1fr))` }}
+      >
         {options.map((opt, i) => {
           const pct = totalVotes > 0 ? Math.round((counts[i] ?? 0) / totalVotes * 100) : 0
-          const width = Math.round(((counts[i] ?? 0) / max) * 100)
+          const height = counts[i] ? Math.max(6, Math.round(((counts[i] ?? 0) / max) * 100)) : 0
           const revealed = revealedIndices !== undefined
           const isCorrect = revealedIndices?.includes(i)
           return (
-            <div key={i} className="grid grid-cols-[2.75rem_1fr_5rem] items-center gap-3">
-              <span
-                className="flex size-10 items-center justify-center border font-mono text-sm font-black"
-                style={{ borderColor: isCorrect ? "#22c55e" : surface.border, color: isCorrect ? "#22c55e" : theme.textColor }}
-              >
-                {isCorrect ? "✓" : String.fromCharCode(65 + i)}
-              </span>
-              <div className="space-y-1.5">
-                <div className="flex items-baseline justify-between gap-4" style={{ color: theme.textColor }}>
-                  <span className="truncate font-heading text-2xl leading-none">{opt}</span>
-                  <span className="font-mono text-xs font-black tabular-nums opacity-60">{counts[i] ?? 0}</span>
-                </div>
-                <div className="relative h-5 w-full overflow-hidden" style={{ background: surface.track }}>
+            <div key={i} className="flex h-full min-w-0 flex-col items-center">
+              <div className="mb-2 text-center font-mono tabular-nums" style={{ color: theme.textColor }}>
+                <span className="block text-lg font-black">{pct}%</span>
+                <span className="block text-[0.65rem] font-bold uppercase opacity-50">{counts[i] ?? 0}</span>
+              </div>
+              <div className="relative flex min-h-0 w-full flex-1 items-end overflow-hidden" style={{ background: surface.track }}>
                   <div
-                    className="absolute inset-y-0 left-0 transition-all duration-700"
+                    className="w-full transition-[height,background-color] duration-700 ease-out"
                     style={{
-                      width: `${width}%`,
+                      height: `${height}%`,
                       background: revealed
                         ? isCorrect ? "#22c55e" : surface.border
                         : theme.accentColor,
                     }}
                   />
-                </div>
+                  <span
+                    className="absolute bottom-2 left-1/2 flex size-8 -translate-x-1/2 items-center justify-center border font-mono text-xs font-black"
+                    style={{
+                      borderColor: isCorrect ? "#22c55e" : theme.textColor,
+                      color: isCorrect ? "#22c55e" : theme.textColor,
+                      background: theme.background,
+                    }}
+                  >
+                    {isCorrect ? "✓" : String.fromCharCode(65 + i)}
+                  </span>
               </div>
-              <span className="text-right font-mono text-lg font-black tabular-nums" style={{ color: theme.textColor }}>{pct}%</span>
+              <span
+                className="mt-3 line-clamp-2 min-h-12 w-full text-center font-heading text-lg leading-tight"
+                style={{ color: theme.textColor }}
+                title={opt}
+              >
+                {opt}
+              </span>
             </div>
           )
         })}

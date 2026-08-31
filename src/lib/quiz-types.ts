@@ -318,6 +318,7 @@ export type PresenceEntry = {
 
 export type QuizBroadcast =
   | { event: "START" }
+  | { event: "LOBBY" }
   | { event: "GOTO"; slideId: string; slideIndex: number; slideCount: number; slide: SlideData }
   | { event: "LOCK" }
   | { event: "UNLOCK"; secondsLeft: number | null }

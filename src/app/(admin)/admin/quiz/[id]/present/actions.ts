@@ -3,9 +3,7 @@
 import { prisma } from "@/lib/prisma"
 import { requireStaff } from "@/lib/authz"
 import { createOrGetQuizSession, resumeQuizSession } from "@/lib/quiz-session"
-import { parseConfig } from "@/lib/quiz-types"
-import { slideTimerSeconds, secondsUntil } from "@/lib/quiz-live"
-import type { SlideType } from "@/lib/quiz-types"
+import { secondsUntil } from "@/lib/quiz-live"
 
 export async function createOrGetSession(presentationId: string): Promise<string> {
   await requireStaff()
@@ -24,38 +22,43 @@ export async function resumeSession(
 export async function startSlide(
   sessionId: string,
   slideId: string,
-): Promise<{ secondsLeft: number | null }> {
+  startedAtEpochMs: number,
+): Promise<void> {
   await requireStaff()
 
-  return prisma.$transaction(async (tx) => {
-    const [session, row] = await Promise.all([
-      tx.quizSession.findUnique({ where: { id: sessionId } }),
-      tx.slide.findUnique({ where: { id: slideId } }),
-    ])
-    if (!session || session.status === "ended") throw new Error("SESSION_ENDED")
-    if (!row || row.presentationId !== session.presentationId) throw new Error("SLIDE_NOT_IN_SESSION")
+  const serverNow = Date.now()
+  const requested = Number.isFinite(startedAtEpochMs) ? startedAtEpochMs : serverNow
+  // Presenter clocks are normally accurate to milliseconds. Keep a bounded
+  // fallback so a wildly wrong device clock cannot produce an hour-long speed
+  // bonus, while still preserving the instant the host actually clicked Next.
+  const startedAt = new Date(Math.abs(requested - serverNow) <= 60_000 ? requested : serverNow)
 
-    const type = row.type as SlideType
-    const timer = slideTimerSeconds({ type, config: parseConfig(row.config, type) })
-    const now = new Date()
-    const deadline = timer === null ? null : new Date(now.getTime() + timer * 1000)
-
-    await tx.quizSession.update({
-      where: { id: sessionId },
-      data: {
-        currentSlideId: slideId,
-        currentSlideStartedAt: now,
-        currentSlideDeadlineAt: deadline,
-        currentSlideLockedAt: null,
-        currentSlideRevealedAt: null,
-        status: "active",
-        startedAt: session.startedAt ?? now,
-        endedAt: null,
-      },
-    })
-
-    return { secondsLeft: timer }
-  })
+  // One statement instead of a session read, slide read, and update. Besides
+  // being faster on the free tier, the UPDATE ... FROM condition still proves
+  // the slide belongs to this presentation and refuses ended sessions.
+  const updated = await prisma.$queryRaw<{ id: string }[]>`
+    UPDATE "QuizSession" AS qs
+    SET
+      "currentSlideId" = slide."id",
+      "currentSlideStartedAt" = ${startedAt}::timestamp,
+      "currentSlideDeadlineAt" = CASE
+        WHEN COALESCE((slide."config" ->> 'timerSeconds')::double precision, 0) > 0
+          THEN ${startedAt}::timestamp + make_interval(secs => (slide."config" ->> 'timerSeconds')::double precision)
+        ELSE NULL
+      END,
+      "currentSlideLockedAt" = NULL,
+      "currentSlideRevealedAt" = NULL,
+      "status" = 'active',
+      "startedAt" = COALESCE(qs."startedAt", ${startedAt}::timestamp),
+      "endedAt" = NULL
+    FROM "Slide" AS slide
+    WHERE qs."id" = ${sessionId}
+      AND qs."status" <> 'ended'
+      AND slide."id" = ${slideId}
+      AND slide."presentationId" = qs."presentationId"
+    RETURNING qs."id"
+  `
+  if (updated.length === 0) throw new Error("SESSION_OR_SLIDE_NOT_AVAILABLE")
 }
 
 export async function lockSlide(sessionId: string, slideId: string): Promise<void> {
