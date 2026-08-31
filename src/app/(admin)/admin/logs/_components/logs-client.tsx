@@ -1,5 +1,6 @@
 "use client"
 
+import { formatDateTime } from "@/lib/datetime"
 import { useMemo, useState, useTransition } from "react"
 import { ChevronRight, RotateCcw, X } from "lucide-react"
 import { useRouter } from "next/navigation"
@@ -108,12 +109,7 @@ export function LogsClient({
                 }}
               >
                 <td className="whitespace-nowrap px-4 py-3 text-xs text-muted-foreground">
-                  {new Date(log.at).toLocaleString("en-IN", {
-                    day: "2-digit",
-                    month: "short",
-                    hour: "2-digit",
-                    minute: "2-digit",
-                  })}
+                  {formatDateTime(log.at)}
                 </td>
                 <td className="max-w-44 truncate px-4 py-3 text-xs">{log.actorEmail}</td>
                 <td className="px-4 py-3">
@@ -166,7 +162,7 @@ export function LogsClient({
             <div className="flex-1 space-y-7 overflow-y-auto p-5">
               <dl className="grid grid-cols-2 gap-5 border-b border-border pb-6 text-sm">
                 <div><dt className="text-xs uppercase tracking-wider text-muted-foreground">Actor</dt><dd className="mt-1 font-medium">{selected.actorEmail}</dd></div>
-                <div><dt className="text-xs uppercase tracking-wider text-muted-foreground">Time</dt><dd className="mt-1 font-medium">{new Date(selected.at).toLocaleString("en-IN")}</dd></div>
+                <div><dt className="text-xs uppercase tracking-wider text-muted-foreground">Time</dt><dd className="mt-1 font-medium">{formatDateTime(selected.at)}</dd></div>
                 <div><dt className="text-xs uppercase tracking-wider text-muted-foreground">Entity</dt><dd className="mt-1 font-medium">{selected.entity}</dd></div>
                 <div><dt className="text-xs uppercase tracking-wider text-muted-foreground">Record</dt><dd className="mt-1 break-all font-mono text-xs">{selected.entityId ?? "Multiple records"}</dd></div>
               </dl>

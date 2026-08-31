@@ -1,5 +1,6 @@
 "use client"
 
+import { formatDateTime } from "@/lib/datetime"
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -62,7 +63,7 @@ export function QuarantinePanel({ rows }: Props) {
           <div key={r.id} className="rounded-lg border border-border bg-card p-3">
             <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
               <Badge variant="outline" className="text-[10px]">{r.source}</Badge>
-              <span>{new Date(r.createdAt).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
+              <span>{formatDateTime(r.createdAt)}</span>
               <span className="text-destructive">{r.errors.join("; ")}</span>
             </div>
             <div className="flex flex-wrap items-center gap-2">

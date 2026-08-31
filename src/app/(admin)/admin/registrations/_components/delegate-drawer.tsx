@@ -1,5 +1,6 @@
 "use client"
 
+import { formatDate } from "@/lib/datetime"
 import { useState, useEffect, useCallback, useTransition } from "react"
 import { X, Edit2, CheckCircle, RefreshCw, Gift, Ban, Clock, Link2 } from "lucide-react"
 import {
@@ -153,7 +154,7 @@ export function DelegateDrawer({ delegate, committees, onClose, onUpdated }: Pro
                     {delegate.status.replace("_", " ")}
                   </Badge>
                   <span className="text-xs text-muted-foreground">
-                    Registered {new Date(delegate.createdAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                    Registered {formatDate(delegate.createdAt)}
                   </span>
                 </div>
 
@@ -306,7 +307,7 @@ export function DelegateDrawer({ delegate, committees, onClose, onUpdated }: Pro
                       <Field label="Portfolio" value={delegate.allotment.portfolio?.name ?? delegate.allotment.portfolioId} />
                       <Field
                         label="Allotted at"
-                        value={new Date(delegate.allotment.allottedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                        value={formatDate(delegate.allotment.allottedAt)}
                       />
                       <Field label="Allotted by" value={delegate.allotment.allottedBy} />
                     </div>
@@ -328,7 +329,7 @@ export function DelegateDrawer({ delegate, committees, onClose, onUpdated }: Pro
                         {delegate.payment.confirmedAt && (
                           <Field
                             label="Confirmed"
-                            value={new Date(delegate.payment.confirmedAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                            value={formatDate(delegate.payment.confirmedAt)}
                           />
                         )}
                       </div>
@@ -374,7 +375,7 @@ export function DelegateDrawer({ delegate, committees, onClose, onUpdated }: Pro
                           <div className="min-w-0 flex-1">
                             <p className="truncate text-xs font-medium">{log.template}</p>
                             <p className="text-xs text-muted-foreground">
-                              {new Date(log.sentAt).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}
+                              {formatDate(log.sentAt)}
                               {" · "}
                               <span className={log.status === "FAILED" ? "text-destructive" : "text-green-600"}>
                                 {log.status}

@@ -1,5 +1,6 @@
 "use client"
 
+import { formatDate } from "@/lib/datetime"
 import { useState, useCallback, useMemo, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { ArrowUpDown, ArrowUp, ArrowDown, Search, Download, ChevronLeft, ChevronRight, Check, Minus } from "lucide-react"
@@ -53,10 +54,6 @@ const SOURCE_LABEL: Record<string, string> = {
 const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
   REGISTERED: "secondary", ALLOTTED: "outline", PAYMENT_SENT: "outline",
   CONFIRMED: "default", CANCELLED: "destructive", WAITLISTED: "secondary",
-}
-
-function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })
 }
 
 function buildUrl(filters: Filters) {

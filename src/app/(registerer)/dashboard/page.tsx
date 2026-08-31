@@ -1,3 +1,4 @@
+import { formatDate } from "@/lib/datetime"
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
@@ -161,11 +162,7 @@ export default async function DashboardPage() {
                     {isConfirmed && payment.confirmedAt && (
                       <Field
                         label="Confirmed on"
-                        value={new Date(payment.confirmedAt).toLocaleDateString("en-IN", {
-                          day: "2-digit",
-                          month: "short",
-                          year: "numeric",
-                        })}
+                        value={formatDate(payment.confirmedAt)}
                       />
                     )}
                   </div>

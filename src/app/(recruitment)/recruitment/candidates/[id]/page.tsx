@@ -1,3 +1,4 @@
+import { formatDateTime } from "@/lib/datetime"
 import { notFound, redirect } from "next/navigation"
 import { FastForward, Info } from "lucide-react"
 import { prisma } from "@/lib/prisma"
@@ -65,7 +66,7 @@ export default async function CandidateDossierPage({
                     {t("recruitment.dossier.gdBypassedBody", {
                       actor: dossier.gdStatus.actorName ?? t("recruitment.dossier.unknownActor"),
                       role: t(`recruitment.roles.${dossier.gdStatus.actorRole}` as StringKey),
-                      date: dossier.gdStatus.at.toISOString().slice(0, 16).replace("T", " "),
+                      date:formatDateTime( dossier.gdStatus.at),
                     })}
                   </p>
                   <p className="text-sm">
@@ -209,7 +210,7 @@ export default async function CandidateDossierPage({
                       {h.actorName ?? t("recruitment.dossier.unknownActor")} ·{" "}
                       {t(`recruitment.roles.${h.actorRole}` as StringKey)} ·{" "}
                       <time dateTime={h.createdAt.toISOString()}>
-                        {h.createdAt.toISOString().slice(0, 16).replace("T", " ")}
+                        {formatDateTime(h.createdAt)}
                       </time>
                     </p>
                     {h.reason && <p className="mt-0.5 text-muted-foreground">{h.reason}</p>}
@@ -342,7 +343,7 @@ function EvaluationList({
                     {" "}
                     ·{" "}
                     <time dateTime={e.submittedAt.toISOString()}>
-                      {e.submittedAt.toISOString().slice(0, 16).replace("T", " ")}
+                      {formatDateTime(e.submittedAt)}
                     </time>
                   </>
                 )}

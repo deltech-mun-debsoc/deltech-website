@@ -1,3 +1,4 @@
+import { formatDate } from "@/lib/datetime"
 import { notFound } from "next/navigation"
 import { prisma } from "@/lib/prisma"
 import { auth } from "@/lib/auth"
@@ -128,11 +129,7 @@ export default async function StatusPage(props: {
                 {isConfirmed && payment.confirmedAt && (
                   <Field
                     label="Confirmed on"
-                    value={new Date(payment.confirmedAt).toLocaleDateString("en-IN", {
-                      day: "2-digit",
-                      month: "short",
-                      year: "numeric",
-                    })}
+                    value={formatDate(payment.confirmedAt)}
                   />
                 )}
               </div>

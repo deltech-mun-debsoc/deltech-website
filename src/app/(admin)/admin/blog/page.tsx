@@ -1,3 +1,4 @@
+import { formatDayMonth } from "@/lib/datetime"
 import Link from "next/link"
 import { Clock, ChevronRight } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
@@ -77,10 +78,7 @@ export default async function AdminBlogPage() {
                       <>
                         <span>·</span>
                         <span>
-                          {new Date(post.submittedAt).toLocaleDateString("en-IN", {
-                            day: "numeric",
-                            month: "short",
-                          })}
+                          {formatDayMonth(post.submittedAt)}
                         </span>
                       </>
                     )}
@@ -127,7 +125,7 @@ export default async function AdminBlogPage() {
                   <p className="text-xs text-muted-foreground">
                     {post.author.name}
                     {post.publishedAt && (
-                      <> · {new Date(post.publishedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short" })}</>
+                      <> · {formatDayMonth(post.publishedAt)}</>
                     )}
                   </p>
                 </div>

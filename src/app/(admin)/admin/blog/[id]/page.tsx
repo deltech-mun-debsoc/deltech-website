@@ -1,3 +1,4 @@
+import { formatDate } from "@/lib/datetime"
 import { notFound } from "next/navigation"
 import Link from "next/link"
 import { ChevronLeft, CalendarDays, Clock, Tag } from "lucide-react"
@@ -111,14 +112,14 @@ export default async function AdminBlogPostPage(props: { params: Promise<{ id: s
             {post.submittedAt && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <CalendarDays className="size-3.5 shrink-0" />
-                Submitted {new Date(post.submittedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                Submitted {formatDate(post.submittedAt)}
               </div>
             )}
 
             {post.publishedAt && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <CalendarDays className="size-3.5 shrink-0" />
-                Published {new Date(post.publishedAt).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}
+                Published {formatDate(post.publishedAt)}
               </div>
             )}
 

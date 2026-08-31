@@ -1,5 +1,6 @@
 "use client"
 
+import { fromDateTimeLocalValue } from "@/lib/datetime"
 import { useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
@@ -107,7 +108,10 @@ export function CreateGroupDialog({
         cycleId,
         kind,
         title,
-        scheduledAt: scheduledAt ? new Date(scheduledAt) : null,
+        // new Date("2026-10-05T14:30") parses in the browser's zone, so an
+        // organiser on a laptop set to anything but IST scheduled the panel at the
+        // wrong instant. The box means IST because the conference does.
+        scheduledAt: scheduledAt ? fromDateTimeLocalValue(scheduledAt) : null,
         candidateIds: [...picked],
         staff: [...staffPicked].map(([memberId, canEvaluate]) => ({ memberId, canEvaluate })),
       })
