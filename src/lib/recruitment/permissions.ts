@@ -26,7 +26,6 @@ export type RecruitmentAction =
   | "cycle.create"
   | "cycle.configure"
   | "cycle.transition"
-  | "cycle.assignStaff"
   // groups
   | "group.create"
   | "group.edit"
@@ -97,7 +96,6 @@ export const CAPABILITIES: Record<RecruitmentAction, readonly RecruitmentRoleNam
   "cycle.create": ADMIN_ONLY,
   "cycle.configure": ADMIN_ONLY,
   "cycle.transition": ADMIN_ONLY,
-  "cycle.assignStaff": ADMIN_ONLY,
 
   // A JC forms their own GD panels. requireGroupAccess still scopes them to the
   // groups they staff, and createGroup puts the creator on their own group so
@@ -182,7 +180,6 @@ const ALWAYS_ALLOWED: readonly RecruitmentAction[] = [
 const SETUP: readonly RecruitmentAction[] = [
   "cycle.configure",
   "cycle.transition",
-  "cycle.assignStaff",
   "import.configure",
 ]
 
@@ -250,7 +247,6 @@ export const CYCLE_STATE_ALLOWS: Record<CycleStateName, readonly RecruitmentActi
   PAUSED: [
     "cycle.transition",
     "cycle.configure",
-    "cycle.assignStaff",
     "evaluation.draft",
     "evaluation.submit",
     "session.pause",
@@ -262,7 +258,7 @@ export const CYCLE_STATE_ALLOWS: Record<CycleStateName, readonly RecruitmentActi
     "candidate.hold",
   ],
   // Sessions are done; results are being decided.
-  FINALISATION: ["cycle.transition", "cycle.assignStaff", ...FINALISATION],
+  FINALISATION: ["cycle.transition", ...FINALISATION],
   // Closed. Recruiting a candidate who was already selected is still allowed,
   // because finalisation and adding to the society are separate actions and the
   // second may legitimately happen later.
@@ -309,17 +305,46 @@ export function isCycleLive(state: CycleStateName): boolean {
 // Role resolution helpers (pure half: the Prisma half lives in authz.ts)
 // ---------------------------------------------------------------------------
 
-// A global ADMIN is an implicit recruitment ADMIN on every cycle, so an admin can
-// always repair a cycle they were never assigned to. Every other app role: even
-// MAINTAINER: gets recruitment authority ONLY from an explicit per-cycle
-// assignment, which is what keeps the two permission systems independent.
+// The app role a person holds on the dashboard IS the recruitment role they get on
+// every live cycle. Assigning each JC to each cycle by hand was two screens per
+// person per cycle and the step everyone forgot, which left invited Junior Council
+// accounts holding a role that granted them nothing.
+//
+// What this trades away: recruitment access no longer expires when a cycle ends.
+// Last year's JC keeps JC on next year's cycle until someone changes their role in
+// /admin/users. Offboarding is now an annual sweep there, not a side effect of
+// opening a new cycle.
+//
+// Roles absent from this map (AUTHOR, MEMBER, REGISTERER) still get nothing from
+// their app role and still need an explicit per-cycle assignment.
+const DERIVED_ROLE: Record<string, RecruitmentRoleName> = {
+  ADMIN: "ADMIN",
+  MAINTAINER: "MAINTAINER",
+  SUB_MAINTAINER: "JC",
+}
+
+/** The recruitment role an app role grants on its own, if any. */
+export function derivedRecruitmentRole(
+  appRole: string | null | undefined,
+): RecruitmentRoleName | null {
+  return DERIVED_ROLE[appRole ?? ""] ?? null
+}
+
+// `implicit` means "this authority came from the app role, not from an explicit
+// assignment". It is recorded on every audit row so derived power stays visible.
 export function resolveRecruitmentRole(
   appRole: string | null | undefined,
   membershipRole: RecruitmentRoleName | null | undefined,
 ): { role: RecruitmentRoleName | null; implicit: boolean } {
+  // A global ADMIN outranks whatever the cycle says, so an admin can always
+  // repair a cycle they were never assigned to -- or were removed from.
   if (appRole === "ADMIN") return { role: "ADMIN", implicit: !membershipRole }
+  // An explicit assignment still wins over the derived role, in both directions:
+  // it is how a SUB_MAINTAINER runs one cycle as a MAINTAINER, and how an AUTHOR
+  // helps on a single cycle without being given a dashboard role.
   if (membershipRole) return { role: membershipRole, implicit: false }
-  return { role: null, implicit: false }
+  const derived = derivedRecruitmentRole(appRole)
+  return derived ? { role: derived, implicit: true } : { role: null, implicit: false }
 }
 
 // Rank for "at least this role" comparisons. Not a substitute for `can()`,

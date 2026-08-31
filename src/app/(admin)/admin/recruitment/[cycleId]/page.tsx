@@ -11,7 +11,6 @@ import { t } from "@/content/strings"
 import { PageHeader } from "@/app/(admin)/_components/page-header"
 import { CycleStateControls } from "../_components/cycle-state-controls"
 import { CycleConfigForm } from "../_components/cycle-config-form"
-import { CycleStaffPanel } from "../_components/cycle-staff-panel"
 import { FinalisationPanel } from "../_components/finalisation-panel"
 
 // Cycle configuration + finalisation. Read access is staff-wide (a MAINTAINER may
@@ -26,15 +25,7 @@ export default async function CycleConfigPage({
   const isAdmin = (session.user as { role?: string }).role === "ADMIN"
   const { cycleId } = await params
 
-  const cycle = await prisma.recruitmentCycle.findUnique({
-    where: { id: cycleId },
-    include: {
-      members: {
-        orderBy: [{ isActive: "desc" }, { assignedAt: "asc" }],
-        include: { user: { select: { name: true, email: true, role: true } } },
-      },
-    },
-  })
+  const cycle = await prisma.recruitmentCycle.findUnique({ where: { id: cycleId } })
   if (!cycle) notFound()
 
   const config = parseCycleConfig(cycle.config)
@@ -126,19 +117,6 @@ export default async function CycleConfigPage({
               disabled={!isAdmin}
             />
           </Card>
-
-          <CycleStaffPanel
-            cycleId={cycle.id}
-            members={cycle.members.map((m) => ({
-              id: m.id,
-              role: m.role,
-              isActive: m.isActive,
-              name: m.user.name,
-              email: m.user.email,
-              appRole: m.user.role,
-            }))}
-            disabled={!isAdmin}
-          />
         </aside>
       </div>
     </div>

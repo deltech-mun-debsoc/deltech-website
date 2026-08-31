@@ -7,6 +7,7 @@
 // actions branch on, plus the session-freshness rule that decides how long a
 // disabled or deleted account keeps working.
 import assert from "node:assert"
+import { readFileSync } from "node:fs"
 import {
   SESSION_REVALIDATE_MS,
   sessionNeedsRefresh,
@@ -71,5 +72,21 @@ assert.match(
   /2 blog posts and 1 quiz\b/,
   "both kinds are reported together",
 )
+
+// --- changing an app role moves recruitment access with it ------------------
+//
+// Recruitment roles are derived from the app role, but cycles still hold a
+// RecruitmentMember row per person and that row overrides the derived role. So a
+// demotion in /admin/users that left the row behind would not actually remove
+// recruitment access -- which is the entire offboarding path. setUserRole syncs
+// them in the same transaction as the role write.
+{
+  const src = readFileSync("src/app/(admin)/admin/users/actions.ts", "utf8")
+  const setUserRole = src.slice(src.indexOf("export async function setUserRole"), src.indexOf("export async function setUserDisabled"))
+  assert.match(setUserRole, /derivedRecruitmentRole\(role\)/, "setUserRole must resolve the derived recruitment role")
+  assert.match(setUserRole, /tx\.recruitmentMember\.updateMany/, "the membership sync must run inside withAdminInvariant's transaction")
+  assert.match(setUserRole, /isActive: false/, "a role with no recruitment authority must revoke live memberships")
+  assert.match(setUserRole, /data: \{ role: recruitmentRole \}/, "a role with recruitment authority must move memberships to it")
+}
 
 console.log("✅ check-user-admin passed")

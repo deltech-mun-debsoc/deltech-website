@@ -1,4 +1,4 @@
-import { requireRecruitmentAccess, resolveCycleContext } from "@/lib/recruitment/authz"
+import { ensureDerivedMembers, requireRecruitmentAccess, resolveCycleContext } from "@/lib/recruitment/authz"
 import { mayPerform } from "@/lib/recruitment/authz"
 import { t } from "@/content/strings"
 import { prisma } from "@/lib/prisma"
@@ -16,6 +16,11 @@ export default async function GdGroupsPage() {
   if (!ctx) return null
 
   const canCreate = mayPerform(ctx, "group.create")
+
+  // Recruitment roles are derived from the app role, so the people who may staff a
+  // group are not necessarily rows on this cycle yet. Backfill before reading the
+  // picker below, or a JC invited this week could never be seated on a panel.
+  if (canCreate) await ensureDerivedMembers(cycle.id, ctx.userId)
 
   const [live, past, assignable, staff] = await Promise.all([
     listGroups(ctx, "GD", LIVE_GROUP_STATES),
