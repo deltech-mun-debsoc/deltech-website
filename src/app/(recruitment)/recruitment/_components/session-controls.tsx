@@ -114,6 +114,7 @@ export function SessionControls({
       { ok: true; idempotent: boolean; session: SerializedSession } | { ok: false; error: string; conflict?: SerializedSession }
     >,
     successMessage?: string,
+    idempotentMessage?: string,
   ) {
     if (!session) return
     const previous = session
@@ -124,7 +125,7 @@ export function SessionControls({
         const result = await action()
         if (result.ok) {
           setSession(result.session)
-          if (result.idempotent) toast.info(t("recruitment.session.alreadyRunning"))
+          if (result.idempotent && idempotentMessage) toast.info(idempotentMessage)
           else if (successMessage) toast.success(successMessage)
           notify("session")
           router.refresh()
@@ -203,6 +204,7 @@ export function SessionControls({
                     "start",
                     () => startSession({ sessionId: session.id, expectedVersion: session.version }),
                     t("recruitment.session.start"),
+                    t("recruitment.session.alreadyRunning"),
                   )
                 }
               >
