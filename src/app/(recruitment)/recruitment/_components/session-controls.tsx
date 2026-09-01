@@ -7,7 +7,11 @@ import { Loader2, Pause, Play, Square, TriangleAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { t } from "@/content/strings"
-import type { SessionDisplayState } from "@/lib/recruitment/session"
+import {
+  optimisticSessionTransition,
+  type OptimisticSessionAction,
+  type SessionDisplayState,
+} from "@/lib/recruitment/session"
 import { SessionTimer } from "../../_components/session-timer"
 import { SessionStateBadge } from "../../_components/status-badges"
 import { useRecruitmentLive } from "@/components/recruitment/use-recruitment-live"
@@ -23,8 +27,9 @@ import {
 // The session clock and its lifecycle buttons.
 //
 // Extracted from the group console so the interview console can reuse it verbatim
-// rather than growing a second copy: this is the component holding the optimistic
-// conflict-adoption behaviour, and two of those would drift.
+// rather than growing a second copy: this is the component holding the reversible
+// optimistic transitions and conflict-adoption behaviour, and two of those would
+// drift.
 //
 // Every control action returns the server's current session state. On conflict we
 // adopt that state rather than retrying, which is what makes a queued click from a
@@ -51,9 +56,21 @@ export function SessionControls({
   const [session, setSession] = useState(initialSession)
   const [pending, startTransition] = useTransition()
 
-  // The server is the source of truth: whenever a fresh payload arrives from an
-  // RSC refresh, it replaces whatever the client was holding.
-  useEffect(() => setSession(initialSession), [initialSession])
+  // The server is the source of truth, but an older refresh must not rewind a
+  // newer local/server-confirmed view. Optimistic transitions use the next
+  // version specifically so a refresh already in flight cannot flash the old
+  // controls back onto the screen.
+  useEffect(() => {
+    setSession((current) => {
+      if (!initialSession) return null
+      if (
+        !current ||
+        current.id !== initialSession.id ||
+        initialSession.version >= current.version
+      ) return initialSession
+      return current
+    })
+  }, [initialSession])
 
   function run(
     action: () => Promise<
@@ -65,7 +82,13 @@ export function SessionControls({
     idempotentMessage?: string,
   ) {
     startTransition(async () => {
-      const result = await action()
+      let result
+      try {
+        result = await action()
+      } catch {
+        toast.error(t("recruitment.errors.generic"))
+        return
+      }
       if (result.ok) {
         setSession(result.session)
         // An idempotent outcome is a success, not an error: say so quietly.
@@ -84,15 +107,54 @@ export function SessionControls({
     })
   }
 
+  function runOptimistic(
+    kind: OptimisticSessionAction,
+    action: () => Promise<
+      { ok: true; idempotent: boolean; session: SerializedSession } | { ok: false; error: string; conflict?: SerializedSession }
+    >,
+    successMessage?: string,
+  ) {
+    if (!session) return
+    const previous = session
+    setSession(optimisticSessionTransition(previous, kind, viewerId))
+
+    startTransition(async () => {
+      try {
+        const result = await action()
+        if (result.ok) {
+          setSession(result.session)
+          if (result.idempotent) toast.info(t("recruitment.session.alreadyRunning"))
+          else if (successMessage) toast.success(successMessage)
+          notify("session")
+          router.refresh()
+          return
+        }
+
+        // A conflict is the authoritative newer state. Any other refusal rolls
+        // the temporary view back to exactly what the operator had before.
+        setSession(result.conflict ?? previous)
+        toast.error(result.error)
+        if (result.conflict) router.refresh()
+      } catch {
+        setSession(previous)
+        toast.error(t("recruitment.errors.generic"))
+      }
+    })
+  }
+
   const state = session?.state ?? "NOT_STARTED"
   const finished = state === "COMPLETED" || state === "ABORTED"
+  const showingInitial =
+    session?.state === initialSession?.state && session?.version === initialSession?.version
+  const visibleDisplayState =
+    displayState === "STALE" && showingInitial ? "STALE" : state
 
   return (
     <Card className="p-5">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <SessionStateBadge state={displayState} />
+            <SessionStateBadge state={visibleDisplayState} />
             {session && session.attempt > 1 && (
               <span className="text-xs text-muted-foreground">#{session.attempt}</span>
             )}
@@ -136,7 +198,8 @@ export function SessionControls({
                 className="gap-1.5"
                 disabled={pending}
                 onClick={() =>
-                  run(
+                  runOptimistic(
+                    "start",
                     () => startSession({ sessionId: session.id, expectedVersion: session.version }),
                     t("recruitment.session.start"),
                   )
@@ -154,7 +217,10 @@ export function SessionControls({
                 className="gap-1.5"
                 disabled={pending}
                 onClick={() =>
-                  run(() => pauseSession({ sessionId: session.id, expectedVersion: session.version }))
+                  runOptimistic(
+                    "pause",
+                    () => pauseSession({ sessionId: session.id, expectedVersion: session.version }),
+                  )
                 }
               >
                 <Pause className="size-3.5" />
@@ -168,7 +234,10 @@ export function SessionControls({
                 className="gap-1.5"
                 disabled={pending}
                 onClick={() =>
-                  run(() => resumeSession({ sessionId: session.id, expectedVersion: session.version }))
+                  runOptimistic(
+                    "resume",
+                    () => resumeSession({ sessionId: session.id, expectedVersion: session.version }),
+                  )
                 }
               >
                 <Play className="size-3.5" />
@@ -230,7 +299,7 @@ export function SessionControls({
         )}
       </div>
 
-      {displayState === "STALE" && (
+      {visibleDisplayState === "STALE" && (
         <p className="mt-4 flex items-center gap-2 rounded-md bg-[var(--signal-soft)] px-3 py-2 text-sm text-[var(--ink-soft)]">
           <TriangleAlert className="size-4 shrink-0" />
           {t("recruitment.session.staleWarning")}

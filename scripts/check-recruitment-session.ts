@@ -24,6 +24,7 @@ import {
   formatElapsed,
   isStale,
   nextControlExpiry,
+  optimisticSessionTransition,
   skewCorrectedNow,
   type SessionSnapshot,
   type SessionStateName,
@@ -178,6 +179,34 @@ assert.equal(decidePause(done, input()), "conflict")
 assert.equal(decideResume(s({ state: "PAUSED", pausedAt: at(MIN), ...mine }), input()), "apply")
 assert.equal(decideResume(s({ state: "ACTIVE" }), input()), "noop")
 assert.equal(decideResume(blank, input()), "conflict")
+
+// Reversible controls get an immediate temporary view, but never invent a
+// completed/aborted state. The server response remains authoritative.
+const serialized = {
+  state: "NOT_STARTED" as const,
+  version: 3,
+  controllerId: null,
+  startedAt: null,
+  pausedAt: null,
+  endedAt: null,
+  pausedMs: 0,
+  lastActivityAt: null,
+  serverNow: T0.toISOString(),
+}
+const optimisticStart = optimisticSessionTransition(serialized, "start", ME, at(MIN))
+assert.equal(optimisticStart.state, "ACTIVE")
+assert.equal(optimisticStart.version, 4)
+assert.equal(optimisticStart.controllerId, ME)
+assert.equal(optimisticStart.startedAt, at(MIN).toISOString())
+
+const optimisticPause = optimisticSessionTransition(optimisticStart, "pause", ME, at(2 * MIN))
+assert.equal(optimisticPause.state, "PAUSED")
+assert.equal(optimisticPause.pausedAt, at(2 * MIN).toISOString())
+
+const optimisticResume = optimisticSessionTransition(optimisticPause, "resume", ME, at(5 * MIN))
+assert.equal(optimisticResume.state, "ACTIVE")
+assert.equal(optimisticResume.pausedAt, null)
+assert.equal(optimisticResume.pausedMs, 3 * MIN)
 
 // ── Abort ──────────────────────────────────────────────────────────────────
 assert.equal(decideAbort(s({ state: "ACTIVE" }), input()), "apply")

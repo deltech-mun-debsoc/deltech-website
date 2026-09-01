@@ -894,6 +894,52 @@ assert.equal(
   // It used to print a raw user id at the bottom of the card.
   assert.doesNotMatch(controls, /session\?\.controllerId\}/, "no raw cuid on screen")
 
+  // Only the three reversible controls may move immediately. Finish and abort
+  // have transactional side effects across evaluations, locks and candidates,
+  // so they must keep using the server-confirmed path.
+  for (const action of ["start", "pause", "resume"]) {
+    assert.match(
+      controls,
+      new RegExp(`runOptimistic\\(\\s*"${action}"`),
+      `${action} must use the reversible optimistic path`,
+    )
+  }
+  assert.doesNotMatch(
+    controls,
+    /runOptimistic\(\s*"(?:finish|abort)"/,
+    "finish and abort must never be optimistic",
+  )
+  assert.match(
+    controls,
+    /run\(\s*\(\) => finishSession/,
+    "finish must wait for the server transaction",
+  )
+  assert.match(
+    controls,
+    /run\(\(\) =>\s*abortSession/,
+    "abort must wait for the server transaction",
+  )
+
+  const evaluation = readFileSync(
+    "src/app/(recruitment)/recruitment/_components/evaluation-form.tsx",
+    "utf8",
+  )
+  assert.match(
+    evaluation,
+    /saveInFlightRef/,
+    "draft autosaves must be serialised on slow connections",
+  )
+  assert.match(
+    evaluation,
+    /setAdopted\(\(current\) => newerOf\(next, current\)\)/,
+    "an older autosave response must not replace a newer draft",
+  )
+  assert.match(
+    evaluation,
+    /startTransition\(async \(\) => \{[\s\S]*?await submitEvaluation/,
+    "evaluation submission and revision must remain server-confirmed",
+  )
+
   const permissions = readFileSync("src/lib/recruitment/permissions.ts", "utf8")
   assert.doesNotMatch(permissions, /session\.takeControl/, "the capability is gone too")
 }
