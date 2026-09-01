@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge"
 import { prisma } from "@/lib/prisma"
 import { TiptapContent } from "@/lib/tiptap-renderer"
 import { ModerationPanel } from "./_components/moderation-panel"
+import { DeletePostButton } from "./_components/delete-post-button"
+import { requireStaff } from "@/lib/authz"
 
 const STATUS_BADGE: Record<string, string> = {
   PENDING:           "bg-amber-100 text-amber-700 border-amber-200",
@@ -16,6 +18,10 @@ const STATUS_BADGE: Record<string, string> = {
 }
 
 export default async function AdminBlogPostPage(props: { params: Promise<{ id: string }> }) {
+  // deletePost is requireAdmin, so a MAINTAINER must not be shown a button that
+  // would only refuse them. Read access to this page stays staff-wide.
+  const session = await requireStaff()
+  const isAdmin = (session.user as { role?: string }).role === "ADMIN"
   const { id } = await props.params
 
   const post = await prisma.post.findUnique({
@@ -153,6 +159,10 @@ export default async function AdminBlogPostPage(props: { params: Promise<{ id: s
               postId={post.id}
               status={post.status as "PENDING" | "PUBLISHED" | "CHANGES_REQUESTED" | "REJECTED" | "DRAFT"}
             />
+            {/* Outside ModerationPanel on purpose: that renders a bare status
+                badge for anything already decided, so a delete nested in it
+                would be missing from every published post. */}
+            {isAdmin && <DeletePostButton postId={post.id} title={post.title} />}
           </div>
         </aside>
       </div>

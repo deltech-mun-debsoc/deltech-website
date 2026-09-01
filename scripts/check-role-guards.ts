@@ -24,6 +24,9 @@ const ADMIN_REQUIRED = new Set([
   // destructive
   "deleteCommittee", "deletePortfolio", "deleteImportPreset", "deleteMember",
   "cancelDelegate", "revokeAllotment",
+  // Hard delete with nothing behind it: the row goes, and so do the post's
+  // uploaded images. Rejection is the reversible option and stays requireStaff.
+  "deletePost",
   // role / user management
   "setUserRole", "inviteStaff", "setUserDisabled", "deleteUser",
   // recruitment cycle creation is the one control-plane action gated by the
