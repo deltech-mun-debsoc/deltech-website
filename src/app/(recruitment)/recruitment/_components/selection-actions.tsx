@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Download, Loader2, Mail } from "lucide-react"
 import { Button, buttonVariants } from "@/components/ui/button"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { t } from "@/content/strings"
 import { cn } from "@/lib/utils"
 import { sendSelectionEmails } from "../selection-email-actions"
@@ -28,6 +29,7 @@ export function SelectionActions({
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [status, setStatus] = useState(email)
+  const [confirmOpen, setConfirmOpen] = useState(false)
 
   if (!canExport && !status) return null
 
@@ -36,13 +38,6 @@ export function SelectionActions({
 
   function send() {
     if (!status) return
-    if (
-      !confirm(
-        t("recruitment.selection.confirmSend", { count: status.pending }),
-      )
-    ) {
-      return
-    }
     startTransition(async () => {
       const result = await sendSelectionEmails(cycleId)
       if (!result.ok) {
@@ -57,6 +52,7 @@ export function SelectionActions({
         toast.success(t("recruitment.selection.sentAll", { sent: result.sent }))
       }
       setStatus({ ...status, pending: 0, alreadyEmailed: status.alreadyEmailed + result.sent })
+      setConfirmOpen(false)
       router.refresh()
     })
   }
@@ -88,7 +84,7 @@ export function SelectionActions({
             size="sm"
             className="gap-1.5"
             disabled={pending || status.pending === 0 || !status.cycleReady}
-            onClick={send}
+            onClick={() => setConfirmOpen(true)}
           >
             {pending ? <Loader2 className="size-4 animate-spin" /> : <Mail className="size-4" />}
             {t("recruitment.selection.emailSelected", { count: status.pending })}
@@ -106,6 +102,15 @@ export function SelectionActions({
                   ? t("recruitment.selection.readyWithLink")
                   : t("recruitment.selection.readyNoLink")}
           </p>
+          <ConfirmDialog
+            open={confirmOpen}
+            onOpenChange={setConfirmOpen}
+            title={t("recruitment.selection.confirmTitle")}
+            description={t("recruitment.selection.confirmSend", { count: status.pending })}
+            confirmLabel={t("recruitment.selection.emailSelected", { count: status.pending })}
+            onConfirm={send}
+            pending={pending}
+          />
         </div>
       )}
     </div>

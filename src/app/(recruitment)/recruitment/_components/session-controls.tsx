@@ -6,6 +6,17 @@ import { toast } from "sonner"
 import { Loader2, Pause, Play, Square, TriangleAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Label } from "@/components/ui/label"
+import { Textarea } from "@/components/ui/textarea"
 import { t } from "@/content/strings"
 import {
   optimisticSessionTransition,
@@ -55,6 +66,9 @@ export function SessionControls({
   const router = useRouter()
   const { notify } = useRecruitmentLive(cycleId)
   const [session, setSession] = useState(initialSession)
+  const [finishOpen, setFinishOpen] = useState(false)
+  const [abortOpen, setAbortOpen] = useState(false)
+  const [abortReason, setAbortReason] = useState("")
   const [pending, startTransition] = useTransition()
 
   // The server is the source of truth, but an older refresh must not rewind a
@@ -81,6 +95,7 @@ export function SessionControls({
     // What to say when the server reports the change had already been applied,
     // a retry, a second tab, or another maintainer getting there first.
     idempotentMessage?: string,
+    onSuccess?: () => void,
   ) {
     startTransition(async () => {
       let result
@@ -96,6 +111,7 @@ export function SessionControls({
         if (result.idempotent) toast.info(idempotentMessage ?? t("recruitment.session.alreadyRunning"))
         else if (successMessage) toast.success(successMessage)
         notify("session")
+        onSuccess?.()
         router.refresh()
         return
       }
@@ -255,14 +271,7 @@ export function SessionControls({
                   variant="outline"
                   className="gap-1.5"
                   disabled={pending}
-                  onClick={() => {
-                    if (!confirm(t("recruitment.session.confirmFinish"))) return
-                    run(
-                      () => finishSession({ sessionId: session.id, expectedVersion: session.version }),
-                      t("recruitment.session.finish"),
-                      t("recruitment.session.alreadyFinished"),
-                    )
-                  }}
+                  onClick={() => setFinishOpen(true)}
                 >
                   {/* Finishing now submits every complete draft on the panel
                       before it applies the verdict, so it is doing real work and
@@ -281,17 +290,7 @@ export function SessionControls({
                   variant="ghost"
                   className="text-muted-foreground"
                   disabled={pending}
-                  onClick={() => {
-                    const reason = prompt(t("recruitment.session.abortReasonLabel")) ?? ""
-                    if (!reason.trim()) return
-                    run(() =>
-                      abortSession({
-                        sessionId: session.id,
-                        expectedVersion: session.version,
-                        reason: reason.trim(),
-                      }),
-                    )
-                  }}
+                  onClick={() => setAbortOpen(true)}
                 >
                   {t("recruitment.session.abort")}
                 </Button>
@@ -328,6 +327,75 @@ export function SessionControls({
           <TriangleAlert className="size-4 shrink-0" />
           {t("recruitment.session.staleWarning")}
         </p>
+      )}
+
+      {session && (
+        <ConfirmDialog
+          open={finishOpen}
+          onOpenChange={setFinishOpen}
+          title={t("recruitment.session.finishTitle")}
+          description={t("recruitment.session.confirmFinish")}
+          confirmLabel={t("recruitment.session.finish")}
+          pending={pending}
+          onConfirm={() =>
+            run(
+              () => finishSession({ sessionId: session.id, expectedVersion: session.version }),
+              t("recruitment.session.finish"),
+              t("recruitment.session.alreadyFinished"),
+              () => setFinishOpen(false),
+            )
+          }
+        />
+      )}
+
+      {session && (
+        <Dialog open={abortOpen} onOpenChange={(next) => !pending && setAbortOpen(next)}>
+          <DialogContent showCloseButton={!pending}>
+            <DialogHeader>
+              <DialogTitle>{t("recruitment.session.abortTitle")}</DialogTitle>
+              <DialogDescription>{t("recruitment.session.abortDescription")}</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-2">
+              <Label htmlFor={`abort-reason-${session.id}`}>
+                {t("recruitment.session.abortReasonLabel")}
+              </Label>
+              <Textarea
+                id={`abort-reason-${session.id}`}
+                value={abortReason}
+                onChange={(event) => setAbortReason(event.target.value)}
+                disabled={pending}
+                autoFocus
+              />
+            </div>
+            <DialogFooter>
+              <Button variant="outline" disabled={pending} onClick={() => setAbortOpen(false)}>
+                {t("common.cancel")}
+              </Button>
+              <Button
+                variant="destructive"
+                disabled={pending || !abortReason.trim()}
+                onClick={() =>
+                  run(
+                    () => abortSession({
+                      sessionId: session.id,
+                      expectedVersion: session.version,
+                      reason: abortReason.trim(),
+                    }),
+                    undefined,
+                    undefined,
+                    () => {
+                      setAbortReason("")
+                      setAbortOpen(false)
+                    },
+                  )
+                }
+              >
+                {pending && <Loader2 className="mr-1.5 size-3.5 animate-spin" />}
+                {t("recruitment.session.abortConfirm")}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
 
 

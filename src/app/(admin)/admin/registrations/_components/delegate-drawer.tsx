@@ -11,6 +11,7 @@ import {
   DrawerClose,
 } from "@/components/ui/drawer"
 import { Button } from "@/components/ui/button"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { toast } from "sonner"
@@ -60,6 +61,7 @@ export function DelegateDrawer({ delegate, committees, onClose, onUpdated }: Pro
   const [editing, setEditing] = useState(false)
   const [isPending, startTransition] = useTransition()
   const [resendingLogId, setResendingLogId] = useState<string | null>(null)
+  const [cancelOpen, setCancelOpen] = useState(false)
   // Loaded per-delegate on open, instead of being joined onto every row of the
   // table behind this drawer.
   const [emailLogs, setEmailLogs] = useState<EmailLogEntry[] | null>(null)
@@ -80,6 +82,7 @@ export function DelegateDrawer({ delegate, committees, onClose, onUpdated }: Pro
   const runAction = (
     fn: () => Promise<{ success: boolean; error?: string; warning?: string; delegate?: SerializedDelegate }>,
     successMsg: string,
+    onSuccess?: () => void,
   ) => {
     startTransition(async () => {
       const result = await fn()
@@ -87,6 +90,7 @@ export function DelegateDrawer({ delegate, committees, onClose, onUpdated }: Pro
         if (result.warning) toast.warning(result.warning, { duration: 10000 })
         else toast.success(successMsg)
         onUpdated(result.delegate)
+        onSuccess?.()
       } else {
         toast.error(result.error ?? "Action failed.")
       }
@@ -102,6 +106,7 @@ export function DelegateDrawer({ delegate, committees, onClose, onUpdated }: Pro
 
   const handleClose = () => {
     setEditing(false)
+    setCancelOpen(false)
     onClose()
   }
 
@@ -111,6 +116,7 @@ export function DelegateDrawer({ delegate, committees, onClose, onUpdated }: Pro
   }
 
   return (
+    <>
     <Drawer
       open={!!delegate}
       onOpenChange={(open) => { if (!open) handleClose() }}
@@ -207,11 +213,7 @@ export function DelegateDrawer({ delegate, committees, onClose, onUpdated }: Pro
                       size="sm"
                       className="h-8 gap-1.5 text-xs text-destructive hover:text-destructive"
                       disabled={isPending}
-                      onClick={() => {
-                        if (window.confirm(`Cancel ${delegate.fullName}'s registration? Frees their portfolio.`)) {
-                          runAction(() => cancelDelegate(delegate.id), "Registration cancelled.")
-                        }
-                      }}
+                      onClick={() => setCancelOpen(true)}
                     >
                       <Ban className="size-3.5" /> Cancel
                     </Button>
@@ -412,5 +414,22 @@ export function DelegateDrawer({ delegate, committees, onClose, onUpdated }: Pro
         </div>
       </DrawerContent>
     </Drawer>
+    <ConfirmDialog
+      open={cancelOpen}
+      onOpenChange={setCancelOpen}
+      title="Cancel this registration?"
+      description={delegate ? `Cancel ${delegate.fullName}'s registration and free their portfolio?` : ""}
+      confirmLabel="Cancel registration"
+      destructive
+      pending={isPending}
+      onConfirm={() =>
+        delegate && runAction(
+          () => cancelDelegate(delegate.id),
+          "Registration cancelled.",
+          () => setCancelOpen(false),
+        )
+      }
+    />
+    </>
   )
 }

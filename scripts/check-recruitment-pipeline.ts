@@ -916,7 +916,7 @@ assert.equal(
   )
   assert.match(
     controls,
-    /run\(\(\) =>\s*abortSession/,
+    /run\(\s*\(\) => abortSession/,
     "abort must wait for the server transaction",
   )
   assert.match(
