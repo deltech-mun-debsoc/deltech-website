@@ -58,7 +58,9 @@ export function SignInForm({
             <p className="text-sm text-destructive">
               {mlState.error === "tooManyRequests"
                 ? t("auth.tooManyRequests")
-                : t("auth.errorDefault")}
+                : mlState.error === "errorRetry"
+                  ? t("auth.errorRetry")
+                  : t("auth.errorDefault")}
             </p>
           )}
           {recovering && (
@@ -107,7 +109,9 @@ export function SignInForm({
                 ? t("auth.invalidCredentials")
                 : pwState.error === "tooManyRequests"
                   ? t("auth.tooManyRequests")
-                  : t("auth.errorDefault")}
+                  : pwState.error === "errorRetry"
+                    ? t("auth.errorRetry")
+                    : t("auth.errorDefault")}
             </p>
           )}
           <Button type="submit" disabled={pwPending} className="h-14 w-full rounded-none text-base">

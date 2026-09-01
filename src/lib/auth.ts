@@ -31,12 +31,27 @@ declare module "next-auth" {
 // (AUTHOR), which grants /write. So an unknown address must be refused, not
 // provisioned. This is also what stops a deleted user walking back in through
 // a magic link that was already in their inbox.
+// A failed lookup is NOT a refusal, and must never be converted into one here:
+// returning false would tell a legitimate user they may not sign in, and Auth.js
+// renders that identically whether the callback refused or threw. So the throw
+// is deliberately allowed to propagate -- src/app/(public)/signin/actions.ts
+// reads AccessDenied's cause to tell the two apart.
+//
+// The retry is for the Supabase pooler specifically: one dropped connection on a
+// serverless cold start, during a burst of first-time logins, is the difference
+// between signing in and being told to go away. Anything beyond one retry
+// belongs in the pool config, not here.
 async function mayStartSession(email: string | null | undefined): Promise<boolean> {
   if (!email) return false;
-  const user = await prisma.user.findUnique({
-    where: { email: email.trim().toLowerCase() },
-    select: { disabledAt: true },
-  });
+  const where = { email: email.trim().toLowerCase() };
+
+  let user;
+  try {
+    user = await prisma.user.findUnique({ where, select: { disabledAt: true } });
+  } catch {
+    user = await prisma.user.findUnique({ where, select: { disabledAt: true } });
+  }
+
   return !!user && !user.disabledAt;
 }
 

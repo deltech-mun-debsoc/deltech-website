@@ -1148,7 +1148,26 @@ saving: "Saving…",
     checkEmailTitle: "Check your inbox",
     checkEmailMessage: "We sent a sign-in link to your email. Click it to continue.",
     checkEmailExpiry: "The link expires in 30 minutes.",
+    // Said outright because an address with no account now lands here too,
+    // rather than being told so directly. Without this line a typo looks like
+    // success and the person waits for an email that is never coming.
+    checkEmailNoAccount:
+      "Nothing will arrive if that address has no account yet. Delegates can create one; staff need an invite from an administrator.",
     errorDefault: "Something went wrong. Please try again.",
+    // Distinct from errorDefault on purpose. This one means our side failed and
+    // trying again is worth it; errorDefault meant that AND "you may not sign
+    // in" AND "we could not reach the database", which is why a working sign-in
+    // read as broken.
+    errorRetry: "We could not reach the sign-in service. Please try again in a moment.",
+    // Auth.js redirects here with ?error=<type> when a callback fails. Every one
+    // of these used to render nothing at all: the person clicked their link and
+    // arrived back at the sign-in form with no explanation.
+    errorVerification:
+      "That sign-in link has expired or was already used. Request a new one below.",
+    errorAccessDenied:
+      "That link could not be used to sign in. Request a new one below.",
+    errorConfiguration:
+      "Sign-in is temporarily unavailable. Please try again in a moment.",
     delegateNote: "No account needed to register as a delegate.",
     magicLinkTab: "Magic link",
     passwordTab: "Password",

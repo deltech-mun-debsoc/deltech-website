@@ -19,6 +19,10 @@ export default function CheckEmailPage() {
           <p className="mt-2 text-sm text-muted-foreground">{t("auth.checkEmailMessage")}</p>
           <div className="rule my-5" />
           <p className="text-xs text-muted-foreground">{t("auth.checkEmailExpiry")}</p>
+          {/* An address with no account lands here too, so that a typo is not
+              answered with "Something went wrong" and is not confirmed either.
+              That only works if the page admits nothing may be coming. */}
+          <p className="mt-2 text-xs text-muted-foreground">{t("auth.checkEmailNoAccount")}</p>
           <p className="mt-4 text-xs text-muted-foreground">
             Didn’t get it? Check spam, or{" "}
             <Link href="/signin" className="font-medium text-teal-800 underline underline-offset-2">
