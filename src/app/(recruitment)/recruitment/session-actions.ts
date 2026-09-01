@@ -743,8 +743,102 @@ export async function abortSession(input: {
 
 
 // ---------------------------------------------------------------------------
-// Reopen: admin repair for a wrongly-completed session
+// Retry: a fresh attempt after an explicitly aborted session
 // ---------------------------------------------------------------------------
+
+// An abort returns candidates to the pending stage and the group to READY. The
+// old attempt remains immutable history; retrying creates a new NOT_STARTED row
+// on that same group. This is operational recovery, not rewriting a completed
+// verdict, so anyone permitted to run that group may do it.
+export async function retryAbortedSession(input: {
+  sessionId: string
+  expectedVersion?: number
+}): Promise<SessionResult> {
+  const parsed = sessionActionSchema.safeParse(input)
+  if (!parsed.success) return { ok: false, error: "Invalid request." }
+
+  const found = await prisma.recruitmentSession.findUnique({
+    where: { id: parsed.data.sessionId },
+    select: { groupId: true },
+  })
+  if (!found) return { ok: false, error: "Session not found." }
+
+  try {
+    const { ctx } = await requireGroupAccess(found.groupId, "session.start")
+    const requestId = newRequestId()
+
+    return await prisma.$transaction(async (tx) => {
+      const serverNow = new Date()
+      await tx.$queryRaw`SELECT id FROM "RecruitmentSession" WHERE id = ${parsed.data.sessionId} FOR UPDATE`
+
+      const row = (await tx.recruitmentSession.findUnique({
+        where: { id: parsed.data.sessionId },
+        select: SESSION_SELECT,
+      })) as SessionRow | null
+      if (!row) return { ok: false as const, error: "Session not found." }
+
+      if (row.state !== "ABORTED" || decideReopen(toSnapshot(row)) !== "apply") {
+        return {
+          ok: false as const,
+          error: "Only an aborted session can be retried from here.",
+          conflict: serialize(row, serverNow),
+        }
+      }
+      if (parsed.data.expectedVersion !== undefined && parsed.data.expectedVersion !== row.version) {
+        return {
+          ok: false as const,
+          error: "This session was changed by someone else. The latest state is shown.",
+          conflict: serialize(row, serverNow),
+        }
+      }
+
+      // A dropped response or a double click may arrive after the new attempt was
+      // created. Return that row instead of creating attempt + 2.
+      const existing = (await tx.recruitmentSession.findFirst({
+        where: {
+          groupId: row.groupId,
+          state: { in: ["NOT_STARTED", "ACTIVE", "PAUSED"] },
+        },
+        orderBy: { attempt: "desc" },
+        select: SESSION_SELECT,
+      })) as SessionRow | null
+      if (existing) {
+        return { ok: true as const, idempotent: true, session: serialize(existing, serverNow) }
+      }
+
+      const fresh = (await tx.recruitmentSession.create({
+        data: {
+          cycleId: row.cycleId,
+          groupId: row.groupId,
+          kind: row.kind,
+          attempt: row.attempt + 1,
+          state: "NOT_STARTED",
+          plannedSeconds: row.plannedSeconds,
+          reopenedFromId: row.id,
+          reopenReason: "Retry after abort.",
+        },
+        select: SESSION_SELECT,
+      })) as SessionRow
+
+      await auditRecruitmentTx(tx, {
+        eventType: "session.retry",
+        actor: { id: ctx.userId, email: ctx.email, role: ctx.role },
+        cycleId: row.cycleId,
+        sessionId: fresh.id,
+        groupId: row.groupId,
+        previousState: { sessionId: row.id, state: row.state, attempt: row.attempt },
+        newState: { sessionId: fresh.id, state: fresh.state, attempt: fresh.attempt },
+        reason: "Retry after abort.",
+        requestId,
+      })
+
+      revalidatePath("/recruitment", "layout")
+      return { ok: true as const, idempotent: false, session: serialize(fresh, serverNow) }
+    })
+  } catch (err) {
+    return denied(err)
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Attendance

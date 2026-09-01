@@ -199,7 +199,11 @@ export function PiQueue({
                   href={`/recruitment/pi/${i.groupId}`}
                   className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
                 >
-                  {t("recruitment.pi.resume")}
+                  {i.state === "ABORTED"
+                    ? t("recruitment.session.retry")
+                    : i.state === "NOT_STARTED"
+                      ? t("recruitment.overview.openConsole")
+                      : t("recruitment.pi.resume")}
                 </Link>
               </li>
             ))}

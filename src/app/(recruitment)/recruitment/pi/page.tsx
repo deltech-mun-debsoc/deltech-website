@@ -65,6 +65,11 @@ export default async function PiQueuePage() {
           select: { candidate: { select: { fullName: true } } },
           take: 1,
         },
+        sessions: {
+          orderBy: { attempt: "desc" },
+          take: 1,
+          select: { state: true },
+        },
       },
     }),
     // Interviews already done. Without this the finished ones were unreachable:
@@ -112,7 +117,7 @@ export default async function PiQueuePage() {
         inProgress={live.map((g) => ({
           groupId: g.id,
           candidateName: g.members[0]?.candidate.fullName ?? g.title,
-          state: g.state,
+          state: g.sessions[0]?.state ?? "NOT_STARTED",
         }))}
         past={past.map((g) => ({
           groupId: g.id,

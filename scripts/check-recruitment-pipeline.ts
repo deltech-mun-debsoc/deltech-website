@@ -919,6 +919,11 @@ assert.equal(
     /run\(\(\) =>\s*abortSession/,
     "abort must wait for the server transaction",
   )
+  assert.match(
+    controls,
+    /run\(\s*\(\) => retryAbortedSession/,
+    "retrying an aborted attempt must remain server-confirmed",
+  )
 
   const evaluation = readFileSync(
     "src/app/(recruitment)/recruitment/_components/evaluation-form.tsx",
@@ -938,6 +943,31 @@ assert.equal(
     evaluation,
     /startTransition\(async \(\) => \{[\s\S]*?await submitEvaluation/,
     "evaluation submission and revision must remain server-confirmed",
+  )
+
+  const queries = readFileSync(
+    "src/app/(recruitment)/recruitment/_lib/queries.ts",
+    "utf8",
+  )
+  assert.match(
+    queries,
+    /sessionId: session\?\.id \?\? null/,
+    "a retried attempt must not preload evaluations from the aborted attempt",
+  )
+
+  const sessionActions = readFileSync(
+    "src/app/(recruitment)/recruitment/session-actions.ts",
+    "utf8",
+  )
+  assert.match(
+    sessionActions,
+    /row\.state !== "ABORTED"/,
+    "retry must never reopen a completed session",
+  )
+  assert.match(
+    sessionActions,
+    /attempt: row\.attempt \+ 1/,
+    "retry must create a new immutable attempt",
   )
 
   const permissions = readFileSync("src/lib/recruitment/permissions.ts", "utf8")
