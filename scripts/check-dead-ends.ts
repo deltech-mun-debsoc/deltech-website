@@ -3,9 +3,18 @@
 // terminal screen with no way on. None of them fail a build, and none of them
 // are visible in a diff unless you know to look. This pins the ones fixed.
 import assert from "node:assert"
-import { existsSync, readFileSync } from "node:fs"
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs"
+import { join } from "node:path"
 
 const read = (p: string) => readFileSync(p, "utf8")
+
+function sourceFiles(dir: string): string[] {
+  return readdirSync(dir).flatMap((name) => {
+    const path = join(dir, name)
+    if (statSync(path).isDirectory()) return sourceFiles(path)
+    return /\.(?:ts|tsx|js|jsx)$/.test(path) ? [path] : []
+  })
+}
 
 // --- staff 404s must keep the admin shell ---------------------------------
 //
@@ -339,6 +348,17 @@ for (const route of [
     authz,
     /redirect\(roleHome\(/,
     "bounce out of /recruitment via bounceHome, not redirect(roleHome(...)) -- a SUB_MAINTAINER's home is /recruitment itself",
+  )
+}
+
+// Browser-native dialogs escape the site's theme, block the whole tab and give
+// destructive actions almost no context on mobile. Confirmations still exist,
+// but they must be rendered as accessible in-app dialogs.
+for (const file of sourceFiles("src")) {
+  assert.doesNotMatch(
+    read(file),
+    /\b(?:window\.)?(?:alert|confirm|prompt)\s*\(/,
+    `${file} uses a browser-native dialog; use the themed dialog component`,
   )
 }
 

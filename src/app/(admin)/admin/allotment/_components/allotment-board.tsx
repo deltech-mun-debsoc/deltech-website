@@ -4,6 +4,7 @@ import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { revokeAllotment } from "../actions"
 import { committeeDemand } from "../_lib/balance"
 import { PortfolioCard } from "./portfolio-card"
@@ -84,6 +85,8 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired }
   const [selectedCommitteeId, setSelectedCommitteeId] = useState(committees[0]?.id ?? "")
   const [dialogPortfolio, setDialogPortfolio] = useState<SerializedPortfolio | null>(null)
   const [dialogCommittee, setDialogCommittee] = useState<SerializedCommittee | null>(null)
+  const [revokeTarget, setRevokeTarget] = useState<SerializedPortfolio | null>(null)
+  const [revoking, setRevoking] = useState(false)
 
   const selectedCommittee = committees.find((c) => c.id === selectedCommitteeId)
 
@@ -121,22 +124,25 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired }
 
   const handleRevoke = async (portfolio: SerializedPortfolio) => {
     if (!portfolio.allotment) return
-    const confirmed = window.confirm(
-      `Revoke allotment for ${portfolio.allotment.delegate.fullName} from "${portfolio.name}"?`,
-    )
-    if (!confirmed) return
+    setRevoking(true)
+    try {
+      const result = await revokeAllotment({
+        allotmentId: portfolio.allotment.id,
+        portfolioId: portfolio.id,
+        delegateId: portfolio.allotment.delegateId,
+      })
 
-    const result = await revokeAllotment({
-      allotmentId: portfolio.allotment.id,
-      portfolioId: portfolio.id,
-      delegateId: portfolio.allotment.delegateId,
-    })
-
-    if (result.success) {
-      toast.success("Allotment revoked.")
-      router.refresh()
-    } else {
-      toast.error(result.error ?? "Revoke failed.")
+      if (result.success) {
+        toast.success("Allotment revoked.")
+        setRevokeTarget(null)
+        router.refresh()
+      } else {
+        toast.error(result.error ?? "Revoke failed.")
+      }
+    } catch {
+      toast.error("Could not reach the server. Try again.")
+    } finally {
+      setRevoking(false)
     }
   }
 
@@ -243,7 +249,7 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired }
                     portfolio={portfolio}
                     committee={selectedCommittee}
                     onClick={() => handlePortfolioClick(portfolio, selectedCommittee)}
-                    onRevoke={() => handleRevoke(portfolio)}
+                    onRevoke={() => setRevokeTarget(portfolio)}
                   />
                 ))}
               </div>
@@ -266,6 +272,21 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired }
           onAllotted={handleAllotted}
         />
       )}
+
+      <ConfirmDialog
+        open={Boolean(revokeTarget)}
+        onOpenChange={(next) => !next && setRevokeTarget(null)}
+        title="Revoke this allotment?"
+        description={
+          revokeTarget?.allotment
+            ? `Return ${revokeTarget.allotment.delegate.fullName}'s ${revokeTarget.name} portfolio to the available pool?`
+            : ""
+        }
+        confirmLabel="Revoke allotment"
+        destructive
+        pending={revoking}
+        onConfirm={() => revokeTarget && void handleRevoke(revokeTarget)}
+      />
     </div>
   )
 }

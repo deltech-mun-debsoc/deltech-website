@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Plus, Pencil, Trash2, Upload, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Badge } from "@/components/ui/badge"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -72,6 +73,7 @@ export function TeamManager({ members, isAdmin }: { members: MemberRow[]; isAdmi
   const [uploading, setUploading] = useState(false)
   const [open, setOpen] = useState(false)
   const [editing, setEditing] = useState<MemberRow | null>(null)
+  const [removeTarget, setRemoveTarget] = useState<MemberRow | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
   const [name, setName] = useState("")
@@ -205,7 +207,6 @@ export function TeamManager({ members, isAdmin }: { members: MemberRow[]; isAdmi
   }
 
   const remove = (m: MemberRow) => {
-    if (!window.confirm(`Remove ${m.name} from the team?`)) return
     startTransition(async () => {
       let result: { success: boolean; error?: string }
       try {
@@ -218,6 +219,7 @@ export function TeamManager({ members, isAdmin }: { members: MemberRow[]; isAdmi
       }
       if (result.success) {
         toast.success("Member removed.")
+        setRemoveTarget(null)
         router.refresh()
       } else {
         toast.error(result.error ?? "Failed.")
@@ -292,7 +294,7 @@ export function TeamManager({ members, isAdmin }: { members: MemberRow[]; isAdmi
                               className="size-7 text-destructive"
                               aria-label={`Remove ${m.name}`}
                               disabled={isPending}
-                              onClick={() => remove(m)}
+                              onClick={() => setRemoveTarget(m)}
                             >
                               <Trash2 className="size-3.5" />
                             </Button>
@@ -427,6 +429,17 @@ export function TeamManager({ members, isAdmin }: { members: MemberRow[]; isAdmi
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConfirmDialog
+        open={Boolean(removeTarget)}
+        onOpenChange={(next) => !next && setRemoveTarget(null)}
+        title="Remove team member?"
+        description={removeTarget ? `Remove ${removeTarget.name} from the public team?` : ""}
+        confirmLabel="Remove member"
+        destructive
+        pending={isPending}
+        onConfirm={() => removeTarget && remove(removeTarget)}
+      />
     </div>
   )
 }
