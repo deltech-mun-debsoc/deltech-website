@@ -198,6 +198,11 @@ export async function getGroupConsole(ctx: RecruitmentContext, groupId: string) 
     where: {
       candidateId: { in: group.members.map((m) => m.candidateId) },
       kind: group.kind,
+      // A retry is a new attempt, not a continuation of the aborted scorecard.
+      // Without the session boundary, the new console would preload drafts from
+      // the abandoned attempt and finishing it could submit the wrong panel's
+      // work.
+      sessionId: session?.id ?? null,
       state: { in: ["DRAFT", "SUBMITTED"] },
       ...(ctx.role === "JC" ? { evaluatorId: ctx.userId } : {}),
     },

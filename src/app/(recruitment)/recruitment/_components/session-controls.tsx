@@ -19,6 +19,7 @@ import {
   abortSession,
   finishSession,
   pauseSession,
+  retryAbortedSession,
   resumeSession,
   startSession,
   type SerializedSession,
@@ -293,6 +294,27 @@ export function SessionControls({
                   {t("recruitment.session.abort")}
                 </Button>
               </>
+            )}
+
+            {state === "ABORTED" && (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={pending}
+                onClick={() =>
+                  run(
+                    () => retryAbortedSession({
+                      sessionId: session.id,
+                      expectedVersion: session.version,
+                    }),
+                    t("recruitment.session.retryReady"),
+                    t("recruitment.session.retryAlreadyReady"),
+                  )
+                }
+              >
+                {pending && <Loader2 className="mr-1.5 size-3.5 animate-spin" />}
+                {t("recruitment.session.retry")}
+              </Button>
             )}
 
           </div>

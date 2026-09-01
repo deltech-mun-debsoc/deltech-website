@@ -484,7 +484,7 @@ export const STRINGS = {
       REASSIGNED: "Reassigned",
     },
     pi: {
-      inProgress: "Interviews in progress",
+      inProgress: "Interviews to continue",
       resume: "Resume",
       startInterview: "Start interview",
       starting: "Starting…",
@@ -546,6 +546,9 @@ export const STRINGS = {
       finish: "Finish",
       abort: "Abort",
       reopen: "Reopen",
+      retry: "Retry",
+      retryReady: "A fresh attempt is ready.",
+      retryAlreadyReady: "A fresh attempt is already ready.",
       elapsed: "Elapsed",
       planned: "Planned",
       startedAt: "Started",

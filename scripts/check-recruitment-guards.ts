@@ -52,6 +52,7 @@ const JC_MUST_NOT_REACH = new Set([
 const JC_MAY_REACH = new Set([
   "saveEvaluationDraft", "submitEvaluation",
   "startSession", "pauseSession", "resumeSession", "finishSession", "abortSession",
+  "retryAbortedSession",
   "previewImport", "applyImport",
 ])
 
