@@ -10,8 +10,9 @@ import { SessionStateBadge, StageBadge } from "../_components/status-badges"
 import { LiveRefresh } from "@/components/recruitment/live-refresh"
 import { getMyDesk } from "./_lib/queries"
 
-// "My desk": what this person is assigned to right now. For a JC this is the whole
-// application: their groups, their timers, and the scores they still owe.
+// "My desk": active work, not an assignment inbox. JCs form their own panels, so
+// an empty desk points them to that action instead of implying they must wait for
+// somebody else to assign something.
 export default async function RecruitmentOverviewPage() {
   const { cycle } = await requireRecruitmentAccess()
   // The layout already renders an empty state when there is no live cycle.
@@ -38,7 +39,38 @@ export default async function RecruitmentOverviewPage() {
         </h2>
 
         {sessions.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t("recruitment.overview.noSessions")}</p>
+          <Card className="border-dashed bg-muted/20 p-4">
+            <p className="text-sm font-medium">
+              {t("recruitment.overview.noSessionsTitle")}
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {t(
+                ctx.role === "JC"
+                  ? "recruitment.overview.noSessionsJc"
+                  : "recruitment.overview.noSessionsSenior",
+              )}
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <Link
+                href="/recruitment/gd"
+                className={cn(buttonVariants({ size: "sm" }))}
+              >
+                {t(
+                  ctx.role === "JC"
+                    ? "recruitment.overview.createGdPanel"
+                    : "recruitment.groups.titleGd",
+                )}
+              </Link>
+              {ctx.role !== "JC" && (
+                <Link
+                  href="/recruitment/pi"
+                  className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+                >
+                  {t("recruitment.groups.titlePi")}
+                </Link>
+              )}
+            </div>
+          </Card>
         ) : (
           <ul className="grid gap-3 sm:grid-cols-2">
             {sessions.map((s) => (

@@ -974,4 +974,24 @@ assert.equal(
   assert.doesNotMatch(permissions, /session\.takeControl/, "the capability is gone too")
 }
 
+// --- My desk is a workspace, not an assignment inbox -----------------------
+{
+  const overview = readFileSync(
+    "src/app/(recruitment)/recruitment/page.tsx",
+    "utf8",
+  )
+  assert.match(
+    overview,
+    /ctx\.role === "JC"[\s\S]*?recruitment\.overview\.createGdPanel/,
+    "an empty JC desk must lead directly to creating their own GD panel",
+  )
+
+  const strings = readFileSync("src/content/strings.ts", "utf8")
+  assert.doesNotMatch(
+    strings.match(/overview: \{[\s\S]*?\n    stage:/)?.[0] ?? "",
+    /Assigned to you|Nothing is assigned to you/,
+    "My desk must not imply self-created panels were assigned by someone else",
+  )
+}
+
 console.log("recruitment pipeline checks passed (three-way decisions, final selections, popups)")

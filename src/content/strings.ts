@@ -440,10 +440,16 @@ export const STRINGS = {
     },
     overview: {
       title: "My desk",
-      description: "The sessions you are assigned to, and what still needs doing.",
+      description: "Your active sessions and anything that still needs doing.",
       liveSessions: "Live now",
-      upcoming: "Assigned to you",
-      noSessions: "Nothing is assigned to you in this cycle yet.",
+      upcoming: "Your sessions",
+      noSessions: "No sessions need your attention right now.",
+      noSessionsTitle: "Nothing active right now",
+      noSessionsJc:
+        "You do not need to wait for an assignment. Create your GD panel when you are ready and it will appear here.",
+      noSessionsSenior:
+        "Open group discussions or interviews to start or continue a session.",
+      createGdPanel: "Create a GD panel",
       pendingEvaluations: "Evaluations you still owe",
       allDone: "You are up to date.",
       openConsole: "Open console",
