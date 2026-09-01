@@ -72,6 +72,68 @@ export function skewCorrectedNow(clientNow: Date, skew: number): Date {
   return new Date(clientNow.getTime() - skew)
 }
 
+// A temporary client-side view used while a reversible lifecycle request is in
+// flight. It deliberately mirrors only start / pause / resume. Completing or
+// aborting a session has wider effects (draft submission, candidate movement,
+// locks and audit rows), so those actions must remain server-confirmed.
+//
+// The timestamps here make the control feel immediate; the returned server row
+// always replaces them. Bumping the view version also stops an older RSC refresh
+// from visually undoing the click before that response arrives.
+export interface OptimisticSessionView {
+  state: SessionStateName
+  version: number
+  controllerId: string | null
+  startedAt: string | null
+  pausedAt: string | null
+  endedAt: string | null
+  pausedMs: number
+  lastActivityAt: string | null
+  serverNow: string
+}
+
+export type OptimisticSessionAction = "start" | "pause" | "resume"
+
+export function optimisticSessionTransition<T extends OptimisticSessionView>(
+  session: T,
+  action: OptimisticSessionAction,
+  actorId: string,
+  clientNow = new Date(),
+): T {
+  const now = clientNow.toISOString()
+  const next = {
+    ...session,
+    version: session.version + 1,
+    lastActivityAt: now,
+    serverNow: now,
+  }
+
+  if (action === "start") {
+    return {
+      ...next,
+      state: "ACTIVE",
+      controllerId: actorId,
+      startedAt: session.startedAt ?? now,
+      pausedAt: null,
+      endedAt: null,
+    }
+  }
+
+  if (action === "pause") {
+    return { ...next, state: "PAUSED", pausedAt: now }
+  }
+
+  const openPauseMs = session.pausedAt
+    ? Math.max(0, clientNow.getTime() - new Date(session.pausedAt).getTime())
+    : 0
+  return {
+    ...next,
+    state: "ACTIVE",
+    pausedAt: null,
+    pausedMs: session.pausedMs + openPauseMs,
+  }
+}
+
 export function isStale(s: SessionSnapshot, serverNow: Date): boolean {
   if (s.state !== "ACTIVE" && s.state !== "PAUSED") return false
   const last = s.lastActivityAt ?? s.startedAt

@@ -104,7 +104,7 @@ export function EvaluationForm({
     saved: SavedEvaluation,
     sent: { scores: Record<string, number>; remarks: string | null; recommendation: string | null },
   ) {
-    setAdopted({
+    const next = {
       id: saved.id,
       evaluatorId: viewerId,
       evaluatorRole: serverMine?.evaluatorRole ?? "",
@@ -118,7 +118,10 @@ export function EvaluationForm({
       version: saved.version,
       submittedAt: saved.submittedAt,
       isMine: true,
-    })
+    }
+    // Responses can arrive out of order on a crowded/mobile connection. Never
+    // let an older autosave response replace a newer confirmed draft.
+    setAdopted((current) => newerOf(next, current))
   }
 
   const [scores, setScores] = useState<Record<string, string>>(() =>
@@ -181,11 +184,22 @@ export function EvaluationForm({
   // is a deliberate act, so it keeps an explicit button.
   const [saveState, setSaveState] = useState<"idle" | "saving" | "saved">("idle")
   const dirtyRef = useRef(false)
+  const editRevisionRef = useRef(0)
+  const saveInFlightRef = useRef(false)
+  const saveQueuedRef = useRef(false)
   const timerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const [autosaveTick, setAutosaveTick] = useState(0)
 
   const autosave = useCallback(() => {
     if (submitted || !canEvaluate) return
     if (Object.keys(numericScores).length === 0 && !remarks.trim() && !recommendation) return
+    if (saveInFlightRef.current) {
+      saveQueuedRef.current = true
+      return
+    }
+
+    const savingRevision = editRevisionRef.current
+    saveInFlightRef.current = true
     setSaveState("saving")
     void saveEvaluationDraft({
       candidateId,
@@ -206,11 +220,23 @@ export function EvaluationForm({
           remarks: remarks.trim() || null,
           recommendation: recommendation || null,
         })
-        dirtyRef.current = false
-        setSaveState("saved")
+        if (editRevisionRef.current === savingRevision) {
+          dirtyRef.current = false
+          setSaveState("saved")
+        } else {
+          saveQueuedRef.current = true
+          setSaveState("idle")
+        }
         onSaved?.()
       })
       .catch(() => setSaveState("idle"))
+      .finally(() => {
+        saveInFlightRef.current = false
+        if (saveQueuedRef.current) {
+          saveQueuedRef.current = false
+          setAutosaveTick((tick) => tick + 1)
+        }
+      })
   }, [
     submitted, canEvaluate, numericScores, remarks, recommendation,
     candidateId, sessionId, mine?.version, onSaved,
@@ -221,10 +247,14 @@ export function EvaluationForm({
     clearTimeout(timerRef.current)
     timerRef.current = setTimeout(autosave, 800)
     return () => clearTimeout(timerRef.current)
-  }, [autosave])
+  }, [autosave, autosaveTick])
 
   // Nothing typed yet must not count as an edit, or every mount would save.
-  const touch = () => { dirtyRef.current = true; setSaveState("idle") }
+  const touch = () => {
+    editRevisionRef.current += 1
+    dirtyRef.current = true
+    setSaveState("idle")
+  }
 
   // Exactly the server's test for "complete enough to submit when the session
   // finishes", so the console never promises something finish would skip.
