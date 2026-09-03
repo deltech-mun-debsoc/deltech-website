@@ -42,7 +42,7 @@ function MemberCard({ member, index }: { member: PublicTeamMember; index: number
   const initials = member.name.split(" ").slice(0, 2).map((word) => word[0]).join("")
 
   return (
-    <article className="group relative w-[min(78vw,19rem)] shrink-0 snap-start overflow-hidden border border-foreground/20 bg-foreground text-background sm:w-72 lg:w-80">
+    <article className="group relative w-[min(78vw,19rem)] shrink-0 snap-start overflow-hidden border border-foreground/20 bg-ink text-paper sm:w-72 lg:w-80">
       {member.photoUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -128,7 +128,7 @@ function CouncilRail({ level, members }: { level: (typeof TEAM_LEVELS)[number]; 
               type="button"
               onClick={() => move(-1)}
               aria-label={`Scroll ${level.label} backward`}
-              className="flex size-11 items-center justify-center border border-foreground/30 transition hover:bg-foreground hover:text-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex size-11 items-center justify-center border border-foreground/30 transition hover:bg-ink hover:text-paper focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <ArrowLeft className="size-4" />
             </button>
@@ -136,7 +136,7 @@ function CouncilRail({ level, members }: { level: (typeof TEAM_LEVELS)[number]; 
               type="button"
               onClick={() => move(1)}
               aria-label={`Scroll ${level.label} forward`}
-              className="flex size-11 items-center justify-center border border-foreground/30 transition hover:bg-foreground hover:text-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              className="flex size-11 items-center justify-center border border-foreground/30 transition hover:bg-ink hover:text-paper focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <ArrowRight className="size-4" />
             </button>

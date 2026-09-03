@@ -16,23 +16,23 @@ export default async function AdminQuizPage() {
     <div className="space-y-8">
       <PageHeader eyebrow="Live studio" title="Quiz control room" description="Build the show, rehearse the sequence, then put the audience live." />
 
-      <section className="grid overflow-hidden border border-foreground/15 bg-foreground text-background lg:grid-cols-[1.2fr_0.8fr]">
+      <section className="grid overflow-hidden border border-foreground/15 bg-ink text-paper lg:grid-cols-[1.2fr_0.8fr]">
         <div className="p-7 sm:p-9">
           <RadioTower className="size-8 text-primary" />
-          <p className="mt-12 font-mono text-xs uppercase tracking-[0.2em] text-background/50">New broadcast</p>
+          <p className="mt-12 font-mono text-xs uppercase tracking-[0.2em] text-paper/50">New broadcast</p>
           <h2 className="mt-3 max-w-[12ch] font-heading text-4xl leading-tight sm:text-5xl">Build something the room can feel.</h2>
           <Link href="/admin/quiz/new" className="mt-8 inline-flex h-13 items-center gap-2 bg-primary px-6 text-base font-bold text-primary-foreground transition-opacity hover:opacity-90">
             <Plus /> New presentation
           </Link>
         </div>
-        <div className="grid grid-cols-2 border-t border-background/15 lg:border-l lg:border-t-0">
-          <div className="flex flex-col justify-end border-r border-background/15 p-6">
+        <div className="grid grid-cols-2 border-t border-paper/15 lg:border-l lg:border-t-0">
+          <div className="flex flex-col justify-end border-r border-paper/15 p-6">
             <span className="font-heading text-5xl">{presentations.length}</span>
-            <span className="mt-2 text-sm text-background/55">Shows built</span>
+            <span className="mt-2 text-sm text-paper/55">Shows built</span>
           </div>
           <div className="flex flex-col justify-end p-6">
             <span className="font-heading text-5xl">{totalSlides}</span>
-            <span className="mt-2 text-sm text-background/55">Slides ready</span>
+            <span className="mt-2 text-sm text-paper/55">Slides ready</span>
           </div>
         </div>
       </section>
@@ -59,7 +59,7 @@ export default async function AdminQuizPage() {
                 <Presentation className="mt-10 size-7 text-primary" />
                 <h3 className="mt-5 font-heading text-3xl leading-tight">{presentation.title}</h3>
                 <div className="mt-8 flex flex-wrap gap-2">
-                  <span className="bg-foreground px-2.5 py-1 font-mono text-xs uppercase tracking-wider text-background">{t(("quiz.modes." + presentation.mode) as Parameters<typeof t>[0])}</span>
+                  <span className="bg-ink px-2.5 py-1 font-mono text-xs uppercase tracking-wider text-paper">{t(("quiz.modes." + presentation.mode) as Parameters<typeof t>[0])}</span>
                   <span className="bg-muted px-2.5 py-1 text-xs">{presentation._count.slides} slides</span>
                 </div>
                 <p className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">

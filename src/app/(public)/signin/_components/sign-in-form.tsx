@@ -30,10 +30,10 @@ export function SignInForm({
   return (
     <Tabs value={tab} onValueChange={(v) => setTab(String(v))}>
       <TabsList className="mb-7 grid h-13 w-full grid-cols-2 rounded-none bg-black/5 p-1">
-        <TabsTrigger value="magic" className="h-11 rounded-none text-sm font-bold data-[state=active]:bg-foreground data-[state=active]:text-background">
+        <TabsTrigger value="magic" className="h-11 rounded-none text-sm font-bold data-[state=active]:bg-ink data-[state=active]:text-paper">
           {t("auth.magicLinkTab")}
         </TabsTrigger>
-        <TabsTrigger value="password" className="h-11 rounded-none text-sm font-bold data-[state=active]:bg-foreground data-[state=active]:text-background">
+        <TabsTrigger value="password" className="h-11 rounded-none text-sm font-bold data-[state=active]:bg-ink data-[state=active]:text-paper">
           {t("auth.passwordTab")}
         </TabsTrigger>
       </TabsList>

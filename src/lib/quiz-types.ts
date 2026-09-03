@@ -195,7 +195,7 @@ export const DEFAULT_CONFIGS: Record<SlideType, SlideConfig> = {
 
 export const PRESET_THEMES: Record<string, PresentationTheme> = {
   classic: { background: "#f7f4ec", textColor: "#2b2622", accentColor: "#1f6f6b", font: "Inter" },
-  ink:     { background: "#211d19", textColor: "#f1ece2", accentColor: "#63b0aa", font: "Inter" },
+  ink:     { background: "#15171a", textColor: "#f1ece2", accentColor: "#63b0aa", font: "Inter" },
   gold:    { background: "#f7f4ec", textColor: "#3a2f18", accentColor: "#b8892e", font: "Georgia" },
   ocean:   { background: "#0c4a6e", textColor: "#e0f2fe", accentColor: "#38bdf8", font: "Inter" },
   forest:  { background: "#14532d", textColor: "#f0fdf4", accentColor: "#86efac", font: "Inter" },

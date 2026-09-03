@@ -57,20 +57,20 @@ export function BuilderHeader({
     : t("quiz.builder.themes.custom")
 
   return (
-    <header className="flex h-16 shrink-0 items-center gap-2 overflow-hidden border-b border-white/10 bg-foreground px-3 text-background sm:h-20 sm:gap-4 sm:px-5">
+    <header className="flex h-16 shrink-0 items-center gap-2 overflow-hidden border-b border-white/10 bg-ink px-3 text-paper sm:h-20 sm:gap-4 sm:px-5">
       {/* Title */}
       <Input
         value={title}
         onChange={(e) => onTitleChange(e.target.value)}
         placeholder={t("quiz.builder.titlePlaceholder")}
-        className="h-11 min-w-0 flex-1 rounded-none border-0 border-b border-white/20 bg-transparent px-0 font-sans text-base font-semibold text-background shadow-none focus-visible:border-primary focus-visible:ring-0 sm:max-w-64 sm:text-lg"
+        className="h-11 min-w-0 flex-1 rounded-none border-0 border-b border-white/20 bg-transparent px-0 font-sans text-base font-semibold text-paper shadow-none focus-visible:border-primary focus-visible:ring-0 sm:max-w-64 sm:text-lg"
       />
 
       <div className="hidden h-8 w-px bg-white/15 sm:block" />
 
       {/* Mode toggle */}
       <div className="flex shrink-0 items-center gap-2">
-        <Label htmlFor="mode-switch" className="hidden cursor-pointer select-none text-sm text-background/55 md:block">
+        <Label htmlFor="mode-switch" className="hidden cursor-pointer select-none text-sm text-paper/55 md:block">
           {t("quiz.modes.POLL")}
         </Label>
         <Switch
@@ -80,7 +80,7 @@ export function BuilderHeader({
           checked={mode === "QUIZ"}
           onCheckedChange={(v) => onModeChange(v ? "QUIZ" : "POLL")}
         />
-        <Label htmlFor="mode-switch" className="hidden cursor-pointer select-none text-sm text-background/55 md:block">
+        <Label htmlFor="mode-switch" className="hidden cursor-pointer select-none text-sm text-paper/55 md:block">
           {t("quiz.modes.QUIZ")}
         </Label>
       </div>
@@ -97,7 +97,7 @@ export function BuilderHeader({
             <span className="size-2 rounded-[1px]" style={{ background: theme.accentColor }} />
           </span>
           <span className="hidden lg:inline">{themeLabel}</span>
-          <ChevronDown className="size-4 text-background/55" />
+          <ChevronDown className="size-4 text-paper/55" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-52">
           {/* The label and the presets are one group. Base UI's GroupLabel reads
@@ -147,7 +147,7 @@ export function BuilderHeader({
       </Link>
 
       {/* Save status */}
-      <div className="hidden min-w-24 items-center gap-1.5 text-sm text-background/55 xl:flex">
+      <div className="hidden min-w-24 items-center gap-1.5 text-sm text-paper/55 xl:flex">
         {saveStatus === "saving" && <><Loader2 className="size-3 animate-spin" />{t("quiz.builder.saving")}</>}
         {saveStatus === "saved"  && <><Check className="size-3 text-teal-300" /><span className="text-teal-300">{t("quiz.builder.saved")}</span></>}
         {saveStatus === "dirty"  && <span className="text-muted-foreground/60">{t("quiz.builder.unsaved")}</span>}

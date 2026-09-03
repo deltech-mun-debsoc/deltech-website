@@ -52,14 +52,14 @@ export default async function OperatorGuidePage() {
         <span className="data-label border border-primary/25 bg-primary/5 px-3 py-2 text-primary">Signed in as {role.toLowerCase()}</span>
       </PageHeader>
 
-      <section className="relative overflow-hidden bg-foreground p-7 text-background sm:p-10">
+      <section className="relative overflow-hidden bg-ink p-7 text-paper sm:p-10">
         <div className="paper-grid absolute inset-0 opacity-[0.08]" aria-hidden />
         <div className="relative grid gap-10 lg:grid-cols-[1fr_0.72fr] lg:items-end">
           <div>
             <p className="data-label flex items-center gap-2 text-gold-300"><BookOpenText className="size-4" /> Start here</p>
             <h2 className="mt-5 max-w-3xl font-heading text-4xl leading-tight sm:text-5xl">Operate in sequence. Verify before you publish. Escalate destructive work.</h2>
           </div>
-          <p className="text-base leading-relaxed text-background/68">The platform is designed so maintainers can run normal conference operations while the highest-risk actions remain admin-only. If a control is missing or disabled, check the permission map below before treating it as a bug.</p>
+          <p className="text-base leading-relaxed text-paper/68">The platform is designed so maintainers can run normal conference operations while the highest-risk actions remain admin-only. If a control is missing or disabled, check the permission map below before treating it as a bug.</p>
         </div>
       </section>
 
@@ -131,7 +131,7 @@ export default async function OperatorGuidePage() {
           <li><strong>4. Recheck the public surface.</strong> Verify the matrix, registration state, and delegate status after recovery.</li>
         </ol>
         <div className="mt-7 flex flex-wrap gap-3">
-          <Link href="/admin/logs" className="inline-flex min-h-11 items-center gap-2 bg-foreground px-5 py-3 font-semibold text-background">Open activity log <ArrowRight className="size-4" /></Link>
+          <Link href="/admin/logs" className="inline-flex min-h-11 items-center gap-2 bg-ink px-5 py-3 font-semibold text-paper">Open activity log <ArrowRight className="size-4" /></Link>
           <Link href="/admin/config/registration" className="inline-flex min-h-11 items-center gap-2 border border-foreground/25 px-5 py-3 font-semibold">Registration control</Link>
         </div>
       </section>
