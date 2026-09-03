@@ -164,10 +164,15 @@ const read = (p: string) => readFileSync(p, "utf8")
     /role === "ADMIN" \|\| role === "MAINTAINER"/,
     "the export route must stay gated to dashboard staff",
   )
+  // The recruitment door tests candidate.view, which every recruitment role
+  // holds -- it used to require MAINTAINER+, which 401'd a JC's own "Export
+  // all" button the moment candidates/page.tsx stopped scoping their list
+  // (that page shows JC the full cycle now, so the export matching it is the
+  // fix, not a widening: see the comment in route.ts).
   assert.match(
     exportRoute,
-    /atLeast\(recruitmentCtx\?\.role, "MAINTAINER"\)/,
-    "the recruitment door must require a recruitment MAINTAINER or above, never a JC",
+    /can\(recruitmentCtx\?\.role, "candidate\.view"\)/,
+    "the recruitment door must test candidate.view, which the candidates page also gates on",
   )
   // Delegates and the portfolio matrix: dashboard staff only, no second door.
   assert.match(

@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma"
 import * as XLSX from "xlsx"
 import { buildDelegateWhere } from "@/app/(admin)/admin/registrations/_lib/build-where"
 import { resolveCycleContext } from "@/lib/recruitment/authz"
-import { atLeast } from "@/lib/recruitment/permissions"
+import { can } from "@/lib/recruitment/permissions"
 
 function sheetResponse(
   rows: Record<string, string | number>[],
@@ -137,12 +137,19 @@ export async function GET(request: NextRequest) {
   if (sp.get("entity") === "candidates" || sp.get("entity") === "applicants") {
     // Recruitment authority is per-cycle and independent of the dashboard role: a
     // recruitment ADMIN can be a SUB_MAINTAINER app account, which this route used
-    // to refuse outright. Either door opens it, and neither is widened -- a JC is
-    // still out, because their candidate list is scoped to their own panels and an
-    // export of part of the cycle presented as the whole is worse than none.
+    // to refuse outright. Either door opens it.
+    //
+    // The recruitment door used to require MAINTAINER+, on the theory that a JC's
+    // candidate list was scoped to their own panels and exporting a partial cycle
+    // as if it were the whole thing would be worse than refusing. The candidates
+    // page (candidates/page.tsx) dropped that scoping: every recruitment role,
+    // JC included, now sees and is shown an "Export all" button for the full
+    // cycle. This door was never updated to match, so a JC's own export button
+    // 401'd every time -- the fix is the same test the page already uses,
+    // candidate.view, which every recruitment role holds.
     const cycleId = sp.get("cycleId")
     const recruitmentCtx = cycleId ? await resolveCycleContext(cycleId) : null
-    const isRecruitmentStaff = atLeast(recruitmentCtx?.role, "MAINTAINER")
+    const isRecruitmentStaff = can(recruitmentCtx?.role, "candidate.view")
     if (!isDashboardStaff && !isRecruitmentStaff) {
       return new NextResponse("Unauthorized", { status: 401 })
     }
