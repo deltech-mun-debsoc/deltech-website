@@ -51,7 +51,7 @@ export default async function AdminQuizPage() {
         ) : (
           <div className="grid gap-px overflow-hidden border border-border bg-border md:grid-cols-2 xl:grid-cols-3">
             {presentations.map((presentation, index) => (
-              <Link key={presentation.id} href={"/admin/quiz/" + presentation.id} className="group min-h-72 bg-background p-6 transition-colors hover:bg-[#edf7f4]">
+              <Link key={presentation.id} href={"/admin/quiz/" + presentation.id} className="group min-h-72 bg-background p-6 transition-colors hover:bg-muted/70">
                 <div className="flex items-start justify-between">
                   <span className="font-mono text-xs text-muted-foreground">{String(index + 1).padStart(2, "0")} / SHOW</span>
                   <ArrowUpRight className="size-5 transition-transform group-hover:-translate-y-1 group-hover:translate-x-1" />

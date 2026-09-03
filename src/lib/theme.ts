@@ -1,42 +1,32 @@
-// Per-area theming.
-//
-// The bug this fixes: a single next-themes provider wrote `.dark` onto <html>, and
-// the only toggle lived in the marketing header, so /admin inherited whatever the
-// homepage was set to and had no way to change it.
-//
-// Each area now persists its own choice in its own cookie and renders the resulting
-// class on the SERVER, in its own shell. Because the dark variant in globals.css is
-// scope-aware (`.theme-light` opts back out of an outer `.dark`), no client script
-// is needed to undo an inherited class, so there is no flash and no hydration
-// mismatch: the server already emitted the right markup.
-//
-// Pure string/constant logic, no next/headers: importable from the edge and from
-// client components.
+// Theme preference shared by the public site, admin, and recruitment. The cookie
+// gives authenticated server-rendered shells the right first paint; next-themes'
+// matching localStorage key applies the same choice to public pages before paint.
 
 export type ThemeChoice = "light" | "dark"
+export type ThemePreference = ThemeChoice | "system"
 export type ThemeArea = "site" | "admin" | "recruitment"
 
-// Distinct cookie per area. `theme-site` is also what next-themes uses as its
-// storageKey for the marketing site, so the two stay in step.
+export const THEME_COOKIE = "theme-preference"
+export const THEME_STORAGE_KEY = "theme-site"
+
+// Legacy cookies are read as a one-release migration path. New choices always use
+// the single global cookie, so a person never has to set the theme per area.
 export const THEME_COOKIES: Record<ThemeArea, string> = {
   site: "theme-site",
   admin: "theme-admin",
   recruitment: "theme-recruitment",
 }
 
-// The admin dashboard and the recruitment area default to light; the marketing site
-// keeps its existing light default too. Stated explicitly so a missing cookie is
-// never ambiguous.
-export const DEFAULT_THEME: ThemeChoice = "light"
+export const DEFAULT_THEME: ThemePreference = "system"
 
-export function parseTheme(value: string | null | undefined): ThemeChoice {
-  return value === "dark" ? "dark" : value === "light" ? "light" : DEFAULT_THEME
+export function parseTheme(value: string | null | undefined): ThemePreference {
+  return value === "dark" || value === "light" || value === "system" ? value : DEFAULT_THEME
 }
 
 // The class an area shell renders. `theme-light` is not merely "no class": it has
 // to actively override an inherited `.dark` from the marketing toggle.
-export function themeClass(theme: ThemeChoice): string {
-  return theme === "dark" ? "dark" : "theme-light"
+export function themeClass(theme: ThemePreference): string {
+  return theme === "dark" ? "dark" : theme === "light" ? "theme-light" : ""
 }
 
 export function areaForPath(pathname: string): ThemeArea {

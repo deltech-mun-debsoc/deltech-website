@@ -2,17 +2,16 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-/* Dark variant, scoped so each app area can own its own theme.
+/* Dark variant, scoped so authenticated shells can render a saved theme server-side.
  *
  * Two changes from the plain `&:is(.dark *)`:
  *   1. `.dark` now matches the element carrying the class as well as its
  *      descendants, so a themed wrapper (not just <html>) styles itself.
  *   2. an inner `.theme-light` scope OPTS BACK OUT of an outer `.dark`.
  *
- * (2) is what stops the homepage theme leaking into /admin and /recruitment. Those
- * shells render `dark` or `theme-light` from their own cookie on the server, so an
- * inherited `.dark` on <html>, left behind by the marketing toggle, cannot win,
- * without a hydration-time script, and therefore without a flash.
+ * (2) preserves an explicit light choice inside an outer `.dark`. Admin and
+ * recruitment render the shared cookie on the server, while a missing preference
+ * simply inherits next-themes' OS-resolved class from <html>.
  *
  * `:where()` keeps all of this at zero specificity, so utility ordering is
  * unchanged. */

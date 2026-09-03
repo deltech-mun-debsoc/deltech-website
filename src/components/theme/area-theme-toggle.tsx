@@ -1,41 +1,41 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { useState, useTransition } from "react"
+import { useTheme } from "next-themes"
+import { useState } from "react"
 import { Moon, Sun } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { t } from "@/content/strings"
-import type { ThemeArea, ThemeChoice } from "@/lib/theme"
-import { setAreaTheme } from "./theme-actions"
+import type { ThemeArea, ThemePreference } from "@/lib/theme"
+import { persistThemePreference } from "./theme-preference-sync"
 
-// The toggle for an app area (admin or recruitment). Writes the area's own cookie,
-// then refreshes so the server re-renders the shell with the new class.
-//
-// `initial` comes from the server, so the first paint is already correct: there is
-// no reading of localStorage on mount, hence no flash and no hydration mismatch.
-// The optimistic local state only keeps the icon responsive while the refresh runs.
-export function AreaThemeToggle({ area, initial }: { area: ThemeArea; initial: ThemeChoice }) {
+export function AreaThemeToggle({ area, initial }: { area: ThemeArea; initial: ThemePreference }) {
   const router = useRouter()
-  const [theme, setTheme] = useState<ThemeChoice>(initial)
-  const [pending, startTransition] = useTransition()
-
-  const next: ThemeChoice = theme === "dark" ? "light" : "dark"
+  const { resolvedTheme, setTheme } = useTheme()
+  const [optimisticTheme, setOptimisticTheme] = useState<"light" | "dark" | null>(null)
+  const displayedTheme = optimisticTheme ?? (initial === "system" ? resolvedTheme : initial)
+  const next = displayedTheme === "dark" ? "light" : "dark"
 
   return (
     <Button
       variant="ghost"
       size="icon"
       aria-label={t(next === "dark" ? "common.themeDark" : "common.themeLight")}
-      disabled={pending}
       onClick={() => {
+        setOptimisticTheme(next)
+        persistThemePreference(next)
         setTheme(next)
-        startTransition(async () => {
-          await setAreaTheme(area, next)
-          router.refresh()
-        })
+
+        // Make the authenticated shell react immediately; the refresh then makes
+        // its server-rendered class agree with the persisted cookie.
+        const shell = document.querySelector(`.${area}-shell`)
+        shell?.classList.toggle("dark", next === "dark")
+        shell?.classList.toggle("theme-light", next === "light")
+        router.refresh()
       }}
     >
-      {theme === "dark" ? <Sun className="size-4" /> : <Moon className="size-4" />}
+      <Sun className="size-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
+      <Moon className="absolute size-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
     </Button>
   )
 }

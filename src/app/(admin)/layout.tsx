@@ -1,7 +1,7 @@
 import { cookies } from "next/headers"
 import { requireStaff } from "@/lib/authz"
 import { cn } from "@/lib/utils"
-import { THEME_COOKIES, parseTheme, themeClass } from "@/lib/theme"
+import { THEME_COOKIE, THEME_COOKIES, parseTheme, themeClass } from "@/lib/theme"
 import { AreaThemeToggle } from "@/components/theme/area-theme-toggle"
 import { ThemedPortalRoot } from "@/components/theme/themed-portal-root"
 import { AdminSidebar, type SidebarUser } from "./_components/admin-sidebar"
@@ -17,9 +17,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   }
   const isPreview = !!process.env.VERCEL_ENV && process.env.VERCEL_ENV !== "production"
 
-  // The dashboard's own theme, read server-side so the first paint is correct and
-  // the homepage's choice cannot bleed in.
-  const theme = parseTheme((await cookies()).get(THEME_COOKIES.admin)?.value)
+  // Read the shared choice server-side for a stable first paint. Older per-area
+  // cookies are accepted only until the person next uses any theme toggle.
+  const cookieStore = await cookies()
+  const theme = parseTheme(
+    cookieStore.get(THEME_COOKIE)?.value ?? cookieStore.get(THEME_COOKIES.admin)?.value,
+  )
 
   return (
     <div className={cn("admin-shell flex", themeClass(theme))}>
