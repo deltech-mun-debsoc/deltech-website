@@ -6,13 +6,15 @@ type Props = {
   contacts: Content["queryContacts"];
   conferenceDates: string;
   venue: string;
+  societyLocation: string;
+  societyEmail: string;
   sections: Content["publicSections"];
   activeEventName: string;
   registrationOpen: boolean;
   showActiveEvent: boolean;
 };
 
-export function Footer({ contacts, conferenceDates, venue, sections, activeEventName, registrationOpen, showActiveEvent }: Props) {
+export function Footer({ contacts, conferenceDates, venue, societyLocation, societyEmail, sections, activeEventName, registrationOpen, showActiveEvent }: Props) {
   return (
     <footer className="mt-auto border-t border-border/70 bg-ink text-paper">
       <div className="section-shell py-16 sm:py-20">
@@ -87,6 +89,13 @@ export function Footer({ contacts, conferenceDates, venue, sections, activeEvent
               {venue || t("marketing.venuePending")}
             </p>
             </>}
+            {showActiveEvent && <p className="data-label mt-6 border-t border-paper/15 pt-5 text-gold-300">Society contact</p>}
+            <address className="mt-3 not-italic text-[0.9375rem] text-paper/68">
+              <p>{societyLocation}</p>
+              <a className="mt-1 inline-block hover:text-gold-300" href={`mailto:${societyEmail}`}>
+                {societyEmail}
+              </a>
+            </address>
             {contacts.length > 0 && (
               <ul className="mt-5 space-y-4 text-[0.9375rem]">
                 {contacts.map((contact) => (

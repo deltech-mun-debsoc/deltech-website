@@ -16,6 +16,8 @@ export default async function MarketingLayout({ children }: { children: React.Re
         contacts={content.queryContacts}
         conferenceDates={content.conferenceDates}
         venue={content.venue}
+        societyLocation={content.societyLocation}
+        societyEmail={content.societyEmail}
         sections={content.publicSections}
         activeEventName={content.activeEventName}
         registrationOpen={eventState.acceptsRegistrations}
