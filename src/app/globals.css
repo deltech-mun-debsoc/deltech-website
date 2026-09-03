@@ -180,10 +180,12 @@
      bg-foreground/text-background used to serve this and looked right in
      light mode by coincidence (foreground happens to be dark there), but in
      dark mode those tokens swap and the band flips to a white box with dark
-     text. --ink/--paper pin the intended look to the theme these bands were
-     designed against, so they read the same in both. */
-  --ink: oklch(0.205 0.018 63);
-  --paper: oklch(0.975 0.008 84);
+     text. Zero chroma, same as the neutralized .dark surfaces below -- using
+     light --foreground/--background's hue-63 warmth here would put a brown
+     band next to an otherwise neutral-black page (the footer reading
+     differently from everything else). */
+  --ink: oklch(0.205 0 0);
+  --paper: oklch(0.975 0 0);
 }
 
 .dark {
