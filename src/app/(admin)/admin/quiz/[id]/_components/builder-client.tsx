@@ -269,7 +269,7 @@ export function BuilderClient({ presentation, initialSlides }: Props) {
             disabled={key === "config" && !selectedSlide}
             className={cn(
               "flex min-h-11 items-center justify-center gap-2 text-sm font-semibold transition-colors",
-              mobilePane === key ? "bg-foreground text-background" : "text-muted-foreground hover:bg-muted",
+              mobilePane === key ? "bg-ink text-paper" : "text-muted-foreground hover:bg-muted",
               "disabled:opacity-35",
             )}
           >

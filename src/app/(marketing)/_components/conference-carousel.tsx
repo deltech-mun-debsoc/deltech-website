@@ -242,7 +242,7 @@ export function ConferenceCarousel() {
             type="button"
             onClick={() => go(index - 1)}
             aria-label={t("marketing.gallery.previous")}
-            className="inline-flex size-12 items-center justify-center rounded-full border border-foreground/25 transition-colors hover:bg-foreground hover:text-background"
+            className="inline-flex size-12 items-center justify-center rounded-full border border-foreground/25 transition-colors hover:bg-ink hover:text-paper"
           >
             <ArrowLeft className="size-5" />
           </button>
@@ -250,7 +250,7 @@ export function ConferenceCarousel() {
             type="button"
             onClick={() => go(index + 1)}
             aria-label={t("marketing.gallery.next")}
-            className="inline-flex size-12 items-center justify-center rounded-full border border-foreground/25 transition-colors hover:bg-foreground hover:text-background"
+            className="inline-flex size-12 items-center justify-center rounded-full border border-foreground/25 transition-colors hover:bg-ink hover:text-paper"
           >
             <ArrowRight className="size-5" />
           </button>

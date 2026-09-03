@@ -15,7 +15,7 @@ export function SocietyHero({ members, dispatches }: { members: number; dispatch
         </h1>
         <div className="mt-12 grid gap-8 border-t border-foreground/25 pt-7 md:grid-cols-[1fr_auto] md:items-end">
           <p className="max-w-2xl text-xl leading-relaxed text-muted-foreground sm:text-2xl">We help DTU students research difficult questions, speak with confidence, negotiate across disagreement, and build the committee rooms where those skills become real.</p>
-          <a href="#society-work" className="inline-flex size-16 items-center justify-center rounded-full border border-foreground/30 transition-colors hover:bg-foreground hover:text-background" aria-label="Explore the society"><ArrowDownRight className="size-7" /></a>
+          <a href="#society-work" className="inline-flex size-16 items-center justify-center rounded-full border border-foreground/30 transition-colors hover:bg-ink hover:text-paper" aria-label="Explore the society"><ArrowDownRight className="size-7" /></a>
         </div>
       </div>
       <aside className="hidden border-l border-foreground/20 lg:flex lg:flex-col lg:justify-between lg:py-10">

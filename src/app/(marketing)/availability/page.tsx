@@ -12,7 +12,7 @@ export const revalidate = 0
 
 function MatrixHero({ totalAvailable, exact }: { totalAvailable: number; exact: boolean }) {
   return (
-    <section className="relative overflow-hidden border-b border-border/70 bg-foreground py-20 text-background sm:py-28">
+    <section className="relative overflow-hidden border-b border-border/70 bg-ink py-20 text-paper sm:py-28">
       <div className="paper-grid absolute inset-0 opacity-[0.08]" aria-hidden />
       <div className="section-shell relative grid gap-12 lg:grid-cols-[1fr_0.42fr] lg:items-end">
         <div>
@@ -21,15 +21,15 @@ function MatrixHero({ totalAvailable, exact }: { totalAvailable: number; exact: 
             {t("marketing.availabilityEyebrow")}
           </p>
           <h1 className="display-section mt-6 max-w-[9ch]">{t("marketing.availabilityTitle")}</h1>
-          <p className="body-large mt-8 max-w-2xl text-background/65">
+          <p className="body-large mt-8 max-w-2xl text-paper/65">
             {exact ? t("marketing.availabilityBody") : t("marketing.availabilityCountsBody")}
           </p>
         </div>
-        <div className="border-l border-background/20 pl-7">
+        <div className="border-l border-paper/20 pl-7">
           <p className="font-mono text-[5rem] font-semibold leading-none tabular-nums text-gold-300 sm:text-[7rem]">
             {String(totalAvailable).padStart(2, "0")}
           </p>
-          <p className="data-label mt-4 text-background/55">{t("marketing.portfoliosStillOpen")}</p>
+          <p className="data-label mt-4 text-paper/55">{t("marketing.portfoliosStillOpen")}</p>
         </div>
       </div>
     </section>

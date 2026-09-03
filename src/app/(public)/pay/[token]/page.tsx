@@ -84,15 +84,15 @@ export default async function PayPage(props: {
   return (
     <div className="min-h-screen bg-[#eee9dd] px-4 py-8 sm:py-14">
       <div className="mx-auto grid max-w-5xl overflow-hidden border border-black/15 bg-background shadow-[18px_18px_0_rgba(15,118,110,0.22)] lg:grid-cols-[0.78fr_1.22fr]">
-        <aside className="flex flex-col justify-between bg-foreground p-7 text-background sm:p-10">
+        <aside className="flex flex-col justify-between bg-ink p-7 text-paper sm:p-10">
           <div>
-            <p className="font-mono text-xs uppercase tracking-[0.22em] text-background/55">{STRINGS.brand.name} / secure payment</p>
+            <p className="font-mono text-xs uppercase tracking-[0.22em] text-paper/55">{STRINGS.brand.name} / secure payment</p>
             <h1 className="mt-12 max-w-[8ch] font-heading text-5xl leading-[0.95] sm:text-6xl">Confirm your seat.</h1>
           </div>
-          <div className="mt-14 border-t border-background/20 pt-6">
-            <p className="text-sm text-background/55">Delegate</p>
+          <div className="mt-14 border-t border-paper/20 pt-6">
+            <p className="text-sm text-paper/55">Delegate</p>
             <p className="mt-1 text-xl font-semibold">{delegate.fullName}</p>
-            <p className="mt-1 text-sm text-background/60">{delegate.email}</p>
+            <p className="mt-1 text-sm text-paper/60">{delegate.email}</p>
           </div>
         </aside>
         <main className="space-y-7 p-7 sm:p-10">

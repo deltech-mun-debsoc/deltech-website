@@ -126,7 +126,7 @@ export function TabPayments(props: Props) {
       {provider === "upi_qr" && (
         <section className="grid gap-6 border-t border-border pt-8 lg:grid-cols-[0.8fr_1.2fr]">
           <div>
-            <div className="flex size-11 items-center justify-center bg-foreground text-background"><QrCode /></div>
+            <div className="flex size-11 items-center justify-center bg-ink text-paper"><QrCode /></div>
             <h3 className="mt-5 font-heading text-2xl">What exactly is that QR?</h3>
             <p className="mt-2 text-base leading-relaxed text-muted-foreground">
               It encodes this UPI ID, payee name, delegate token, and their exact fee. Delegates will see the identity beside the QR before scanning.

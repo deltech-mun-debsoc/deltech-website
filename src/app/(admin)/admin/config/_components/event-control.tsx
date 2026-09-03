@@ -143,8 +143,8 @@ export function EventControl({
   })
 
   return <div className="space-y-12">
-    <section className="bg-foreground p-6 text-background sm:p-8">
-      <p className="font-mono text-xs uppercase tracking-[0.2em] text-background/55">Visitor-facing status</p>
+    <section className="bg-ink p-6 text-paper sm:p-8">
+      <p className="font-mono text-xs uppercase tracking-[0.2em] text-paper/55">Visitor-facing status</p>
       <div className="mt-5 flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
         <p className="max-w-3xl font-heading text-3xl leading-tight sm:text-4xl">
           {sections.activeEvent ? eventName || "An unnamed event" : "Society website"} is visible.
@@ -237,13 +237,13 @@ export function EventControl({
           <div className="space-y-2"><Label htmlFor="event-cta">Registration button</Label><Input id="event-cta" value={ctaLabel} onChange={(e) => setCtaLabel(e.target.value)} className="h-12 text-base" placeholder="Apply as a delegate" /></div>
         </div>
       </div>
-      <div className="bg-foreground p-7 text-background">
-        <p className="font-mono text-xs uppercase tracking-[0.18em] text-background/60">Homepage preview</p>
+      <div className="bg-ink p-7 text-paper">
+        <p className="font-mono text-xs uppercase tracking-[0.18em] text-paper/60">Homepage preview</p>
         <p className="mt-8 max-w-[12ch] font-heading text-4xl leading-tight">{eventName || "No active event named"}</p>
         <p className="mt-3 font-mono text-xs uppercase tracking-wider text-gold-300">{eventLabel || "Event context will appear here"}</p>
-        <p className="mt-4 text-base text-background/65">{eventSubtitle || "Add one useful sentence explaining the event."}</p>
-        <p className="mt-7 text-sm text-background/60">{dates || "Dates pending"} · {venue || "Venue pending"}</p>
-        <div className="mt-10 flex flex-wrap gap-5 border-t border-background/20 pt-5 font-mono text-xs uppercase tracking-wider"><span>{sections.activeEvent ? "Visible" : "Hidden"}</span><span>{registrationOpen ? "Registration open" : "Registration closed"}</span><span>{mode !== "CONFERENCE" ? "Free" : paymentsEnabled ? "Paid" : "No payment"}</span></div>
+        <p className="mt-4 text-base text-paper/65">{eventSubtitle || "Add one useful sentence explaining the event."}</p>
+        <p className="mt-7 text-sm text-paper/60">{dates || "Dates pending"} · {venue || "Venue pending"}</p>
+        <div className="mt-10 flex flex-wrap gap-5 border-t border-paper/20 pt-5 font-mono text-xs uppercase tracking-wider"><span>{sections.activeEvent ? "Visible" : "Hidden"}</span><span>{registrationOpen ? "Registration open" : "Registration closed"}</span><span>{mode !== "CONFERENCE" ? "Free" : paymentsEnabled ? "Paid" : "No payment"}</span></div>
       </div>
     </section>
 

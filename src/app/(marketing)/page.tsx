@@ -58,7 +58,7 @@ export default async function LandingPage() {
         <SocietyHero members={memberCount} dispatches={postCount} />
       )}
 
-      <div className="overflow-hidden border-b border-border/70 bg-foreground py-3 text-background">
+      <div className="overflow-hidden border-b border-border/70 bg-ink py-3 text-paper">
         <p className="w-max whitespace-nowrap font-mono text-sm font-semibold uppercase tracking-[0.16em]">
           {t("marketing.principles")} · {t("marketing.principles")}
         </p>

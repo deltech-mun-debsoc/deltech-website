@@ -129,7 +129,7 @@ export function SlidePanel({
       {/* Add slide button */}
       <div className="shrink-0 border-t border-black/10 p-3">
         <DropdownMenu>
-          <DropdownMenuTrigger className="inline-flex h-12 w-full items-center justify-center gap-2 bg-foreground px-3 text-sm font-bold text-background transition-opacity hover:opacity-90">
+          <DropdownMenuTrigger className="inline-flex h-12 w-full items-center justify-center gap-2 bg-ink px-3 text-sm font-bold text-paper transition-opacity hover:opacity-90">
             <Plus className="size-4" />
             {t("quiz.addSlide")}
           </DropdownMenuTrigger>
