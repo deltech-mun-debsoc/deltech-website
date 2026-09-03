@@ -6,6 +6,20 @@ import { buildDelegateWhere } from "@/app/(admin)/admin/registrations/_lib/build
 import { resolveCycleContext } from "@/lib/recruitment/authz"
 import { can } from "@/lib/recruitment/permissions"
 
+// Excel's worksheet tab name, not the download filename: it may be at most 31
+// characters and may not contain : \ / ? * [ ]. `name` here has always been
+// built as `${prefix}-${cycle.slug}`, and slugs run up to 60 chars (see
+// cycleSlugSchema) -- so a real cycle sails past the limit and XLSX.write
+// throws, while the CSV branch below never touches a sheet name at all. That
+// asymmetry is what let this ship invisibly: CSV always worked, so nobody
+// caught XLSX being the one broken format. Slugs are validated to
+// lowercase/digits/hyphens only, so length is the only real threat here, but
+// the forbidden characters are stripped too rather than assumed away.
+export function safeSheetName(name: string): string {
+  const stripped = name.replace(/[:\\/?*[\]]/g, "").slice(0, 31)
+  return stripped || "sheet"
+}
+
 function sheetResponse(
   rows: Record<string, string | number>[],
   format: "csv" | "xlsx",
@@ -24,7 +38,9 @@ function sheetResponse(
   }
 
   const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, name)
+  // The download filename keeps the full descriptive name -- only the sheet
+  // tab is constrained.
+  XLSX.utils.book_append_sheet(wb, ws, safeSheetName(name))
   const buf = XLSX.write(wb, { type: "base64", bookType: "xlsx" }) as string
   const binary = Buffer.from(buf, "base64")
   return new NextResponse(binary.buffer.slice(binary.byteOffset, binary.byteOffset + binary.byteLength) as ArrayBuffer, {
