@@ -91,6 +91,19 @@
  * /recruitment be light while the homepage is dark, in the same document. */
 :root,
 .theme-light {
+  /* Never declared anywhere before this. Without it the browser has no idea
+     the page is dark: native form chrome (date/color pickers, the default
+     <select> popup on some browsers, checkbox/radio ticks), the OS-drawn
+     scrollbar, and -- worst -- the canvas the browser paints BEFORE any of
+     our CSS runs (page load, and the iOS/macOS overscroll bounce past the
+     end of content) all stayed light-themed no matter what `.dark` said.
+     That last one is why `.overscroll-dark`/`.overscroll-adaptive` exist a
+     few rules down: they are a per-element patch for exactly this gap. This
+     is the actual fix, inherited (color-scheme is an inherited property)
+     through the same `.dark`/`.theme-light` scoping already in place, so it
+     reaches every area shell for free. */
+  color-scheme: light;
+
   /* Teal palette (brochure anchor colour) */
   --teal-50:  oklch(0.97 0.013 196);
   --teal-100: oklch(0.94 0.030 196);
@@ -157,6 +170,8 @@
 }
 
 .dark {
+  color-scheme: dark;
+
   /* Dark mode, study at night: warm near-black, lifted teal & gold */
   --background: oklch(0.16 0.01 70);
   --foreground: oklch(0.92 0.012 85);

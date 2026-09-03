@@ -5,13 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { prisma } from "@/lib/prisma"
 import { PageHeader } from "@/app/(admin)/_components/page-header"
-
-const STATUS_BADGE: Record<string, string> = {
-  PENDING:           "bg-amber-100 text-amber-700 border-amber-200",
-  CHANGES_REQUESTED: "bg-blue-100 text-blue-700 border-blue-200",
-  PUBLISHED:         "bg-teal-100 text-teal-700 border-teal-200",
-  REJECTED:          "bg-red-100 text-red-700 border-red-200",
-}
+import { STATUS_BADGE } from "./_lib/status-badge"
 
 export default async function AdminBlogPage() {
   const [pending, recent] = await Promise.all([
