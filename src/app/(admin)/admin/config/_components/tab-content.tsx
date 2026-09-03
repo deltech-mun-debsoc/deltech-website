@@ -21,6 +21,8 @@ const schema = z.object({
   heroCtaLabel: z.string(),
   conferenceDates: z.string(),
   venue: z.string(),
+  societyLocation: z.string(),
+  societyEmail: z.string().email(),
   agendasBlurb: z.string(),
   accommodationNote: z.string(),
   blogIntro: z.string(),
@@ -65,6 +67,8 @@ export function TabContent({ content }: Props) {
       heroCtaLabel: content.landingHero.ctaLabel,
       conferenceDates: content.conferenceDates,
       venue: content.venue,
+      societyLocation: content.societyLocation,
+      societyEmail: content.societyEmail,
       agendasBlurb: content.agendasBlurb,
       accommodationNote: content.accommodationNote,
       blogIntro: content.blogIntro,
@@ -89,6 +93,8 @@ export function TabContent({ content }: Props) {
         },
         conferenceDates: data.conferenceDates,
         venue: data.venue,
+        societyLocation: data.societyLocation,
+        societyEmail: data.societyEmail,
         agendasBlurb: data.agendasBlurb,
         accommodationNote: data.accommodationNote,
         blogIntro: data.blogIntro,
@@ -165,6 +171,19 @@ export function TabContent({ content }: Props) {
       <Separator />
 
       {/* Query contacts */}
+      <Section title="Society Contact">
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Location">
+            <Input {...form.register("societyLocation")} />
+          </Field>
+          <Field label="Email">
+            <Input type="email" {...form.register("societyEmail")} />
+          </Field>
+        </div>
+      </Section>
+
+      <Separator />
+
       <Section title="Query Contacts">
         <p className="text-sm leading-relaxed text-muted-foreground">
           These people appear on the public site and sign automated allotment and payment-confirmation emails. Update them at the start of every Secretariat term.

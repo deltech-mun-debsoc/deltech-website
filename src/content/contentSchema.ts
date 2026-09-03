@@ -32,6 +32,8 @@ export const ContentSchema = z.object({
     .default("Registrations are currently closed. Check back soon."),
   conferenceDates: z.string().default(""),
   venue: z.string().default(""),
+  societyLocation: z.string().default("Delhi Technological University"),
+  societyEmail: z.string().email().default("deltech.mun@gmail.com"),
   landingHero: z
     .object({
       title: z.string().default("DelTech MUN"),
