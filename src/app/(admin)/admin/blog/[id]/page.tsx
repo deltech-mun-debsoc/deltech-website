@@ -8,14 +8,7 @@ import { TiptapContent } from "@/lib/tiptap-renderer"
 import { ModerationPanel } from "./_components/moderation-panel"
 import { DeletePostButton } from "./_components/delete-post-button"
 import { requireStaff } from "@/lib/authz"
-
-const STATUS_BADGE: Record<string, string> = {
-  PENDING:           "bg-amber-100 text-amber-700 border-amber-200",
-  CHANGES_REQUESTED: "bg-blue-100 text-blue-700 border-blue-200",
-  PUBLISHED:         "bg-teal-100 text-teal-700 border-teal-200",
-  REJECTED:          "bg-red-100 text-red-700 border-red-200",
-  DRAFT:             "bg-muted text-muted-foreground border-border",
-}
+import { STATUS_BADGE } from "../_lib/status-badge"
 
 export default async function AdminBlogPostPage(props: { params: Promise<{ id: string }> }) {
   // deletePost is requireAdmin, so a MAINTAINER must not be shown a button that
@@ -146,9 +139,9 @@ export default async function AdminBlogPostPage(props: { params: Promise<{ id: s
 
           {/* Review note (if any) */}
           {post.reviewNote && (
-            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-1">
-              <p className="text-xs font-medium text-amber-700 uppercase tracking-wide">Review note</p>
-              <p className="text-sm text-amber-900 leading-relaxed">{post.reviewNote}</p>
+            <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-1 dark:border-amber-800 dark:bg-amber-950/30">
+              <p className="text-xs font-medium text-amber-700 uppercase tracking-wide dark:text-amber-300">Review note</p>
+              <p className="text-sm text-amber-900 leading-relaxed dark:text-amber-100">{post.reviewNote}</p>
             </div>
           )}
 
