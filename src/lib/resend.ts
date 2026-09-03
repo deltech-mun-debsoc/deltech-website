@@ -222,7 +222,7 @@ export async function sendAllotmentEmail(delegateId: string): Promise<void> {
       paymentDeadline: content.paymentDeadline,
       paymentProofUrl: content.paymentProofUrl,
       refundPolicy: content.refundPolicy,
-      contactEmail: content.secretariatEmail,
+      contactEmail: content.societyEmail,
       contacts: content.queryContacts,
     }),
   })

@@ -42,13 +42,13 @@ function MemberCard({ member, index }: { member: PublicTeamMember; index: number
   const initials = member.name.split(" ").slice(0, 2).map((word) => word[0]).join("")
 
   return (
-    <article className="group relative w-[min(78vw,19rem)] shrink-0 snap-start overflow-hidden border border-foreground/20 bg-ink text-paper shadow-[0_12px_36px_-28px_rgba(56,40,17,0.65)] transition-[transform,border-color,box-shadow] duration-500 hover:-translate-y-1 hover:border-gold-500/60 hover:shadow-[0_24px_50px_-24px_rgba(151,108,35,0.55)] sm:w-72 lg:w-80">
+    <article className="group relative w-[min(78vw,19rem)] shrink-0 snap-start overflow-hidden border border-foreground/20 bg-ink text-paper shadow-[0_12px_36px_-28px_rgba(56,40,17,0.65)] transition-[transform,border-color,box-shadow] duration-700 ease-out hover:-translate-y-2 hover:rotate-[0.35deg] hover:border-gold-500/70 hover:shadow-[0_30px_58px_-22px_rgba(151,108,35,0.58)] motion-reduce:transform-none sm:w-72 lg:w-80">
       {member.photoUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={member.photoUrl}
           alt={member.name}
-          className="aspect-[4/5] w-full object-cover saturate-[0.96] transition-[transform,filter] duration-700 ease-out group-hover:scale-[1.025] group-hover:saturate-[1.08]"
+          className="aspect-[4/5] w-full object-cover saturate-[0.96] transition-[transform,filter] duration-700 ease-out group-hover:-translate-y-1 group-hover:scale-[1.065] group-hover:saturate-[1.12] motion-reduce:transform-none"
           loading="lazy"
         />
       ) : (
@@ -58,6 +58,7 @@ function MemberCard({ member, index }: { member: PublicTeamMember; index: number
       )}
 
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-stone-950/95 via-stone-950/5 to-amber-950/10 transition-colors duration-500 group-hover:from-stone-950/90 group-hover:to-gold-700/20" />
+      <div className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/3 -skew-x-12 bg-gradient-to-r from-transparent via-gold-300/30 to-transparent opacity-0 blur-sm transition-all duration-700 ease-out group-hover:left-[115%] group-hover:opacity-100 motion-reduce:hidden" />
       <span className="absolute left-4 top-4 border border-white/30 bg-black/25 px-2.5 py-1 font-mono text-[0.65rem] font-bold tabular-nums text-white backdrop-blur-md">
         {String(index + 1).padStart(2, "0")}
       </span>
@@ -89,9 +90,10 @@ function MemberCard({ member, index }: { member: PublicTeamMember; index: number
         </div>
       )}
 
-      <div className="absolute inset-x-0 bottom-0 p-5 text-white sm:p-6">
-        <p className="text-[0.65rem] font-bold uppercase tracking-[0.18em] text-white/70">{member.designation}</p>
+      <div className="absolute inset-x-0 bottom-0 p-5 text-white transition-transform duration-500 ease-out group-hover:-translate-y-2 motion-reduce:transform-none sm:p-6">
+        <p className="text-[0.65rem] font-bold uppercase tracking-[0.18em] text-white/70 transition-colors duration-500 group-hover:text-gold-300">{member.designation}</p>
         <h3 className="mt-2 font-heading text-3xl leading-[0.9] sm:text-4xl">{member.name}</h3>
+        <span className="mt-4 block h-px w-10 bg-gold-300 transition-[width] duration-700 ease-out group-hover:w-full motion-reduce:transition-none" />
       </div>
     </article>
   )
