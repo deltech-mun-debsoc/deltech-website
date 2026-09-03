@@ -42,22 +42,22 @@ function MemberCard({ member, index }: { member: PublicTeamMember; index: number
   const initials = member.name.split(" ").slice(0, 2).map((word) => word[0]).join("")
 
   return (
-    <article className="group relative w-[min(78vw,19rem)] shrink-0 snap-start overflow-hidden border border-foreground/20 bg-ink text-paper sm:w-72 lg:w-80">
+    <article className="group relative w-[min(78vw,19rem)] shrink-0 snap-start overflow-hidden border border-foreground/20 bg-ink text-paper shadow-[0_12px_36px_-28px_rgba(56,40,17,0.65)] transition-[transform,border-color,box-shadow] duration-500 hover:-translate-y-1 hover:border-gold-500/60 hover:shadow-[0_24px_50px_-24px_rgba(151,108,35,0.55)] sm:w-72 lg:w-80">
       {member.photoUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={member.photoUrl}
           alt={member.name}
-          className="aspect-[4/5] w-full object-cover grayscale transition duration-700 group-hover:scale-[1.025] group-hover:grayscale-0"
+          className="aspect-[4/5] w-full object-cover saturate-[0.96] transition-[transform,filter] duration-700 ease-out group-hover:scale-[1.025] group-hover:saturate-[1.08]"
           loading="lazy"
         />
       ) : (
-        <div className="noise-wash flex aspect-[4/5] items-center justify-center bg-background text-foreground">
-          <span className="display text-7xl text-gold-700">{initials}</span>
+        <div className="noise-wash flex aspect-[4/5] items-center justify-center bg-gradient-to-br from-gold-300/25 via-background to-gold-500/20 text-foreground transition-colors duration-500 group-hover:from-gold-300/35 group-hover:to-gold-500/30 dark:from-stone-900 dark:via-stone-950 dark:to-amber-950">
+          <span className="display text-7xl text-gold-700 transition-transform duration-500 group-hover:-rotate-2 group-hover:scale-105 dark:text-gold-300">{initials}</span>
         </div>
       )}
 
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black via-black/5 to-black/25" />
+      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-stone-950/95 via-stone-950/5 to-amber-950/10 transition-colors duration-500 group-hover:from-stone-950/90 group-hover:to-gold-700/20" />
       <span className="absolute left-4 top-4 border border-white/30 bg-black/25 px-2.5 py-1 font-mono text-[0.65rem] font-bold tabular-nums text-white backdrop-blur-md">
         {String(index + 1).padStart(2, "0")}
       </span>
