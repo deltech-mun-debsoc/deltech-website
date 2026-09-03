@@ -1,7 +1,7 @@
 import { cookies } from "next/headers"
 import { requireRecruitmentAccess } from "@/lib/recruitment/authz"
 import { cn } from "@/lib/utils"
-import { THEME_COOKIES, parseTheme, themeClass } from "@/lib/theme"
+import { THEME_COOKIE, THEME_COOKIES, parseTheme, themeClass } from "@/lib/theme"
 import { AreaThemeToggle } from "@/components/theme/area-theme-toggle"
 import { ThemedPortalRoot } from "@/components/theme/themed-portal-root"
 import { SignOutButton } from "@/components/sign-out-button"
@@ -18,8 +18,11 @@ import { RecruitmentMobileNav } from "./_components/recruitment-mobile-nav"
 export default async function RecruitmentLayout({ children }: { children: React.ReactNode }) {
   const { actor, cycle, role, reason } = await requireRecruitmentAccess()
 
-  // This area's own theme, rendered server-side. See src/lib/theme.ts.
-  const theme = parseTheme((await cookies()).get(THEME_COOKIES.recruitment)?.value)
+  // Shared site preference, with the previous per-area cookie as migration fallback.
+  const cookieStore = await cookies()
+  const theme = parseTheme(
+    cookieStore.get(THEME_COOKIE)?.value ?? cookieStore.get(THEME_COOKIES.recruitment)?.value,
+  )
 
   // Signed in and assigned somewhere, but nothing is running right now.
   if (!cycle || !role) {

@@ -2,20 +2,21 @@
 
 import { ThemeProvider } from "next-themes";
 import { Toaster } from "sonner";
+import { ThemePreferenceSync } from "@/components/theme/theme-preference-sync";
+import { THEME_STORAGE_KEY } from "@/lib/theme";
 
-// next-themes governs the MARKETING/PUBLIC site only. Its storageKey is scoped to
-// `theme-site` so it can no longer decide what /admin and /recruitment look like,
-// those shells render their own class from their own cookie on the server (see
-// src/lib/theme.ts). The scope-aware dark variant in globals.css means a `.dark`
-// left on <html> by this provider cannot leak into those areas.
+// The OS preference is the default. A manual choice is mirrored to a cookie so
+// server-rendered admin/recruitment shells and public pages share one preference.
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider
       attribute="class"
-      defaultTheme="light"
-      storageKey="theme-site"
+      defaultTheme="system"
+      enableSystem
+      storageKey={THEME_STORAGE_KEY}
       disableTransitionOnChange
     >
+      <ThemePreferenceSync />
       {children}
       <Toaster richColors closeButton position="bottom-right" />
     </ThemeProvider>
