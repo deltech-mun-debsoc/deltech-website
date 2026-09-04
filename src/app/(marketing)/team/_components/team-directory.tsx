@@ -42,18 +42,18 @@ function MemberCard({ member, index }: { member: PublicTeamMember; index: number
   const initials = member.name.split(" ").slice(0, 2).map((word) => word[0]).join("")
 
   return (
-    <article className="group relative w-[min(78vw,19rem)] shrink-0 snap-start overflow-hidden border border-foreground/20 bg-ink text-paper shadow-[0_12px_36px_-28px_rgba(56,40,17,0.65)] transition-[transform,border-color,box-shadow] duration-700 ease-out hover:-translate-y-2 hover:rotate-[0.35deg] hover:border-gold-500/70 hover:shadow-[0_30px_58px_-22px_rgba(151,108,35,0.58)] motion-reduce:transform-none sm:w-72 lg:w-80">
+    <article className="group relative w-[min(78vw,19rem)] shrink-0 snap-start overflow-hidden border border-foreground/20 bg-ink text-paper shadow-[0_12px_36px_-28px_rgba(56,40,17,0.65)] transition-[transform,border-color,box-shadow] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] transform-gpu will-change-transform hover:-translate-y-1 hover:border-gold-500/70 hover:shadow-[0_24px_52px_-22px_rgba(151,108,35,0.52)] motion-reduce:transform-none sm:w-72 lg:w-80">
       {member.photoUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
           src={member.photoUrl}
           alt={member.name}
-          className="aspect-[4/5] w-full object-cover saturate-[0.96] transition-[transform,filter] duration-700 ease-out group-hover:-translate-y-1 group-hover:scale-[1.065] group-hover:saturate-[1.12] motion-reduce:transform-none"
+          className="aspect-[4/5] w-full object-cover object-[center_28%] saturate-[0.98] transition-[filter] duration-500 ease-out group-hover:saturate-[1.08]"
           loading="lazy"
         />
       ) : (
         <div className="noise-wash flex aspect-[4/5] items-center justify-center bg-gradient-to-br from-gold-300/25 via-background to-gold-500/20 text-foreground transition-colors duration-500 group-hover:from-gold-300/35 group-hover:to-gold-500/30 dark:from-stone-900 dark:via-stone-950 dark:to-amber-950">
-          <span className="display text-7xl text-gold-700 transition-transform duration-500 group-hover:-rotate-2 group-hover:scale-105 dark:text-gold-300">{initials}</span>
+          <span className="display text-7xl text-gold-700 dark:text-gold-300">{initials}</span>
         </div>
       )}
 
@@ -90,7 +90,7 @@ function MemberCard({ member, index }: { member: PublicTeamMember; index: number
         </div>
       )}
 
-      <div className="absolute inset-x-0 bottom-0 p-5 text-white transition-transform duration-500 ease-out group-hover:-translate-y-2 motion-reduce:transform-none sm:p-6">
+      <div className="absolute inset-x-0 bottom-0 p-5 text-white sm:p-6">
         <p className="text-[0.65rem] font-bold uppercase tracking-[0.18em] text-white/70 transition-colors duration-500 group-hover:text-gold-300">{member.designation}</p>
         <h3 className="mt-2 font-heading text-3xl leading-[0.9] sm:text-4xl">{member.name}</h3>
         <span className="mt-4 block h-px w-10 bg-gold-300 transition-[width] duration-700 ease-out group-hover:w-full motion-reduce:transition-none" />
