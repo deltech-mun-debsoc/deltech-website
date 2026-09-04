@@ -20,6 +20,10 @@ import { parseCycleConfig } from "@/lib/schemas/recruitment"
 import { MAGIC_LINK_MAX_AGE_MIN } from "@/lib/magic-link"
 import { deriveEventState } from "@/lib/event-state"
 import { publicPaymentLink } from "@/lib/payments/public-link"
+import { normalizeEmail } from "@/lib/intake"
+import { recruitmentRecipientEmails } from "@/lib/recruitment/recipient-emails"
+
+export { recruitmentRecipientEmails } from "@/lib/recruitment/recipient-emails"
 
 let resendClient: Resend | undefined
 function getResend(): Resend {
@@ -421,7 +425,11 @@ export async function sendBlogRejected(postId: string): Promise<void> {
 // ready, over everyone selected.
 export const RECRUITMENT_SELECTED_TEMPLATE = "recruitment-selected"
 
-export async function sendRecruitmentSelected(candidateId: string): Promise<void> {
+export function recruitmentSelectedTemplate(candidateId: string): string {
+  return `${RECRUITMENT_SELECTED_TEMPLATE}:${candidateId}`
+}
+
+export async function sendRecruitmentSelected(candidateId: string, recipientEmail?: string): Promise<void> {
   const candidate = await prisma.recruitmentCandidate.findUniqueOrThrow({
     where: { id: candidateId },
     select: {
@@ -429,6 +437,7 @@ export async function sendRecruitmentSelected(candidateId: string): Promise<void
       email: true,
       result: true,
       societyRole: true,
+      formAnswers: true,
       cycle: { select: { name: true, config: true } },
     },
   })
@@ -441,10 +450,15 @@ export async function sendRecruitmentSelected(candidateId: string): Promise<void
 
   const selection = parseCycleConfig(candidate.cycle.config).selectionEmail
   const content = await getContent()
+  const recipients = recruitmentRecipientEmails(candidate.email, candidate.formAnswers)
+  const toEmail = recipientEmail ? normalizeEmail(recipientEmail) : recipients[0]
+  if (!toEmail || !recipients.some((email) => email.toLowerCase() === toEmail.toLowerCase())) {
+    throw new Error(`Candidate ${candidateId} has no matching valid recipient address`)
+  }
 
   await loggedSend({
-    template: RECRUITMENT_SELECTED_TEMPLATE,
-    toEmail: candidate.email,
+    template: recruitmentSelectedTemplate(candidateId),
+    toEmail,
     subject: STRINGS.email.subjects.recruitmentSelected,
     reactElement: RecruitmentSelectedEmail({
       fullName: candidate.fullName,
