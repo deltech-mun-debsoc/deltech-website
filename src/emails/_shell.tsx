@@ -232,7 +232,7 @@ export function Contacts({
     <>
       <Hr style={{ borderColor: "#e4e4e7", margin: "28px 0 20px" }} />
       <Text style={{ color: bodyInk, fontSize: 13, lineHeight: "1.6", margin: "0 0 12px" }}>
-        Questions? Reply to this email, or write to <B>{contactEmail}</B>.
+        Questions? Write to <B>{contactEmail}</B>.
       </Text>
       {contacts.map((c) => (
         <Text

@@ -7,8 +7,10 @@ import { can, cycleAllows } from "@/lib/recruitment/permissions"
 import { auditRecruitment, newRequestId } from "@/lib/recruitment/audit"
 import {
   RECRUITMENT_SELECTED_TEMPLATE,
+  recruitmentSelectedTemplate,
   sendRecruitmentSelected,
 } from "@/lib/resend"
+import { recruitmentRecipientEmails } from "@/lib/recruitment/recipient-emails"
 import { failureRef, unexpectedFailureMessage } from "@/lib/prisma-errors"
 import { parseCycleConfig } from "@/lib/schemas/recruitment"
 
@@ -68,23 +70,46 @@ async function pendingRecipients(cycleId: string) {
   const selected = await prisma.recruitmentCandidate.findMany({
     where: { cycleId, result: "SELECTED" },
     orderBy: { fullName: "asc" },
-    select: { id: true, email: true, fullName: true },
+    select: { id: true, email: true, fullName: true, formAnswers: true },
   })
   if (selected.length === 0) return { selected, pending: [], emailed: new Set<string>() }
 
-  // Who already has one. Matched on the address rather than a column on the
-  // candidate, so no migration is needed and a re-imported candidate row does
-  // not earn a second copy of the same email.
+  const recipients = selected.map((candidate) => ({
+    ...candidate,
+    recipients: recruitmentRecipientEmails(candidate.email, candidate.formAnswers),
+  }))
+  const allEmails = [...new Set(recipients.flatMap((candidate) => candidate.recipients))]
+
+  // New sends are keyed by candidate as well as address. The legacy unscoped
+  // template remains recognised so a deployment cannot resend mail that went
+  // out before candidate-scoped idempotency was introduced.
   const logs = await prisma.emailLog.findMany({
     where: {
-      template: RECRUITMENT_SELECTED_TEMPLATE,
       status: "SENT",
-      toEmail: { in: selected.map((c) => c.email) },
+      toEmail: { in: allEmails },
+      template: { startsWith: RECRUITMENT_SELECTED_TEMPLATE },
     },
-    select: { toEmail: true },
+    select: { template: true, toEmail: true },
   })
-  const emailed = new Set(logs.map((l) => l.toEmail))
-  return { selected, emailed, pending: selected.filter((c) => !emailed.has(c.email)) }
+  const legacyEmails = new Set(
+    logs.filter((log) => log.template === RECRUITMENT_SELECTED_TEMPLATE).map((log) => log.toEmail.toLowerCase()),
+  )
+  const scopedDeliveries = new Set(
+    logs.map((log) => `${log.template}\u0000${log.toEmail.toLowerCase()}`),
+  )
+  const pending = recipients
+    .map((candidate) => ({
+      ...candidate,
+      unsentRecipients: candidate.recipients.filter((email) =>
+        !legacyEmails.has(email.toLowerCase())
+        && !scopedDeliveries.has(`${recruitmentSelectedTemplate(candidate.id)}\u0000${email.toLowerCase()}`),
+      ),
+    }))
+    .filter((candidate) => candidate.recipients.length === 0 || candidate.unsentRecipients.length > 0)
+  const emailed = new Set(
+    recipients.filter((candidate) => !pending.some((item) => item.id === candidate.id)).map((candidate) => candidate.id),
+  )
+  return { selected, pending, emailed }
 }
 
 export async function sendSelectionEmails(cycleId: string): Promise<SelectionEmailResponse> {
@@ -106,18 +131,31 @@ export async function sendSelectionEmails(cycleId: string): Promise<SelectionEma
       return { ok: true, sent: 0, skipped: emailed.size, failed: 0 }
     }
 
-    // Sequential on purpose. Resend rate-limits, and a burst of parallel sends
-    // that half-fails is worse than a slower loop where every failure is its own
-    // logged row and the next press retries exactly those.
+    // Sequential on purpose. Resend rate-limits, and each address is logged on
+    // its own. A retry therefore sends only the missing address for a candidate.
     let sent = 0
+    let failedCandidates = 0
     const failures: string[] = []
+    let deliveries = 0
     for (const candidate of pending) {
-      try {
-        await sendRecruitmentSelected(candidate.id)
+      let candidateFailed = candidate.recipients.length === 0
+      if (candidateFailed) {
+        failures.push(`${candidate.fullName}: no valid recipient address`)
+      }
+      for (const email of candidate.unsentRecipients) {
+        try {
+          await sendRecruitmentSelected(candidate.id, email)
+          deliveries += 1
+        } catch (err) {
+          candidateFailed = true
+          failures.push(email)
+          console.error("[recruitment/selection-email]", requestId, candidate.id, email, err)
+        }
+      }
+      if (!candidateFailed) {
         sent += 1
-      } catch (err) {
-        failures.push(candidate.email)
-        console.error("[recruitment/selection-email]", requestId, candidate.email, err)
+      } else {
+        failedCandidates += 1
       }
     }
 
@@ -126,13 +164,13 @@ export async function sendSelectionEmails(cycleId: string): Promise<SelectionEma
       actor: { id: ctx.userId, email: ctx.email, role: ctx.role },
       cycleId: ctx.cycle.id,
       reason: `Selection email sent to ${sent} of ${pending.length} selected candidates.`,
-      meta: { sent, failed: failures.length, skipped: emailed.size, failures },
-      outcome: failures.length > 0 ? "FAILED" : "SUCCESS",
+      meta: { sent, deliveries, failed: failedCandidates, failedDeliveries: failures.length, skipped: emailed.size, failures },
+      outcome: failedCandidates > 0 ? "FAILED" : "SUCCESS",
       requestId,
     })
 
     revalidatePath("/recruitment", "layout")
-    return { ok: true, sent, skipped: emailed.size, failed: failures.length }
+    return { ok: true, sent, skipped: emailed.size, failed: failedCandidates }
   } catch (err) {
     const ref = failureRef(err)
     console.error("[recruitment/selection-email]", ref.ref, ref.code ?? "-", err)

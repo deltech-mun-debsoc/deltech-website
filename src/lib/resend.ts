@@ -1,4 +1,5 @@
 import type React from "react"
+import { createHash } from "node:crypto"
 import { Resend } from "resend"
 import { prisma } from "@/lib/prisma"
 import { getContent } from "@/lib/settings"
@@ -20,6 +21,10 @@ import { parseCycleConfig } from "@/lib/schemas/recruitment"
 import { MAGIC_LINK_MAX_AGE_MIN } from "@/lib/magic-link"
 import { deriveEventState } from "@/lib/event-state"
 import { publicPaymentLink } from "@/lib/payments/public-link"
+import { normalizeEmail } from "@/lib/intake"
+import { recruitmentRecipientEmails } from "@/lib/recruitment/recipient-emails"
+
+export { recruitmentRecipientEmails } from "@/lib/recruitment/recipient-emails"
 
 let resendClient: Resend | undefined
 function getResend(): Resend {
@@ -39,12 +44,14 @@ async function loggedSend({
   toEmail,
   subject,
   reactElement,
+  idempotencyKey,
 }: {
   delegateId?: string
   template: string
   toEmail: string
   subject: string
   reactElement: React.ReactElement
+  idempotencyKey?: string
 }): Promise<void> {
   let status = "SENT"
   let error: string | undefined
@@ -52,13 +59,16 @@ async function loggedSend({
   try {
     const recipient = REDIRECT_TO || toEmail
     const deliveredSubject = REDIRECT_TO ? `[STAGING → ${toEmail}] ${subject}` : subject
-    const { error: apiError } = await getResend().emails.send({
-      from: FROM,
-      to: recipient,
-      subject: deliveredSubject,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      react: reactElement as any,
-    })
+    const { error: apiError } = await getResend().emails.send(
+      {
+        from: FROM,
+        to: recipient,
+        subject: deliveredSubject,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        react: reactElement as any,
+      },
+      idempotencyKey ? { idempotencyKey } : undefined,
+    )
     if (apiError) {
       status = "FAILED"
       error = apiError.message
@@ -421,7 +431,16 @@ export async function sendBlogRejected(postId: string): Promise<void> {
 // ready, over everyone selected.
 export const RECRUITMENT_SELECTED_TEMPLATE = "recruitment-selected"
 
-export async function sendRecruitmentSelected(candidateId: string): Promise<void> {
+export function recruitmentSelectedTemplate(candidateId: string): string {
+  return `${RECRUITMENT_SELECTED_TEMPLATE}:${candidateId}`
+}
+
+function recruitmentSelectionDeliveryKey(candidateId: string, email: string): string {
+  const digest = createHash("sha256").update(`${candidateId}\u0000${email.toLowerCase()}`).digest("hex")
+  return `recruitment-selected-${digest}`
+}
+
+export async function sendRecruitmentSelected(candidateId: string, recipientEmail?: string): Promise<void> {
   const candidate = await prisma.recruitmentCandidate.findUniqueOrThrow({
     where: { id: candidateId },
     select: {
@@ -429,6 +448,7 @@ export async function sendRecruitmentSelected(candidateId: string): Promise<void
       email: true,
       result: true,
       societyRole: true,
+      formAnswers: true,
       cycle: { select: { name: true, config: true } },
     },
   })
@@ -441,18 +461,24 @@ export async function sendRecruitmentSelected(candidateId: string): Promise<void
 
   const selection = parseCycleConfig(candidate.cycle.config).selectionEmail
   const content = await getContent()
+  const recipients = recruitmentRecipientEmails(candidate.email, candidate.formAnswers)
+  const toEmail = recipientEmail ? normalizeEmail(recipientEmail) : recipients[0]
+  if (!toEmail || !recipients.some((email) => email.toLowerCase() === toEmail.toLowerCase())) {
+    throw new Error(`Candidate ${candidateId} has no matching valid recipient address`)
+  }
 
   await loggedSend({
-    template: RECRUITMENT_SELECTED_TEMPLATE,
-    toEmail: candidate.email,
+    template: recruitmentSelectedTemplate(candidateId),
+    toEmail,
     subject: STRINGS.email.subjects.recruitmentSelected,
+    idempotencyKey: recruitmentSelectionDeliveryKey(candidateId, toEmail),
     reactElement: RecruitmentSelectedEmail({
       fullName: candidate.fullName,
       cycleName: candidate.cycle.name,
       societyRole: candidate.societyRole,
       whatsappUrl: selection.whatsappUrl,
       note: selection.note,
-      contactEmail: content.secretariatEmail,
+      contactEmail: content.societyEmail,
       contacts: content.queryContacts,
     }),
   })

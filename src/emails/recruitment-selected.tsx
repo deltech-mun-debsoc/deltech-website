@@ -23,14 +23,14 @@ export function RecruitmentSelectedEmail({
 }: Props) {
   return (
     <EmailShell
-      preview="You have been selected for DelTech MUN."
+      preview="Congratulations! You have been selected for DelTech MUN."
       eyebrow="DelTech MUN · Recruitment"
-      heading="You're in"
+      heading="Congratulations, you're in!"
     >
       <P>Hi {fullName},</P>
       <P>
-        You have been selected through <B>{cycleName}</B>, and you are now part of DelTech MUN.
-        Thank you for the time you put into the group discussion and the interview.
+        Congratulations on making it through <B>{cycleName}</B>. You are now part of DelTech MUN.
+        Thank you for the thought, energy, and time you brought to the group discussion and interview.
       </P>
 
       {note ? <Callout>{note}</Callout> : null}

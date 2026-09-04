@@ -28,9 +28,12 @@ import { BlogApprovedEmail } from "../src/emails/blog-approved";
 import { BlogChangesRequestedEmail } from "../src/emails/blog-changes-requested";
 import { BlogRejectedEmail } from "../src/emails/blog-rejected";
 import { StaffInviteEmail } from "../src/emails/staff-invite";
+import { RecruitmentSelectedEmail } from "../src/emails/recruitment-selected";
+import { recruitmentRecipientEmails } from "../src/lib/recruitment/recipient-emails";
 
 const EMAIL_DIR = "src/emails";
 const SHELL = "_shell.tsx";
+const RESEND_SOURCE = readFileSync("src/lib/resend.ts", "utf8");
 
 // --- the expiry the user is promised must be the one we enforce -------------
 
@@ -49,6 +52,38 @@ assert.equal(
   Number(promised![1]),
   MAGIC_LINK_MAX_AGE_MIN,
   "sign-in copy promises a different expiry than the provider enforces",
+);
+
+// --- recruitment recipients ------------------------------------------------
+
+assert.deepEqual(
+  recruitmentRecipientEmails("typed@example.com", {
+    Email: "typed@example.com",
+    "Email Address": "captured@example.com",
+  }),
+  ["typed@example.com", "captured@example.com"],
+  "typed and Google-captured addresses must both receive selection mail",
+);
+assert.match(
+  RESEND_SOURCE,
+  /idempotencyKey:\s*recruitmentSelectionDeliveryKey\(candidateId, toEmail\)/,
+  "selection delivery must be idempotent when two admins press send together",
+);
+assert.deepEqual(
+  recruitmentRecipientEmails("same@example.com", {
+    Email: " SAME@example.com ",
+    "Email Address": "same@example.com",
+  }),
+  ["same@example.com"],
+  "the same address must never receive duplicate copies",
+);
+assert.deepEqual(
+  recruitmentRecipientEmails("broken address", {
+    Email: "also-broken",
+    "Email Address": "captured@example.com",
+  }),
+  ["captured@example.com"],
+  "a malformed typed address must not block the Google-captured address",
 );
 
 // --- every template routes through the shared shell ------------------------
@@ -260,6 +295,19 @@ const cases: Array<[string, ReactElement, string[]]> = [
       signInUrl: "https://x.test/signin/staff",
     }),
     ["a maintainer", "https://x.test/signin/staff"],
+  ],
+  [
+    "recruitment-selected",
+    RecruitmentSelectedEmail({
+      fullName: "Riya",
+      cycleName: "DelTech Recruitment 2026",
+      societyRole: "MEMBER",
+      whatsappUrl: "https://chat.test/group",
+      note: "First meeting is Saturday.",
+      contactEmail: "deltech.mun@gmail.com",
+      contacts: [],
+    }),
+    ["Congratulations", "https://chat.test/group", "deltech.mun@gmail.com"],
   ],
 ];
 
