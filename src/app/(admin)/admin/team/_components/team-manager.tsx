@@ -42,7 +42,8 @@ const TEAM_LEVELS: { value: TeamLevel; label: string }[] = [
 async function prepareTeamPhoto(source: string, crop: Area): Promise<{ file?: File; error?: string }> {
   try {
     const image = new Image()
-    image.crossOrigin = "anonymous"
+    const sourceUrl = new URL(source, window.location.href)
+    if (sourceUrl.origin !== window.location.origin) image.crossOrigin = "anonymous"
     image.src = source
     await image.decode()
     const canvas = document.createElement("canvas")
