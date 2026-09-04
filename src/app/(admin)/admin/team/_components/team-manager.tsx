@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { Plus, Pencil, Trash2, Upload, User } from "lucide-react"
+import { Plus, Pencil, RefreshCw, Trash2, Upload, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Badge } from "@/components/ui/badge"
@@ -18,6 +18,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import { t } from "@/content/strings"
+import smartcrop from "smartcrop"
 
 export interface MemberRow {
   id: string
@@ -38,19 +39,112 @@ const TEAM_LEVELS: { value: TeamLevel; label: string }[] = [
   { value: "JC", label: "Junior Council" },
 ]
 
+type FaceRectangle = { x: number; y: number; width: number; height: number }
+
+type TrackingRuntime = {
+  ViolaJones: {
+    classifiers: { face: Float64Array }
+    detect: (
+      pixels: Uint8ClampedArray,
+      width: number,
+      height: number,
+      initialScale: number,
+      scaleFactor: number,
+      stepSize: number,
+      edgesDensity: number,
+      classifier: Float64Array,
+    ) => FaceRectangle[]
+  }
+}
+
+async function detectLargestFace(bitmap: ImageBitmap): Promise<FaceRectangle | null> {
+  const scale = Math.min(1, 640 / Math.max(bitmap.width, bitmap.height))
+  const canvas = document.createElement("canvas")
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale))
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale))
+  const context = canvas.getContext("2d", { willReadFrequently: true })
+  if (!context) return null
+  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+
+  try {
+    await import("tracking/build/tracking-min.js")
+    await import("tracking/build/data/face-min.js")
+    const runtime = (window as typeof window & { tracking?: TrackingRuntime }).tracking
+    if (!runtime) return null
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data
+    const faces = runtime.ViolaJones.detect(
+      pixels,
+      canvas.width,
+      canvas.height,
+      1,
+      1.25,
+      1.5,
+      0.15,
+      runtime.ViolaJones.classifiers.face,
+    )
+    const face = faces.sort((a, b) => b.width * b.height - a.width * a.height)[0]
+    if (!face) return null
+    return {
+      x: face.x / scale,
+      y: face.y / scale,
+      width: face.width / scale,
+      height: face.height / scale,
+    }
+  } catch {
+    return null
+  }
+}
+
+function faceCrop(face: FaceRectangle, imageWidth: number, imageHeight: number) {
+  const faceCenterX = face.x + face.width / 2
+  const faceCenterY = face.y + face.height / 2
+  const maximumWidth = Math.min(imageWidth, imageHeight * 0.8)
+  const preferredWidth = Math.min(maximumWidth, Math.max(face.width * 3.2, maximumWidth * 0.5))
+  const centeredWidth = Math.min(faceCenterX * 2, (imageWidth - faceCenterX) * 2)
+  const width = Math.min(maximumWidth, Math.max(face.width * 2.35, Math.min(preferredWidth, centeredWidth)))
+  const height = width / 0.8
+  return {
+    x: Math.max(0, Math.min(imageWidth - width, faceCenterX - width / 2)),
+    y: Math.max(0, Math.min(imageHeight - height, faceCenterY - height * 0.28)),
+    width,
+    height,
+  }
+}
+
 async function prepareTeamPhoto(file: File): Promise<{ file?: File; error?: string }> {
   if (!file.type.startsWith("image/")) return { error: "Choose an image file." }
   if (file.size > 8 * 1024 * 1024) return { error: "Choose a photo under 8 MB." }
 
   try {
     const bitmap = await createImageBitmap(file)
-    const scale = Math.min(1, 1200 / bitmap.width, 1500 / bitmap.height)
+    const face = await detectLargestFace(bitmap)
+    const topCrop = face
+      ? faceCrop(face, bitmap.width, bitmap.height)
+      : (await smartcrop.crop(bitmap, {
+          width: 4,
+          height: 5,
+          minScale: 0.55,
+          ruleOfThirds: false,
+        })).topCrop
     const canvas = document.createElement("canvas")
-    canvas.width = Math.max(1, Math.round(bitmap.width * scale))
-    canvas.height = Math.max(1, Math.round(bitmap.height * scale))
+    canvas.width = 960
+    canvas.height = 1200
     const context = canvas.getContext("2d")
-    if (!context) return { error: "This browser could not prepare the photo." }
-    context.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
+    if (!context) {
+      bitmap.close()
+      return { error: "This browser could not prepare the photo." }
+    }
+    context.drawImage(
+      bitmap,
+      topCrop.x,
+      topCrop.y,
+      topCrop.width,
+      topCrop.height,
+      0,
+      0,
+      canvas.width,
+      canvas.height,
+    )
     bitmap.close()
 
     for (const quality of [0.84, 0.72, 0.6]) {
@@ -136,11 +230,33 @@ export function TeamManager({ members, isAdmin }: { members: MemberRow[]; isAdmi
     if (result.file) {
       setPendingPhoto(result.file)
       setPreviewUrl(URL.createObjectURL(result.file))
-      toast.success("Photo ready. Save the member to upload it.")
+      toast.success("Photo ready and automatically framed. Save the member to upload it.")
     } else {
       const error = result.error ?? t("admin.team.uploadFailed")
       setPhotoError(error)
       toast.error(error)
+    }
+  }
+
+  const handleExistingPhoto = async () => {
+    if (!imageUrl) return
+    setUploading(true)
+    setPhotoError("")
+    try {
+      const response = await fetch(imageUrl)
+      if (!response.ok) throw new Error("Photo could not be loaded")
+      const blob = await response.blob()
+      const result = await prepareTeamPhoto(new File([blob], "team-photo", { type: blob.type }))
+      if (!result.file) throw new Error(result.error)
+      setPendingPhoto(result.file)
+      setPreviewUrl(URL.createObjectURL(result.file))
+      toast.success("Current photo automatically framed. Save to keep this crop.")
+    } catch {
+      const error = "The current photo could not be reframed. Try replacing it from your device."
+      setPhotoError(error)
+      toast.error(error)
+    } finally {
+      setUploading(false)
     }
   }
 
@@ -319,13 +435,13 @@ export function TeamManager({ members, isAdmin }: { members: MemberRow[]; isAdmi
             <div className="flex items-center gap-4">
               {previewUrl || imageUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={previewUrl || imageUrl} alt="Preview" className="size-16 rounded-full object-cover" />
+                <img src={previewUrl || imageUrl} alt="Preview" className="h-20 w-16 rounded-md object-cover" />
               ) : (
                 <div className="flex size-16 items-center justify-center rounded-full bg-muted">
                   <User className="size-6 text-muted-foreground" />
                 </div>
               )}
-              <div>
+              <div className="flex flex-wrap gap-2">
                 <input
                   ref={fileRef}
                   type="file"
@@ -347,6 +463,19 @@ export function TeamManager({ members, isAdmin }: { members: MemberRow[]; isAdmi
                   <Upload className="size-3.5" />
                   {uploading ? "Preparing…" : previewUrl || imageUrl ? "Replace photo" : "Choose photo"}
                 </Button>
+                {editing && imageUrl && !previewUrl && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="gap-1.5"
+                    disabled={uploading}
+                    onClick={() => void handleExistingPhoto()}
+                  >
+                    <RefreshCw className="size-3.5" />
+                    Auto-frame current
+                  </Button>
+                )}
               </div>
             </div>
             {photoError && (
