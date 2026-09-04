@@ -1,4 +1,7 @@
 import Link from "next/link"
+import { redirect } from "next/navigation"
+import { auth } from "@/lib/auth"
+import { safeLanding } from "@/lib/nav"
 import { t } from "@/content/strings"
 import { SignInForm } from "./_components/sign-in-form"
 import { AuthStage } from "./_components/auth-stage"
@@ -8,6 +11,16 @@ export default async function SignInPage(props: {
   searchParams: Promise<{ created?: string; callbackUrl?: string; error?: string }>
 }) {
   const { created, callbackUrl, error } = await props.searchParams
+
+  // Already signed in: this page is a door, not a destination. Without this a
+  // signed-in visitor gets a login form that reads as "you are logged out",
+  // and the only way forward is to authenticate a second time. Dispatch the
+  // same way /go does, so an intended callbackUrl is still honoured and a role
+  // that cannot reach it is downgraded to its own home rather than bounced.
+  const session = await auth()
+  if (session) {
+    redirect(safeLanding(callbackUrl, (session.user as { role?: string } | undefined)?.role))
+  }
 
   return (
     <AuthStage kind="delegate">
