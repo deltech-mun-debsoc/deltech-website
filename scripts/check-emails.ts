@@ -33,6 +33,7 @@ import { recruitmentRecipientEmails } from "../src/lib/recruitment/recipient-ema
 
 const EMAIL_DIR = "src/emails";
 const SHELL = "_shell.tsx";
+const RESEND_SOURCE = readFileSync("src/lib/resend.ts", "utf8");
 
 // --- the expiry the user is promised must be the one we enforce -------------
 
@@ -62,6 +63,11 @@ assert.deepEqual(
   }),
   ["typed@example.com", "captured@example.com"],
   "typed and Google-captured addresses must both receive selection mail",
+);
+assert.match(
+  RESEND_SOURCE,
+  /idempotencyKey:\s*recruitmentSelectionDeliveryKey\(candidateId, toEmail\)/,
+  "selection delivery must be idempotent when two admins press send together",
 );
 assert.deepEqual(
   recruitmentRecipientEmails("same@example.com", {

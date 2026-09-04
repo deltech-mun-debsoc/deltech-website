@@ -1,4 +1,5 @@
 import type React from "react"
+import { createHash } from "node:crypto"
 import { Resend } from "resend"
 import { prisma } from "@/lib/prisma"
 import { getContent } from "@/lib/settings"
@@ -43,12 +44,14 @@ async function loggedSend({
   toEmail,
   subject,
   reactElement,
+  idempotencyKey,
 }: {
   delegateId?: string
   template: string
   toEmail: string
   subject: string
   reactElement: React.ReactElement
+  idempotencyKey?: string
 }): Promise<void> {
   let status = "SENT"
   let error: string | undefined
@@ -56,13 +59,16 @@ async function loggedSend({
   try {
     const recipient = REDIRECT_TO || toEmail
     const deliveredSubject = REDIRECT_TO ? `[STAGING → ${toEmail}] ${subject}` : subject
-    const { error: apiError } = await getResend().emails.send({
-      from: FROM,
-      to: recipient,
-      subject: deliveredSubject,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      react: reactElement as any,
-    })
+    const { error: apiError } = await getResend().emails.send(
+      {
+        from: FROM,
+        to: recipient,
+        subject: deliveredSubject,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        react: reactElement as any,
+      },
+      idempotencyKey ? { idempotencyKey } : undefined,
+    )
     if (apiError) {
       status = "FAILED"
       error = apiError.message
@@ -226,7 +232,7 @@ export async function sendAllotmentEmail(delegateId: string): Promise<void> {
       paymentDeadline: content.paymentDeadline,
       paymentProofUrl: content.paymentProofUrl,
       refundPolicy: content.refundPolicy,
-      contactEmail: content.societyEmail,
+      contactEmail: content.secretariatEmail,
       contacts: content.queryContacts,
     }),
   })
@@ -429,6 +435,11 @@ export function recruitmentSelectedTemplate(candidateId: string): string {
   return `${RECRUITMENT_SELECTED_TEMPLATE}:${candidateId}`
 }
 
+function recruitmentSelectionDeliveryKey(candidateId: string, email: string): string {
+  const digest = createHash("sha256").update(`${candidateId}\u0000${email.toLowerCase()}`).digest("hex")
+  return `recruitment-selected-${digest}`
+}
+
 export async function sendRecruitmentSelected(candidateId: string, recipientEmail?: string): Promise<void> {
   const candidate = await prisma.recruitmentCandidate.findUniqueOrThrow({
     where: { id: candidateId },
@@ -460,13 +471,14 @@ export async function sendRecruitmentSelected(candidateId: string, recipientEmai
     template: recruitmentSelectedTemplate(candidateId),
     toEmail,
     subject: STRINGS.email.subjects.recruitmentSelected,
+    idempotencyKey: recruitmentSelectionDeliveryKey(candidateId, toEmail),
     reactElement: RecruitmentSelectedEmail({
       fullName: candidate.fullName,
       cycleName: candidate.cycle.name,
       societyRole: candidate.societyRole,
       whatsappUrl: selection.whatsappUrl,
       note: selection.note,
-      contactEmail: content.secretariatEmail,
+      contactEmail: content.societyEmail,
       contacts: content.queryContacts,
     }),
   })
