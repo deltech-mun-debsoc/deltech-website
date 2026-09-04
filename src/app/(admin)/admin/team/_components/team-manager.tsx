@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { Plus, Pencil, RefreshCw, Trash2, Upload, User } from "lucide-react"
+import Cropper, { type Area } from "react-easy-crop"
+import { Crop, Minus, Plus, Pencil, Trash2, Upload, User } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Badge } from "@/components/ui/badge"
@@ -18,7 +19,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"
 import { t } from "@/content/strings"
-import smartcrop from "smartcrop"
 
 export interface MemberRow {
   id: string
@@ -39,113 +39,28 @@ const TEAM_LEVELS: { value: TeamLevel; label: string }[] = [
   { value: "JC", label: "Junior Council" },
 ]
 
-type FaceRectangle = { x: number; y: number; width: number; height: number }
-
-type TrackingRuntime = {
-  ViolaJones: {
-    classifiers: { face: Float64Array }
-    detect: (
-      pixels: Uint8ClampedArray,
-      width: number,
-      height: number,
-      initialScale: number,
-      scaleFactor: number,
-      stepSize: number,
-      edgesDensity: number,
-      classifier: Float64Array,
-    ) => FaceRectangle[]
-  }
-}
-
-async function detectLargestFace(bitmap: ImageBitmap): Promise<FaceRectangle | null> {
-  const scale = Math.min(1, 640 / Math.max(bitmap.width, bitmap.height))
-  const canvas = document.createElement("canvas")
-  canvas.width = Math.max(1, Math.round(bitmap.width * scale))
-  canvas.height = Math.max(1, Math.round(bitmap.height * scale))
-  const context = canvas.getContext("2d", { willReadFrequently: true })
-  if (!context) return null
-  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height)
-
+async function prepareTeamPhoto(source: string, crop: Area): Promise<{ file?: File; error?: string }> {
   try {
-    await import("tracking/build/tracking-min.js")
-    await import("tracking/build/data/face-min.js")
-    const runtime = (window as typeof window & { tracking?: TrackingRuntime }).tracking
-    if (!runtime) return null
-    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data
-    const faces = runtime.ViolaJones.detect(
-      pixels,
-      canvas.width,
-      canvas.height,
-      1,
-      1.25,
-      1.5,
-      0.15,
-      runtime.ViolaJones.classifiers.face,
-    )
-    const face = faces.sort((a, b) => b.width * b.height - a.width * a.height)[0]
-    if (!face) return null
-    return {
-      x: face.x / scale,
-      y: face.y / scale,
-      width: face.width / scale,
-      height: face.height / scale,
-    }
-  } catch {
-    return null
-  }
-}
-
-function faceCrop(face: FaceRectangle, imageWidth: number, imageHeight: number) {
-  const faceCenterX = face.x + face.width / 2
-  const faceCenterY = face.y + face.height / 2
-  const maximumWidth = Math.min(imageWidth, imageHeight * 0.8)
-  const preferredWidth = Math.min(maximumWidth, Math.max(face.width * 3.2, maximumWidth * 0.5))
-  const centeredWidth = Math.min(faceCenterX * 2, (imageWidth - faceCenterX) * 2)
-  const width = Math.min(maximumWidth, Math.max(face.width * 2.35, Math.min(preferredWidth, centeredWidth)))
-  const height = width / 0.8
-  return {
-    x: Math.max(0, Math.min(imageWidth - width, faceCenterX - width / 2)),
-    y: Math.max(0, Math.min(imageHeight - height, faceCenterY - height * 0.28)),
-    width,
-    height,
-  }
-}
-
-async function prepareTeamPhoto(file: File): Promise<{ file?: File; error?: string }> {
-  if (!file.type.startsWith("image/")) return { error: "Choose an image file." }
-  if (file.size > 8 * 1024 * 1024) return { error: "Choose a photo under 8 MB." }
-
-  try {
-    const bitmap = await createImageBitmap(file)
-    const face = await detectLargestFace(bitmap)
-    const topCrop = face
-      ? faceCrop(face, bitmap.width, bitmap.height)
-      : (await smartcrop.crop(bitmap, {
-          width: 4,
-          height: 5,
-          minScale: 0.55,
-          ruleOfThirds: false,
-        })).topCrop
+    const image = new Image()
+    image.crossOrigin = "anonymous"
+    image.src = source
+    await image.decode()
     const canvas = document.createElement("canvas")
     canvas.width = 960
     canvas.height = 1200
     const context = canvas.getContext("2d")
-    if (!context) {
-      bitmap.close()
-      return { error: "This browser could not prepare the photo." }
-    }
+    if (!context) return { error: "This browser could not prepare the photo." }
     context.drawImage(
-      bitmap,
-      topCrop.x,
-      topCrop.y,
-      topCrop.width,
-      topCrop.height,
+      image,
+      crop.x,
+      crop.y,
+      crop.width,
+      crop.height,
       0,
       0,
       canvas.width,
       canvas.height,
     )
-    bitmap.close()
 
     for (const quality of [0.84, 0.72, 0.6]) {
       const blob = await new Promise<Blob | null>((resolve) =>
@@ -157,7 +72,7 @@ async function prepareTeamPhoto(file: File): Promise<{ file?: File; error?: stri
     }
     return { error: "The photo is still too large after resizing. Choose a smaller image." }
   } catch {
-    return { error: "That image could not be read. Try a JPEG, PNG, or WebP file." }
+    return { error: "That crop could not be prepared. Try the photo again." }
   }
 }
 
@@ -181,12 +96,42 @@ export function TeamManager({ members, isAdmin }: { members: MemberRow[]; isAdmi
   const [photoError, setPhotoError] = useState("")
   const [pendingPhoto, setPendingPhoto] = useState<File | null>(null)
   const [previewUrl, setPreviewUrl] = useState("")
+  const [cropOpen, setCropOpen] = useState(false)
+  const [cropSource, setCropSource] = useState("")
+  const [cropPosition, setCropPosition] = useState({ x: 0, y: 0 })
+  const [cropPixels, setCropPixels] = useState<Area | null>(null)
+  const [zoom, setZoom] = useState(1)
+  const ownedCropSource = useRef("")
 
   useEffect(() => {
     return () => {
       if (previewUrl) URL.revokeObjectURL(previewUrl)
     }
   }, [previewUrl])
+
+  useEffect(() => {
+    return () => {
+      if (ownedCropSource.current) URL.revokeObjectURL(ownedCropSource.current)
+    }
+  }, [])
+
+  const openCropper = (source: string, owned = false) => {
+    if (ownedCropSource.current) URL.revokeObjectURL(ownedCropSource.current)
+    ownedCropSource.current = owned ? source : ""
+    setCropSource(source)
+    setCropPosition({ x: 0, y: 0 })
+    setCropPixels(null)
+    setZoom(1)
+    setPhotoError("")
+    setCropOpen(true)
+  }
+
+  const closeCropper = () => {
+    setCropOpen(false)
+    setCropSource("")
+    if (ownedCropSource.current) URL.revokeObjectURL(ownedCropSource.current)
+    ownedCropSource.current = ""
+  }
 
   const openAdd = () => {
     setEditing(null)
@@ -220,44 +165,41 @@ export function TeamManager({ members, isAdmin }: { members: MemberRow[]; isAdmi
     setOpen(true)
   }
 
-  // Prepare a small, consistent WebP locally. The bytes are uploaded only when
-  // the member is saved, so cancelling the dialog leaves no orphaned file.
-  const handleUpload = async (file: File) => {
+  // The editor keeps the original local until the crop is accepted. Only the
+  // final 4:5 WebP is uploaded when the member itself is saved.
+  const handleUpload = (file: File) => {
+    setPhotoError("")
+    if (!file.type.startsWith("image/")) {
+      const error = "Choose an image file."
+      setPhotoError(error)
+      toast.error(error)
+      return
+    }
+    if (file.size > 8 * 1024 * 1024) {
+      const error = "Choose a photo under 8 MB."
+      setPhotoError(error)
+      toast.error(error)
+      return
+    }
+    openCropper(URL.createObjectURL(file), true)
+  }
+
+  const applyCrop = async () => {
+    if (!cropSource || !cropPixels) return
     setUploading(true)
     setPhotoError("")
-    const result = await prepareTeamPhoto(file)
-    setUploading(false)
+    const result = await prepareTeamPhoto(cropSource, cropPixels)
     if (result.file) {
       setPendingPhoto(result.file)
       setPreviewUrl(URL.createObjectURL(result.file))
-      toast.success("Photo ready and automatically framed. Save the member to upload it.")
+      closeCropper()
+      toast.success("Crop ready. Save the member to keep it.")
     } else {
       const error = result.error ?? t("admin.team.uploadFailed")
       setPhotoError(error)
       toast.error(error)
     }
-  }
-
-  const handleExistingPhoto = async () => {
-    if (!imageUrl) return
-    setUploading(true)
-    setPhotoError("")
-    try {
-      const response = await fetch(imageUrl)
-      if (!response.ok) throw new Error("Photo could not be loaded")
-      const blob = await response.blob()
-      const result = await prepareTeamPhoto(new File([blob], "team-photo", { type: blob.type }))
-      if (!result.file) throw new Error(result.error)
-      setPendingPhoto(result.file)
-      setPreviewUrl(URL.createObjectURL(result.file))
-      toast.success("Current photo automatically framed. Save to keep this crop.")
-    } catch {
-      const error = "The current photo could not be reframed. Try replacing it from your device."
-      setPhotoError(error)
-      toast.error(error)
-    } finally {
-      setUploading(false)
-    }
+    setUploading(false)
   }
 
   const save = () => {
@@ -449,7 +391,8 @@ export function TeamManager({ members, isAdmin }: { members: MemberRow[]; isAdmi
                   className="hidden"
                   onChange={(e) => {
                     const f = e.target.files?.[0]
-                    if (f) void handleUpload(f)
+                    if (f) handleUpload(f)
+                    e.target.value = ""
                   }}
                 />
                 <Button
@@ -470,10 +413,10 @@ export function TeamManager({ members, isAdmin }: { members: MemberRow[]; isAdmi
                     size="sm"
                     className="gap-1.5"
                     disabled={uploading}
-                    onClick={() => void handleExistingPhoto()}
+                    onClick={() => openCropper(imageUrl)}
                   >
-                    <RefreshCw className="size-3.5" />
-                    Auto-frame current
+                    <Crop className="size-3.5" />
+                    Adjust current crop
                   </Button>
                 )}
               </div>
@@ -554,6 +497,56 @@ export function TeamManager({ members, isAdmin }: { members: MemberRow[]; isAdmi
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button onClick={save} disabled={isPending || uploading || !name.trim() || !designation.trim()}>
               {isPending ? "Saving…" : editing ? "Save" : "Add"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={cropOpen} onOpenChange={(next) => next ? setCropOpen(true) : closeCropper()}>
+        <DialogContent className="sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Position the photo</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            Drag to position the person. Keep enough of the original scene so the portrait still feels natural.
+          </p>
+          <div className="relative h-[min(62vh,36rem)] min-h-80 overflow-hidden rounded-lg bg-stone-950">
+            {cropSource && (
+              <Cropper
+                image={cropSource}
+                crop={cropPosition}
+                zoom={zoom}
+                aspect={4 / 5}
+                objectFit="contain"
+                showGrid
+                zoomSpeed={0.12}
+                minZoom={1}
+                maxZoom={2.5}
+                onCropChange={setCropPosition}
+                onZoomChange={setZoom}
+                onCropComplete={(_, pixels) => setCropPixels(pixels)}
+              />
+            )}
+          </div>
+          <div className="flex items-center gap-3">
+            <Minus className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+            <Label htmlFor="team-photo-zoom" className="sr-only">Zoom</Label>
+            <input
+              id="team-photo-zoom"
+              type="range"
+              min={1}
+              max={2.5}
+              step={0.01}
+              value={zoom}
+              onChange={(event) => setZoom(Number(event.target.value))}
+              className="h-2 w-full cursor-pointer accent-primary"
+            />
+            <Plus className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeCropper}>Cancel</Button>
+            <Button onClick={() => void applyCrop()} disabled={uploading || !cropPixels}>
+              {uploading ? "Preparing…" : "Use this crop"}
             </Button>
           </DialogFooter>
         </DialogContent>
