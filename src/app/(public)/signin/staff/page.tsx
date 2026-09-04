@@ -1,4 +1,7 @@
 import Link from "next/link"
+import { redirect } from "next/navigation"
+import { auth } from "@/lib/auth"
+import { safeLanding } from "@/lib/nav"
 import { STRINGS } from "@/content/strings"
 import { SignInForm } from "../_components/sign-in-form"
 import { AuthStage } from "../_components/auth-stage"
@@ -10,6 +13,13 @@ export default async function StaffSignInPage(props: {
   searchParams: Promise<{ callbackUrl?: string; error?: string }>
 }) {
   const { callbackUrl, error } = await props.searchParams
+
+  // Same reasoning as the delegate door: see the comment in ../page.tsx.
+  const session = await auth()
+  if (session) {
+    redirect(safeLanding(callbackUrl, (session.user as { role?: string } | undefined)?.role))
+  }
+
   return (
     <AuthStage kind="staff">
       <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-amber-700">Clearance / Staff</p>
