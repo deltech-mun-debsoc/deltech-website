@@ -9,9 +9,14 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { t } from "@/content/strings";
 import { ThemeToggle } from "./theme-toggle";
+import { PreviewBadge } from "@/components/preview-badge";
 import type { Content } from "@/content/contentSchema";
 
-export function Header({ sections, registrationOpen }: { sections: Content["publicSections"]; registrationOpen: boolean }) {
+// isPreview arrives as a prop, not read here: this is a client component, and
+// Next only inlines NEXT_PUBLIC_* into client bundles, so reading VERCEL_ENV
+// directly would silently be false on staging -- the one place the badge has to
+// work.
+export function Header({ sections, registrationOpen, isPreview }: { sections: Content["publicSections"]; registrationOpen: boolean; isPreview: boolean }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const navLinks = [
@@ -65,6 +70,7 @@ export function Header({ sections, registrationOpen }: { sections: Content["publ
         </nav>
 
         <div className="flex items-center gap-2">
+          {isPreview && <PreviewBadge />}
           <ThemeToggle />
           {sections.registration && <Link
             href={registrationOpen ? "/register" : "/register/closed"}

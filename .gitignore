@@ -33,6 +33,11 @@ yarn-error.log*
 # env files — commit .env.example, never commit secrets
 .env
 .env*.local
+# ...and any copy of one. The pattern above only matches names ENDING in
+# .local, so `.env.staging.local.bak` was tracked -- a credentials file one
+# `git add -A` away from being published.
+.env*.local.*
+*.env.bak
 
 # vercel
 .vercel

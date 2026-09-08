@@ -3,6 +3,8 @@ import { requireStaff } from "@/lib/authz"
 import { cn } from "@/lib/utils"
 import { THEME_COOKIE, THEME_COOKIES, parseTheme, themeClass } from "@/lib/theme"
 import { AreaThemeToggle } from "@/components/theme/area-theme-toggle"
+import { PreviewBadge } from "@/components/preview-badge"
+import { IS_PREVIEW } from "@/lib/preview-env"
 import { ThemedPortalRoot } from "@/components/theme/themed-portal-root"
 import { AdminSidebar, type SidebarUser } from "./_components/admin-sidebar"
 import { AdminMobileNav } from "./_components/admin-mobile-nav"
@@ -15,7 +17,6 @@ export default async function AdminLayout({ children }: { children: React.ReactN
     email: session.user?.email ?? null,
     role: (session.user as { role?: string }).role ?? "MAINTAINER",
   }
-  const isPreview = !!process.env.VERCEL_ENV && process.env.VERCEL_ENV !== "production"
 
   // Read the shared choice server-side for a stable first paint. Older per-area
   // cookies are accepted only until the person next uses any theme toggle.
@@ -36,11 +37,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <AdminBreadcrumb />
           </div>
           <div className="flex shrink-0 items-center gap-3">
-            {isPreview && (
-              <span className="rounded-sm border border-gold-500/50 bg-accent px-2 py-0.5 text-xs font-semibold uppercase tracking-[0.12em] text-accent-foreground">
-                Preview
-              </span>
-            )}
+            {IS_PREVIEW && <PreviewBadge />}
             {user.email && (
               <span className="hidden text-sm text-muted-foreground sm:block">{user.email}</span>
             )}

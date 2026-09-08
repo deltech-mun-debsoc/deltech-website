@@ -1,0 +1,61 @@
+name: Staging migrate
+
+# Applies pending migrations to the STAGING database whenever staging moves.
+#
+# This is what makes "it goes to test first" a mechanism rather than a habit: a
+# schema change reaches staging automatically, gets exercised there, and only
+# then is promoted. Production stays MANUAL on purpose -- migrate-on-build was
+# removed deliberately in d476bd2 (see docs/CI.md), and nothing here reverses
+# that. This workflow can only ever reach the database behind STAGING_DIRECT_URL.
+on:
+  push:
+    branches: [staging]
+    # Only when the schema actually changed. A copy edit should not open a
+    # database connection.
+    paths:
+      - "prisma/migrations/**"
+      - "prisma/schema.prisma"
+      - ".github/workflows/staging-migrate.yml"
+  workflow_dispatch:
+
+concurrency:
+  # Never let two migration runs overlap on one database.
+  group: staging-migrate
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    name: Apply migrations to staging
+    runs-on: ubuntu-latest
+    env:
+      # The Prisma CLI reads DIRECT_URL (see prisma.config.ts). This MUST be the
+      # Supabase *session* pooler on port 5432: db.<ref>.supabase.co is IPv6-only
+      # and unreachable from GitHub runners, and 6543 is the transaction pooler,
+      # which cannot run DDL.
+      DIRECT_URL: ${{ secrets.STAGING_DIRECT_URL }}
+      DATABASE_URL: ${{ secrets.STAGING_DIRECT_URL }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Fail early if the secret is missing
+        # Without this, prisma reads an empty URL and the failure surfaces as an
+        # opaque connection error.
+        run: |
+          if [ -z "$DIRECT_URL" ]; then
+            echo "STAGING_DIRECT_URL is not set. Add it under Settings → Secrets → Actions."
+            exit 1
+          fi
+
+      - name: Install
+        run: npm ci # postinstall runs `prisma generate`
+
+      - name: Show pending migrations
+        run: npm run db:status || true
+
+      - name: Apply
+        run: npm run db:deploy

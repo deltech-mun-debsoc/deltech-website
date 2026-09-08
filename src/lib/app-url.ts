@@ -77,13 +77,28 @@ function canonicalizeProductionDomain(value: string): string {
   }
 }
 
+// The production domain is only the right fallback ON production. It used to be
+// handed to every Vercel deployment, so a staging build that forgot
+// NEXT_PUBLIC_APP_URL fell straight through to www.deltechmun.in and put
+// PRODUCTION links in staging emails, payment links and QR codes -- the exact
+// failure this module was written to prevent, reintroduced one argument later.
+// Staging passes undefined instead, so it falls through to the deployment's own
+// URL: a link to the wrong staging host is recoverable, a link that quietly
+// points testers at production is not.
+const onVercel = process.env.VERCEL === "1"
+const isVercelProduction = onVercel && process.env.VERCEL_ENV === "production"
+
 export const APP_URL: string = resolveAppUrl(
   process.env.NEXT_PUBLIC_APP_URL,
   process.env.NEXT_PUBLIC_VERCEL_URL,
-  process.env.VERCEL === "1" ? "www.deltechmun.in" : process.env.VERCEL_PROJECT_PRODUCTION_URL,
+  isVercelProduction
+    ? "www.deltechmun.in"
+    : onVercel
+      ? undefined
+      : process.env.VERCEL_PROJECT_PRODUCTION_URL,
   // Any Vercel deployment, not just production: a preview must not hand out
   // localhost links either.
-  process.env.VERCEL === "1",
+  onVercel,
 )
 
 /** Join a path onto the deployment origin. Returns the bare path when unset. */
