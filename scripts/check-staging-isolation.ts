@@ -129,31 +129,37 @@ const read = (p: string) => readFileSync(join(root, p), "utf8")
   )
 }
 
-// ── 5. The preview badge cannot be read from a client component ─────────────
+// ── 5. Every page says it is not production ─────────────────────────────────
 //
-// VERCEL_ENV is not inlined into client bundles, so a "use client" component
-// reading it gets false -- on staging, the one place the badge must appear.
+// This lived in three area headers, which silently exempted the route groups
+// with no header: (public), (author), (registerer). That left /signin, /signup,
+// /status/[token] and /pay/[token] -- the pages where somebody could register an
+// account or look at a payment screen -- with nothing marking them as fake.
+// Rendering it once at the root is what stops that gap reopening as route
+// groups are added.
 {
-  const badge = read("src/lib/preview-env.ts")
-  // The DIRECTIVE, not the phrase: preview-env.ts documents the client-bundle
-  // caveat in a comment, and a naive substring match hits its own explanation.
-  const firstCode = badge
+  const rootLayout = read("src/app/layout.tsx")
+  assert.match(
+    rootLayout,
+    /<PreviewRibbon\s*\/>/,
+    "the root layout must render <PreviewRibbon />, so every route group is covered",
+  )
+
+  const ribbon = read("src/components/preview-ribbon.tsx")
+  // The DIRECTIVE, not the phrase: the file explains the client-bundle caveat in
+  // a comment, and a naive substring match hits its own explanation.
+  const firstCode = ribbon
     .split("\n")
     .map((l) => l.trim())
     .find((l) => l && !l.startsWith("//"))
-  assert.ok(firstCode, "preview-env.ts appears to be empty")
+  assert.ok(firstCode, "preview-ribbon.tsx appears to be empty")
   assert.doesNotMatch(
     firstCode!,
     /^["']use client["']/,
-    "preview-env must stay server-only; a client component reading VERCEL_ENV silently gets false",
+    "preview-ribbon must stay server-only; VERCEL_ENV is not inlined into client bundles, " +
+      "so a client component reading it silently gets false -- on staging, the one place it must work",
   )
-  const header = read("src/app/(marketing)/_components/header.tsx")
-  assert.match(header, /"use client"/, "the marketing header is expected to be a client component")
-  assert.doesNotMatch(
-    header,
-    /process\.env\.VERCEL_ENV/,
-    "the marketing header must take isPreview as a prop, not read VERCEL_ENV (always false in a client bundle)",
-  )
+  assert.match(ribbon, /IS_PREVIEW/, "the ribbon must gate on IS_PREVIEW, not render unconditionally")
 }
 
-console.log("staging isolation checks passed (seed guards, no personal addresses, sheet overrides, deploy refs, preview badge)")
+console.log("staging isolation checks passed (seed guards, no personal addresses, sheet overrides, deploy refs, preview ribbon)")

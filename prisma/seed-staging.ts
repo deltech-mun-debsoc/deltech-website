@@ -244,7 +244,14 @@ async function main() {
       key: "queryContacts",
       value: [{ name: "Test Secretariat", role: "Testing support", phone: "919000000000" }],
     },
-    { key: "paymentProvider", value: "razorpay" },
+    // Razorpay needs live-or-test API keys present in the environment. Staging
+    // deliberately does not carry the production keys, and RazorpayProvider
+    // throws rather than degrading, so an intern clicking "generate payment
+    // link" would hit an error with no explanation. upi_qr is the inert local
+    // provider: the whole payment journey renders and can be exercised without
+    // any outbound call. This is a DB setting, so an admin can switch staging to
+    // razorpay from /admin/config at any time once test keys exist -- no deploy.
+    { key: "paymentProvider", value: "upi_qr" },
     { key: "matrixPublic", value: true },
     { key: "accommodationNote", value: "Fixture: accommodation requested for selected delegates." },
     { key: "blogIntro", value: "Seeded dispatches covering every editorial state." },
