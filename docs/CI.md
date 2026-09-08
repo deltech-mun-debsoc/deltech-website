@@ -3,22 +3,30 @@
 Vercel's Git integration deploys. GitHub Actions only runs checks.
 
 ```text
-pull request     → Validate (Actions) + a Vercel Preview URL
-push to main     → Production
+pull request     → Validate (Actions). No deploy.
+push to staging  → test.deltechmun.in  + migrations applied automatically
+push to main     → Production          + migrations applied BY HAND
 ```
 
-There is one workflow, `.github/workflows/check.yml`. No workflow deploys, and
-none needs a Vercel token.
+A pull request does **not** get a Preview URL. `vercel.json`'s `ignoreCommand`
+cancels the build for every branch except `main` and `staging`, so a feature
+branch never deploys and never touches the staging database. (This document used
+to promise a Preview URL per PR; that stopped being true when the
+`ignoreCommand` landed.)
 
 ## Workflows
 
 | Name | Trigger | Purpose |
 | --- | --- | --- |
 | **CI** | Pull request or manual | `npm run check` and a production build. |
+| **Staging migrate** | Push to `staging` touching `prisma/**` | `prisma migrate deploy` against the staging database. |
+
+Neither needs a Vercel token. See [STAGING.md](STAGING.md) for the staging
+environment itself.
 
 ## Deployments
 
-Vercel builds every push. `vercel.json` points `buildCommand` at
+Vercel builds pushes to `main` and `staging`. `vercel.json` points `buildCommand` at
 `npm run build:vercel`, which is `next build` and nothing else.
 
 **The build does not migrate.** It used to, and that was removed deliberately in
