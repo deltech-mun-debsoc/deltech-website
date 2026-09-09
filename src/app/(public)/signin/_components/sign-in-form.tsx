@@ -29,11 +29,19 @@ export function SignInForm({
 
   return (
     <Tabs value={tab} onValueChange={(v) => setTab(String(v))}>
+      {/* No data-[state=active] overrides here. This Tabs primitive sets
+          data-active, never data-state, so those utilities never matched --
+          verified on the rendered element, which carries data-active and has no
+          data-state attribute at all. They had been dead since before the token
+          rename, and their presence made the tabs look deliberately styled when
+          in fact the component's own data-active: styles were doing all the
+          work. Those styles use theme tokens, which is correct now that the
+          card carries .theme-light. */}
       <TabsList className="mb-7 grid h-13 w-full grid-cols-2 rounded-none bg-black/5 p-1">
-        <TabsTrigger value="magic" className="h-11 rounded-none text-sm font-bold data-[state=active]:bg-ink data-[state=active]:text-paper">
+        <TabsTrigger value="magic" className="h-11 rounded-none text-sm font-bold">
           {t("auth.magicLinkTab")}
         </TabsTrigger>
-        <TabsTrigger value="password" className="h-11 rounded-none text-sm font-bold data-[state=active]:bg-ink data-[state=active]:text-paper">
+        <TabsTrigger value="password" className="h-11 rounded-none text-sm font-bold">
           {t("auth.passwordTab")}
         </TabsTrigger>
       </TabsList>

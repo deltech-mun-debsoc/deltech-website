@@ -64,7 +64,7 @@ export function AuthStage({
                 : "Your registrations, allotments, writing, and live society experiences: one verified identity."}
             </p>
           </div>
-          <div className="hidden items-center gap-8 border-t border-white/15 pt-6 font-mono text-xs uppercase tracking-[0.16em] text-white/35 lg:flex">
+          <div className="hidden items-center gap-8 border-t border-white/15 pt-6 font-mono text-xs uppercase tracking-[0.16em] text-white/55 lg:flex">
             <span>DTU · Delhi</span><span>Encrypted access</span><span>{staff ? "Staff only" : "Delegate portal"}</span>
           </div>
         </section>
@@ -74,7 +74,7 @@ export function AuthStage({
             initial={reduce ? false : { opacity: 0, x: 38 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
-            className="relative w-full max-w-xl bg-[#f3eee2] p-6 text-[#111614] shadow-[16px_16px_0_var(--auth-accent)] sm:p-10"
+            className="theme-light relative w-full max-w-xl bg-[#f3eee2] p-6 text-[#111614] shadow-[16px_16px_0_var(--auth-accent)] sm:p-10"
             style={{ "--auth-accent": accent } as React.CSSProperties}
           >
             <div className="absolute right-5 top-5 text-black/[0.07]">
