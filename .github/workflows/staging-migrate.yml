@@ -42,14 +42,30 @@ jobs:
           node-version: 20
           cache: npm
 
-      - name: Fail early if the secret is missing
-        # Without this, prisma reads an empty URL and the failure surfaces as an
-        # opaque connection error.
+      - name: Verify the target really is the staging database
+        # `prisma migrate deploy` runs against whatever this secret contains. A
+        # stale or mistyped value migrates some OTHER database, silently and
+        # irreversibly -- and a secret is exactly the kind of value nobody
+        # re-reads. Refuse unless the URL names the project we declared as
+        # staging, the same allowlist the destructive seed uses.
+        env:
+          STAGING_DB_REF: ${{ secrets.STAGING_DB_REF }}
         run: |
           if [ -z "$DIRECT_URL" ]; then
             echo "STAGING_DIRECT_URL is not set. Add it under Settings → Secrets → Actions."
             exit 1
           fi
+          if [ -z "$STAGING_DB_REF" ]; then
+            echo "STAGING_DB_REF is not set. It names the Supabase project this workflow"
+            echo "is allowed to touch. Refusing to migrate an unidentified database."
+            exit 1
+          fi
+          case "$DIRECT_URL" in
+            *"$STAGING_DB_REF"*) echo "Target confirmed as the staging project." ;;
+            *) echo "REFUSING: STAGING_DIRECT_URL does not contain STAGING_DB_REF."
+               echo "The secret points at a different database than the one declared as staging."
+               exit 1 ;;
+          esac
 
       - name: Install
         run: npm ci # postinstall runs `prisma generate`

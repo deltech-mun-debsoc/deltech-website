@@ -119,6 +119,22 @@ with *File → Import → Replace current sheet*.
 `--raw` skips the scrub. It copies real personal data into a sandbox interns can
 read, so it needs a reason.
 
+## Checking colour contrast
+
+`scripts/audit-contrast.js` is a console snippet, not a CI check. Open a page,
+paste it into devtools, run `auditContrast()`, then **switch theme and run it
+again** -- almost every contrast bug in this codebase only exists in one theme.
+
+It is not in `npm run check` on purpose: measuring real contrast needs real
+layout, which needs a browser, and a headless browser would slow every PR and add
+a flaky gate to what is a design judgement rather than a build error.
+
+The defect it keeps finding is always the same shape: a **fixed** colour
+(`gold-300`, `gold-700`, `paper`) on a surface that **changes** with the theme.
+`bg-primary` inverts from dark teal to light teal; the page background inverts
+too. Each case looked correct in whichever theme it was written in. The idiom
+that works is a paired override, e.g. `text-gold-700 dark:text-gold-300`.
+
 ## Known sharp edges
 
 - **Razorpay emails the customer itself.** `notify: { email: true }` in

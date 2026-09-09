@@ -5,8 +5,6 @@ import { THEME_COOKIE, THEME_COOKIES, parseTheme, themeClass } from "@/lib/theme
 import { AreaThemeToggle } from "@/components/theme/area-theme-toggle"
 import { ThemedPortalRoot } from "@/components/theme/themed-portal-root"
 import { SignOutButton } from "@/components/sign-out-button"
-import { PreviewBadge } from "@/components/preview-badge"
-import { IS_PREVIEW } from "@/lib/preview-env"
 import { t, type StringKey } from "@/content/strings"
 import { RecruitmentSidebar } from "./_components/recruitment-sidebar"
 import { RecruitmentMobileNav } from "./_components/recruitment-mobile-nav"
@@ -81,7 +79,6 @@ export default async function RecruitmentLayout({ children }: { children: React.
             </div>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            {IS_PREVIEW && <PreviewBadge />}
             <AreaThemeToggle area="recruitment" initial={theme} />
             <SignOutButton />
           </div>
