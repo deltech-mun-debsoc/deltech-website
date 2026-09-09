@@ -25,7 +25,15 @@ export function ActiveEvent({ content }: { content: Content }) {
             button had no background until hover, where gold-300 does exist. */}
         <div className="mt-7 flex flex-wrap gap-3">
           {content.publicSections.registration && <Link href={content.registrationOpen ? "/register" : "/register/closed"} className={cn(buttonVariants({ size: "lg" }), "bg-gold-500 text-stone-950 hover:bg-gold-300")}>{content.registrationOpen ? content.landingHero.ctaLabel : "See registration status"}<ArrowRight /></Link>}
-          {content.publicSections.matrix && <Link href="/availability" className={cn(buttonVariants({ variant: "outline", size: "lg" }), "border-paper/30 bg-transparent text-paper hover:bg-paper hover:text-ink dark:border-paper/30 dark:bg-transparent")}>View matrix</Link>}
+          {/* Deliberately NOT buttonVariants({variant:"outline"}). That variant carries
+              hover:bg-muted and dark:hover:bg-input/50, which are theme-REACTIVE, while
+              this button sits on bg-ink, which is theme-INDEPENDENT. dark:hover: is a
+              two-variant stack and therefore sorts after a plain hover:, so it won and
+              the hover became near-black text on near-black background, measured at
+              1.20. Overriding it means betting on Tailwind's ordering within one
+              variant bucket; composing the geometry explicitly means there is nothing
+              to lose to. Base + size:lg contribute no colours, so nothing is lost. */}
+          {content.publicSections.matrix && <Link href="/availability" className="inline-flex h-12 shrink-0 items-center justify-center gap-2 rounded-lg border border-paper/30 bg-transparent px-6 text-base font-semibold whitespace-nowrap text-paper outline-none transition-colors select-none hover:bg-paper hover:text-ink focus-visible:ring-3 focus-visible:ring-ring/50">View matrix</Link>}
         </div>
       </div>
     </div>
