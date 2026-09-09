@@ -167,14 +167,22 @@ function auditHover() {
   const resolveVars = (val, el) =>
     val ? val.replace(/var\((--[\w-]+)\)/g, (_, n) => getComputedStyle(el).getPropertyValue(n).trim() || "transparent") : null
 
+  let skipped = 0
   const hoverStyle = (el) => {
     let color = null, bg = null
     const via = []
     for (const r of rules) {
       for (const sel of r.selectorText.split(",")) {
-        const base = sel.trim().replace(/:hover/g, "")
+        // Strip the PSEUDO-CLASS, not the escaped text inside a class name.
+        // Tailwind emits `.dark\:hover\:bg-input\/50:is(:where(.dark) *):hover`
+        // -- the class name itself contains an escaped ":hover". A blanket
+        // /:hover/g corrupts it, matches() throws SyntaxError, and the rule is
+        // skipped. That rule is the one that WINS in dark mode, so the audit
+        // reported an invisible button as fine. The lookbehind keeps escaped
+        // occurrences intact.
+        const base = sel.trim().replace(/(?<!\\):hover/g, "")
         let ok = false
-        try { ok = el.matches(base) } catch { continue }
+        try { ok = el.matches(base) } catch { skipped++; continue }
         if (!ok) continue
         if (r.style.color) { color = r.style.color; via.push(sel.trim()) }
         if (r.style.backgroundColor) { bg = r.style.backgroundColor; via.push(sel.trim()) }
@@ -227,6 +235,9 @@ function auditHover() {
   }
   const unique = [...new Map(results.map((r) => [r.text + r.ratio, r])).values()].sort((a, b) => a.ratio - b.ratio)
   console.table(unique)
+  // Silence here is how the first version lied. If selectors are being skipped,
+  // an empty result means "could not tell", not "nothing wrong".
+  if (skipped) console.warn(`auditHover: ${skipped} selector(s) could not be parsed and were skipped -- results are incomplete`)
   return unique
 }
 
