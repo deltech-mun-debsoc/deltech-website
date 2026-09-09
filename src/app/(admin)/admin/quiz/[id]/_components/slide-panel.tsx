@@ -51,7 +51,7 @@ export function SlidePanel({
   slides, selectedId, onSelect, onAdd, onDelete, onDuplicate, onMoveUp, onMoveDown, className,
 }: Props) {
   return (
-    <aside className={cn("admin-rail flex shrink-0 flex-col overflow-hidden border-r border-black/15 bg-[#f5f1e8]", className)}>
+    <aside className={cn("theme-light admin-rail flex shrink-0 flex-col overflow-hidden border-r border-black/15 bg-[#f5f1e8]", className)}>
       <div className="border-b border-black/10 px-4 py-4">
         <p className="font-mono text-xs font-bold uppercase tracking-[0.18em] text-black/45">Run of show · {slides.length}</p>
       </div>

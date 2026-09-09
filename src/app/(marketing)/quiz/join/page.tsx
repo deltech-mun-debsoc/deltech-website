@@ -77,7 +77,7 @@ export default function QuizJoinPage() {
           </div>
         </section>
 
-        <form onSubmit={handleSubmit} className="relative border border-black/10 bg-[#f3eee2] p-6 text-[#111614] shadow-[18px_18px_0_#14b8a6] sm:p-9 dark:border-0">
+        <form onSubmit={handleSubmit} className="theme-light relative border border-black/10 bg-[#f3eee2] p-6 text-[#111614] shadow-[18px_18px_0_#14b8a6] sm:p-9">
           <span className="absolute right-5 top-4 font-mono text-7xl font-black leading-none text-black/[0.06]" aria-hidden>06</span>
           <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-teal-700">Room access</p>
           <h2 className="mt-5 font-heading text-4xl">Six digits. That&apos;s it.</h2>
