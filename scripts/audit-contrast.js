@@ -172,7 +172,11 @@ function auditHover() {
     let color = null, bg = null
     const via = []
     for (const r of rules) {
-      for (const sel of r.selectorText.split(",")) {
+      // Pseudo-element rules cannot be passed to matches(), and a ::before or
+      // ::after never sets the element's own text colour. Skipped on purpose.
+      if (r.selectorText.includes("::")) continue
+      {
+        const sel = r.selectorText
         // Strip the PSEUDO-CLASS, not the escaped text inside a class name.
         // Tailwind emits `.dark\:hover\:bg-input\/50:is(:where(.dark) *):hover`
         // -- the class name itself contains an escaped ":hover". A blanket
@@ -180,7 +184,12 @@ function auditHover() {
         // skipped. That rule is the one that WINS in dark mode, so the audit
         // reported an invisible button as fine. The lookbehind keeps escaped
         // occurrences intact.
-        const base = sel.trim().replace(/(?<!\\):hover/g, "")
+        // No comma-splitting: matches() accepts a selector LIST, and splitting
+        // on "," shredded every selector with a comma inside parentheses --
+        // rgba(108, 35, ...) in arbitrary-value class names, and
+        // :not(:where(.theme-light, .theme-light *)). That produced 391 skipped
+        // selectors and a confident, empty, wrong result.
+        const base = sel.replace(/(?<!\\):hover/g, "")
         let ok = false
         try { ok = el.matches(base) } catch { skipped++; continue }
         if (!ok) continue
