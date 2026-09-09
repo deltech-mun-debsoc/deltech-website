@@ -25,7 +25,7 @@ export function ActiveEvent({ content }: { content: Content }) {
             button had no background until hover, where gold-300 does exist. */}
         <div className="mt-7 flex flex-wrap gap-3">
           {content.publicSections.registration && <Link href={content.registrationOpen ? "/register" : "/register/closed"} className={cn(buttonVariants({ size: "lg" }), "bg-gold-500 text-stone-950 hover:bg-gold-300")}>{content.registrationOpen ? content.landingHero.ctaLabel : "See registration status"}<ArrowRight /></Link>}
-          {content.publicSections.matrix && <Link href="/availability" className={cn(buttonVariants({ variant: "outline", size: "lg" }), "border-paper/30 text-paper hover:bg-paper hover:text-ink")}>View matrix</Link>}
+          {content.publicSections.matrix && <Link href="/availability" className={cn(buttonVariants({ variant: "outline", size: "lg" }), "border-paper/30 bg-transparent text-paper hover:bg-paper hover:text-ink dark:border-paper/30 dark:bg-transparent")}>View matrix</Link>}
         </div>
       </div>
     </div>

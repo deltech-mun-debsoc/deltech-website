@@ -147,7 +147,7 @@ export default async function LandingPage() {
         <div className="paper-grid absolute inset-0 opacity-15" aria-hidden />
         <div className="section-shell relative grid gap-12 lg:grid-cols-[1.1fr_0.9fr] lg:items-end">
           <div>
-            <p className="data-label flex items-center gap-3 text-gold-300">
+            <p className="data-label flex items-center gap-3 text-gold-300 dark:text-primary-foreground">
               <RadioTower className="size-4" />
               {t("marketing.matrixEyebrow")}
             </p>
@@ -167,7 +167,7 @@ export default async function LandingPage() {
               </Link>
               <p className="font-mono text-3xl font-semibold tabular-nums">
                 {String(openPortfolioCount).padStart(2, "0")}
-                <span className="ml-2 text-sm uppercase tracking-[0.12em] text-primary-foreground/60">
+                <span className="ml-2 text-sm uppercase tracking-[0.12em] text-primary-foreground/75">
                   {t("marketing.openLabel")}
                 </span>
               </p>
@@ -186,7 +186,7 @@ export default async function LandingPage() {
             <div className="border-t border-foreground/20">
               {content.awards.map((award, index) => (
                 <div key={award} className="flex items-center gap-5 border-b border-foreground/20 py-6">
-                  <span className="font-mono text-sm text-gold-700">0{index + 1}</span>
+                  <span className="font-mono text-sm text-gold-700 dark:text-gold-300">0{index + 1}</span>
                   <p className="font-heading text-2xl">{award}</p>
                 </div>
               ))}

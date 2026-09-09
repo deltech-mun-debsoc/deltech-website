@@ -29,7 +29,7 @@ export function Footer({ contacts, conferenceDates, venue, societyLocation, soci
             <p className="mt-5 max-w-sm text-base leading-relaxed text-paper/68">
               {t("brand.tagline")}
             </p>
-            <p className="data-label mt-8 text-paper/45">{t("marketing.footerSignal")}</p>
+            <p className="data-label mt-8 text-paper/60">{t("marketing.footerSignal")}</p>
           </div>
 
           <nav aria-label={t("nav.home")}>
@@ -114,7 +114,7 @@ export function Footer({ contacts, conferenceDates, venue, societyLocation, soci
           </div>
         </div>
 
-        <div className="mt-14 flex flex-wrap items-center justify-between gap-3 border-t border-paper/15 pt-6 text-sm text-paper/45">
+        <div className="mt-14 flex flex-wrap items-center justify-between gap-3 border-t border-paper/15 pt-6 text-sm text-paper/60">
           <span>{t("brand.name")}</span>
           <span>{t("marketing.footerLocation")}</span>
         </div>
