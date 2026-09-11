@@ -81,6 +81,7 @@ export function EventControl({
   const [dates, setDates] = useState(content.conferenceDates)
   const [venue, setVenue] = useState(content.venue)
   const [registrationOpen, setRegistrationOpen] = useState(content.registrationOpen)
+  const [formUrl, setFormUrl] = useState(content.registrationFormUrl)
   const [paymentsEnabled, setPaymentsEnabled] = useState(content.paymentsEnabled)
   const [sections, setSections] = useState(content.publicSections)
   const [activePreset, setActivePreset] = useState<PresetKey>(() => inferPreset(content))
@@ -127,6 +128,7 @@ export function EventControl({
       activeEventName: eventName,
       activeEventLabel: eventLabel,
       registrationOpen,
+      registrationFormUrl: formUrl,
       paymentsEnabled: mode === "CONFERENCE" ? paymentsEnabled : false,
       publicSections: sections,
       conferenceDates: dates,
@@ -235,6 +237,13 @@ export function EventControl({
             <div className="space-y-2"><Label htmlFor="event-venue">Venue</Label><Input id="event-venue" value={venue} onChange={(e) => setVenue(e.target.value)} className="h-12 text-base" placeholder="DTU, Delhi" /></div>
           </div>
           <div className="space-y-2"><Label htmlFor="event-cta">Registration button</Label><Input id="event-cta" value={ctaLabel} onChange={(e) => setCtaLabel(e.target.value)} className="h-12 text-base" placeholder="Apply as a delegate" /></div>
+          {mode === "INTRA_MUN" && (
+            <div className="space-y-2">
+              <Label htmlFor="event-form-url">Registration form link</Label>
+              <Input id="event-form-url" value={formUrl} onChange={(e) => setFormUrl(e.target.value)} className="h-12 text-base" placeholder="https://docs.google.com/forms/d/..." />
+              <p className="text-sm text-muted-foreground">Paste your Google Form link. Every Register button on the site will open it. Leave it empty to use the website form.</p>
+            </div>
+          )}
         </div>
       </div>
       <div className="bg-ink p-7 text-paper">

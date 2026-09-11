@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { read, utils } from "xlsx"
 import { prisma } from "@/lib/prisma"
 import { getContent } from "@/lib/settings"
+import { automaticIntakeAllowed } from "@/lib/event-state"
 import { createDelegateFromRow } from "@/lib/intake"
 import { applyMapping, type ColumnMapping } from "@/lib/schemas/import"
 
@@ -29,6 +30,12 @@ export async function GET(req: NextRequest) {
       error?: string
     }
     results[src.presetName] = stats
+
+    const gate = automaticIntakeAllowed(content, src.source === "CROSS_DEL" ? "CROSS_DEL" : "SELF")
+    if (!gate.ok) {
+      stats.error = gate.reason
+      continue
+    }
 
     try {
       const preset = await prisma.importPreset.findUnique({ where: { name: src.presetName } })

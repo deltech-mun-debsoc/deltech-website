@@ -22,6 +22,8 @@ export interface SerializedDelegate {
   altPhone: string | null
   institution: string
   isDtu: boolean
+  rollNumber: string | null
+  query: string | null
   munExperience: string | null
   source: string
   sourceNote: string | null

@@ -98,6 +98,7 @@ const EventControlSchema = ContentSchema.pick({
   activeEventName: true,
   activeEventLabel: true,
   registrationOpen: true,
+  registrationFormUrl: true,
   paymentsEnabled: true,
   publicSections: true,
   conferenceDates: true,
@@ -111,6 +112,7 @@ type EventControlInput = Pick<
   | "activeEventName"
   | "activeEventLabel"
   | "registrationOpen"
+  | "registrationFormUrl"
   | "paymentsEnabled"
   | "publicSections"
   | "conferenceDates"
@@ -140,12 +142,17 @@ export async function saveEventControl(
   if (sections.activeEvent && !eventState.activeEventName.trim()) {
     return { success: false, error: "Name the active event before publishing it." }
   }
+  const formUrl = eventState.registrationFormUrl.trim()
+  if (formUrl && !/^https:\/\/\S+$/.test(formUrl)) {
+    return { success: false, error: "The registration form link must start with https://. Copy it from your browser." }
+  }
   const partial: Record<string, unknown> = {
     ...eventState,
     activeEventName: eventState.activeEventName.trim(),
     activeEventLabel: eventState.activeEventLabel.trim(),
     conferenceDates: eventState.conferenceDates.trim(),
     venue: eventState.venue.trim(),
+    registrationFormUrl: formUrl,
     publicSections: sections,
     registrationOpen:
       eventState.eventMode === "SOCIETY" ? false : eventState.registrationOpen,

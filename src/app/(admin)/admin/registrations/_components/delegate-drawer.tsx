@@ -231,10 +231,12 @@ export function DelegateDrawer({ delegate, committees, onClose, onUpdated }: Pro
                     <Field label="Alt phone" value={delegate.altPhone} />
                     <Field label="Institution" value={delegate.institution} />
                     <Field label="DTU student" value={delegate.isDtu ? "Yes" : "No"} />
+                    {delegate.rollNumber && <Field label="Roll number" value={delegate.rollNumber} />}
                   </div>
                   {delegate.munExperience && (
                     <Field label="MUN experience" value={delegate.munExperience} />
                   )}
+                  {delegate.query && <Field label="Their question" value={delegate.query} />}
                 </Section>
 
                 <Separator />
