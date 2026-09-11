@@ -1,0 +1,37 @@
+# Lives at /srv/mun on the Lightsail box, next to Caddyfile, deploy.sh and the
+# env files (prod.env, staging.env, caddy.env: never in git). PROD_TAG and
+# STAGING_TAG are written into /srv/mun/.env by deploy.sh. See docs/AWS.md.
+name: mun
+
+services:
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports: ["80:80", "443:443", "443:443/udp"]
+    env_file: caddy.env
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+  prod:
+    image: mun:prod-${PROD_TAG:-none}
+    pull_policy: never
+    restart: unless-stopped
+    env_file: prod.env
+    environment:
+      NODE_OPTIONS: --max-old-space-size=900
+    mem_limit: 1200m
+
+  staging:
+    image: mun:staging-${STAGING_TAG:-none}
+    pull_policy: never
+    restart: unless-stopped
+    env_file: staging.env
+    environment:
+      NODE_OPTIONS: --max-old-space-size=420
+    mem_limit: 600m
+
+volumes:
+  caddy_data:
+  caddy_config:

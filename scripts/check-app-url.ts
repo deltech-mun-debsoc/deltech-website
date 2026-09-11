@@ -149,20 +149,31 @@ for (const file of CONSUMERS) {
 
   // The call site is the actual regression surface: the pure function above
   // cannot tell you which argument production passes. Pin that the hardcoded
-  // domain is reachable only when VERCEL_ENV is production.
+  // domain is reachable only when the deployment says it is production, and that
+  // our own host's APP_ENV wins over Vercel's VERCEL_ENV.
   const src = readFileSync("src/lib/app-url.ts", "utf8")
   assert.match(
     src,
-    /VERCEL_ENV\s*===\s*"production"/,
-    "app-url.ts must gate the production-domain fallback on VERCEL_ENV",
+    /deployEnv\s*=\s*process\.env\.APP_ENV\s*\?\?\s*process\.env\.VERCEL_ENV/,
+    "app-url.ts must read APP_ENV first, then VERCEL_ENV",
+  )
+  assert.match(
+    src,
+    /isProduction\s*=\s*hosted\s*&&\s*deployEnv\s*===\s*"production"/,
+    "app-url.ts must gate the production-domain fallback on the deployment being production",
+  )
+  assert.match(
+    src,
+    /hosted\s*=\s*process\.env\.VERCEL\s*===\s*"1"\s*\|\|\s*!!process\.env\.APP_ENV/,
+    "the AWS host must count as hosted, or it could print localhost into QR codes",
   )
   // Structural, not line-based: canonicalizeProductionDomain mentions the same
   // literal, so pin that the domain is specifically the true-branch of the
   // production test.
   assert.match(
     src,
-    /isVercelProduction\s*\n?\s*\?\s*"www\.deltechmun\.in"/,
-    "the production domain must be the true-branch of isVercelProduction, so staging cannot reach it",
+    /isProduction\s*\n?\s*\?\s*"www\.deltechmun\.in"/,
+    "the production domain must be the true-branch of isProduction, so staging cannot reach it",
   )
 }
 

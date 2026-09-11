@@ -1,0 +1,32 @@
+# HTTPS certificates are issued and renewed automatically once DNS points here.
+# caddy.env supplies ACME_EMAIL, STAGING_USER and STAGING_HASH
+# (`docker compose run --rm caddy caddy hash-password`).
+{
+	email {$ACME_EMAIL}
+}
+
+deltechmun.in {
+	redir https://www.deltechmun.in{uri} permanent
+}
+
+www.deltechmun.in {
+	encode zstd gzip
+	# Overwrite, never append: the quiz rate limits key on the first entry of
+	# X-Forwarded-For, which a client could otherwise choose.
+	reverse_proxy prod:3000 {
+		header_up X-Forwarded-For {remote_host}
+	}
+}
+
+test.deltechmun.in {
+	encode zstd gzip
+	header X-Robots-Tag "noindex, nofollow"
+	# Webhooks and crons carry their own secrets and cannot answer a password prompt.
+	@gated not path /api/webhooks/* /api/cron/*
+	basic_auth @gated {
+		{$STAGING_USER} {$STAGING_HASH}
+	}
+	reverse_proxy staging:3000 {
+		header_up X-Forwarded-For {remote_host}
+	}
+}

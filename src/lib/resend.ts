@@ -1,6 +1,8 @@
 import type React from "react"
 import { createHash } from "node:crypto"
 import { Resend } from "resend"
+import { SESv2Client, SendEmailCommand } from "@aws-sdk/client-sesv2"
+import { render } from "@react-email/components"
 import { prisma } from "@/lib/prisma"
 import { getContent } from "@/lib/settings"
 import { STRINGS } from "@/content/strings"
@@ -33,6 +35,63 @@ function getResend(): Resend {
 const FROM = process.env.EMAIL_FROM ?? "noreply@deltechmun.in"
 const REDIRECT_TO = process.env.EMAIL_REDIRECT_TO?.trim()
 
+// Which provider carries the mail. Resend until the AWS cutover proves SES, so
+// rolling back is one environment variable. SES credentials come from the SDK's
+// default chain (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY).
+const TRANSPORT = process.env.EMAIL_TRANSPORT === "ses" ? "ses" : "resend"
+let sesClient: SESv2Client | undefined
+function getSes(): SESv2Client {
+  return (sesClient ??= new SESv2Client({ region: process.env.SES_REGION ?? "ap-south-1" }))
+}
+
+// Resend dedupes a repeated idempotency key for 24 hours. SES has no such thing,
+// so the same window is enforced against our own log.
+// ponytail: check-then-send, so two truly simultaneous sends can both go out;
+// claim a unique row first if that ever happens in practice.
+async function sentRecently(template: string, toEmail: string): Promise<boolean> {
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000)
+  const hit = await prisma.emailLog.findFirst({
+    where: { template, toEmail, status: "SENT", sentAt: { gte: since } },
+    select: { id: true },
+  })
+  return !!hit
+}
+
+async function deliver(
+  to: string,
+  subject: string,
+  reactElement: React.ReactElement,
+  idempotencyKey?: string,
+): Promise<string | undefined> {
+  if (TRANSPORT === "resend") {
+    const { error } = await getResend().emails.send(
+      {
+        from: FROM,
+        to,
+        subject,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        react: reactElement as any,
+      },
+      idempotencyKey ? { idempotencyKey } : undefined,
+    )
+    return error?.message
+  }
+  const [html, text] = await Promise.all([render(reactElement), render(reactElement, { plainText: true })])
+  await getSes().send(
+    new SendEmailCommand({
+      FromEmailAddress: FROM,
+      Destination: { ToAddresses: [to] },
+      Content: {
+        Simple: {
+          Subject: { Data: subject, Charset: "UTF-8" },
+          Body: { Html: { Data: html, Charset: "UTF-8" }, Text: { Data: text, Charset: "UTF-8" } },
+        },
+      },
+    }),
+  )
+  return undefined
+}
+
 
 // ---------------------------------------------------------------------------
 // Core send + log helper
@@ -53,25 +112,18 @@ async function loggedSend({
   reactElement: React.ReactElement
   idempotencyKey?: string
 }): Promise<void> {
+  if (idempotencyKey && TRANSPORT === "ses" && (await sentRecently(template, toEmail))) return
+
   let status = "SENT"
   let error: string | undefined
 
   try {
     const recipient = REDIRECT_TO || toEmail
     const deliveredSubject = REDIRECT_TO ? `[STAGING → ${toEmail}] ${subject}` : subject
-    const { error: apiError } = await getResend().emails.send(
-      {
-        from: FROM,
-        to: recipient,
-        subject: deliveredSubject,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        react: reactElement as any,
-      },
-      idempotencyKey ? { idempotencyKey } : undefined,
-    )
+    const apiError = await deliver(recipient, deliveredSubject, reactElement, idempotencyKey)
     if (apiError) {
       status = "FAILED"
-      error = apiError.message
+      error = apiError
     }
   } catch (err) {
     status = "FAILED"

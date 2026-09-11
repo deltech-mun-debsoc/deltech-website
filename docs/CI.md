@@ -62,14 +62,18 @@ Vercel's Instant Rollback reverts code only. It does not revert the schema.
 
 ## Environment variables
 
-Set on the Vercel project, not in this repo. Two rules that have each caused an
+Set on the Vercel project, not in this repo. (On AWS they live on the box and in
+GitHub Environments; see [AWS.md](AWS.md).) Two rules that have each caused an
 outage:
 
 - `NEXT_PUBLIC_*` values are inlined at BUILD time. Changing one requires a
   redeploy; editing it alone does nothing.
-- Do not set `AUTH_URL`. Auth.js rewrites every request's origin to match it, so
-  any deployment on a different hostname fails with `error=Configuration`.
-  `VERCEL=1` already makes `trustHost` true, so each deployment self-names.
+- On Vercel, do not set `AUTH_URL`. Auth.js rewrites every request's origin to
+  match it, so any deployment on a different hostname fails with
+  `error=Configuration`. `VERCEL=1` already makes `trustHost` true, so each
+  deployment self-names. The AWS image is the opposite: it MUST set `AUTH_URL`
+  (the Dockerfile does, from `NEXT_PUBLIC_APP_URL`), because a standalone
+  server's request URL is its bind address, `http://0.0.0.0:3000`.
 
 `DIRECT_URL` must exist on the Production scope: the build container needs it,
 not just the runtime.
