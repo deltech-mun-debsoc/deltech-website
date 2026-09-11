@@ -11,8 +11,8 @@
 // REGISTERED, and allotment stays a human decision on the Allotment board.
 
 import { revalidatePath } from "next/cache"
-import { read, utils } from "xlsx"
 import { prisma } from "@/lib/prisma"
+import { fetchSheetRows as fetchRows, SheetFetchError } from "@/lib/sheet-fetch"
 import { requireStaff } from "@/lib/authz"
 import { audit } from "@/lib/audit"
 import { deriveCsvUrl } from "@/lib/gsheet-url"
@@ -43,7 +43,7 @@ class ImportError extends Error {}
 const DTU = "Delhi Technological University"
 
 function failure(err: unknown): { ok: false; error: string } {
-  if (err instanceof ImportError) return { ok: false, error: err.message }
+  if (err instanceof ImportError || err instanceof SheetFetchError) return { ok: false, error: err.message }
   if (err instanceof Error && err.name === "TimeoutError") {
     return { ok: false, error: "Google Sheets took too long to respond. Try again in a moment." }
   }
@@ -58,28 +58,6 @@ function failure(err: unknown): { ok: false; error: string } {
 // ---------------------------------------------------------------------------
 // Reading the sheet
 // ---------------------------------------------------------------------------
-
-async function fetchRows(csvUrl: string): Promise<{ rows: Record<string, unknown>[]; headers: string[] }> {
-  const response = await fetch(csvUrl, { signal: AbortSignal.timeout(15000), cache: "no-store" })
-  if (!response.ok) {
-    throw new ImportError('Google refused the sheet. In Google Sheets press Share and set it to "Anyone with the link, Viewer".')
-  }
-  // A sheet that isn't shared does NOT fail: Google answers 200 with its sign-in
-  // page, which the spreadsheet parser would happily read as one row of HTML.
-  // That surfaced as a baffling "missing email" on every row. Catch it here.
-  const type = response.headers.get("content-type") ?? ""
-  if (type.includes("text/html")) {
-    throw new ImportError('That sheet isn\'t shared. In Google Sheets press Share and set it to "Anyone with the link, Viewer".')
-  }
-
-  const workbook = read(await response.text(), { type: "string" })
-  const sheet = workbook.Sheets[workbook.SheetNames[0]]
-  if (!sheet) throw new ImportError("The sheet has no readable tab.")
-
-  const rows = utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "", raw: false })
-  const headers = rows.length > 0 ? Object.keys(rows[0]).map((h) => h.trim()) : []
-  return { rows, headers }
-}
 
 function resolveSheet(url: string): { csvUrl: string; sheetKey: string } {
   const csvUrl = deriveCsvUrl(url)
