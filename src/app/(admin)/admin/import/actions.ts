@@ -5,6 +5,8 @@ import { prisma } from "@/lib/prisma"
 import { requireStaff, requireAdmin } from "@/lib/authz"
 import { audit } from "@/lib/audit"
 import { createDelegateFromRow } from "@/lib/intake"
+import { getContent } from "@/lib/settings"
+import { automaticIntakeAllowed } from "@/lib/event-state"
 import type { ColumnMapping, MappedRow } from "@/lib/schemas/import"
 
 // ---------------------------------------------------------------------------
@@ -141,6 +143,24 @@ export async function commitImport(params: {
   const errors: CommitResult["errors"] = []
 
   const activeRows = rows.filter((_, i) => !skippedSet.has(i))
+
+  // This wizard marks every row CONFIRMED and auto-allots it. During the Intra
+  // MUN that would seat people with no review, so it refuses, and says where
+  // Intra registrations go instead.
+  const gate = automaticIntakeAllowed(await getContent(), "CROSS_DEL")
+  if (!gate.ok) {
+    return {
+      created: 0,
+      allotted: 0,
+      skipped: activeRows.length,
+      quarantined: 0,
+      errors: activeRows.map((r, i) => ({
+        row: i,
+        email: r.email ?? "",
+        reason: `${gate.reason} Intra MUN registrations are imported from Google Form responses instead.`,
+      })),
+    }
+  }
 
   for (let i = 0; i < activeRows.length; i++) {
     const row = activeRows[i]

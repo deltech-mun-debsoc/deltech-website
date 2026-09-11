@@ -8,8 +8,17 @@ import { deriveEventState } from "@/lib/event-state"
 export default async function RegisterPage() {
   const content = await getContent()
 
-  if (!deriveEventState(content).acceptsRegistrations) {
+  const state = deriveEventState(content)
+  if (!state.acceptsRegistrations) {
     redirect("/register/closed")
+  }
+
+  // The Intra MUN registers through its Google Form. Sending people there from
+  // HERE means every Register button on the site follows the setting without
+  // each one knowing, and there is only one way in: two intake paths would
+  // disagree on fields (this form has no roll number) and on duplicates.
+  if (state.isIntra && content.registrationFormUrl) {
+    redirect(content.registrationFormUrl)
   }
 
   const committees = await prisma.committee.findMany({

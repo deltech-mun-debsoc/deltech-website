@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
+import { t } from "@/content/strings"
 import type { SerializedDelegate } from "../_lib/types"
 import { updateDelegate, type DelegateEditData } from "../actions"
 
@@ -21,6 +22,7 @@ const editSchema = z.object({
   altPhone: z.string().optional(),
   institution: z.string().min(2, "Institution is required"),
   isDtu: z.boolean(),
+  rollNumber: z.string().optional(),
   munExperience: z.string().optional(),
   pref1Portfolio: z.string().optional(),
   pref2Portfolio: z.string().optional(),
@@ -49,6 +51,7 @@ export function DelegateEditForm({ delegate, onSuccess, onCancel }: Props) {
       altPhone: delegate.altPhone ?? "",
       institution: delegate.institution,
       isDtu: delegate.isDtu,
+      rollNumber: delegate.rollNumber ?? "",
       munExperience: delegate.munExperience ?? "",
       pref1Portfolio: delegate.pref1Portfolio ?? "",
       pref2Portfolio: delegate.pref2Portfolio ?? "",
@@ -142,6 +145,19 @@ export function DelegateEditForm({ delegate, onSuccess, onCancel }: Props) {
                 </FormControl>
                 <Label className="cursor-pointer text-sm">DTU student</Label>
               </div>
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="rollNumber"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>DTU roll number <span className="text-xs text-muted-foreground">(optional)</span></FormLabel>
+              <FormControl>
+                <Input {...field} value={field.value ?? ""} placeholder={t("admin.formSync.rollPlaceholder")} disabled={saving} />
+              </FormControl>
             </FormItem>
           )}
         />

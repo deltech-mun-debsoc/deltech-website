@@ -27,6 +27,12 @@ export const ContentSchema = z.object({
       recruitment: false,
     }),
   registrationOpen: z.boolean().default(false),
+  // An external registration form (the Intra MUN's Google Form). When set in
+  // Intra mode, /register sends people there, so every Register button on the
+  // site follows it without each one knowing. Deliberately a plain string here:
+  // getContent() parses this schema on every page, so a strict .url() would take
+  // the whole site down over one bad saved value. saveEventControl validates it.
+  registrationFormUrl: z.string().default(""),
   registrationClosedMessage: z
     .string()
     .default("Registrations are currently closed. Check back soon."),
