@@ -55,9 +55,80 @@ export async function publish(channel: string, event: string, payload: unknown):
   }
 }
 
+// ONE EventSource per channel per tab, reference counted.
+//
+// Without this, every component that subscribes opens its own connection, and
+// the recruitment screens mount the hook once per candidate row: ~100 rows
+// became ~100 EventSources, which pegged the tab's main thread hard enough that
+// clicking anything did nothing (server actions could never dispatch).
+//
+// Supabase hid this by multiplexing every channel onto a single WebSocket. The
+// bus has to do the multiplexing itself.
+export type Listener = { handlers: RealtimeHandlers<unknown> }
+
+interface Shared {
+  source: EventSource
+  listeners: Set<Listener>
+  events: Set<string>
+}
+
+const shared = new Map<string, Shared>()
+
+function attach(conn: Shared, event: string): void {
+  if (conn.events.has(event)) return
+  conn.events.add(event)
+  conn.source.addEventListener(event, (e) => {
+    let payload: unknown
+    try {
+      payload = JSON.parse((e as MessageEvent).data)
+    } catch {
+      return // Malformed frame: skip it rather than kill the stream.
+    }
+    for (const l of conn.listeners) {
+      if ((l.handlers.event ?? "message") === event) l.handlers.onEvent?.(payload)
+    }
+  })
+}
+
+/** Exported so scripts/check-realtime-client.ts can pin the sharing rules. */
+export function subscribeShared(key: string, url: string, listener: Listener): () => void {
+  let conn = shared.get(key)
+  if (!conn) {
+    const source = new EventSource(url)
+    conn = { source, listeners: new Set(), events: new Set() }
+    shared.set(key, conn)
+    source.addEventListener("ready", () => {
+      for (const l of conn!.listeners) l.handlers.onOpen?.()
+    })
+    source.addEventListener("presence", (e) => {
+      let members: PresenceMeta[]
+      try {
+        members = JSON.parse((e as MessageEvent).data)
+      } catch {
+        return
+      }
+      for (const l of conn!.listeners) l.handlers.onPresence?.(members)
+    })
+  }
+  conn.listeners.add(listener)
+  attach(conn, listener.handlers.event ?? "message")
+
+  return () => {
+    const current = shared.get(key)
+    if (!current) return
+    current.listeners.delete(listener)
+    // The last component to leave closes the connection.
+    if (current.listeners.size === 0) {
+      current.source.close()
+      shared.delete(key)
+    }
+  }
+}
+
 /**
  * Subscribe while `channel` is non-null. Handlers are held in a ref, so a parent
- * re-render does not tear the connection down and re-join the room.
+ * re-render does not tear the connection down and re-join the room. Components
+ * sharing a channel share one connection.
  */
 export function useRealtime<T>(
   channel: string | null,
@@ -67,6 +138,7 @@ export function useRealtime<T>(
   const handlersRef = useRef(handlers)
   handlersRef.current = handlers
   const identityKey = identity ? `${identity.userId}|${identity.nickname}|${identity.avatar}` : ""
+  const eventName = handlers.event ?? "message"
 
   useEffect(() => {
     if (!channel) return
@@ -77,23 +149,13 @@ export function useRealtime<T>(
         })()
       : null
 
-    const source = new EventSource(realtimeUrl(channel, parsed))
-    source.addEventListener("ready", () => handlersRef.current.onOpen?.())
-    source.addEventListener("presence", (e) => {
-      try {
-        handlersRef.current.onPresence?.(JSON.parse((e as MessageEvent).data))
-      } catch {
-        // Malformed frame: skip it rather than kill the stream.
-      }
-    })
-    source.addEventListener(handlersRef.current.event ?? "message", (e) => {
-      try {
-        handlersRef.current.onEvent?.(JSON.parse((e as MessageEvent).data))
-      } catch {
-        // Same.
-      }
-    })
-
-    return () => source.close()
-  }, [channel, identityKey])
+    // Identity is part of the key: two people in one tab would be two rooms.
+    const key = `${channel}|${identityKey}`
+    const listener: Listener = {
+      get handlers() {
+        return handlersRef.current as RealtimeHandlers<unknown>
+      },
+    }
+    return subscribeShared(key, realtimeUrl(channel, parsed), listener)
+  }, [channel, identityKey, eventName])
 }
