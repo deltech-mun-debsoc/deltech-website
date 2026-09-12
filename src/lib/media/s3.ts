@@ -95,6 +95,24 @@ export async function presignUpload(args: {
   )
 }
 
+// Upload straight from the server. Team photos arrive at our own route already
+// cropped and size-checked, so there is nothing for a presigned browser PUT to
+// buy: one hop instead of two, and the bytes never touch the database.
+export async function putObject(key: string, body: Uint8Array, contentType: string): Promise<void> {
+  const config = requireS3Config()
+  await client(config).send(
+    new PutObjectCommand({
+      Bucket: config.bucket,
+      Key: key,
+      Body: body,
+      ContentType: contentType,
+      // The URL carries no version, so the browser must revalidate; S3 answers
+      // 304 when nothing changed.
+      CacheControl: "public, max-age=300",
+    }),
+  )
+}
+
 // A short-lived read URL for SIGNED objects (candidate documents).
 export async function presignDownload(key: string, ttlSeconds = PRESIGN_TTL_SECONDS): Promise<string> {
   const config = requireS3Config()
