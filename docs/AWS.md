@@ -227,6 +227,34 @@ upload, email to the sink, form sync, a quiz load test with `scripts/load-quiz.t
    week as a fallback (flip DNS back). Then delete `vercel.json`, `build:vercel`,
    the `VERCEL_ENV` fallbacks and the Resend records.
 
+## Growing a box (the 2 GB upgrade, when AWS grants it)
+
+`deploy/grow-box.sh <instance> <bundle> <static-ip>` does the whole thing in
+about five minutes of downtime:
+
+```bash
+AWS_PROFILE=mun ./deploy/grow-box.sh mun-prod small_3_2 mun-prod-ip
+```
+
+It stops the box, snapshots it, launches the bigger one from that snapshot, and
+moves the static IP across. The snapshot carries the Docker volumes, so **the
+database comes with it** and nothing is dumped, restored or re-pointed, and DNS
+does not change because the IP follows.
+
+Two manual steps afterwards, which the script prints:
+- raise `mem_limit` and `NODE_OPTIONS` in `deploy/compose.yml` and commit, so the
+  next deploy keeps the bigger limits;
+- refresh that environment's `DEPLOY_KNOWN_HOSTS` secret, because the host key
+  belongs to the machine and deploys refuse to connect until it matches.
+
+`mun-prod` also takes a daily automatic snapshot at 18:00 UTC, which is both a
+disaster-recovery copy and a ready-made starting point for the upgrade. It bills
+by used disk (~5.7 GB today), so roughly $0.30/month.
+
+Consolidating both environments back onto one 2 GB box later is possible (each
+uses ~210 MB), but two boxes cost $14/mo against $12 and keep staging from ever
+starving production.
+
 ## Rebuilding the box
 
 Create a new instance (section 2), move the static IP to it, copy the env files
