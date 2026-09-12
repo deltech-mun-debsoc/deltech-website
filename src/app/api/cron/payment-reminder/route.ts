@@ -4,9 +4,10 @@ import { sendPaymentReminder } from "@/lib/resend"
 import { getContent } from "@/lib/settings"
 import { deriveEventState } from "@/lib/event-state"
 
-// Called daily by Vercel Cron at 03:00 UTC (vercel.json).
-// Finds allotted delegates with unpaid payments, skips those reminded
-// in the last 24 h, and caps sends at 80/run (Resend free-tier headroom).
+// Called daily at 03:00 UTC (vercel.json on Vercel, .github/workflows/cron.yml
+// on AWS). Finds allotted delegates with unpaid payments, skips those reminded
+// in the last 24 h, and caps sends at 80/run (Resend free-tier headroom; SES
+// allows far more, but a runaway reminder loop should stay small either way).
 
 const DAILY_CAP = 80
 

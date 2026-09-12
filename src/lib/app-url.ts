@@ -85,20 +85,24 @@ function canonicalizeProductionDomain(value: string): string {
 // Staging passes undefined instead, so it falls through to the deployment's own
 // URL: a link to the wrong staging host is recoverable, a link that quietly
 // points testers at production is not.
-const onVercel = process.env.VERCEL === "1"
-const isVercelProduction = onVercel && process.env.VERCEL_ENV === "production"
+//
+// "Hosted" is Vercel or our AWS host (which sets APP_ENV). Off both, this is a
+// dev box, where localhost links are the point.
+const deployEnv = process.env.APP_ENV ?? process.env.VERCEL_ENV
+const hosted = process.env.VERCEL === "1" || !!process.env.APP_ENV
+const isProduction = hosted && deployEnv === "production"
 
 export const APP_URL: string = resolveAppUrl(
   process.env.NEXT_PUBLIC_APP_URL,
   process.env.NEXT_PUBLIC_VERCEL_URL,
-  isVercelProduction
+  isProduction
     ? "www.deltechmun.in"
-    : onVercel
+    : hosted
       ? undefined
       : process.env.VERCEL_PROJECT_PRODUCTION_URL,
-  // Any Vercel deployment, not just production: a preview must not hand out
+  // Any hosted deployment, not just production: staging must not hand out
   // localhost links either.
-  onVercel,
+  hosted,
 )
 
 /** Join a path onto the deployment origin. Returns the bare path when unset. */

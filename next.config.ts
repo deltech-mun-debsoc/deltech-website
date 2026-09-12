@@ -36,7 +36,8 @@ const CSP_REPORT_ONLY = [
   "style-src 'self' 'unsafe-inline'",
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
-  "connect-src 'self' https://*.supabase.co wss://*.supabase.co",
+  // amazonaws.com: browser uploads PUT straight to S3 on a presigned URL.
+  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.amazonaws.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",
@@ -44,6 +45,9 @@ const CSP_REPORT_ONLY = [
 ].join("; ");
 
 const nextConfig: NextConfig = {
+  // A self-contained server for the Docker image (see Dockerfile). Vercel
+  // ignores this and builds as it always has.
+  output: "standalone",
   serverExternalPackages: ["@prisma/client", "@prisma/adapter-pg", "xlsx"],
   async headers() {
     return [

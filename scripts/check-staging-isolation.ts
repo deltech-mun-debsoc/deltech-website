@@ -160,6 +160,13 @@ const read = (p: string) => readFileSync(join(root, p), "utf8")
       "so a client component reading it silently gets false -- on staging, the one place it must work",
   )
   assert.match(ribbon, /IS_PREVIEW/, "the ribbon must gate on IS_PREVIEW, not render unconditionally")
+
+  // On the AWS host there is no VERCEL_ENV; APP_ENV must drive the ribbon there.
+  assert.match(
+    read("src/lib/preview-env.ts"),
+    /process\.env\.APP_ENV\s*\?\?\s*process\.env\.VERCEL_ENV/,
+    "preview-env must read APP_ENV first, or staging on AWS looks exactly like production",
+  )
 }
 
 console.log("staging isolation checks passed (seed guards, no personal addresses, sheet overrides, deploy refs, preview ribbon)")

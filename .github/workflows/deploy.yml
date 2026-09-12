@@ -1,0 +1,71 @@
+name: Deploy (AWS)
+
+# main -> www.deltechmun.in, staging -> test.deltechmun.in, on the Lightsail box.
+# The image is built here (the box has 2 GB and should never build), shipped over
+# SSH, and switched in by deploy/deploy.sh, which rolls back if it is unhealthy.
+#
+# Inert until the repo variable AWS_DEPLOY is "true", so this can merge before
+# the box exists. Rollback: run this workflow by hand with an older commit SHA,
+# or on the box: /srv/mun/deploy.sh prod <sha>
+
+on:
+  push:
+    branches: [main, staging]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "Commit to deploy (blank = branch head)"
+        required: false
+
+concurrency:
+  group: deploy-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: vars.AWS_DEPLOY == 'true' && (github.ref_name == 'main' || github.ref_name == 'staging')
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
+    env:
+      SVC: ${{ github.ref_name == 'main' && 'prod' || 'staging' }}
+      APP_ENV: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.sha || github.sha }}
+
+      - name: Build image
+        run: |
+          echo "SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          docker build \
+            --build-arg APP_ENV="$APP_ENV" \
+            --build-arg NEXT_PUBLIC_APP_URL="${{ vars.NEXT_PUBLIC_APP_URL }}" \
+            --build-arg NEXT_PUBLIC_SUPABASE_URL="${{ vars.NEXT_PUBLIC_SUPABASE_URL }}" \
+            --build-arg NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="${{ vars.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY }}" \
+            -t "mun:$SVC-$(git rev-parse HEAD)" .
+
+      - name: SSH key
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+
+      # Caddy and compose config are shared by both environments, so only main
+      # may change them: a staging push must never be able to break production.
+      - name: Sync deploy files (main only)
+        if: github.ref_name == 'main'
+        run: |
+          scp deploy/compose.yml deploy/Caddyfile deploy/deploy.sh "deploy@${{ secrets.DEPLOY_HOST }}:/srv/mun/"
+          ssh "deploy@${{ secrets.DEPLOY_HOST }}" 'cd /srv/mun && chmod +x deploy.sh && docker compose up -d caddy && docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile'
+
+      - name: Ship and switch
+        run: |
+          docker save "mun:$SVC-$SHA" | gzip | ssh "deploy@${{ secrets.DEPLOY_HOST }}" 'gunzip | docker load'
+          ssh "deploy@${{ secrets.DEPLOY_HOST }}" "/srv/mun/deploy.sh $SVC $SHA"
+
+      - name: Smoke test through Caddy
+        env:
+          # "user:password" for staging's basic auth; unset for production.
+          BASIC_AUTH: ${{ secrets.SMOKE_BASIC_AUTH }}
+        run: curl -fsS -o /dev/null ${BASIC_AUTH:+-u "$BASIC_AUTH"} "${{ vars.NEXT_PUBLIC_APP_URL }}/signin"
