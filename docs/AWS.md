@@ -227,6 +227,32 @@ upload, email to the sink, form sync, a quiz load test with `scripts/load-quiz.t
    week as a fallback (flip DNS back). Then delete `vercel.json`, `build:vercel`,
    the `VERCEL_ENV` fallbacks and the Resend records.
 
+## What Supabase used to do, and who does it now
+
+Leaving a managed platform means inheriting its chores. This is the honest list,
+including what is now genuinely worse.
+
+| Supabase did | Now | Gap |
+| --- | --- | --- |
+| Managed Postgres with point-in-time restore | `deploy/backup-db.sh`, hourly `pg_dump` to S3, 30-day expiry | **No PITR.** Worst case is losing up to an hour of writes. |
+| Watched disk, uptime, backup success | `deploy/monitor.sh` daily: backup age and size, disk above 80%, containers running; emails through Resend when something is wrong | Daily, not continuous. A failure is noticed within a day, not a minute. |
+| Kept Postgres patched | The `postgres:17` image is pinned; `docker compose pull db && docker compose up -d db` applies updates | **Nobody is reminded.** Put it in the termly checklist. |
+| Connection pooling (PgBouncer) | Direct connections: pool of 5 per app, `max_connections=50` | Fine at one app container. Revisit only if the app is scaled out. |
+| Failover, restarts, HA | One box per environment, `restart: unless-stopped`, daily snapshot on production | **A box loss is downtime**, roughly 15 minutes to rebuild (`grow-box.sh` or a fresh instance plus a restore). |
+| Realtime fan-out across their infrastructure | `src/lib/realtime/`, in-process SSE | **One app container per environment, permanently.** A second would split the fan-out. A restart drops every stream; clients reconnect on their own, and the quiz and recruitment screens both keep a poll as a floor. |
+| Table editor / SQL console | `psql` on the box, or `npx prisma studio` through an SSH tunnel | No UI for non-technical staff. Everything they need should be in the admin console anyway. |
+| TLS to the database, network isolation | Postgres listens on loopback only; nothing is exposed off the box | Better than before: there is no network path to the database at all. |
+| Storage for blog images | S3 (`posts/`, `covers/`, `team/`), public read on those prefixes only | None. Verified: zero `supabase.co` URLs remain in production data. |
+
+Two things are now **better**, not just different: the database is unreachable
+from the internet, and it sits in the same place as the app (a page render went
+from about 1.0s to about 0.2s).
+
+The single real ceiling to keep in mind: **one app container per environment**,
+because both the quiz cache and the realtime bus are in-process. Scaling out
+needs a shared cache handler and an external bus first, and nothing about the
+current load suggests that is close.
+
 ## Growing a box (the 2 GB upgrade, when AWS grants it)
 
 `deploy/grow-box.sh <instance> <bundle> <static-ip>` does the whole thing in
