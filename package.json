@@ -32,7 +32,6 @@
     "@prisma/client": "^7.10.0",
     "@radix-ui/react-label": "^2.1.15",
     "@react-email/components": "^1.0.12",
-    "@supabase/supabase-js": "^2.112.4",
     "@tiptap/extension-character-count": "^3.30.5",
     "@tiptap/extension-image": "^3.30.5",
     "@tiptap/extension-link": "^3.30.5",

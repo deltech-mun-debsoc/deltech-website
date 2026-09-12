@@ -1,16 +1,15 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import { useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { getSupabase } from "@/lib/supabase"
+import { publish, useRealtime } from "@/lib/realtime/client"
 
 // Realtime for the recruitment surfaces.
 //
-// Deliberately BROADCAST, not `postgres_changes`. The availability boards subscribe
-// to row changes, which is fine for public portfolio counts, but any client holding
-// the publishable key can subscribe to the same stream, and candidate rows are not
-// public. So the payload here is a topic string only; the actual data is re-fetched
-// through `router.refresh()`, which goes back through the server guards.
+// The payload is a topic string only; the actual data is re-fetched through
+// `router.refresh()`, which goes back through the server guards. Since the move
+// off Supabase the channel itself is signed-in only (src/lib/realtime/channels.ts),
+// but the rule stands: candidate data never travels on the bus.
 //
 // A polling floor backs it up, so a dropped socket degrades to a slow update rather
 // than a stuck screen.
@@ -29,23 +28,14 @@ export function useRecruitmentLive(
   { pollMs = FALLBACK_POLL_MS }: { pollMs?: number } = {},
 ): { notify: (topic: RecruitmentTopic) => void } {
   const router = useRouter()
-  const channelRef = useRef<ReturnType<NonNullable<ReturnType<typeof getSupabase>>["channel"]> | null>(null)
+
+  useRealtime<{ topic: RecruitmentTopic }>(cycleId ? `recruitment:${cycleId}` : null, {
+    event: "changed",
+    onEvent: () => router.refresh(),
+  })
 
   useEffect(() => {
     if (!cycleId) return
-
-    // Realtime is a progressive enhancement: when it is unconfigured the polling
-    // fallback below still keeps the screen current, so this must not bail out.
-    const supabase = getSupabase()
-    const channel = supabase
-      ? supabase
-          .channel(`recruitment:${cycleId}`)
-          .on("broadcast", { event: "changed" }, () => {
-            router.refresh()
-          })
-          .subscribe()
-      : null
-    channelRef.current = channel
 
     // Fallback only, and deliberately slow. A hidden tab polls nothing: it will
     // refresh on visibilitychange the moment someone looks at it again.
@@ -63,15 +53,14 @@ export function useRecruitmentLive(
     return () => {
       clearInterval(interval)
       document.removeEventListener("visibilitychange", onVisible)
-      if (supabase && channel) void supabase.removeChannel(channel)
-      channelRef.current = null
     }
   }, [cycleId, pollMs, router])
 
   // Called after a successful mutation so other viewers refresh promptly. Carries
   // no candidate data: just a nudge to re-fetch through the guards.
   const notify = (topic: RecruitmentTopic) => {
-    void channelRef.current?.send({ type: "broadcast", event: "changed", payload: { topic } })
+    if (!cycleId) return
+    void publish(`recruitment:${cycleId}`, "changed", { topic })
   }
 
   return { notify }

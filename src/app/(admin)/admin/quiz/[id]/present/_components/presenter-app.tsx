@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { getSupabase } from "@/lib/supabase"
+import { publish, useRealtime } from "@/lib/realtime/client"
 import { LobbyScreen } from "./lobby-screen"
 import { QuestionScreen } from "./question-screen"
 import { LeaderboardScreen } from "./leaderboard-screen"
@@ -65,7 +65,6 @@ export function PresenterApp({ session, presentation, slides }: Props) {
   const [busy, setBusy] = useState(false)
   const [hostError, setHostError] = useState("")
 
-  const channelRef = useRef<ReturnType<NonNullable<ReturnType<typeof getSupabase>>["channel"]> | null>(null)
   const tallyIntervalRef = useRef<ReturnType<typeof setInterval> | undefined>(undefined)
   const prevRanksRef = useRef<Map<string, number>>(new Map())
   const actionRef = useRef(false)
@@ -74,8 +73,11 @@ export function PresenterApp({ session, presentation, slides }: Props) {
 
   const currentSlide = slides[slideIndex]
 
+  // Fire and forget: the room is driven by these, but a failed nudge must not
+  // stop the host's own screen from advancing. Refused unless the session is
+  // staff, so a participant cannot push a fake leaderboard to the projector.
   function broadcast(payload: QuizBroadcast) {
-    channelRef.current?.send({ type: "broadcast", event: "quiz", payload })
+    void publish(`quiz:${session.roomCode}`, "quiz", payload)
   }
 
   const fetchTally = useCallback(async (slideId: string) => {
@@ -94,32 +96,13 @@ export function PresenterApp({ session, presentation, slides }: Props) {
     tallyIntervalRef.current = undefined
   }, [])
 
-  useEffect(() => {
-    const supabase = getSupabase()
-    if (!supabase) return
+  // The host listens only for presence: who is in the room. It publishes the
+  // room's events but never consumes its own.
+  useRealtime<never>(`quiz:${session.roomCode}`, {
+    onPresence: (members) => setParticipants(members as unknown as PresenceEntry[]),
+  })
 
-    const channel = supabase.channel(`quiz:${session.roomCode}`, {
-      config: { presence: { key: "host" } },
-    })
-    channel
-      .on("presence", { event: "sync" }, () => {
-        const state = channel.presenceState()
-        const all: PresenceEntry[] = []
-        for (const key of Object.keys(state)) {
-          for (const p of state[key] as unknown as PresenceEntry[]) {
-            if ((p as { role?: string }).role !== "host") all.push(p)
-          }
-        }
-        setParticipants(all)
-      })
-      .subscribe()
-
-    channelRef.current = channel
-    return () => {
-      supabase.removeChannel(channel)
-      stopTallyPoll()
-    }
-  }, [session.roomCode, stopTallyPoll])
+  useEffect(() => stopTallyPoll, [stopTallyPoll])
 
   // Realtime has no history. Recover the exact live question, lock/reveal state
   // and remaining server time after a presenter refresh instead of falling back

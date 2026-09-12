@@ -21,8 +21,7 @@ const SECURITY_HEADERS = [
 // A blocking CSP shipped blind is exactly the change that breaks production
 // silently, and this app has several things a strict policy would cut: Tiptap
 // and recharts inject styles at runtime, Next itself needs an inline bootstrap
-// script, Supabase is contacted over HTTPS and WebSocket for quiz realtime,
-// and blog images come from the Supabase storage origin.
+// script, and blog images come from the Supabase storage origin.
 //
 // So: observe first. Watch the browser console on /admin, /blog/[slug] and
 // /quiz/[code], tighten whatever reports, and only then rename the header to
@@ -37,7 +36,8 @@ const CSP_REPORT_ONLY = [
   "img-src 'self' data: blob: https:",
   "font-src 'self' data:",
   // amazonaws.com: browser uploads PUT straight to S3 on a presigned URL.
-  "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.amazonaws.com",
+  // Realtime is same-origin now (SSE via /api/realtime), so 'self' covers it.
+  "connect-src 'self' https://*.amazonaws.com",
   "frame-ancestors 'none'",
   "base-uri 'self'",
   "form-action 'self'",

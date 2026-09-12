@@ -57,8 +57,6 @@ Find these values in your Supabase project dashboard:
 |---|---|---|
 | `DATABASE_URL` | Settings → Database → Connection string → **Transaction** (Session mode) — append `?pgbouncer=true` | App runtime (pooled via pgBouncer) |
 | `DIRECT_URL` | Settings → Database → Connection string → **Direct** | Prisma migrations (bypasses pgBouncer) |
-| `NEXT_PUBLIC_SUPABASE_URL` | Settings → API → Project URL | Realtime client |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Settings → API → Project API keys → **Publishable** | Realtime client |
 
 > `DATABASE_URL` must include `?pgbouncer=true` (and optionally `&connection_limit=1` in edge environments).
 
