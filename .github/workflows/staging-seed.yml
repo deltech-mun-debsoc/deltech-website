@@ -29,10 +29,10 @@ jobs:
     # only ever tunnel to the staging box.
     environment: staging
     env:
-      # Through the SSH tunnel opened below: the database is private to the
-      # Lightsail network and is not reachable from a runner directly.
-      DATABASE_URL: postgresql://mun_staging:${{ secrets.STAGING_DB_PASSWORD }}@127.0.0.1:55432/mun_staging?sslmode=no-verify
-      DIRECT_URL: postgresql://mun_staging:${{ secrets.STAGING_DB_PASSWORD }}@127.0.0.1:55432/mun_staging?sslmode=no-verify
+      # Through the SSH tunnel opened below: Postgres listens on the box's
+      # loopback only and is not reachable from a runner directly.
+      DATABASE_URL: postgresql://mun_staging:${{ secrets.STAGING_DB_PASSWORD }}@127.0.0.1:55432/mun_staging
+      DIRECT_URL: postgresql://mun_staging:${{ secrets.STAGING_DB_PASSWORD }}@127.0.0.1:55432/mun_staging
       STAGING_DB_REF: ${{ secrets.STAGING_DB_REF }}
       STAGING_TEST_PASSWORD: ${{ secrets.STAGING_TEST_PASSWORD }}
     steps:
@@ -56,7 +56,7 @@ jobs:
           printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           printf '%s\n' "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
-          ssh -f -N -L 55432:${{ secrets.DB_HOST }}:5432 deploy@${{ secrets.DEPLOY_HOST }}
+          ssh -f -N -L 55432:127.0.0.1:5432 deploy@${{ secrets.DEPLOY_HOST }}
           for i in $(seq 1 10); do (echo > /dev/tcp/127.0.0.1/55432) 2>/dev/null && break; sleep 1; done
 
       - name: Verify the target really is the staging database

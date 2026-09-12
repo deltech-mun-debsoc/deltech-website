@@ -8,8 +8,8 @@ name: Staging migrate
 # removed deliberately in d476bd2 (see docs/CI.md), and nothing here reverses
 # that. This workflow can only ever reach the database named mun_staging.
 #
-# The database is private to the Lightsail network, so the runner reaches it
-# through an SSH tunnel to the app box rather than over the internet.
+# Postgres listens on the box's loopback only, so the runner reaches it through
+# an SSH tunnel to that box rather than over the internet.
 on:
   push:
     branches: [staging]
@@ -36,8 +36,8 @@ jobs:
     env:
       # The Prisma CLI reads DIRECT_URL (see prisma.config.ts). It points at the
       # local end of the tunnel opened below.
-      DIRECT_URL: postgresql://mun_staging:${{ secrets.STAGING_DB_PASSWORD }}@127.0.0.1:55432/mun_staging?sslmode=no-verify
-      DATABASE_URL: postgresql://mun_staging:${{ secrets.STAGING_DB_PASSWORD }}@127.0.0.1:55432/mun_staging?sslmode=no-verify
+      DIRECT_URL: postgresql://mun_staging:${{ secrets.STAGING_DB_PASSWORD }}@127.0.0.1:55432/mun_staging
+      DATABASE_URL: postgresql://mun_staging:${{ secrets.STAGING_DB_PASSWORD }}@127.0.0.1:55432/mun_staging
     steps:
       - uses: actions/checkout@v7
 
@@ -47,7 +47,7 @@ jobs:
           printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           printf '%s\n' "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
-          ssh -f -N -L 55432:${{ secrets.DB_HOST }}:5432 deploy@${{ secrets.DEPLOY_HOST }}
+          ssh -f -N -L 55432:127.0.0.1:5432 deploy@${{ secrets.DEPLOY_HOST }}
           for i in $(seq 1 10); do (echo > /dev/tcp/127.0.0.1/55432) 2>/dev/null && break; sleep 1; done
 
       - uses: actions/setup-node@v7

@@ -44,12 +44,12 @@ it is not healthy within 90 s. Each push also syncs its own box's `deploy/` file
 deploy.sh). The workflow is inert until the repo variable `AWS_DEPLOY=true`.
 
 Migrations still apply automatically to staging (`staging-migrate.yml`) and by
-hand to production, but both now reach the database through an **SSH tunnel to
-the box**, because it is private to the Lightsail network:
+hand to production, but both reach Postgres through an **SSH tunnel to that
+box**, because it listens on loopback only:
 
 ```bash
 ssh -f -N -L 55432:$DB_HOST:5432 deploy@<box>
-DIRECT_URL='postgresql://mun_prod:<pw>@127.0.0.1:55432/mun_prod?sslmode=no-verify' npm run db:deploy
+DIRECT_URL='postgresql://mun_prod:<pw>@127.0.0.1:55432/mun_prod' npm run db:deploy
 ```
 
 See [CI.md](CI.md).
