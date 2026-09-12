@@ -1,15 +1,14 @@
 # Hosting on AWS
 
-Production and staging run as two containers on one Lightsail instance, behind
-Caddy. The database and realtime stay on Supabase for now; media is S3; email is
-SES.
+Production and staging each run on their own Lightsail box behind Caddy, sharing
+one managed Postgres instance. Media is S3, email is SES, and realtime is our own
+in-process SSE bus. There is no Supabase.
 
 ```text
-Registrar DNS ──► Lightsail static IP (Sydney, 2 GB, $12/mo)
-                    Caddy :443  (automatic HTTPS)
-                     ├─ deltechmun.in      → 301 www
-                     ├─ www.deltechmun.in  → prod     (APP_ENV=production)
-                     └─ test.deltechmun.in → staging  (APP_ENV=staging, noindex)
+Registrar DNS ──┬─► mun-prod    box (Sydney, 1 GB, $7/mo)  Caddy → app
+                │      deltechmun.in → 301 www.deltechmun.in
+                └─► mun-staging box (Sydney, 1 GB, $7/mo)  Caddy → app
+                       test.deltechmun.in (noindex)
                   Lightsail managed Postgres (private, same region)
                   S3  deltechmun-media-prod / -staging (ap-south-1)
                   SES deltechmun.in (ap-south-1)
@@ -17,8 +16,13 @@ Registrar DNS ──► Lightsail static IP (Sydney, 2 GB, $12/mo)
 
 Why this shape: Next 16.3 has no proven serverless adapter on AWS yet, while a
 plain Node server is fully supported. One process per environment also keeps the
-quiz cache (`unstable_cache` + `updateTag`, `src/lib/quiz-cache.ts`) correct; a
-second prod instance would need a shared cache handler first.
+quiz cache (`unstable_cache` + `updateTag`, `src/lib/quiz-cache.ts`) and the
+realtime bus (`src/lib/realtime/bus.ts`) correct; a second instance of either
+environment would need a shared cache and an external bus first.
+
+A box each rather than two containers on one box: a new AWS account is capped at
+the 1 GB plan, and 1 GB cannot hold both. It is also better isolation, for $2 more
+than the single 2 GB box would have cost.
 
 The box holds no data. Losing it means rebuilding it from this document, not
 restoring anything.
@@ -27,15 +31,16 @@ restoring anything.
 
 | Push to | Builds | Lands on |
 | --- | --- | --- |
-| `staging` | `mun:staging-<sha>` with the `staging` GitHub Environment | test.deltechmun.in |
-| `main` | `mun:prod-<sha>` with the `production` GitHub Environment | www.deltechmun.in |
+| `staging` | `mun:staging-<sha>` with the `staging` GitHub Environment | `mun-staging` box → test.deltechmun.in |
+| `main` | `mun:prod-<sha>` with the `production` GitHub Environment | `mun-prod` box → www.deltechmun.in |
+
+`DEPLOY_HOST` and `DEPLOY_KNOWN_HOSTS` are **Environment** secrets, so a branch
+can only ever reach its own box.
 
 `.github/workflows/deploy.yml` builds on the runner, streams the image over SSH,
 and runs `deploy/deploy.sh`, which switches the container and switches back if
-it is not healthy within 90 s. Pushes to `main` also sync `deploy/` (Caddyfile,
-compose, deploy.sh); pushes to `staging` never do, so staging cannot break
-production routing. The workflow is inert until the repo variable
-`AWS_DEPLOY=true`.
+it is not healthy within 90 s. Each push also syncs its own box's `deploy/` files (`Caddyfile.<env>`, compose,
+deploy.sh). The workflow is inert until the repo variable `AWS_DEPLOY=true`.
 
 Migrations are unchanged: staging's apply automatically (`staging-migrate.yml`),
 production's by hand, first. See [CI.md](CI.md).
@@ -60,7 +65,7 @@ both are required off Vercel.
 
 Runtime secrets live only on the box, mode 600, one per line `KEY=value`:
 
-- `/srv/mun/prod.env` and `/srv/mun/staging.env`: `DATABASE_URL`, `DIRECT_URL`,
+- `/srv/mun/app.env` on each box: `APP_ENV`, `DATABASE_URL`, `DIRECT_URL`,
   `DATABASE_POOL_MAX=5`, `AUTH_SECRET` (different per environment),
   `EMAIL_TRANSPORT`, `AUTH_RESEND_KEY`, `EMAIL_FROM`, `SES_REGION`,
   `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `S3_BUCKET`, `S3_REGION`,

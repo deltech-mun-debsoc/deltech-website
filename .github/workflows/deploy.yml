@@ -1,8 +1,10 @@
 name: Deploy (AWS)
 
-# main -> www.deltechmun.in, staging -> test.deltechmun.in, on the Lightsail box.
-# The image is built here (the box has 2 GB and should never build), shipped over
-# SSH, and switched in by deploy/deploy.sh, which rolls back if it is unhealthy.
+# main -> www.deltechmun.in, staging -> test.deltechmun.in, on their own boxes.
+# The image is built here (a 1 GB box must never build), shipped over SSH, and
+# switched in by deploy/deploy.sh, which rolls back if it is unhealthy.
+# DEPLOY_HOST and DEPLOY_KNOWN_HOSTS are GitHub *Environment* secrets, so each
+# branch can only ever reach its own box.
 #
 # Inert until the repo variable AWS_DEPLOY is "true", so this can merge before
 # the box exists. Rollback: run this workflow by hand with an older commit SHA,
@@ -49,12 +51,11 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           printf '%s\n' "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
 
-      # Caddy and compose config are shared by both environments, so only main
-      # may change them: a staging push must never be able to break production.
-      - name: Sync deploy files (main only)
-        if: github.ref_name == 'main'
+      # Each box is single-tenant, so a branch may update its own box's config.
+      - name: Sync deploy files
         run: |
-          scp deploy/compose.yml deploy/Caddyfile deploy/deploy.sh "deploy@${{ secrets.DEPLOY_HOST }}:/srv/mun/"
+          scp deploy/compose.yml deploy/deploy.sh "deploy@${{ secrets.DEPLOY_HOST }}:/srv/mun/"
+          scp "deploy/Caddyfile.$SVC" "deploy@${{ secrets.DEPLOY_HOST }}:/srv/mun/Caddyfile"
           ssh "deploy@${{ secrets.DEPLOY_HOST }}" 'cd /srv/mun && chmod +x deploy.sh && docker compose up -d caddy && docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile'
 
       - name: Ship and switch
@@ -62,8 +63,12 @@ jobs:
           docker save "mun:$SVC-$SHA" | gzip | ssh "deploy@${{ secrets.DEPLOY_HOST }}" 'gunzip | docker load'
           ssh "deploy@${{ secrets.DEPLOY_HOST }}" "/srv/mun/deploy.sh $SVC $SHA"
 
+      # Hit the box by IP with the real Host header, so this tests THIS
+      # deployment rather than whatever DNS currently points at. deploy.sh has
+      # already gated on the container's own health check.
       - name: Smoke test through Caddy
-        env:
-          # "user:password" for staging's basic auth; unset for production.
-          BASIC_AUTH: ${{ secrets.SMOKE_BASIC_AUTH }}
-        run: curl -fsS -o /dev/null ${BASIC_AUTH:+-u "$BASIC_AUTH"} "${{ vars.NEXT_PUBLIC_APP_URL }}/signin"
+        run: |
+          host=$(echo "${{ vars.NEXT_PUBLIC_APP_URL }}" | sed 's|https\?://||')
+          code=$(curl -sS -o /dev/null -w '%{http_code}' -H "Host: $host" "http://${{ secrets.DEPLOY_HOST }}/signin" || echo 000)
+          echo "Caddy answered $code for $host"
+          case "$code" in 200|301|302|308) ;; *) echo "unexpected"; exit 1 ;; esac

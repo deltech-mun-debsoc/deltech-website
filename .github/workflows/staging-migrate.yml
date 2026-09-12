@@ -27,6 +27,9 @@ jobs:
   migrate:
     name: Apply migrations to staging
     runs-on: ubuntu-latest
+    # DEPLOY_HOST / DEPLOY_KNOWN_HOSTS live on the environment, so this job can
+    # only ever tunnel to the staging box.
+    environment: staging
     env:
       # The Prisma CLI reads DIRECT_URL (see prisma.config.ts). This MUST be the
       # Supabase *session* pooler on port 5432: db.<ref>.supabase.co is IPv6-only
