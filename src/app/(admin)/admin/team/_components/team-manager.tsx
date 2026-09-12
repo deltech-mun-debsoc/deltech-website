@@ -518,11 +518,16 @@ export function TeamManager({ members, isAdmin }: { members: MemberRow[]; isAdmi
                 crop={cropPosition}
                 zoom={zoom}
                 aspect={4 / 5}
-                objectFit="contain"
+                // cover, not contain: with "contain" the photo is letterboxed
+                // inside the frame, so the crop can never reach the edges and the
+                // saved image carries blank bands. Cover fills the frame the way
+                // the profile card will, which is what people expect when they
+                // drag a photo around.
+                objectFit="cover"
                 showGrid
                 zoomSpeed={0.12}
                 minZoom={1}
-                maxZoom={2.5}
+                maxZoom={3}
                 onCropChange={setCropPosition}
                 onZoomChange={setZoom}
                 onCropComplete={(_, pixels) => setCropPixels(pixels)}
