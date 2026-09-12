@@ -8,7 +8,11 @@ services:
     image: caddy:2
     restart: unless-stopped
     ports: ["80:80", "443:443", "443:443/udp"]
-    env_file: caddy.env
+    # raw: Compose interpolates $ in env_file values by default, which silently
+    # empties a bcrypt hash like $2a$14$...
+    env_file:
+      - path: caddy.env
+        format: raw
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data

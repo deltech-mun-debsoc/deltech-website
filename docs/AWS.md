@@ -100,6 +100,12 @@ run by hand from the Actions tab.
 
 ### 2. Box
 
+Three things that cost time the first time:
+
+- A **new account is capped at the 1 GB Lightsail plan**; the 2 GB one is refused with "your account can not create an instance using this Lightsail plan size". It is not in Service Quotas (the `Instances` row there is a count). Open a support case: Service **Lightsail**, region Sydney, asking for the larger plan sizes.
+- `lightsail import-key-pair --public-key-base64` actually wants the **raw** `ssh-ed25519 AAAA...` text, not base64. Real base64 is rejected as "not valid".
+- Compose **interpolates `$` in env_file values**, which silently empties a bcrypt hash. `caddy.env` is therefore loaded with `format: raw` (see deploy/compose.yml). Generate the hash on the box: `docker run --rm caddy:2 caddy hash-password --plaintext '<pw>'`.
+
 1. Generate the deploy key locally: `ssh-keygen -t ed25519 -f mun-deploy -N ""`.
 2. Lightsail → Create instance → **Sydney**, Linux, Ubuntu 24.04, the
    $12 plan (2 GB). Paste `deploy/bootstrap.sh` into "launch script" with
