@@ -2,6 +2,7 @@ import Link from "next/link"
 import { redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { createDraft } from "./actions"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { PenLine, Clock } from "lucide-react"
@@ -55,12 +56,12 @@ export default async function WritePage() {
               could neither sign out nor reach /account to set a password. */}
           <AccountLink compact />
           <SignOutButton compact />
-          <Link href="/write/new">
-            <Button className="gap-2">
+          <form action={createDraft}>
+            <Button type="submit" className="gap-2">
               <PenLine className="size-4" />
               New story
             </Button>
-          </Link>
+          </form>
         </div>
       </div>
 
@@ -68,9 +69,9 @@ export default async function WritePage() {
         <div className="py-20 text-center">
           <PenLine className="mx-auto mb-4 size-10 text-gray-300" />
           <p className="text-gray-400">No stories yet. Start writing!</p>
-          <Link href="/write/new">
-            <Button className="mt-6">Write your first story</Button>
-          </Link>
+          <form action={createDraft}>
+            <Button type="submit" className="mt-6">Write your first story</Button>
+          </form>
         </div>
       ) : (
         <ul className="space-y-4">

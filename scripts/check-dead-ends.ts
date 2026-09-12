@@ -370,4 +370,24 @@ for (const file of sourceFiles("src")) {
   )
 }
 
+
+// --- a GET route must never create anything --------------------------------
+//
+// GET /admin/quiz/new created a presentation and redirected to it, reached by an
+// ordinary <Link>. Next prefetches links, so having the button on screen was
+// enough to create a row: production accumulated 46 empty presentations, and
+// /write/new had the same shape. Creation belongs in a form posting to an
+// action, which cannot be prefetched.
+for (const file of sourceFiles("src")) {
+  if (!file.endsWith("route.ts")) continue
+  const src = read(file)
+  const get = /export async function GET\b[\s\S]*?(?=\nexport (?:async )?function |$)/.exec(src)
+  if (!get) continue
+  assert.doesNotMatch(
+    get[0],
+    /prisma\.\w+\.(create|createMany)\(/,
+    `${file}: a GET handler must not create rows; a link prefetch would fire it`,
+  )
+}
+
 console.log("✅ check-dead-ends passed")
