@@ -4,6 +4,7 @@ import { ArrowUpRight, Clock3, Plus, Presentation, RadioTower, Sparkles } from "
 import { prisma } from "@/lib/prisma"
 import { t } from "@/content/strings"
 import { PageHeader } from "@/app/(admin)/_components/page-header"
+import { DeletePresentation } from "./_components/delete-presentation"
 
 export default async function AdminQuizPage() {
   const presentations = await prisma.presentation.findMany({
@@ -51,10 +52,14 @@ export default async function AdminQuizPage() {
         ) : (
           <div className="grid gap-px overflow-hidden border border-border bg-border md:grid-cols-2 xl:grid-cols-3">
             {presentations.map((presentation, index) => (
-              <Link key={presentation.id} href={"/admin/quiz/" + presentation.id} className="group min-h-72 bg-background p-6 transition-colors hover:bg-muted/70">
+              <div key={presentation.id} className="group relative min-h-72 bg-background transition-colors hover:bg-muted/70">
+                <div className="absolute right-5 top-5 z-10">
+                  <DeletePresentation id={presentation.id} title={presentation.title} />
+                </div>
+                <Link href={"/admin/quiz/" + presentation.id} className="block h-full p-6">
                 <div className="flex items-start justify-between">
                   <span className="font-mono text-xs text-muted-foreground">{String(index + 1).padStart(2, "0")} / SHOW</span>
-                  <ArrowUpRight className="size-5 transition-transform group-hover:-translate-y-1 group-hover:translate-x-1" />
+                  <ArrowUpRight className="mr-8 size-5 transition-transform group-hover:-translate-y-1 group-hover:translate-x-1" />
                 </div>
                 <Presentation className="mt-10 size-7 text-primary" />
                 <h3 className="mt-5 font-heading text-3xl leading-tight">{presentation.title}</h3>
@@ -66,7 +71,8 @@ export default async function AdminQuizPage() {
                   <Clock3 className="size-4" />
                   {formatDate(presentation.createdAt)}
                 </p>
-              </Link>
+                </Link>
+              </div>
             ))}
           </div>
         )}
