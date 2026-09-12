@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma"
 import { t } from "@/content/strings"
 import { PageHeader } from "@/app/(admin)/_components/page-header"
 import { DeletePresentation } from "./_components/delete-presentation"
+import { createPresentation } from "./actions"
 
 export default async function AdminQuizPage() {
   const presentations = await prisma.presentation.findMany({
@@ -22,9 +23,11 @@ export default async function AdminQuizPage() {
           <RadioTower className="size-8 text-primary" />
           <p className="mt-12 font-mono text-xs uppercase tracking-[0.2em] text-paper/50">New broadcast</p>
           <h2 className="mt-3 max-w-[12ch] font-heading text-4xl leading-tight sm:text-5xl">Build something the room can feel.</h2>
-          <Link href="/admin/quiz/new" className="mt-8 inline-flex h-13 items-center gap-2 bg-primary px-6 text-base font-bold text-primary-foreground transition-opacity hover:opacity-90">
-            <Plus /> New presentation
-          </Link>
+          <form action={createPresentation}>
+            <button type="submit" className="mt-8 inline-flex h-13 items-center gap-2 bg-primary px-6 text-base font-bold text-primary-foreground transition-opacity hover:opacity-90">
+              <Plus /> New presentation
+            </button>
+          </form>
         </div>
         <div className="grid grid-cols-2 border-t border-paper/15 lg:border-l lg:border-t-0">
           <div className="flex flex-col justify-end border-r border-paper/15 p-6">

@@ -1,9 +1,25 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
+import { redirect } from "next/navigation"
 import { prisma } from "@/lib/prisma"
-import { requireAdmin } from "@/lib/authz"
+import { requireAdmin, requireStaff } from "@/lib/authz"
 import { audit } from "@/lib/audit"
+
+// Creating is a POST, never a GET.
+//
+// This used to be GET /admin/quiz/new, reached by an ordinary link. Next
+// prefetches links, so simply having the button on screen created a
+// presentation: production collected 46 empty ones that way. A form posting to
+// an action cannot be prefetched.
+export async function createPresentation(): Promise<never> {
+  const session = await requireStaff()
+  const presentation = await prisma.presentation.create({
+    data: { ownerId: session.user!.id!, title: "Untitled presentation", mode: "POLL" },
+  })
+  revalidatePath("/admin/quiz")
+  redirect(`/admin/quiz/${presentation.id}`)
+}
 
 // Deleting a presentation takes every slide with it, so this is ADMIN only,
 // unlike the rest of the quiz editor (requireStaff). Nothing here is
