@@ -1,8 +1,8 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useRouter } from "next/navigation"
 import { AnimatePresence, motion } from "framer-motion"
-import { getSupabase } from "@/lib/supabase"
+import { useVisiblePoll } from "@/lib/use-visible-poll"
 import { t } from "@/content/strings"
 
 export interface CommitteeAvailability {
@@ -52,43 +52,11 @@ function CountBadge({ count }: { count: number }) {
 }
 
 export function AvailabilityBoard({ initial }: Props) {
-  const [committees, setCommittees] = useState(initial)
-
-  useEffect(() => {
-    const supabase = getSupabase()
-    if (!supabase) return
-
-    const channel = supabase
-      .channel("portfolio-availability")
-      .on(
-        "postgres_changes",
-        { event: "UPDATE", schema: "public", table: "Portfolio" },
-        (payload) => {
-          const next = payload.new as { committeeId: string; status: string }
-          const prev = payload.old as { committeeId: string; status: string }
-
-          const wasAvailable = prev.status === "AVAILABLE"
-          const isAvailable = next.status === "AVAILABLE"
-
-          if (wasAvailable === isAvailable) return // no change to available count
-
-          setCommittees((cs) =>
-            cs.map((c) => {
-              if (c.id !== next.committeeId) return c
-              return {
-                ...c,
-                availableCount: c.availableCount + (isAvailable ? 1 : -1),
-              }
-            }),
-          )
-        },
-      )
-      .subscribe()
-
-    return () => {
-      void supabase.removeChannel(channel)
-    }
-  }, [])
+  const router = useRouter()
+  // Counts come from the server render; a refresh replaces them. Polled rather
+  // than subscribed: postgres_changes only works on a Supabase database.
+  useVisiblePoll(20_000, router.refresh)
+  const committees = initial
 
   return (
     <div className="border-t border-foreground/20">

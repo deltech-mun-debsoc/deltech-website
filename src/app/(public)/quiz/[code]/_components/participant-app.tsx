@@ -1,7 +1,7 @@
 "use client"
 
 import { useCallback, useEffect, useRef, useState } from "react"
-import { getSupabase } from "@/lib/supabase"
+import { useRealtime, type PresenceIdentity } from "@/lib/realtime/client"
 import { t, type StringKey } from "@/content/strings"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -183,7 +183,6 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
   const [typedAnswer, setTypedAnswer] = useState("")
   const [numericAnswer, setNumericAnswer] = useState("")
 
-  const channelRef = useRef<ReturnType<NonNullable<ReturnType<typeof getSupabase>>["channel"]> | null>(null)
   const userIdRef = useRef(randomUserId())
   const submittedRef = useRef(false)
   const submissionAttemptRef = useRef(0)
@@ -296,85 +295,85 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
     [],
   )
 
+  // Identity is state rather than a channel handle: the SSE subscription follows
+  // it, and dropping it (a taken nickname) leaves the room.
+  const [identity, setIdentity] = useState<PresenceIdentity | null>(null)
+
   const joinChannel = useCallback((nick: string, ava: string) => {
-    if (channelRef.current) return
-    const supabase = getSupabase()
-    if (!supabase) return
+    setIdentity((current) => current ?? { nickname: nick, avatar: ava, userId: userIdRef.current })
+  }, [])
 
-    const channel = supabase.channel(`quiz:${roomCode}`)
-
-    channel
-      .on("broadcast", { event: "quiz" }, ({ payload }: { payload: QuizBroadcast }) => {
-        if (payload.event === "START") {
-          // Host has started, remain in lobby until GOTO
-        } else if (payload.event === "LOBBY") {
-          submissionAttemptRef.current++
-          submittedRef.current = false
-          slideIdRef.current = null
-          setCurrentSlide(null)
-          setSubmitting(false)
-          setAppState("lobby")
-        } else if (payload.event === "GOTO") {
-          adoptSlide(payload.slide, payload.slideIndex, payload.slideCount, null)
-        } else if (payload.event === "LOCK") {
-          setLocked(true)
-          if (!submittedRef.current) {
-            setMissed(true)
-            setAppState("submitted")
-          }
-        } else if (payload.event === "UNLOCK") {
-          setLocked(false)
-          deadlineRef.current = payload.secondsLeft === null
-            ? null
-            : Date.now() + payload.secondsLeft * 1000
-          setSecondsLeft(payload.secondsLeft === null ? null : Math.ceil(payload.secondsLeft))
-          if (!submittedRef.current) {
-            setMissed(false)
-            setAppState("question")
-          }
-        } else if (payload.event === "REVEAL") {
-          // NOW the verdict is allowed on screen, in time with the projector.
-          setRevealedAnswers(payload.correctAnswers)
-          setRevealed(true)
-          const slideId = slideIdRef.current
-          if (slideId && submittedRef.current) {
-            void revealOwnReceipt(slideId, nick, payload.resultKey).then((opened) => {
-              if (!opened) void recoverOwnResult(slideId, nick, ava)
-            })
-          }
-        } else if (payload.event === "LEADERBOARD") {
-          setLbEntries(payload.entries)
-          setLbFinal(payload.final)
-          setAppState("leaderboard")
-        } else if (payload.event === "END") {
-          setAppState("ended")
+  const handleQuizEvent = useCallback(
+    (payload: QuizBroadcast) => {
+      const who = identity ?? { nickname: "", avatar: "", userId: userIdRef.current }
+      if (payload.event === "START") {
+        // Host has started, remain in lobby until GOTO
+      } else if (payload.event === "LOBBY") {
+        submissionAttemptRef.current++
+        submittedRef.current = false
+        slideIdRef.current = null
+        setCurrentSlide(null)
+        setSubmitting(false)
+        setAppState("lobby")
+      } else if (payload.event === "GOTO") {
+        adoptSlide(payload.slide, payload.slideIndex, payload.slideCount, null)
+      } else if (payload.event === "LOCK") {
+        setLocked(true)
+        if (!submittedRef.current) {
+          setMissed(true)
+          setAppState("submitted")
         }
-      })
-      // Two people typing the same name used to merge into one leaderboard
-      // row, and the second one's genuine answer came back 409 "already
-      // submitted" while the UI told them it was received. Presence already
-      // knows who is in the room, so catch it at the door instead.
-      .on("presence", { event: "sync" }, () => {
-        const taken = Object.values(channel.presenceState())
-          .flat()
-          .some(
-            (p) =>
-              (p as { nickname?: string; userId?: string }).nickname === nick &&
-              (p as { userId?: string }).userId !== userIdRef.current,
-          )
-        if (taken) {
-          supabase.removeChannel(channel)
-          channelRef.current = null
-          setNicknameError(t("quiz.nicknameTaken"))
-          setAppState("nickname")
+      } else if (payload.event === "UNLOCK") {
+        setLocked(false)
+        deadlineRef.current = payload.secondsLeft === null
+          ? null
+          : Date.now() + payload.secondsLeft * 1000
+        setSecondsLeft(payload.secondsLeft === null ? null : Math.ceil(payload.secondsLeft))
+        if (!submittedRef.current) {
+          setMissed(false)
+          setAppState("question")
         }
-      })
-      .subscribe(() => {
-        channel.track({ nickname: nick, avatar: ava, userId: userIdRef.current })
-      })
+      } else if (payload.event === "REVEAL") {
+        // NOW the verdict is allowed on screen, in time with the projector.
+        setRevealedAnswers(payload.correctAnswers)
+        setRevealed(true)
+        const slideId = slideIdRef.current
+        if (slideId && submittedRef.current) {
+          void revealOwnReceipt(slideId, who.nickname, payload.resultKey).then((opened) => {
+            if (!opened) void recoverOwnResult(slideId, who.nickname, who.avatar)
+          })
+        }
+      } else if (payload.event === "LEADERBOARD") {
+        setLbEntries(payload.entries)
+        setLbFinal(payload.final)
+        setAppState("leaderboard")
+      } else if (payload.event === "END") {
+        setAppState("ended")
+      }
+    },
+    [identity, adoptSlide, recoverOwnResult, revealOwnReceipt],
+  )
 
-    channelRef.current = channel
-  }, [roomCode, adoptSlide, recoverOwnResult, revealOwnReceipt])
+  useRealtime<QuizBroadcast>(
+    identity ? `quiz:${roomCode}` : null,
+    {
+      event: "quiz",
+      onEvent: handleQuizEvent,
+      // Two people typing the same name used to merge into one leaderboard row,
+      // and the second one's genuine answer came back 409 "already submitted"
+      // while the UI said it was received. Presence knows who is in the room, so
+      // catch it at the door instead.
+      onPresence: (members) => {
+        if (!identity) return
+        const taken = members.some((m) => m.nickname === identity.nickname && m.userId !== identity.userId)
+        if (!taken) return
+        setIdentity(null)
+        setNicknameError(t("quiz.nicknameTaken"))
+        setAppState("nickname")
+      },
+    },
+    identity,
+  )
 
   function rememberIdentity(nick: string, ava: string) {
     try {
@@ -424,13 +423,6 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
       localStorage.removeItem(receiptStorageKey)
     }
   }, [receiptStorageKey])
-
-  useEffect(() => {
-    return () => {
-      const supabase = getSupabase()
-      if (supabase && channelRef.current) supabase.removeChannel(channelRef.current)
-    }
-  }, [])
 
   // ── Nickname submit ────────────────────────────────────────────────────────
   function handleNicknameSubmit(e: React.FormEvent) {

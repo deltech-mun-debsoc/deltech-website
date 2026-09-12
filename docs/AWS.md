@@ -10,7 +10,7 @@ Registrar DNS ──► Lightsail static IP (Sydney, 2 GB, $12/mo)
                      ├─ deltechmun.in      → 301 www
                      ├─ www.deltechmun.in  → prod     (APP_ENV=production)
                      └─ test.deltechmun.in → staging  (APP_ENV=staging, noindex)
-                  Supabase Postgres + Realtime (unchanged)
+                  Lightsail managed Postgres (private, same region)
                   S3  deltechmun-media-prod / -staging (ap-south-1)
                   SES deltechmun.in (ap-south-1)
 ```
@@ -54,8 +54,7 @@ roll back.
 ## Environment variables
 
 `NEXT_PUBLIC_*` and `APP_ENV` are baked in at build time from the GitHub
-Environment (`production` / `staging`) variables: `NEXT_PUBLIC_APP_URL`,
-`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. The image
+Environment (`production` / `staging`) variable `NEXT_PUBLIC_APP_URL`. The image
 derives `AUTH_URL` from `NEXT_PUBLIC_APP_URL` and sets `AUTH_TRUST_HOST=true`;
 both are required off Vercel.
 
