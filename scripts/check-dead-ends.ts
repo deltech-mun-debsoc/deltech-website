@@ -145,7 +145,15 @@ for (const route of [
   )
   const photoRoute = read("src/app/api/admin/team/[id]/photo/route.ts")
   assert.match(photoRoute, /MAX_TEAM_PHOTO_BYTES/, "team photos need a server-side size limit")
-  assert.match(photoRoute, /photoBytes: bytes/, "prepared photos must persist independently of S3")
+  // Photos used to be stored as bytes in Postgres so an unconfigured bucket
+  // could not break the team page. That traded a hard dependency for ~25 MB of
+  // images in every database dump and a function call per view, and the bucket
+  // is now configured in both environments. The dependency is accepted, so the
+  // failure has to be LOUD: an unconfigured bucket refuses the upload rather
+  // than silently keeping a photo nowhere.
+  assert.match(photoRoute, /putObject\(/, "team photos belong in the bucket, not in the database")
+  assert.match(photoRoute, /photoBytes: null/, "an upload must clear the old bytes, or the dump never shrinks")
+  assert.match(photoRoute, /MediaNotConfigured/, "an unconfigured bucket must refuse the upload, not fail quietly")
 }
 
 // --- a quiz nickname collision is caught, not silently absorbed -----------
