@@ -1,0 +1,15 @@
+# Staging box. HTTPS certificates are issued and renewed automatically once
+# DNS points here. caddy.env supplies ACME_EMAIL.
+{
+	email {$ACME_EMAIL}
+}
+
+test.deltechmun.in {
+	encode zstd gzip
+	# No password gate: interns need to roam freely, and the app's own sign-in
+	# guards everything that matters. X-Robots-Tag keeps it out of search.
+	header X-Robots-Tag "noindex, nofollow"
+	reverse_proxy app:3000 {
+		header_up X-Forwarded-For {remote_host}
+	}
+}

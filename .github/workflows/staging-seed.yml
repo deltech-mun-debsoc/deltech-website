@@ -25,6 +25,9 @@ jobs:
   seed:
     name: Wipe and re-seed staging
     runs-on: ubuntu-latest
+    # DEPLOY_HOST / DEPLOY_KNOWN_HOSTS live on the environment, so this job can
+    # only ever tunnel to the staging box.
+    environment: staging
     env:
       DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
       DIRECT_URL: ${{ secrets.STAGING_DIRECT_URL }}

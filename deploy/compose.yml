@@ -1,6 +1,6 @@
-# Lives at /srv/mun on the Lightsail box, next to Caddyfile, deploy.sh and the
-# env files (prod.env, staging.env, caddy.env: never in git). PROD_TAG and
-# STAGING_TAG are written into /srv/mun/.env by deploy.sh. See docs/AWS.md.
+# Lives at /srv/mun on each Lightsail box, next to Caddyfile, deploy.sh and the
+# env files (app.env, caddy.env: never in git). APP_ENV and APP_TAG are written
+# into /srv/mun/.env by deploy.sh. See docs/AWS.md.
 name: mun
 
 services:
@@ -18,23 +18,16 @@ services:
       - caddy_data:/data
       - caddy_config:/config
 
-  prod:
-    image: mun:prod-${PROD_TAG:-none}
+  # One app service per box: production and staging have a box each, so a
+  # staging runaway cannot starve production and each keeps its own Caddy.
+  app:
+    image: mun:${APP_ENV:-staging}-${APP_TAG:-none}
     pull_policy: never
     restart: unless-stopped
-    env_file: prod.env
+    env_file: app.env
     environment:
-      NODE_OPTIONS: --max-old-space-size=900
-    mem_limit: 1200m
-
-  staging:
-    image: mun:staging-${STAGING_TAG:-none}
-    pull_policy: never
-    restart: unless-stopped
-    env_file: staging.env
-    environment:
-      NODE_OPTIONS: --max-old-space-size=420
-    mem_limit: 600m
+      NODE_OPTIONS: --max-old-space-size=600
+    mem_limit: 700m
 
 volumes:
   caddy_data:
