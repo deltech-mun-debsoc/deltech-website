@@ -27,6 +27,11 @@ services:
     env_file: app.env
     environment:
       NODE_OPTIONS: --max-old-space-size=600
+    volumes:
+      # Optimised images (and the ISR cache) survive a deploy. Without this every
+      # release makes the first visitor pay ~2s of CPU per image size on a 1 GB
+      # burstable box, for pictures that never change.
+      - nextcache:/app/.next/cache
     mem_limit: 700m
 
   # Each box keeps its own Postgres, reachable only from inside that box: no
@@ -59,3 +64,4 @@ volumes:
   caddy_data:
   caddy_config:
   pgdata:
+  nextcache:
