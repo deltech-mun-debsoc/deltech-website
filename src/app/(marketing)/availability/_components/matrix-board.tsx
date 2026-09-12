@@ -1,9 +1,8 @@
 "use client"
 
-import { useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { motion, useReducedMotion } from "framer-motion"
-import { getSupabase } from "@/lib/supabase"
+import { useVisiblePoll } from "@/lib/use-visible-poll"
 import { t } from "@/content/strings"
 
 export type PortfolioState = "available" | "allotted" | "paid" | "blocked"
@@ -43,30 +42,11 @@ const LEGEND: { state: PortfolioState; label: string; square: string }[] = [
 export function MatrixBoard({ committees }: { committees: MatrixCommittee[] }) {
   const router = useRouter()
   const reduce = useReducedMotion()
-  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // Any Portfolio or Delegate change (allot / revoke / pay) → debounced refresh.
-  // Server recomputes states; simpler and safer than client-side cell math.
-  useEffect(() => {
-    const scheduleRefresh = () => {
-      if (refreshTimer.current) clearTimeout(refreshTimer.current)
-      refreshTimer.current = setTimeout(() => router.refresh(), 800)
-    }
-
-    const supabase = getSupabase()
-    if (!supabase) return
-
-    const channel = supabase
-      .channel("portfolio-matrix")
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "Portfolio" }, scheduleRefresh)
-      .on("postgres_changes", { event: "UPDATE", schema: "public", table: "Delegate" }, scheduleRefresh)
-      .subscribe()
-
-    return () => {
-      if (refreshTimer.current) clearTimeout(refreshTimer.current)
-      void supabase.removeChannel(channel)
-    }
-  }, [router])
+  // The server recomputes every cell's state, so a refresh is the whole update:
+  // simpler and safer than client-side cell math. Polled rather than subscribed,
+  // because postgres_changes only works while the database is on Supabase.
+  useVisiblePoll(20_000, router.refresh)
 
   return (
     <div>

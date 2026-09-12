@@ -1,0 +1,35 @@
+name: Cron (production)
+
+# Replaces the crons in vercel.json once production runs on AWS. Inert until the
+# repo variable CRON_ENABLED is "true": flip it at the production cutover, in the
+# same minute the Vercel project is retired, so no job runs twice. (A double run
+# would be harmless -- payment-reminder claims its run, the others are
+# idempotent -- but it would be noise.) Schedules run from the default branch.
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+    - cron: "30 3 * * *"
+    - cron: "0 4 * * *"
+  workflow_dispatch:
+    inputs:
+      job:
+        type: choice
+        options: [payment-reminder, gform-sync, media-sweep]
+
+jobs:
+  run:
+    if: vars.CRON_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SCHEDULE: ${{ github.event.schedule }}
+          JOB: ${{ inputs.job }}
+        run: |
+          case "$SCHEDULE" in
+            "0 3 * * *") JOB=payment-reminder ;;
+            "30 3 * * *") JOB=gform-sync ;;
+            "0 4 * * *") JOB=media-sweep ;;
+          esac
+          curl -fsS --max-time 300 -H "Authorization: Bearer $CRON_SECRET" "https://www.deltechmun.in/api/cron/$JOB"

@@ -116,4 +116,65 @@ for (const file of CONSUMERS) {
   )
 }
 
-console.log(`✅ check-app-url passed (${CONSUMERS.length} consumers on the shared resolver)`)
+// Staging must never inherit the production domain as its fallback.
+//
+// The hardcoded "www.deltechmun.in" used to be passed on ANY Vercel deployment,
+// so a staging build that forgot NEXT_PUBLIC_APP_URL emitted production links in
+// its emails, payment links and QR codes -- testers would click through from
+// staging straight into live data. Staging passes undefined instead and falls
+// through to its own deployment URL.
+{
+  // Staging with its origin set: explicit wins, as on production.
+  assert.equal(
+    resolveAppUrl("https://test.deltechmun.in", "dep-abc.vercel.app", undefined, true),
+    "https://test.deltechmun.in",
+    "staging must use its own configured origin",
+  )
+
+  // Staging that FORGOT the variable: its own URL, never production.
+  const forgotten = resolveAppUrl(undefined, "dep-abc.vercel.app", undefined, true)
+  assert.equal(forgotten, "https://dep-abc.vercel.app")
+  assert.doesNotMatch(
+    forgotten,
+    /deltechmun\.in/,
+    "a staging deploy missing NEXT_PUBLIC_APP_URL must NOT fall back to the production domain",
+  )
+
+  // Production is unchanged: it still gets the canonical domain.
+  assert.equal(
+    resolveAppUrl(undefined, "dep-abc.vercel.app", "www.deltechmun.in", true),
+    "https://www.deltechmun.in",
+    "production must still fall back to the canonical domain",
+  )
+
+  // The call site is the actual regression surface: the pure function above
+  // cannot tell you which argument production passes. Pin that the hardcoded
+  // domain is reachable only when the deployment says it is production, and that
+  // our own host's APP_ENV wins over Vercel's VERCEL_ENV.
+  const src = readFileSync("src/lib/app-url.ts", "utf8")
+  assert.match(
+    src,
+    /deployEnv\s*=\s*process\.env\.APP_ENV\s*\?\?\s*process\.env\.VERCEL_ENV/,
+    "app-url.ts must read APP_ENV first, then VERCEL_ENV",
+  )
+  assert.match(
+    src,
+    /isProduction\s*=\s*hosted\s*&&\s*deployEnv\s*===\s*"production"/,
+    "app-url.ts must gate the production-domain fallback on the deployment being production",
+  )
+  assert.match(
+    src,
+    /hosted\s*=\s*process\.env\.VERCEL\s*===\s*"1"\s*\|\|\s*!!process\.env\.APP_ENV/,
+    "the AWS host must count as hosted, or it could print localhost into QR codes",
+  )
+  // Structural, not line-based: canonicalizeProductionDomain mentions the same
+  // literal, so pin that the domain is specifically the true-branch of the
+  // production test.
+  assert.match(
+    src,
+    /isProduction\s*\n?\s*\?\s*"www\.deltechmun\.in"/,
+    "the production domain must be the true-branch of isProduction, so staging cannot reach it",
+  )
+}
+
+console.log(`✅ check-app-url passed (${CONSUMERS.length} consumers, staging fallback pinned)`)

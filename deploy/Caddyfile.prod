@@ -1,0 +1,18 @@
+# Production box. HTTPS certificates are issued and renewed automatically once
+# DNS points here. caddy.env supplies ACME_EMAIL.
+{
+	email {$ACME_EMAIL}
+}
+
+deltechmun.in {
+	redir https://www.deltechmun.in{uri} permanent
+}
+
+www.deltechmun.in {
+	encode zstd gzip
+	# Overwrite, never append: the quiz rate limits key on the first entry of
+	# X-Forwarded-For, which a client could otherwise choose.
+	reverse_proxy app:3000 {
+		header_up X-Forwarded-For {remote_host}
+	}
+}

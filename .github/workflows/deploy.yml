@@ -1,0 +1,74 @@
+name: Deploy (AWS)
+
+# main -> www.deltechmun.in, staging -> test.deltechmun.in, on their own boxes.
+# The image is built here (a 1 GB box must never build), shipped over SSH, and
+# switched in by deploy/deploy.sh, which rolls back if it is unhealthy.
+# DEPLOY_HOST and DEPLOY_KNOWN_HOSTS are GitHub *Environment* secrets, so each
+# branch can only ever reach its own box.
+#
+# Inert until the repo variable AWS_DEPLOY is "true", so this can merge before
+# the box exists. Rollback: run this workflow by hand with an older commit SHA,
+# or on the box: /srv/mun/deploy.sh prod <sha>
+
+on:
+  push:
+    branches: [main, staging]
+  workflow_dispatch:
+    inputs:
+      sha:
+        description: "Commit to deploy (blank = branch head)"
+        required: false
+
+concurrency:
+  group: deploy-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: vars.AWS_DEPLOY == 'true' && (github.ref_name == 'main' || github.ref_name == 'staging')
+    runs-on: ubuntu-latest
+    environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
+    env:
+      SVC: ${{ github.ref_name == 'main' && 'prod' || 'staging' }}
+      APP_ENV: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.sha || github.sha }}
+
+      - name: Build image
+        run: |
+          echo "SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          docker build \
+            --build-arg APP_ENV="$APP_ENV" \
+            --build-arg NEXT_PUBLIC_APP_URL="${{ vars.NEXT_PUBLIC_APP_URL }}" \
+            -t "mun:$SVC-$(git rev-parse HEAD)" .
+
+      - name: SSH key
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+
+      # Each box is single-tenant, so a branch may update its own box's config.
+      - name: Sync deploy files
+        run: |
+          scp deploy/compose.yml deploy/deploy.sh "deploy@${{ secrets.DEPLOY_HOST }}:/srv/mun/"
+          scp "deploy/Caddyfile.$SVC" "deploy@${{ secrets.DEPLOY_HOST }}:/srv/mun/Caddyfile"
+          ssh "deploy@${{ secrets.DEPLOY_HOST }}" 'cd /srv/mun && chmod +x deploy.sh && docker compose up -d caddy && docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile'
+
+      - name: Ship and switch
+        run: |
+          docker save "mun:$SVC-$SHA" | gzip | ssh "deploy@${{ secrets.DEPLOY_HOST }}" 'gunzip | docker load'
+          ssh "deploy@${{ secrets.DEPLOY_HOST }}" "/srv/mun/deploy.sh $SVC $SHA"
+
+      # Hit the box by IP with the real Host header, so this tests THIS
+      # deployment rather than whatever DNS currently points at. deploy.sh has
+      # already gated on the container's own health check.
+      - name: Smoke test through Caddy
+        run: |
+          host=$(echo "${{ vars.NEXT_PUBLIC_APP_URL }}" | sed 's|https\?://||')
+          code=$(curl -sS -o /dev/null -w '%{http_code}' -H "Host: $host" "http://${{ secrets.DEPLOY_HOST }}/signin" || echo 000)
+          echo "Caddy answered $code for $host"
+          case "$code" in 200|301|302|308) ;; *) echo "unexpected"; exit 1 ;; esac

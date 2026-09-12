@@ -154,7 +154,7 @@ for (const route of [
 // one's answer returned 409 while the UI said "Answer received".
 {
   const src = read("src/app/(public)/quiz/[code]/_components/participant-app.tsx")
-  assert.match(src, /presenceState\(\)/, "presence already knows the room; use it at join time")
+  assert.match(src, /onPresence:/, "presence already knows the room; use it at join time")
   assert.match(src, /res\.status === 409/, "a 409 must not be shown as a successful submission")
   assert.match(src, /quiz\.nicknameTaken/, "the collision needs its own message")
 }

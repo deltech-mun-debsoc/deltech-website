@@ -5,7 +5,7 @@ export const DTU_INSTITUTION = "Delhi Technological University"
 
 export const coDelegateSchema = z.object({
   fullName: z.string().min(2, "Name must be at least 2 characters"),
-  email: z.string().email("Enter a valid email address"),
+  email: z.string().trim().toLowerCase().email("Enter a valid email address"),
   phone: z.string().min(7, "Enter a valid phone number"),
   institution: z.string().optional(),
   munExperience: z.string().optional(),
@@ -14,7 +14,12 @@ export const coDelegateSchema = z.object({
 export const registerSchema = z.object({
   // Step 1 – personal
   fullName: z.string().min(2, "Name must be at least 2 characters"),
-  email: z.string().email("Enter a valid email address"),
+  // Trimmed and lowercased at the boundary. The duplicate check and the unique
+  // index both compare exact strings, so "Foo@Gmail.com" and "foo@gmail.com"
+  // registered as two different delegates. Every other intake path (the Google
+  // Form importer, the cross-delegation import) already lowercases via
+  // normalizeEmail; this was the one that didn't.
+  email: z.string().trim().toLowerCase().email("Enter a valid email address"),
   whatsapp: z.string().min(7, "Enter a valid WhatsApp number"),
   altPhone: z.string().optional(),
   institution: z.string().min(2, "Institution is required"),

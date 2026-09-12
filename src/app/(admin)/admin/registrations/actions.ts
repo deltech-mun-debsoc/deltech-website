@@ -16,6 +16,7 @@ export interface DelegateEditData {
   altPhone?: string
   institution: string
   isDtu: boolean
+  rollNumber?: string
   munExperience?: string
   pref1Portfolio?: string
   pref2Portfolio?: string
@@ -23,6 +24,10 @@ export interface DelegateEditData {
   outsideNcr: boolean
   reference?: string
 }
+
+// Fields the Google Form importer writes AND an organiser can edit here. Email is
+// deliberately absent: it is the identity, and the importer never updates it.
+const MANUAL_TRACKED = ["fullName", "whatsapp", "rollNumber", "munExperience", "pref1Portfolio", "pref2Portfolio"] as const
 
 async function reloadDelegate(delegateId: string): Promise<SerializedDelegate> {
   const updated = await prisma.delegate.findUniqueOrThrow({
@@ -45,6 +50,7 @@ export async function updateDelegate(
       altPhone: true,
       institution: true,
       isDtu: true,
+      rollNumber: true,
       munExperience: true,
       pref1Portfolio: true,
       pref2Portfolio: true,
@@ -54,12 +60,34 @@ export async function updateDelegate(
     } as const
     const { before, after } = await prisma.$transaction(async (tx) => {
       const before = await tx.delegate.findUniqueOrThrow({ where: { id }, select: fields })
+      const { manualEditedFields } = await tx.delegate.findUniqueOrThrow({
+        where: { id },
+        select: { manualEditedFields: true },
+      })
+      // A delegate imported from a Google Form response sheet is refreshed by the
+      // next Refetch. Without recording what a human changed here, that refetch
+      // would silently put the old answer back: someone fixes a typo'd phone
+      // number, presses Refetch an hour later, and the typo returns. The importer
+      // never overwrites a field listed here (see withheldManualEdits).
+      const next: Record<(typeof MANUAL_TRACKED)[number], string | null> = {
+        fullName: data.fullName,
+        whatsapp: data.whatsapp,
+        rollNumber: data.rollNumber?.trim() || null,
+        munExperience: data.munExperience || null,
+        pref1Portfolio: data.pref1Portfolio || null,
+        pref2Portfolio: data.pref2Portfolio || null,
+      }
+      const touched = MANUAL_TRACKED.filter((k) => (before[k] ?? null) !== next[k])
       const after = await tx.delegate.update({
         where: { id },
         data: {
           fullName: data.fullName,
-          email: data.email,
+          // Email is the identity the form importer and the duplicate check match
+          // on, case-insensitively. Store it the one way both compare it.
+          email: data.email.trim().toLowerCase(),
           whatsapp: data.whatsapp,
+          rollNumber: next.rollNumber,
+          manualEditedFields: [...new Set([...manualEditedFields, ...touched])],
           altPhone: data.altPhone || null,
           institution: data.institution,
           isDtu: data.isDtu,

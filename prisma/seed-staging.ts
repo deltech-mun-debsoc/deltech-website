@@ -39,6 +39,7 @@ import {
 } from "../src/generated/prisma/client"
 import { PrismaPg } from "@prisma/adapter-pg"
 import { Pool } from "pg"
+import { hashPassword } from "../src/lib/password"
 
 // ---------------------------------------------------------------------------
 // Guards. This truncates tables, so it must be impossible to point at prod.
@@ -70,24 +71,79 @@ if (url.includes(PROD_DB_REF)) {
   process.exit(1)
 }
 
+// The check above is a blocklist, and a blocklist fails OPEN: it happily wipes
+// any database that simply isn't production -- a colleague's dev box, a restored
+// backup, next year's cycle. Declaring the staging ref turns it into a
+// whitelist, so a mistyped or stale URL stops the script instead of destroying
+// something. Set STAGING_DB_REF to the staging database's name (mun_staging).
+const STAGING_DB_REF: string = process.env.STAGING_DB_REF?.trim() ?? ""
+
+if (!STAGING_DB_REF) {
+  console.error(
+    "Refusing to run: STAGING_DB_REF is not set.\n" +
+      "It names the staging database (mun_staging), which this URL must point at.\n" +
+      "This script truncates tables, so it will only run against a database you\n" +
+      "have explicitly named as staging.",
+  )
+  process.exit(1)
+}
+
+if (!url.includes(STAGING_DB_REF)) {
+  console.error(
+    `Refusing to run: DATABASE_URL does not contain STAGING_DB_REF (${STAGING_DB_REF}).\n` +
+      "The URL points at some other database. Refusing rather than guessing.",
+  )
+  process.exit(1)
+}
+
+// Shared password for every seeded account, so an intern can sign in without an
+// email round-trip. Required, with no default: a default would eventually reach
+// a database somebody exposed.
+const STAGING_TEST_PASSWORD: string = process.env.STAGING_TEST_PASSWORD?.trim() ?? ""
+
+if (!STAGING_TEST_PASSWORD) {
+  console.error(
+    "Refusing to run: STAGING_TEST_PASSWORD is not set.\n" +
+      "It is the shared password for the seeded staging accounts.",
+  )
+  process.exit(1)
+}
+
 const pool = new Pool({ connectionString: url })
 const prisma = new PrismaClient({ adapter: new PrismaPg(pool) })
 
 // ---------------------------------------------------------------------------
 
+// Sandbox sheet wiring. Empty means "no sheet configured", which is the safe
+// default: outbound sync becomes a no-op and nothing pulls. Point these at the
+// throwaway spreadsheet once it exists -- never at a production sheet.
+const SANDBOX_SHEET_SYNC_URL = process.env.STAGING_SHEET_SYNC_URL?.trim() ?? ""
+const SANDBOX_PULL_SOURCES: Array<{ presetName: string; csvUrl: string }> = []
+
 const DOMAIN = "deltechmun.in"
 const addr = (local: string) => `staging+${local}@${DOMAIN}`
 const OWNER_EMAIL = "arnavsinghal06@gmail.com"
 
+// Every role, on addresses we own, with a password set.
+//
+// These were real personal Gmail addresses and NO passwordHash, which made
+// staging unusable for anyone but their owners: the seeds set no passwords, so
+// the only way in was a magic link, so every intern sign-in mailed a real human
+// and waited on them to forward it. With a password set, signing in touches no
+// outbound service at all.
+//
+// The owner's own address stays so he can sign in as himself. Everyone else is
+// staging+<role>@, which is a domain we control -- add teammates back here if
+// they want named accounts, but prefer the shared role logins.
 const TEST_USERS: Array<{ email: string; name: string; role: Role }> = [
   { email: OWNER_EMAIL, name: "Arnav Singhal", role: Role.ADMIN },
-  { email: "nikunjsharma4218@gmail.com", name: "Nikunj Sharma", role: Role.ADMIN },
-  { email: "samir.gupta987@gmail.com", name: "Samir Gupta", role: Role.ADMIN },
-  { email: "enile.puqo249@gmail.com", name: "Test Registerer One", role: Role.REGISTERER },
-  { email: "mikebenoit@google.com", name: "Test Registerer Two", role: Role.REGISTERER },
-  { email: "arnavsinghal0903@gmail.com", name: "Arnav Maintainer", role: Role.MAINTAINER },
-  { email: "nikunjgarcade@gmail.com", name: "Nikunj Maintainer", role: Role.MAINTAINER },
+  { email: addr("admin"), name: "Test Admin", role: Role.ADMIN },
+  { email: addr("maintainer"), name: "Test Senior Council", role: Role.MAINTAINER },
+  // The intern-shaped role: Junior Council is what a new recruit actually gets.
+  { email: addr("jc"), name: "Test Junior Council", role: Role.SUB_MAINTAINER },
+  { email: addr("registerer"), name: "Test Delegate Account", role: Role.REGISTERER },
   { email: addr("author"), name: "Test Dispatch Author", role: Role.AUTHOR },
+  { email: addr("member"), name: "Test Society Member", role: Role.MEMBER },
 ]
 
 const PORTFOLIOS: Record<string, string[]> = {
@@ -139,11 +195,14 @@ async function main() {
   await prisma.auditLog.deleteMany()
 
   console.log("Creating test staff accounts…")
+  // One hash for all of them: scrypt is deliberately slow, and this is fixture
+  // data, not a credential store.
+  const passwordHash = await hashPassword(STAGING_TEST_PASSWORD)
   for (const user of TEST_USERS) {
     await prisma.user.upsert({
       where: { email: user.email },
-      update: { name: user.name, role: user.role, disabledAt: null },
-      create: user,
+      update: { name: user.name, role: user.role, disabledAt: null, passwordHash },
+      create: { ...user, passwordHash },
     })
   }
 
@@ -185,10 +244,27 @@ async function main() {
       key: "queryContacts",
       value: [{ name: "Test Secretariat", role: "Testing support", phone: "919000000000" }],
     },
-    { key: "paymentProvider", value: "razorpay" },
+    // Razorpay needs live-or-test API keys present in the environment. Staging
+    // deliberately does not carry the production keys, and RazorpayProvider
+    // throws rather than degrading, so an intern clicking "generate payment
+    // link" would hit an error with no explanation. upi_qr is the inert local
+    // provider: the whole payment journey renders and can be exercised without
+    // any outbound call. This is a DB setting, so an admin can switch staging to
+    // razorpay from /admin/config at any time once test keys exist -- no deploy.
+    { key: "paymentProvider", value: "upi_qr" },
     { key: "matrixPublic", value: true },
     { key: "accommodationNote", value: "Fixture: accommodation requested for selected delegates." },
     { key: "blogIntro", value: "Seeded dispatches covering every editorial state." },
+
+    // These two decide which Google Sheet the app talks to, and they live in the
+    // DATABASE rather than the environment -- so they ride along into any staging
+    // copy and point it straight back at the production sheet. sheetSyncUrl is
+    // the dangerous one: it WRITES. Forced empty here, which makes
+    // src/lib/sheet-sync.ts a no-op, until a sandbox sheet is configured.
+    // Imports (sheetPullSources) are read-only fetches, so they are safe to point
+    // at the scrubbed sandbox sheet -- see scripts/clone-sheet-to-sandbox.ts.
+    { key: "sheetSyncUrl", value: SANDBOX_SHEET_SYNC_URL },
+    { key: "sheetPullSources", value: SANDBOX_PULL_SOURCES },
   ]
   for (const setting of testSettings) {
     await prisma.setting.upsert({
@@ -505,11 +581,15 @@ async function main() {
   // to show: an unassigned intake, a running GD with two evaluators, a
   // deliberately bypassed candidate, and decided outcomes.
   const councilAdmin = await prisma.user.findUniqueOrThrow({ where: { email: OWNER_EMAIL } })
+  // Resolved from TEST_USERS rather than hardcoded addresses: these lookups used
+  // personal Gmail accounts, so renaming a test account 500 lines above silently
+  // broke the seed here with a P2025 at runtime. The JC slot is now an actual
+  // SUB_MAINTAINER -- it used to be a site-role MAINTAINER standing in for one.
   const councilSenior = await prisma.user.findUniqueOrThrow({
-    where: { email: "arnavsinghal0903@gmail.com" },
+    where: { email: addr("maintainer") },
   })
   const councilJunior = await prisma.user.findUniqueOrThrow({
-    where: { email: "nikunjgarcade@gmail.com" },
+    where: { email: addr("jc") },
   })
 
   const cycle = await prisma.recruitmentCycle.create({
@@ -870,7 +950,7 @@ async function main() {
         },
       },
       {
-        actorEmail: "arnavsinghal0903@gmail.com",
+        actorEmail: councilSenior.email,
         action: "delegate.update",
         entity: "Delegate",
         entityId: allotted.id,

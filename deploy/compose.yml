@@ -1,0 +1,61 @@
+# Lives at /srv/mun on each Lightsail box, next to Caddyfile, deploy.sh and the
+# env files (app.env, caddy.env: never in git). APP_ENV and APP_TAG are written
+# into /srv/mun/.env by deploy.sh. See docs/AWS.md.
+name: mun
+
+services:
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports: ["80:80", "443:443", "443:443/udp"]
+    # raw: Compose interpolates $ in env_file values by default, which silently
+    # empties a bcrypt hash like $2a$14$...
+    env_file:
+      - path: caddy.env
+        format: raw
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+  # One app service per box: production and staging have a box each, so a
+  # staging runaway cannot starve production and each keeps its own Caddy.
+  app:
+    image: mun:${APP_ENV:-staging}-${APP_TAG:-none}
+    pull_policy: never
+    restart: unless-stopped
+    env_file: app.env
+    environment:
+      NODE_OPTIONS: --max-old-space-size=600
+    mem_limit: 700m
+
+  # Each box keeps its own Postgres, reachable only from inside that box: no
+  # published port, so the app talks to it over the compose network and nothing
+  # else can. Started with `--profile db`. Backups are ours now
+  # (deploy/backup-db.sh, hourly to S3); $15/mo of managed Postgres was not worth
+  # it for a database of a few tens of MB.
+  db:
+    image: postgres:17
+    profiles: ["db"]
+    restart: unless-stopped
+    # Loopback only. Nothing outside the box can open a connection; CI reaches it
+    # by opening an SSH tunnel to this box first (see staging-migrate.yml).
+    ports: ["127.0.0.1:5432:5432"]
+    env_file:
+      - path: db.env
+        format: raw
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    shm_size: 128mb
+    command: ["postgres", "-c", "shared_buffers=128MB", "-c", "max_connections=50"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+    mem_limit: 400m
+
+volumes:
+  caddy_data:
+  caddy_config:
+  pgdata:

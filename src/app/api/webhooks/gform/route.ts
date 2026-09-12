@@ -1,6 +1,8 @@
 import { timingSafeEqual } from "crypto"
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { automaticIntakeAllowed } from "@/lib/event-state"
+import { getContent } from "@/lib/settings"
 import { createDelegateFromRow, normalizeEmail, normalizePhone, normalizeName } from "@/lib/intake"
 import { applyMapping, type ColumnMapping } from "@/lib/schemas/import"
 import { rowHash } from "@/lib/recruitment/import"
@@ -131,6 +133,17 @@ export async function POST(req: NextRequest) {
   }
 
   const source = body.source === "CROSS_DEL" ? "CROSS_DEL" : "SELF"
+
+  // Refused rows are kept, not dropped: if registration was closed by mistake,
+  // or reopens, an organiser can still find and retry the submission.
+  const gate = automaticIntakeAllowed(await getContent(), source)
+  if (!gate.ok) {
+    await prisma.quarantinedRow.create({
+      data: { source, presetName: body.preset, raw: body.row as object, errors: [gate.reason] },
+    })
+    return NextResponse.json({ ok: true, quarantined: true, reason: gate.reason })
+  }
+
   const mapped = applyMapping(body.row, preset.mapping as ColumnMapping)
   const result = await createDelegateFromRow(mapped, source, {
     sourceNote: `gform:${body.preset}`,

@@ -178,6 +178,25 @@ model Delegate {
   checkedInAt        DateTime?
   checkedInBy        String?
 
+  // Intra MUN: DTU roll number from the registration form. Optional because
+  // conference delegates are not DTU students.
+  rollNumber         String?
+  // "Any queries?" from the registration form: a question an organiser owes an
+  // answer to. Resolved when someone has replied, so open ones can be listed.
+  query              String?
+  queryResolvedAt    DateTime?
+
+  // Google Sheet sync identity, mirroring RecruitmentCandidate. A delegate created
+  // from a response sheet remembers which tab and which row it came from, so a
+  // refetch updates it rather than creating a second one, and an unchanged row is
+  // skipped. manualEditedFields lists what an organiser changed by hand; a refetch
+  // never overwrites those.
+  sourceSheetKey     String?
+  sourceRowKey       String?
+  sourceRowHash      String?
+  manualEditedFields String[]   @default([])
+
+  @@unique([sourceSheetKey, sourceRowKey])
   @@index([status])
   @@index([createdAt])
   @@index([status, checkedInAt])
@@ -776,6 +795,54 @@ model RecruitmentImport {
   finishedAt   DateTime?
 
   @@index([cycleId, startedAt])
+}
+
+// A Google Form response sheet that delegate registrations are pulled from --
+// the Intra MUN registration form. The same shape as RecruitmentSheetSource, but
+// not scoped to a recruitment cycle.
+model DelegateSheetSource {
+  id       String @id @default(cuid())
+  label    String
+  sheetUrl String
+  csvUrl   String
+  // "<spreadsheetId>:<gid>", stored on every delegate the tab produced.
+  sheetKey String @unique
+  // { delegateField: sheetColumnHeader }
+  mapping  Json    @default("{}")
+  isActive Boolean @default(true)
+
+  lastImportedAt DateTime?
+
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  imports DelegateImport[]
+}
+
+model DelegateImport {
+  id       String              @id @default(cuid())
+  sourceId String
+  source   DelegateSheetSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  // Applying the same sheet content twice is a no-op returning the first result.
+  idempotencyKey String      @unique
+  state          ImportState @default(PENDING)
+
+  rowsTotal   Int @default(0)
+  rowsCreated Int @default(0)
+  rowsUpdated Int @default(0)
+  rowsSkipped Int @default(0)
+  rowsInvalid Int @default(0)
+
+  // [{ rowIndex, reason, raw }] -- invalid rows are shown, never dropped.
+  errors Json?
+
+  importedById String
+  startedAt    DateTime  @default(now())
+  finishedAt   DateTime?
+
+  @@index([sourceId, startedAt])
 }
 
 enum ImportState {

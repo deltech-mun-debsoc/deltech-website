@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono, Fraunces } from "next/font/google";
 import { Providers } from "@/components/providers";
 import { STRINGS } from "@/content/strings";
+import { PreviewRibbon } from "@/components/preview-ribbon";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -37,6 +38,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     >
       <body className="min-h-full flex flex-col">
         <Providers>{children}</Providers>
+        <PreviewRibbon />
       </body>
     </html>
   );

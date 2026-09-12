@@ -1,0 +1,77 @@
+name: Staging migrate
+
+# Applies pending migrations to the STAGING database whenever staging moves.
+#
+# This is what makes "it goes to test first" a mechanism rather than a habit: a
+# schema change reaches staging automatically, gets exercised there, and only
+# then is promoted. Production stays MANUAL on purpose -- migrate-on-build was
+# removed deliberately in d476bd2 (see docs/CI.md), and nothing here reverses
+# that. This workflow can only ever reach the database named mun_staging.
+#
+# Postgres listens on the box's loopback only, so the runner reaches it through
+# an SSH tunnel to that box rather than over the internet.
+on:
+  push:
+    branches: [staging]
+    # Only when the schema actually changed. A copy edit should not open a
+    # database connection.
+    paths:
+      - "prisma/migrations/**"
+      - "prisma/schema.prisma"
+      - ".github/workflows/staging-migrate.yml"
+  workflow_dispatch:
+
+concurrency:
+  # Never let two migration runs overlap on one database.
+  group: staging-migrate
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    name: Apply migrations to staging
+    runs-on: ubuntu-latest
+    # DEPLOY_HOST / DEPLOY_KNOWN_HOSTS live on the environment, so this job can
+    # only ever tunnel to the staging box.
+    environment: staging
+    env:
+      # The Prisma CLI reads DIRECT_URL (see prisma.config.ts). It points at the
+      # local end of the tunnel opened below.
+      DIRECT_URL: postgresql://mun_staging:${{ secrets.STAGING_DB_PASSWORD }}@127.0.0.1:55432/mun_staging
+      DATABASE_URL: postgresql://mun_staging:${{ secrets.STAGING_DB_PASSWORD }}@127.0.0.1:55432/mun_staging
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Tunnel to the staging database
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          ssh -f -N -L 55432:127.0.0.1:5432 deploy@${{ secrets.DEPLOY_HOST }}
+          for i in $(seq 1 10); do (echo > /dev/tcp/127.0.0.1/55432) 2>/dev/null && break; sleep 1; done
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Verify the target really is the staging database
+        # `prisma migrate deploy` runs against whatever the tunnel leads to, and a
+        # mistyped host migrates some OTHER database, silently and irreversibly.
+        # Ask the server what it is called rather than trusting our own string.
+        run: |
+          name=$(docker run --rm --network host postgres:17 psql "$DIRECT_URL" -qtA -c "select current_database()" | tr -d "[:space:]")
+          if [ "$name" != "mun_staging" ]; then
+            echo "REFUSING: the tunnel leads to database [$name], not mun_staging."
+            exit 1
+          fi
+          echo "Target confirmed: mun_staging."
+
+      - name: Install
+        run: npm ci # postinstall runs `prisma generate`
+
+      - name: Show pending migrations
+        run: npm run db:status || true
+
+      - name: Apply
+        run: npm run db:deploy

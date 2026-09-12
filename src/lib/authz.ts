@@ -2,7 +2,8 @@ import { redirect } from "next/navigation"
 import { auth } from "@/lib/auth"
 import type { Session } from "next-auth"
 
-const STAFF_ROLES = new Set(["ADMIN", "MAINTAINER"])
+// Exported so other guards (the realtime bus) cannot drift from requireStaff.
+export const STAFF_ROLES = new Set(["ADMIN", "MAINTAINER"])
 
 // ADMIN or MAINTAINER, the default guard for admin server actions.
 export async function requireStaff(): Promise<Session> {

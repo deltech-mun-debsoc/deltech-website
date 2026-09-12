@@ -1,0 +1,88 @@
+name: Staging seed (destructive)
+
+# Reset the staging sandbox to clean, fully-populated fixtures.
+#
+# Manual only. This TRUNCATES about twenty tables, so it must never fire on a
+# push, and it asks you to type RESET so a stray click cannot do it.
+#
+# It exists so resetting staging does not depend on anybody's laptop: the
+# credentials live here, in repo secrets, rather than in a .env file on one
+# machine. An intern who breaks the sandbox can be unblocked by anyone with
+# access to the Actions tab.
+on:
+  workflow_dispatch:
+    inputs:
+      confirm:
+        description: 'Type RESET to confirm wiping and re-seeding staging'
+        required: true
+        default: ''
+
+concurrency:
+  group: staging-seed
+  cancel-in-progress: false
+
+jobs:
+  seed:
+    name: Wipe and re-seed staging
+    runs-on: ubuntu-latest
+    # DEPLOY_HOST / DEPLOY_KNOWN_HOSTS live on the environment, so this job can
+    # only ever tunnel to the staging box.
+    environment: staging
+    env:
+      # Through the SSH tunnel opened below: Postgres listens on the box's
+      # loopback only and is not reachable from a runner directly.
+      DATABASE_URL: postgresql://mun_staging:${{ secrets.STAGING_DB_PASSWORD }}@127.0.0.1:55432/mun_staging
+      DIRECT_URL: postgresql://mun_staging:${{ secrets.STAGING_DB_PASSWORD }}@127.0.0.1:55432/mun_staging
+      STAGING_DB_REF: ${{ secrets.STAGING_DB_REF }}
+      STAGING_TEST_PASSWORD: ${{ secrets.STAGING_TEST_PASSWORD }}
+    steps:
+      - name: Check the confirmation
+        run: |
+          if [ "${{ inputs.confirm }}" != "RESET" ]; then
+            echo "Not confirmed. Type RESET to run this."
+            exit 1
+          fi
+
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Tunnel to the staging database
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          ssh -f -N -L 55432:127.0.0.1:5432 deploy@${{ secrets.DEPLOY_HOST }}
+          for i in $(seq 1 10); do (echo > /dev/tcp/127.0.0.1/55432) 2>/dev/null && break; sleep 1; done
+
+      - name: Verify the target really is the staging database
+        # Belt and braces: prisma/seed-staging.ts performs this same check
+        # itself and refuses. Doing it here too means the job fails before
+        # installing anything, and the reason is the first thing in the log
+        # rather than buried under an npm install.
+        run: |
+          for v in DATABASE_URL STAGING_DB_REF STAGING_TEST_PASSWORD; do
+            if [ -z "${!v}" ]; then
+              echo "$v is not set. Add it under Settings → Secrets → Actions."
+              exit 1
+            fi
+          done
+          case "$DATABASE_URL" in
+            *"$STAGING_DB_REF"*) echo "Target confirmed as the staging project." ;;
+            *) echo "REFUSING: the database URL does not contain STAGING_DB_REF."
+               exit 1 ;;
+          esac
+
+      - name: Install
+        run: npm ci # postinstall runs `prisma generate`
+
+      - name: Apply any pending migrations first
+        # Seeding a schema older than the fixtures fails in confusing ways.
+        run: npm run db:deploy
+
+      - name: Seed
+        run: ALLOW_DESTRUCTIVE_SEED=1 npx tsx prisma/seed-staging.ts

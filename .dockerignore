@@ -1,0 +1,15 @@
+.git
+.github
+.claude
+.next
+node_modules
+src/generated
+coverage
+deploy
+docs
+*.md
+.env*
+*.env.bak
+*.pem
+Dockerfile
+.dockerignore
