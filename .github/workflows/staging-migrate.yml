@@ -6,7 +6,10 @@ name: Staging migrate
 # schema change reaches staging automatically, gets exercised there, and only
 # then is promoted. Production stays MANUAL on purpose -- migrate-on-build was
 # removed deliberately in d476bd2 (see docs/CI.md), and nothing here reverses
-# that. This workflow can only ever reach the database behind STAGING_DIRECT_URL.
+# that. This workflow can only ever reach the database named mun_staging.
+#
+# Postgres listens on the box's loopback only, so the runner reaches it through
+# an SSH tunnel to that box rather than over the internet.
 on:
   push:
     branches: [staging]
@@ -31,14 +34,21 @@ jobs:
     # only ever tunnel to the staging box.
     environment: staging
     env:
-      # The Prisma CLI reads DIRECT_URL (see prisma.config.ts). This MUST be the
-      # Supabase *session* pooler on port 5432: db.<ref>.supabase.co is IPv6-only
-      # and unreachable from GitHub runners, and 6543 is the transaction pooler,
-      # which cannot run DDL.
-      DIRECT_URL: ${{ secrets.STAGING_DIRECT_URL }}
-      DATABASE_URL: ${{ secrets.STAGING_DIRECT_URL }}
+      # The Prisma CLI reads DIRECT_URL (see prisma.config.ts). It points at the
+      # local end of the tunnel opened below.
+      DIRECT_URL: postgresql://mun_staging:${{ secrets.STAGING_DB_PASSWORD }}@127.0.0.1:55432/mun_staging
+      DATABASE_URL: postgresql://mun_staging:${{ secrets.STAGING_DB_PASSWORD }}@127.0.0.1:55432/mun_staging
     steps:
       - uses: actions/checkout@v7
+
+      - name: Tunnel to the staging database
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          ssh -f -N -L 55432:127.0.0.1:5432 deploy@${{ secrets.DEPLOY_HOST }}
+          for i in $(seq 1 10); do (echo > /dev/tcp/127.0.0.1/55432) 2>/dev/null && break; sleep 1; done
 
       - uses: actions/setup-node@v7
         with:
@@ -46,29 +56,16 @@ jobs:
           cache: npm
 
       - name: Verify the target really is the staging database
-        # `prisma migrate deploy` runs against whatever this secret contains. A
-        # stale or mistyped value migrates some OTHER database, silently and
-        # irreversibly -- and a secret is exactly the kind of value nobody
-        # re-reads. Refuse unless the URL names the project we declared as
-        # staging, the same allowlist the destructive seed uses.
-        env:
-          STAGING_DB_REF: ${{ secrets.STAGING_DB_REF }}
+        # `prisma migrate deploy` runs against whatever the tunnel leads to, and a
+        # mistyped host migrates some OTHER database, silently and irreversibly.
+        # Ask the server what it is called rather than trusting our own string.
         run: |
-          if [ -z "$DIRECT_URL" ]; then
-            echo "STAGING_DIRECT_URL is not set. Add it under Settings → Secrets → Actions."
+          name=$(docker run --rm --network host postgres:17 psql "$DIRECT_URL" -qtA -c "select current_database()" | tr -d "[:space:]")
+          if [ "$name" != "mun_staging" ]; then
+            echo "REFUSING: the tunnel leads to database [$name], not mun_staging."
             exit 1
           fi
-          if [ -z "$STAGING_DB_REF" ]; then
-            echo "STAGING_DB_REF is not set. It names the Supabase project this workflow"
-            echo "is allowed to touch. Refusing to migrate an unidentified database."
-            exit 1
-          fi
-          case "$DIRECT_URL" in
-            *"$STAGING_DB_REF"*) echo "Target confirmed as the staging project." ;;
-            *) echo "REFUSING: STAGING_DIRECT_URL does not contain STAGING_DB_REF."
-               echo "The secret points at a different database than the one declared as staging."
-               exit 1 ;;
-          esac
+          echo "Target confirmed: mun_staging."
 
       - name: Install
         run: npm ci # postinstall runs `prisma generate`

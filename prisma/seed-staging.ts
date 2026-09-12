@@ -75,13 +75,13 @@ if (url.includes(PROD_DB_REF)) {
 // any database that simply isn't production -- a colleague's dev box, a restored
 // backup, next year's cycle. Declaring the staging ref turns it into a
 // whitelist, so a mistyped or stale URL stops the script instead of destroying
-// something. Set STAGING_DB_REF to your staging Supabase project ref.
+// something. Set STAGING_DB_REF to the staging database's name (mun_staging).
 const STAGING_DB_REF: string = process.env.STAGING_DB_REF?.trim() ?? ""
 
 if (!STAGING_DB_REF) {
   console.error(
     "Refusing to run: STAGING_DB_REF is not set.\n" +
-      "It is the staging Supabase project ref (the id in your dashboard URL).\n" +
+      "It names the staging database (mun_staging), which this URL must point at.\n" +
       "This script truncates tables, so it will only run against a database you\n" +
       "have explicitly named as staging.",
   )
