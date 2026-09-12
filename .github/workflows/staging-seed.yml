@@ -26,8 +26,10 @@ jobs:
     name: Wipe and re-seed staging
     runs-on: ubuntu-latest
     env:
-      DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
-      DIRECT_URL: ${{ secrets.STAGING_DIRECT_URL }}
+      # Through the SSH tunnel opened below: the database is private to the
+      # Lightsail network and is not reachable from a runner directly.
+      DATABASE_URL: postgresql://mun_staging:${{ secrets.STAGING_DB_PASSWORD }}@127.0.0.1:55432/mun_staging?sslmode=no-verify
+      DIRECT_URL: postgresql://mun_staging:${{ secrets.STAGING_DB_PASSWORD }}@127.0.0.1:55432/mun_staging?sslmode=no-verify
       STAGING_DB_REF: ${{ secrets.STAGING_DB_REF }}
       STAGING_TEST_PASSWORD: ${{ secrets.STAGING_TEST_PASSWORD }}
     steps:
@@ -45,6 +47,15 @@ jobs:
           node-version: 20
           cache: npm
 
+      - name: Tunnel to the staging database
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          ssh -f -N -L 55432:${{ secrets.DB_HOST }}:5432 deploy@${{ secrets.DEPLOY_HOST }}
+          for i in $(seq 1 10); do (echo > /dev/tcp/127.0.0.1/55432) 2>/dev/null && break; sleep 1; done
+
       - name: Verify the target really is the staging database
         # Belt and braces: prisma/seed-staging.ts performs this same check
         # itself and refuses. Doing it here too means the job fails before
@@ -59,7 +70,7 @@ jobs:
           done
           case "$DATABASE_URL" in
             *"$STAGING_DB_REF"*) echo "Target confirmed as the staging project." ;;
-            *) echo "REFUSING: STAGING_DATABASE_URL does not contain STAGING_DB_REF."
+            *) echo "REFUSING: the database URL does not contain STAGING_DB_REF."
                exit 1 ;;
           esac
 

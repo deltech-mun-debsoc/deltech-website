@@ -11,6 +11,7 @@ Registrar DNS ──► Lightsail static IP (Sydney, 2 GB, $12/mo)
                      ├─ www.deltechmun.in  → prod     (APP_ENV=production)
                      └─ test.deltechmun.in → staging  (APP_ENV=staging, noindex)
                   Lightsail managed Postgres (private, same region)
+                    mun_prod / mun_staging, one role each
                   S3  deltechmun-media-prod / -staging (ap-south-1)
                   SES deltechmun.in (ap-south-1)
 ```
@@ -37,8 +38,16 @@ compose, deploy.sh); pushes to `staging` never do, so staging cannot break
 production routing. The workflow is inert until the repo variable
 `AWS_DEPLOY=true`.
 
-Migrations are unchanged: staging's apply automatically (`staging-migrate.yml`),
-production's by hand, first. See [CI.md](CI.md).
+Migrations still apply automatically to staging (`staging-migrate.yml`) and by
+hand to production, but both now reach the database through an **SSH tunnel to
+the box**, because it is private to the Lightsail network:
+
+```bash
+ssh -f -N -L 55432:$DB_HOST:5432 deploy@<box>
+DIRECT_URL='postgresql://mun_prod:<pw>@127.0.0.1:55432/mun_prod?sslmode=no-verify' npm run db:deploy
+```
+
+See [CI.md](CI.md).
 
 **Rollback.** The box keeps the last five images per environment.
 
@@ -74,6 +83,20 @@ After editing an env file: `docker compose up -d prod` (or `staging`).
 GitHub, repo level: secrets `DEPLOY_HOST`, `DEPLOY_SSH_KEY`,
 `DEPLOY_KNOWN_HOSTS` (`ssh-keyscan <box>`), `CRON_SECRET` (production's);
 variables `AWS_DEPLOY`, `CRON_ENABLED`.
+
+## Database
+
+One managed Postgres instance (`mun-db`, $15/mo, private) holds both
+environments as separate databases with a role each, so staging credentials
+cannot reach production data. Automated backups run 17:00-17:30 UTC with
+point-in-time restore.
+
+Connections use `sslmode=no-verify`: encrypted, but the RDS CA is not in the
+image's trust store.
+`ponytail: ship the RDS CA bundle and move to verify-full when convenient.`
+
+There is no Supabase any more. Realtime is `src/lib/realtime/` (SSE, in-process),
+which is why each environment must run exactly one app container.
 
 ## Crons
 
