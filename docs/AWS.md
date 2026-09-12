@@ -9,7 +9,7 @@ Registrar DNS ──► Lightsail static IP (Sydney, 2 GB, $12/mo)
                     Caddy :443  (automatic HTTPS)
                      ├─ deltechmun.in      → 301 www
                      ├─ www.deltechmun.in  → prod     (APP_ENV=production)
-                     └─ test.deltechmun.in → staging  (APP_ENV=staging, basic auth)
+                     └─ test.deltechmun.in → staging  (APP_ENV=staging, noindex)
                   Supabase Postgres + Realtime (unchanged)
                   S3  deltechmun-media-prod / -staging (ap-south-1)
                   SES deltechmun.in (ap-south-1)
@@ -68,15 +68,13 @@ Runtime secrets live only on the box, mode 600, one per line `KEY=value`:
   `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `RAZORPAY_*`, `ADMIN_EMAIL`,
   `CRON_SECRET`, `GFORM_SHARED_SECRET`, `SHEET_SYNC_SECRET`, `GROQ_API_KEY`,
   `UPI_VPA`, `UPI_PAYEE_NAME`. Staging adds `EMAIL_REDIRECT_TO`.
-- `/srv/mun/caddy.env`: `ACME_EMAIL`, `STAGING_USER`, `STAGING_HASH` (from
-  `docker compose run --rm caddy caddy hash-password`).
+- `/srv/mun/caddy.env`: `ACME_EMAIL`.
 
 After editing an env file: `docker compose up -d prod` (or `staging`).
 
 GitHub, repo level: secrets `DEPLOY_HOST`, `DEPLOY_SSH_KEY`,
 `DEPLOY_KNOWN_HOSTS` (`ssh-keyscan <box>`), `CRON_SECRET` (production's);
-variables `AWS_DEPLOY`, `CRON_ENABLED`. The `staging` Environment also holds the
-secret `SMOKE_BASIC_AUTH` (`user:password`).
+variables `AWS_DEPLOY`, `CRON_ENABLED`.
 
 ## Crons
 
@@ -104,7 +102,7 @@ Three things that cost time the first time:
 
 - A **new account is capped at the 1 GB Lightsail plan**; the 2 GB one is refused with "your account can not create an instance using this Lightsail plan size". It is not in Service Quotas (the `Instances` row there is a count). Open a support case: Service **Lightsail**, region Sydney, asking for the larger plan sizes.
 - `lightsail import-key-pair --public-key-base64` actually wants the **raw** `ssh-ed25519 AAAA...` text, not base64. Real base64 is rejected as "not valid".
-- Compose **interpolates `$` in env_file values**, which silently empties a bcrypt hash. `caddy.env` is therefore loaded with `format: raw` (see deploy/compose.yml). Generate the hash on the box: `docker run --rm caddy:2 caddy hash-password --plaintext '<pw>'`.
+- Compose **interpolates `$` in env_file values** by default, which silently empties anything containing `$`. Env files are therefore loaded with `format: raw` (see deploy/compose.yml).
 
 1. Generate the deploy key locally: `ssh-keygen -t ed25519 -f mun-deploy -N ""`.
 2. Lightsail → Create instance → **Sydney**, Linux, Ubuntu 24.04, the
@@ -187,8 +185,7 @@ delete the old key.
 
 **Staging first:** point `test` (A record) at the static IP, set
 `AWS_DEPLOY=true`, push to `staging`, walk the site (sign-in both ways, ribbon,
-upload, email to the sink, form sync, basic auth, webhooks bypassing it, a quiz
-load test with `scripts/load-quiz.ts` against staging only while watching
+upload, email to the sink, form sync, a quiz load test with `scripts/load-quiz.ts` against staging only while watching
 `docker stats`). Then remove the `staging` branch from Vercel.
 
 **Production:**

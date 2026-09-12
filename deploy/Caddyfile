@@ -1,6 +1,5 @@
 # HTTPS certificates are issued and renewed automatically once DNS points here.
-# caddy.env supplies ACME_EMAIL, STAGING_USER and STAGING_HASH
-# (`docker compose run --rm caddy caddy hash-password`).
+# caddy.env supplies ACME_EMAIL.
 {
 	email {$ACME_EMAIL}
 }
@@ -20,12 +19,9 @@ www.deltechmun.in {
 
 test.deltechmun.in {
 	encode zstd gzip
+	# No password gate: interns need to roam freely, and the app's own sign-in
+	# guards everything that matters. X-Robots-Tag keeps it out of search.
 	header X-Robots-Tag "noindex, nofollow"
-	# Webhooks and crons carry their own secrets and cannot answer a password prompt.
-	@gated not path /api/webhooks/* /api/cron/*
-	basic_auth @gated {
-		{$STAGING_USER} {$STAGING_HASH}
-	}
 	reverse_proxy staging:3000 {
 		header_up X-Forwarded-For {remote_host}
 	}
