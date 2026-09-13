@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, X } from "lucide-react";
+import { BookOpen, Menu, X } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useState } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { DOCS_URL } from "@/lib/app-url";
 import { t } from "@/content/strings";
 import { ThemeToggle } from "./theme-toggle";
 import type { Content } from "@/content/contentSchema";
@@ -66,6 +67,13 @@ export function Header({ sections, registrationOpen }: { sections: Content["publ
 
         <div className="flex items-center gap-2">
           <ThemeToggle />
+          <a
+            href={DOCS_URL}
+            className={cn(buttonVariants({ variant: "outline", size: "sm" }), "hidden gap-2 px-4 lg:inline-flex")}
+          >
+            <BookOpen aria-hidden="true" />
+            {t("nav.docs")}
+          </a>
           {sections.registration && <Link
             href={registrationOpen ? "/register" : "/register/closed"}
             className={cn(buttonVariants({ size: "sm" }), "hidden px-5 lg:inline-flex")}
@@ -129,6 +137,14 @@ export function Header({ sections, registrationOpen }: { sections: Content["publ
               >
                 {registrationOpen ? t("nav.register") : "Registration status"}
               </Link>}
+              <a
+                href={DOCS_URL}
+                onClick={() => setOpen(false)}
+                className={cn(buttonVariants({ variant: "outline", size: "lg" }), sections.registration ? "mt-3" : "mt-8", "w-full gap-2")}
+              >
+                <BookOpen aria-hidden="true" />
+                {t("nav.docs")}
+              </a>
               <p className="mt-auto pt-12 text-sm leading-relaxed text-muted-foreground">
                 {t("brand.tagline")}
               </p>

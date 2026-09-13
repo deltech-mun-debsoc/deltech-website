@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { t } from "@/content/strings";
+import { DOCS_URL } from "@/lib/app-url";
 import type { Content } from "@/content/contentSchema";
 
 type Props = {
@@ -55,6 +56,11 @@ export function Footer({ contacts, conferenceDates, venue, societyLocation, soci
                   {t("nav.blog")}
                 </Link>
               </li>}
+              <li>
+                <a href={DOCS_URL} className="text-paper/68 transition-colors hover:text-paper">
+                  {t("nav.docs")}
+                </a>
+              </li>
             </ul>
           </nav>
 

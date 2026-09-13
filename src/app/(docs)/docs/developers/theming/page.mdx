@@ -35,6 +35,24 @@ right class in its first response rather than flashing.
 Legacy per-area cookies (`theme-admin`, `theme-recruitment`) are read as a migration path.
 New choices always write the single global cookie.
 
+## Across subdomains
+
+`www.deltechmun.in`, `docs.deltechmun.in` and `test.deltechmun.in` are different origins, so each has
+its own `localStorage`. On its own, next-themes would keep a separate choice per host.
+
+Three pieces make one choice follow the person:
+
+| Piece | Where | Does |
+| --- | --- | --- |
+| Shared cookie | `persistThemePreference()` | Writes `theme-preference` with `Domain=deltechmun.in`, after clearing any old host-only copy. |
+| Migration | `ThemePreferenceSync` | On each load, re-issues an existing cookie on the shared domain, so choices saved before this existed carry over. |
+| Boot script | `THEME_BOOT_SCRIPT` in `<head>` | Copies the cookie into `localStorage` before next-themes reads it, so the other subdomain paints in the right theme with no flash. |
+
+Staging shares the domain too, so a theme chosen on `test.deltechmun.in` also applies on production.
+It is a display preference, so that is harmless.
+
+Locally the cookie has no `Domain`, since `localhost` is not under `deltechmun.in`.
+
 ## themeClass
 
 ```ts
