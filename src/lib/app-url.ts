@@ -59,6 +59,18 @@ const hosted = !!process.env.APP_ENV
 
 export const APP_URL: string = resolveAppUrl(process.env.NEXT_PUBLIC_APP_URL, hosted)
 
+/**
+ * Where this deployment's documentation lives. Production has its own
+ * subdomain; staging and local development serve the same pages under /docs.
+ * Pure so scripts/check-app-url.ts can pin it.
+ */
+export function resolveDocsUrl(appUrl: string): string {
+  if (appUrl === "https://www.deltechmun.in") return "https://docs.deltechmun.in"
+  return `${appUrl}/docs`
+}
+
+export const DOCS_URL: string = resolveDocsUrl(APP_URL)
+
 /** Join a path onto the deployment origin. Returns the bare path when unset. */
 export function appUrl(path: string): string {
   return `${APP_URL}${path.startsWith("/") ? path : `/${path}`}`
