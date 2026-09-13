@@ -1,0 +1,60 @@
+export const metadata = {
+  title: "Media and uploads",
+  description: "Two-phase presigned S3 uploads, the orphan sweep, and the team photo path.",
+}
+
+Two unrelated upload paths, which is worth knowing before you go looking for one general
+system.
+
+## Blog images: presigned S3, two phases
+
+`src/lib/media/` holds `s3.ts`, `keys.ts`, `actions.ts` and `upload-client.ts`.
+
+<Steps>
+1. **`createUploadIntent`** (server action) validates the request, creates a `MediaAsset` row
+   in `PENDING`, and returns a presigned PUT URL valid for five minutes.
+
+2. **The browser PUTs the file directly to S3.** The bytes never pass through the app, and
+   AWS credentials never leave the server.
+
+3. **`finalizeUpload`** verifies the object exists with a HeadObject call and marks the asset
+   ready.
+</Steps>
+
+The verification step matters: without it a client could mark an asset ready without ever
+uploading anything.
+
+## Orphans
+
+An upload that starts and never finishes leaves a `PENDING` row and possibly no object. The
+media sweep cron clears those daily. See [cron jobs](/docs/developers/cron).
+
+## Configuration
+
+`s3Config()` reads its environment lazily and throws a typed `MediaNotConfigured` when unset.
+That is why CI can build with no S3 credentials: nothing touches the config until an upload
+happens.
+
+Legacy Supabase Storage URLs still resolve, for assets uploaded before the move to S3.
+
+<Callout type="note">
+The repository README says storage is Supabase Storage. That is stale. Uploads go to S3;
+Supabase is the Postgres host and the realtime transport.
+</Callout>
+
+## Team photos: a different path entirely
+
+`PUT /api/admin/team/[id]/photo`. JPEG, PNG or WebP, **750 KB maximum**, cropped in the
+browser with `react-easy-crop`, and stored **as bytes in Postgres**, not in S3.
+
+Served from `/api/team-photo/[id]` with an hour of caching.
+
+This is deliberately not the S3 path. There are a few dozen team photos, they are small,
+they are cropped to a fixed shape, and keeping them in the database means the team page has
+no external dependency. Do not "unify" the two without a reason.
+
+## Adding an upload surface
+
+Use the S3 path for anything user-generated or unbounded. Use it through
+`upload-client.ts` rather than reimplementing the handshake, and let `keys.ts` generate the
+object key so `check-media-keys.ts` keeps passing.

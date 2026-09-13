@@ -1,0 +1,91 @@
+export const metadata = {
+  title: "Environment variables",
+  description: "Every variable the app reads, what it is for, and where to get its value.",
+}
+
+Declared in `.env.example`. Never commit a filled-in `.env`; `.gitignore` already excludes
+it.
+
+## Required to run at all
+
+| Variable | What it is |
+|---|---|
+| `DATABASE_URL` | Runtime connection. Pooled. Append `?pgbouncer=true` when going through pgBouncer. |
+| `DIRECT_URL` | Direct connection, used by migrations only. Bypasses the pooler. |
+| `AUTH_SECRET` | Signs session tokens. Generate a long random string. |
+| `NEXT_PUBLIC_APP_URL` | The app's own origin. Used to build links in emails. |
+
+<Callout type="warning">
+`DIRECT_URL` on Supabase resolves to an IPv6-only host. On an IPv4-only network,
+migrations fail with `P1001` while the app itself runs fine through the pooled
+`DATABASE_URL`. See [troubleshooting](/docs/developers/troubleshooting).
+</Callout>
+
+## Email
+
+| Variable | What it is |
+|---|---|
+| `AUTH_RESEND_KEY` | Resend API key. Without it no mail is sent, including magic links. |
+| `EMAIL_FROM` | Sender address. Defaults to `noreply@deltechmun.in`. |
+| `EMAIL_REDIRECT_TO` | Staging sink. Every message goes here instead, with the real recipient in the subject. |
+
+## Payments
+
+| Variable | What it is |
+|---|---|
+| `RAZORPAY_KEY_ID` | Public key id. |
+| `RAZORPAY_KEY_SECRET` | Secret key. Server only. |
+| `RAZORPAY_WEBHOOK_SECRET` | Verifies inbound webhook signatures. Without it, webhooks are rejected. |
+
+UPI details are configured in the admin console, not here.
+
+## Realtime
+
+| Variable | What it is |
+|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Project URL. Quiz realtime only. |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Publishable key. Quiz realtime only. |
+
+Both are public by design. Supabase is used here for **realtime and as the Postgres host**,
+not for auth and not for data access.
+
+## Storage
+
+| Variable | What it is |
+|---|---|
+| `S3_BUCKET`, `S3_REGION` | Bucket and region. |
+| `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | Credentials. Server only, never exposed. |
+| `S3_PUBLIC_BASE_URL` | Public origin uploaded files are served from. |
+| `S3_ENDPOINT` | For S3-compatible providers that are not AWS. |
+
+Unset means blog image upload throws a typed "not configured" error. Everything else works.
+
+## Integrations and jobs
+
+| Variable | What it is |
+|---|---|
+| `CRON_SECRET` | Bearer token the three cron routes require. |
+| `GFORM_SHARED_SECRET` | Header secret for the Google Form webhook. |
+| `SHEET_SYNC_SECRET` | Authenticates the outbound sheet mirror. |
+| `GROQ_API_KEY`, `GROQ_MODEL` | AI import mapping. Optional. Model defaults to `llama-3.3-70b-versatile`. |
+| `ADMIN_EMAIL` | Seeded admin account. |
+
+## Read by code but not in `.env.example`
+
+| Variable | What it is |
+|---|---|
+| `DATABASE_POOL_MAX` | Postgres pool size. |
+| `ALLOW_DESTRUCTIVE_SEED` | Must be `1` for the staging seed to run. |
+| `NEXTAUTH_SECRET` | Legacy fallback for `AUTH_SECRET`. |
+| `RECRUITMENT_DB_CHECKS` | Enables database-backed recruitment checks. |
+| `QUIZ_LOAD_*` | Options for the quiz load-test script. |
+
+Platform-supplied: `NODE_ENV`, `VERCEL`, `VERCEL_ENV`, `NEXT_PUBLIC_VERCEL_URL`,
+`VERCEL_PROJECT_PRODUCTION_URL`.
+
+## Rules
+
+- Anything named `NEXT_PUBLIC_` is **in the browser bundle**. Never put a secret behind that
+  prefix.
+- Credentials are read lazily, so a missing key throws when the feature is used rather than
+  at boot. That is what lets CI build with dummy values.

@@ -1,0 +1,93 @@
+export const metadata = {
+  title: "Troubleshooting",
+  description: "The errors you will actually hit locally, and what each one means.",
+}
+
+The errors you will actually hit, and what each one means.
+
+## `P1001: Can't reach database server`
+
+The direct connection is unreachable. Almost always **`DIRECT_URL` on Supabase resolving to
+an IPv6-only host** while you are on an IPv4-only network.
+
+The tell: `npm run dev` works fine and only `prisma migrate` fails. The app uses the pooled
+`DATABASE_URL`; migrations use `DIRECT_URL`.
+
+Fixes, in order of preference: run a local Postgres in Docker and point both at it; use the
+session pooler URL for `DIRECT_URL`; or get on a network with IPv6.
+
+## `P2002: Unique constraint failed`
+
+A duplicate. Usually `Delegate.email`. In user-facing paths this should already be caught and
+turned into a readable message. If you see the raw error, the calling path is missing that
+handling.
+
+## Prisma client not found, or types are wrong
+
+The client is generated into `src/generated/prisma/` and is gitignored.
+
+```bash
+npm run db:generate
+```
+
+Needed after any schema change and after a fresh clone if `postinstall` did not run.
+
+## `MediaNotConfigured`
+
+S3 environment variables are unset. Expected locally. Only blog image upload is affected;
+everything else works. See [media and uploads](/docs/developers/media).
+
+## Realtime does nothing in the quiz
+
+`NEXT_PUBLIC_SUPABASE_URL` or the publishable key is unset, so the client is `null` by design
+and the page degrades rather than crashing. The quiz still functions on server timestamps.
+
+## No email is sent
+
+Check, in this order: `AUTH_RESEND_KEY` is set; `EMAIL_REDIRECT_TO` is not silently
+redirecting everything to one address; the `EmailLog` row, which records the actual provider
+error.
+
+## Payments never confirm
+
+`RAZORPAY_WEBHOOK_SECRET` is unset or wrong, so every webhook fails signature verification and
+is rejected. This presents as silence, not as an error, because a rejected webhook is supposed
+to be quiet.
+
+## The build fails on strings
+
+```
+node scripts/check-strings.mjs
+```
+
+Either a hardcoded user-visible string in a `.tsx`, or an em dash somewhere under `src/`. The
+output names the file and line. See [the strings rule](/docs/developers/strings).
+
+## The build fails on ink band tokens
+
+`bg-foreground` and `text-background` appear on the same line. That pair inverts between
+themes and produces an unreadable band in one of them. Use `bg-ink text-paper`. See
+[the design system](/docs/developers/design-system).
+
+## A Select renders an empty trigger
+
+Base UI resolves the trigger label from the `items` prop, not from children. Use
+`toSelectItems()`. See [UI components](/docs/developers/components).
+
+## A dialog or dropdown is the wrong theme
+
+Portalled content does not inherit the area's theme class. Use the themed container from
+`src/lib/theme-portal.tsx`.
+
+## Type errors that only appear in CI
+
+There is no separate `tsc` step. `npm run build` is the type check. Run it locally.
+
+## Stale claims in the repository README
+
+For the record, since they will otherwise cost you an hour:
+
+- `src/styles/tokens.ts` and `tailwind.config.ts` **do not exist**. Tokens are in
+  `src/app/globals.css`.
+- `check:strings` is not "to be wired up". It is in `npm run check` and in CI.
+- Storage is **S3**, not Supabase Storage.

@@ -1,0 +1,75 @@
+export const metadata = {
+  title: "Architecture",
+  description: "How a request travels from the edge to the database, and what talks to what.",
+}
+
+Next.js 16 App Router, React 19, Prisma 7 on PostgreSQL, NextAuth v5, Tailwind v4. One
+application, six route groups, no monorepo.
+
+## The request path
+
+<Figure caption="Only five path prefixes reach the auth proxy. Everything else is public and skips it entirely.">
+<svg viewBox="0 0 720 260" role="img" aria-label="Request flow from the edge proxy through route groups and server actions to Postgres" style={{width:"100%",height:"auto"}}>
+  <defs>
+    <marker id="ara" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="color-mix(in oklch, var(--foreground) 45%, transparent)" />
+    </marker>
+  </defs>
+  {[
+    { x: 8,   y: 8,   w: 200, h: 40, t: "Request", s: "" },
+    { x: 8,   y: 74,  w: 200, h: 52, t: "proxy.ts", s: "edge, 5 prefixes only" },
+    { x: 260, y: 74,  w: 200, h: 52, t: "Route group layout", s: "requireStaff / requireAdmin" },
+    { x: 512, y: 74,  w: 200, h: 52, t: "page.tsx", s: "server component" },
+    { x: 260, y: 152, w: 200, h: 52, t: "actions.ts", s: "zod, guard, transact, audit" },
+    { x: 512, y: 152, w: 200, h: 52, t: "Prisma 7", s: "pg driver adapter" },
+    { x: 512, y: 214, w: 200, h: 38, t: "PostgreSQL", s: "" },
+  ].map((b) => (
+    <g key={b.t}>
+      <rect x={b.x} y={b.y} width={b.w} height={b.h} rx="8"
+        fill="var(--card)" stroke="color-mix(in oklch, var(--foreground) 18%, transparent)" />
+      <text x={b.x + b.w / 2} y={b.s ? b.y + 24 : b.y + 25} textAnchor="middle" fontSize="13.5" fontWeight="650" fill="var(--foreground)">{b.t}</text>
+      {b.s ? <text x={b.x + b.w / 2} y={b.y + 41} textAnchor="middle" fontSize="11" fill="var(--muted-foreground)">{b.s}</text> : null}
+    </g>
+  ))}
+  <line x1="108" y1="48" x2="108" y2="70" stroke="color-mix(in oklch, var(--foreground) 45%, transparent)" strokeWidth="1.5" markerEnd="url(#ara)" />
+  <line x1="208" y1="100" x2="256" y2="100" stroke="color-mix(in oklch, var(--foreground) 45%, transparent)" strokeWidth="1.5" markerEnd="url(#ara)" />
+  <line x1="460" y1="100" x2="508" y2="100" stroke="color-mix(in oklch, var(--foreground) 45%, transparent)" strokeWidth="1.5" markerEnd="url(#ara)" />
+  <line x1="360" y1="126" x2="360" y2="148" stroke="color-mix(in oklch, var(--foreground) 45%, transparent)" strokeWidth="1.5" markerEnd="url(#ara)" />
+  <line x1="460" y1="178" x2="508" y2="178" stroke="color-mix(in oklch, var(--foreground) 45%, transparent)" strokeWidth="1.5" markerEnd="url(#ara)" />
+  <line x1="612" y1="204" x2="612" y2="210" stroke="color-mix(in oklch, var(--foreground) 45%, transparent)" strokeWidth="1.5" markerEnd="url(#ara)" />
+</svg>
+</Figure>
+
+## Four things that will surprise you
+
+**Middleware is called `proxy.ts`.** Next 16 renamed it. It lives at `src/proxy.ts`, exports
+`proxy`, and its matcher covers only `/admin`, `/write`, `/dashboard`, `/account` and
+`/recruitment`. The whole public site never touches it.
+
+**There is no test framework.** No Jest, no Vitest, no Playwright. There are thirty-two
+standalone `node:assert` scripts under `scripts/`, run by `npm run check`. See
+[testing](/docs/developers/testing).
+
+**No component may contain a hardcoded string, and no file may contain an em dash.** Both
+are enforced in CI. See [the strings rule](/docs/developers/strings).
+
+**shadcn here sits on Base UI, not Radix.** The style is `base-nova`. See
+[UI components](/docs/developers/components).
+
+## External services
+
+| Service | Used for | Degrades how |
+|---|---|---|
+| **PostgreSQL** (Supabase-hosted) | All relational data | Hard dependency |
+| **Resend** | All outbound email | Failures are logged; the action still succeeds |
+| **Razorpay** | Card, netbanking and UPI payments | Falls back to UPI QR or a static link by config |
+| **Supabase Realtime** | Live quiz only | Returns null when unconfigured rather than crashing |
+| **S3** | Blog images | Throws a typed "not configured" error |
+| **Groq** | Import column suggestions | Optional |
+
+Nothing except Postgres is required for the app to boot, which is what makes CI able to
+build without any credentials.
+
+## Where to go next
+
+<SectionIndex sectionId="developers" />

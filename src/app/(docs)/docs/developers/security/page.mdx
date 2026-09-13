@@ -1,0 +1,96 @@
+export const metadata = {
+  title: "Security posture",
+  description: "Headers, the report-only CSP and how to promote it, rate limits, and the admin invariant.",
+}
+
+What is in place, what is deliberately not, and how to tighten it.
+
+## Headers
+
+Set unconditionally in `next.config.ts` on every path:
+
+```
+X-Content-Type-Options: nosniff
+Referrer-Policy: strict-origin-when-cross-origin
+X-Frame-Options: DENY
+Permissions-Policy: camera=(), microphone=(), geolocation=(), interest-cohort=()
+```
+
+`X-Frame-Options: DENY` is the important one. The admin console was framable by any origin,
+which is a clickjacking route to one-click destructive actions performed by an authenticated
+staff member.
+
+## The CSP is report-only, on purpose
+
+```
+Content-Security-Policy-Report-Only: default-src 'self'; script-src 'self' 'unsafe-inline'
+  'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:;
+  font-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co;
+  frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'
+```
+
+<Callout type="warning">
+This is documentation with telemetry attached, not a control. Do not cite it as protection.
+</Callout>
+
+A blocking CSP shipped blind is the change that breaks production silently. Several things
+here would be cut by a strict policy: Tiptap and recharts inject styles at runtime, Next needs
+an inline bootstrap script, Supabase is contacted over HTTPS and WebSocket, and images come
+from an external origin.
+
+### Promoting it
+
+<Steps>
+1. Watch the browser console on `/admin`, `/blog/[slug]` and `/quiz/[code]`, which are the
+   three surfaces that will report.
+
+2. Fix or explicitly allow whatever reports.
+
+3. Remove `'unsafe-inline'` and `'unsafe-eval'` from `script-src`. This needs the proxy to
+   stamp a nonce on every response, which is the real work.
+
+4. Only then rename the header to `Content-Security-Policy`.
+</Steps>
+
+## Rate limits
+
+Database-backed, in `src/lib/rate-limit.ts`, and **fail-open**: if the limiter errors the
+request proceeds. Availability is preferred to a lockout. Limits are listed in
+[authentication](/docs/developers/auth).
+
+## Redirect safety
+
+`safeLanding()` rejects `//host`, backslashes and non-HTTP schemes, and downgrades to the
+role's home when the role cannot reach the target. Route every redirect built from user input
+through it.
+
+## Account enumeration
+
+Sign-in and magic link requests always land on the same page whether or not the account
+exists, and accounts are never auto-provisioned by a magic link.
+
+## Webhook verification
+
+The Razorpay webhook verifies its HMAC-SHA256 signature **before parsing the body**. The
+Google Form webhook checks a shared-secret header. Any new webhook must do the same.
+
+## Secrets
+
+Anything `NEXT_PUBLIC_` is in the browser bundle. S3 credentials are server-only and the
+browser gets a presigned URL instead. Razorpay's secret never reaches the client.
+
+## The admin invariant
+
+At least one enabled admin always survives, enforced at serializable isolation. See
+[authorization](/docs/developers/authorization).
+
+## Known gaps
+
+- The CSP is not enforcing.
+- There is no automated dependency scanning beyond Dependabot.
+- Rate limiting fails open, which is a deliberate availability trade, not an oversight.
+
+## Checks
+
+`check-security.ts` asserts the header set. `check-auth-page-guards.ts` and
+`check-role-guards.ts` assert that guarded routes are actually guarded.

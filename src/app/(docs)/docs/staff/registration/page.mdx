@@ -1,0 +1,43 @@
+export const metadata = {
+  title: "Opening and closing registration",
+  description: "The one switch that turns intake on, and the message shown when it is off.",
+}
+
+`/admin/config/registration` is one switch and one message.
+
+## The switch
+
+**Accept registrations.** On means `/register` works. Off means anyone visiting it is
+sent to a closed page.
+
+The switch is checked twice: once when the page loads, and again on the server when a
+form is submitted, inside the same transaction that creates the record. So closing
+registration cannot be beaten by someone who had the form already open.
+
+## The closed message
+
+Free text shown on the closed page. Write something useful. "Registrations are closed"
+tells a delegate nothing; "Registrations closed on 14 March. Allotments go out by 20
+March. Contact secretariat@... with questions" answers the three questions they were
+going to ask.
+
+If registration reopens while someone is sitting on the closed page, they are sent back
+to the form.
+
+## Before you open
+
+Everything in [launching a conference](/docs/staff/launch) should be done. In
+particular: committees exist and are active, the matrix has portfolios, every fee tier
+is defined, and an admin has verified the payment provider end to end.
+
+## Closing early
+
+Closing is the first move in any incident. If bad registrations are arriving, or the
+matrix is wrong, or payments are misrouted, close intake before you start fixing. It
+stops the problem growing while you work. See
+[when something goes wrong](/docs/staff/recovery).
+
+## Mode overrides this
+
+In **Society** mode registration is structurally off regardless of this switch, because
+there is no event to register for. See [operating modes](/docs/staff/modes).

@@ -10,7 +10,7 @@ Conference management platform for Model United Nations events — registrations
 | Styling | Tailwind CSS v4 + shadcn/ui |
 | Auth | NextAuth v5 (beta) + Resend magic-link |
 | ORM | Prisma + PostgreSQL (Supabase) |
-| Storage | Supabase Storage |
+| Storage | S3 (presigned uploads) |
 | Payments | Razorpay (card / UPI) |
 | Email | Resend + React Email |
 | Rich text | Tiptap |
@@ -43,11 +43,11 @@ Open [http://localhost:3000](http://localhost:3000).
 
 ## UI text
 
-All user-visible strings live in `src/content/strings.ts`. Never hardcode text literals in components. A `check:strings` script (to be wired up) will enforce this at CI time.
+All user-visible strings live in `src/content/strings.ts`. Never hardcode text literals in components. `scripts/check-strings.mjs` enforces this, plus a ban on em dashes under `src/`. It runs in `npm run check` and in CI.
 
 ## Design tokens
 
-All design values live in `src/styles/tokens.ts` and are consumed by `tailwind.config.ts`. See `docs/DESIGN_TOKENS.md`.
+All design values live in `src/app/globals.css`. Tailwind v4 is configured in CSS: there is no `tailwind.config.ts` and no `src/styles/tokens.ts`. See `docs/DESIGN_TOKENS.md`.
 
 ## Supabase environment variables
 
@@ -76,4 +76,8 @@ Set `EMAIL_FROM=noreply@deltechmun.in` in your environment once verification com
 
 ## Docs
 
-Read `docs/README.md` at the start of every session.
+The full documentation site is at [docs.deltechmun.in](https://docs.deltechmun.in), served
+from the `(docs)` route group in this app. Source: `src/app/(docs)/`.
+
+`docs/` in this repository holds internal engineering material (spec, plan of action, CI
+notes, maintainer guide). Read `docs/README.md` at the start of every session.

@@ -1,0 +1,75 @@
+export const metadata = {
+  title: "Contributing",
+  description: "Branching, the checks you must run, and what a good pull request looks like.",
+}
+
+## Before you start
+
+Read [project structure](/docs/developers/structure) and
+[the strings rule](/docs/developers/strings). Between them they account for most review
+comments on a first pull request.
+
+## Workflow
+
+<Steps>
+1. Branch from `main`. Do not commit to `main` directly.
+
+2. Make the change. Match the conventions of the code around it: its comment density, its
+   naming, its idioms.
+
+3. Run both gates:
+
+   ```bash
+   npm run check && npm run build
+   ```
+
+4. Open a pull request. The template asks what changed and how you verified it. Answer both
+   properly.
+</Steps>
+
+## What the reviewer will check
+
+- **No hardcoded strings, no em dashes under `src/`.** CI catches these, but catching them
+  yourself is faster.
+- **Server actions are guarded in the action**, not only in the layout.
+- **Input is validated with a zod schema**, on the server.
+- **State-changing actions write to the audit log.**
+- **New intake goes through `createDelegateFromRow()`**, not directly to the table.
+- **Nothing is dropped.** Bad input is quarantined, not discarded.
+- **Side effects cannot fail the action.**
+
+## House style
+
+**No comments unless they explain why.** The codebase's existing comments are worth reading
+as a model: they explain a non-obvious decision, not what the next line does.
+
+**Do not abstract for one caller.** Leave code beside its only user until a second one exists.
+
+**Prefer deletion.** The shortest diff that solves the problem is the right one, once you
+actually understand the problem.
+
+**Do not create a shared component for a shared appearance.** Two things that look alike today
+and belong to different features will diverge.
+
+## Adding a dependency
+
+Justify it. This project has a deliberately small dependency list, and most of the ones that
+exist do something genuinely hard: Prisma, NextAuth, Tiptap, Resend, Razorpay, the AWS SDK.
+
+A few lines of your own beats a package for anything you could reasonably write.
+
+## Migrations
+
+Add a new migration; never edit an applied one. Remember that deployment and migration are
+separate steps, so your code must tolerate both schema versions, or the migration must be
+applied first. See [CI and deployment](/docs/developers/ci).
+
+## Updating documentation
+
+Permissions are documented in three places: this site's
+[roles and permissions](/docs/staff/roles), the in-product `/admin/guide`, and
+`docs/MAINTAINER_GUIDE.md`. Change all three together or they drift.
+
+If you change a page's behaviour, update its page here. `npm run check` includes
+`check-docs-links.ts`, which fails if a documentation link points at a page that no longer
+exists.

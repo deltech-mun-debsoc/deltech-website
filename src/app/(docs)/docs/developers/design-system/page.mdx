@@ -1,0 +1,105 @@
+export const metadata = {
+  title: "Design system",
+  description: "The token set, the custom dark variant, and the editorial utilities.",
+}
+
+Everything is in one file: `src/app/globals.css`. There is **no `tailwind.config.ts`** and
+**no `src/styles/tokens.ts`**. Tailwind v4 is configured in CSS.
+
+## The custom dark variant
+
+```css
+@custom-variant dark (&:where(.dark, .dark *):not(:where(.theme-light, .theme-light *)));
+```
+
+Two things follow from it. `.dark` matches the carrying element **and its descendants**, and
+an inner `.theme-light` opts back out. That is what lets the admin console render light while
+a marketing page renders dark, in the same document. `:where()` keeps specificity at zero so
+these never fight your own selectors.
+
+## Token layers
+
+`:root, .theme-light` defines the light set, `.dark` overrides it. Between them:
+
+- **A teal ramp**, `--teal-50` to `--teal-900`, the brand anchor;
+- **A gold ramp**, `--gold-300`, `--gold-500`, `--gold-700`;
+- **Diplomatic hues**: `--signal`, `--signal-soft`, `--ink-soft`;
+- **Semantic pairs**: background, foreground, card, popover, primary, secondary, muted,
+  accent, destructive, border, input, ring;
+- **Charts**: `--chart-1` to `--chart-5`;
+- **Sidebar**: its own eight-token set.
+
+Light is warm paper. Dark is deliberately **neutral near-black with zero chroma**, not a
+tinted dark.
+
+### Tokens not redefined in dark
+
+The teal and gold ramps, `--radius`, and `--ink` / `--paper`. That is intentional in each
+case; do not "fix" it.
+
+## The ink band rule
+
+`--ink` and `--paper` are a fixed always-dark-surface, always-light-text pair, used for
+footers, hero bands and section headers. They are zero chroma and identical in both themes.
+
+`scripts/check-ink-band-tokens.ts` **fails the build** if `bg-foreground` and
+`text-background` appear on the same line anywhere under `src/`, because that pair inverts
+between themes and produces an unreadable band in one of them. Use `bg-ink text-paper`.
+
+## Radius
+
+One base, six derived:
+
+```
+--radius: 0.375rem
+sm 0.6x   md 0.8x   lg 1x   xl 1.4x   2xl 1.8x   3xl 2.2x   4xl 2.6x
+```
+
+Change the base and the whole scale moves together.
+
+## Fonts
+
+Loaded with `next/font/google` in `src/app/layout.tsx`:
+
+| Family | Variable | Used for |
+|---|---|---|
+| Geist | `--font-sans` | Body |
+| Geist Mono | `--font-geist-mono` | Code, `.data-label` |
+| Fraunces | `--font-display` | Headings |
+
+Fraunces is aliased to `--font-display`, `--font-serif` **and** `--font-heading`, so `h1`
+through `h4` are serif by default. It is a variable font with an optical size axis, which the
+display utilities set explicitly.
+
+## Editorial utilities
+
+| Class | For |
+|---|---|
+| `.display`, `.display-hero`, `.display-section` | Fraunces display type at three scales |
+| `.body-large` | Prominent supporting copy |
+| `.eyebrow`, `.section-label` | Uppercase tracked labels |
+| `.data-label` | Monospace uppercase operational label |
+| `.rule`, `.rule-gold` | Hairline dividers |
+| `.editorial-card` | 1px ink border, card background. No drop shadow. |
+| `.section-shell` | Responsive page width |
+| `.ink-link` | Inline link with an arrow that shifts on hover |
+| `.signal-dot` | Pulsing status dot |
+| `.paper-grid`, `.diplomatic-surface`, `.noise-wash` | The background motifs |
+
+Add to `globals.css` only when a pattern is used across routes. Otherwise keep styling beside
+the component.
+
+## Operations surfaces differ deliberately
+
+Inside `.admin-shell` and `.recruitment-shell`, `.editorial-card` loses its radius and shadow,
+labels grow slightly, and controls are forced to 16px. Dense operational screens are not
+supposed to look like the marketing site.
+
+## Motion
+
+Keyframes for orbit, signal pulse and the quiz animations, all disabled under
+`prefers-reduced-motion`, except the quiz drain bar, which is kept because it carries
+information rather than decoration.
+
+Framer Motion helpers live in `src/app/(marketing)/_components/motion.tsx`: `FadeUp`,
+`StaggerList`, `StaggerItem`, all reduced-motion aware.

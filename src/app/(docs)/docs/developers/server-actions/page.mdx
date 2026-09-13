@@ -1,0 +1,80 @@
+export const metadata = {
+  title: "Server actions",
+  description: "The shape every mutation follows: validate, guard, transact, audit, revalidate.",
+}
+
+Mutations are server actions colocated as `actions.ts` beside the route that uses them.
+Twenty-six files carry `"use server"`.
+
+## The shape
+
+Every mutation follows the same order. Deviating from it is how a guard gets skipped.
+
+<Steps>
+1. **Guard.** `requireStaff()`, `requireAdmin()`, or a recruitment capability check. In the
+   action, not only in the layout.
+
+2. **Validate.** Parse input with a zod schema from `src/lib/schemas/`. Never trust the
+   client's shape.
+
+3. **Re-check preconditions inside the transaction.** Registration re-reads whether intake is
+   open *inside* the serializable transaction that creates the row, because checking before
+   the transaction loses the race.
+
+4. **Write.** One transaction where several tables move together.
+
+5. **Audit.** Write to the log through `src/lib/audit.ts`.
+
+6. **Side effects last.** Email, sheet sync. These are allowed to fail without failing the
+   action.
+
+7. **Revalidate** the affected paths.
+</Steps>
+
+## Validation lives in `src/lib/schemas/`
+
+`register.ts`, `password.ts`, `import.ts`, `recruitment.ts`. The same schema is used by
+`react-hook-form` with `zodResolver` on the client and by the action on the server, so the
+rules cannot drift.
+
+Client validation is a convenience. The server copy is the control.
+
+## Errors are values
+
+Return a typed result rather than throwing for expected failures. A duplicate email is a
+`P2002` that becomes a readable message, not a stack trace.
+
+Unexpected failures should throw and hit the error boundary.
+
+## Side effects must not fail the action
+
+```
+Registration succeeds. The confirmation email fails.
+=> The delegate is registered. A FAILED EmailLog row is written. Staff can resend.
+```
+
+This is deliberate throughout. An email provider having a bad minute must not stop a
+conference. It does mean failures need somewhere to surface, which is the failed-email card
+on the admin overview.
+
+## Idempotency
+
+Anything that can be retried carries a key or a constraint:
+
+- recruitment evaluations have a unique idempotency key;
+- quiz answers are unique on session, slide and nickname;
+- check-in is idempotent by construction;
+- recruitment imports are content-hashed;
+- selection emails check `EmailLog` before sending.
+
+## Concurrency
+
+- **Optimistic locking** where two people might edit at once: pass `expectedVersion`.
+- **Serializable transactions** where an invariant spans rows.
+- **Soft holds** where a human needs exclusive use of something for a moment, like a
+  portfolio during allotment.
+
+## Checks
+
+`check-concurrency.ts`, `check-recruitment-concurrency.ts`, `check-role-guards.ts`,
+`check-intake.ts`, `check-settings.ts`.

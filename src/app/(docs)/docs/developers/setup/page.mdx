@@ -1,0 +1,104 @@
+export const metadata = {
+  title: "Local setup",
+  description: "From a clean clone to a running dev server, including the database options.",
+}
+
+From a clean clone to a running dev server.
+
+## Prerequisites
+
+Node 20, npm, and a PostgreSQL database you can write to. Docker is the easiest way to
+get the last one.
+
+## Steps
+
+<Steps>
+1. **Install.**
+
+   ```bash
+   npm install
+   ```
+
+   `postinstall` runs `prisma generate`. It reads the datasource URL through
+   `process.env` rather than Prisma's `env()`, so this step **does not need a working
+   database**.
+
+2. **Configure the environment.**
+
+   ```bash
+   cp .env.example .env
+   ```
+
+   Fill it in. See [environment variables](/docs/developers/env) for what each one is and
+   which are actually required.
+
+3. **Get a database.** Either point `DATABASE_URL` and `DIRECT_URL` at a hosted Postgres,
+   or run one locally:
+
+   ```bash
+   docker run -d --name mun-db -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgres:16
+   ```
+
+   Then set both to `postgresql://postgres:postgres@localhost:5432/postgres`.
+
+4. **Apply migrations.**
+
+   ```bash
+   npm run db:migrate
+   ```
+
+5. **Seed.**
+
+   ```bash
+   npm run db:seed
+   ```
+
+6. **Run.**
+
+   ```bash
+   npm run dev
+   ```
+</Steps>
+
+## Which seed to use
+
+`prisma/seed.ts` creates settings, five committees, six fees and one admin. It creates
+**zero portfolios and zero delegates**, which means allotment, payment and check-in cannot
+be exercised at all.
+
+`prisma/seed-staging.ts` builds a dataset you can actually use: portfolios, delegates in
+several states, payments, blog posts, quizzes and a recruitment cycle. It **truncates
+tables**, so it is guarded:
+
+```bash
+ALLOW_DESTRUCTIVE_SEED=1 npm run db:seed:staging
+```
+
+Use it on a local or staging database. Never point it at anything with real data.
+
+<Callout type="danger">
+Check which database your `.env` points at before running the staging seed. It wipes the
+delegate, allotment, payment, blog and quiz tables.
+</Callout>
+
+## The scripts
+
+| Command | Does |
+|---|---|
+| `npm run dev` | Dev server on port 3000 |
+| `npm run build` | Production build. This is also the TypeScript check. |
+| `npm run check` | Every assertion script plus the strings gate |
+| `npm run db:migrate` | Create and apply a migration in development |
+| `npm run db:deploy` | Apply existing migrations, for CI and production |
+| `npm run db:status` | Show migration state |
+| `npm run db:generate` | Regenerate the Prisma client |
+| `npm run db:seed` | Minimal seed |
+| `npm run db:seed:staging` | Full fixture seed, guarded |
+
+## Before you push
+
+```bash
+npm run check && npm run build
+```
+
+Both run in CI. Running them locally is faster than waiting for the pipeline.

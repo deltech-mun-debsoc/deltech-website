@@ -1,0 +1,43 @@
+export const metadata = {
+  title: "Getting your staff account",
+  description: "How invites work and why staff sign in through a different door.",
+}
+
+Staff accounts are created by invitation. There is no public route to one.
+
+## Being invited
+
+An admin adds your email at `/admin/users` and picks your role. You get a **staff
+invite** email pointing at `/signin/staff`.
+
+## The staff door
+
+`/signin/staff` is the same sign-in mechanism as the delegate door, with the magic
+link tab first, because a freshly invited account has no password yet.
+
+<Steps>
+1. Open `/signin/staff` and request a magic link with your invited address.
+
+2. Click the link in your email. You are signed in and sent to your role's home page.
+
+3. Go to `/account` and set a password, so you are not dependent on email every time.
+</Steps>
+
+## If the invite email never arrives
+
+The invite creates your account regardless of whether the email is delivered. The
+admin who invited you sees a warning when delivery fails and can simply send you the
+sign-in URL by other means. You do not need to be re-invited.
+
+## Rules
+
+- **Do not share staff accounts.** The activity log records who did what, and a shared
+  account makes it useless exactly when it matters.
+- **Use your own address**, not a shared inbox, for the same reason.
+- Your session is re-checked against the database periodically, so a role change or a
+  disabled account takes effect quickly rather than at next sign-in.
+
+## Leaving
+
+Ask an admin to disable your account rather than deleting it. Disabling stops access
+immediately and keeps your history in the activity log intact.

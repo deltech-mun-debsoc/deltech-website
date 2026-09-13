@@ -1,0 +1,74 @@
+export const metadata = {
+  title: "The quiz system",
+  description: "Server-authoritative timing, realtime, scoring and sealed result receipts.",
+}
+
+The most stateful part of the codebase. The design principle throughout: **the server is
+authoritative and the client is a view.**
+
+## The modules
+
+`src/lib/quiz-types.ts`, `quiz-live.ts`, `quiz-scoring.ts`, `quiz-session.ts`,
+`quiz-cache.ts`, `quiz-theme.ts`, `quiz-result-receipt.ts`.
+
+## Timing
+
+`QuizSession` stores `currentSlideStartedAt`, `currentSlideDeadlineAt`,
+`currentSlideLockedAt` and `currentSlideRevealedAt`. Every client computes its countdown from
+those server timestamps.
+
+Consequences: a reload resyncs instead of restarting, a slow connection is not penalised, and
+every participant's clock agrees. `GET /api/quiz/sessions` returns a server-computed
+`secondsLeft`, `locked` and `revealed`, and **redacts the answer** until reveal.
+
+## Realtime
+
+Supabase Realtime, used for presence and live updates. `src/lib/supabase.ts` returns `null`
+when unconfigured, so a missing or wrong URL degrades to polling rather than white-screening
+the page. `check-realtime-optional.ts` asserts that.
+
+## Answering
+
+`POST /api/quiz/responses`. Per-type validation, then a database unique constraint on
+`(sessionId, slideId, nickname)`. The constraint, not the application check, is what makes
+double scoring impossible.
+
+Rate limited to eight answers a minute per participant.
+
+## Scoring
+
+Correctness, plus a speed component, plus a streak bonus for consecutive correct answers.
+Poll mode is anonymous and unscored. `check-quiz-scoring.ts` covers the arithmetic.
+
+## Sealed result receipts
+
+`src/lib/quiz-result-receipt.ts`. Answering returns a cryptographically sealed receipt. At
+reveal, the participant's phone can learn its own result from the receipt without the server
+having to trust anything the client sends back.
+
+This is why a phone can show "you were right" instantly without a round trip that could be
+forged. `check-quiz-receipts.ts` covers it.
+
+## Identity persistence
+
+Nickname, avatar and a stable presence id live in `localStorage`, so a reload rejoins the same
+seat with the same score. Nickname collisions are detected through realtime presence.
+
+## The presenter
+
+`/admin/quiz/[id]/present` has its own `layout.tsx` that escapes the admin shell entirely
+(`fixed inset-0 z-50`) while keeping the auth gate, and re-checks the role itself.
+
+`?session=` resumes an existing run; no parameter starts a fresh one with a new room code.
+
+## Slide types
+
+`MCQ`, `TRUE_FALSE`, `TYPE_ANSWER`, `NUMERIC`, `WORDCLOUD`, `SCALE`, `OPEN_TEXT`, `CONTENT`.
+Each has its own config panel, participant input and presenter visualisation. Adding one means
+touching all three plus the validation in the responses route.
+
+## Themes
+
+Five hex-based presets in `quiz-types.ts`, separate from the site's token system because they
+render on a projector against a fixed background rather than in a themed document.
+`quiz-theme.ts` derives borders and panels from luminance and picks a readable foreground.

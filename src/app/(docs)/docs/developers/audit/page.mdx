@@ -1,0 +1,56 @@
+export const metadata = {
+  title: "Audit and rollback",
+  description: "What gets recorded, how the diff is stored, and how rollback replays it.",
+}
+
+Two separate audit systems, deliberately.
+
+## The admin log
+
+`src/lib/audit.ts` writes, `src/lib/audit-change.ts` computes the diff, `/admin/logs` reads.
+
+Each entry records the actor, the action, the entity, the change and the time. A rolled-back
+entry is marked, so the log shows both the change and its reversal.
+
+## Rollback
+
+Admin only. It reverses **one recorded change**, not everything downstream of it. Rolling
+back an allotment edit does not unsend the email that went out or undo a payment created
+afterwards.
+
+That limitation is inherent, not a bug: side effects that left the system cannot be recalled.
+It is documented for operators in [activity log and rollback](/docs/staff/logs).
+
+## The recruitment log
+
+`src/lib/recruitment/audit.ts`, read at `/recruitment/audit`. Append-only, with its own event
+vocabulary: assignments, attendance, session transitions, evaluations, stage moves, bypasses,
+result changes, imports, cycle transitions.
+
+Entries record `implicit: true` when authority came from a global admin role rather than an
+explicit council assignment.
+
+## Why two
+
+The admin log tracks changes to records. The recruitment log tracks a process, where the
+question is usually "how was this candidate handled" rather than "what changed on this row".
+Merging them would make both harder to read.
+
+## What to audit
+
+Anything that changes state a human might later dispute: guarded actions, role changes, money,
+deletions, stage transitions, overrides.
+
+Not: reads, navigation, or a draft autosave.
+
+## Adding an audited action
+
+<Steps>
+1. Write the audit entry in the same transaction as the change, so you cannot have one
+   without the other.
+
+2. Record the actor, the entity and enough of the change to be meaningful. An entry saying
+   only "updated" is not worth the row.
+
+3. If the action required a reason, store the reason.
+</Steps>

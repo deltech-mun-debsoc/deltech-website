@@ -1,0 +1,69 @@
+export const metadata = {
+  title: "Cron jobs",
+  description: "Three scheduled routes, how they authenticate and how they stay idempotent.",
+}
+
+Three scheduled routes, declared in `vercel.json`.
+
+| Path | Schedule (UTC) | Does |
+|---|---|---|
+| `/api/cron/payment-reminder` | `0 3 * * *` | Emails allotted, unpaid delegates |
+| `/api/cron/gform-sync` | `30 3 * * *` | Re-pulls every configured sheet through intake |
+| `/api/cron/media-sweep` | `0 4 * * *` | Clears orphaned pending and failed media assets |
+
+## Authentication
+
+All three require `Authorization: Bearer $CRON_SECRET`. Without the secret set they reject
+everything, which presents as "reminders stopped working" with no error anywhere visible.
+
+They are ordinary route handlers. Anything that can send that header can trigger them, which
+is what makes them testable locally.
+
+## Payment reminder
+
+The most defensive of the three:
+
+- **a run lock**, so two invocations cannot overlap;
+- **eighty messages per run**, so a backlog cannot become a send burst;
+- **eight-way concurrency**;
+- **twenty-four hour deduplication** per delegate, checked against `EmailLog`;
+- **a no-op when payments are disabled**, so a free event sends nothing.
+
+## Google Form sync
+
+Re-pulls each `sheetPullSources` CSV through `createDelegateFromRow()`. Because identity is
+the email address, re-processing cannot duplicate. It is a self-heal for a webhook outage,
+not the primary intake route. See [the intake pipeline](/docs/developers/intake).
+
+## Media sweep
+
+Removes `MediaAsset` rows stuck in `PENDING` or `FAILED`, the residue of uploads that started
+and never finished. See [media and uploads](/docs/developers/media).
+
+## Testing one
+
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/media-sweep
+```
+
+Point at a local database. The payment reminder sends real email unless `EMAIL_REDIRECT_TO`
+is set, so set it.
+
+## Adding a job
+
+<Steps>
+1. Create the route under `src/app/api/cron/`.
+
+2. Check the bearer token before anything else.
+
+3. Make it idempotent. It will be retried, and it may run twice.
+
+4. Cap the work per invocation. An unbounded job is a timeout waiting for a busy week.
+
+5. Add it to `vercel.json`.
+</Steps>
+
+## Region
+
+Functions run in `syd1`. Latency to the database matters for a job that does many small
+writes; keep them batched.
