@@ -1,0 +1,75 @@
+export const metadata = {
+  title: "Testing",
+  description: "There is no test framework. There are thirty-six assertion scripts and a strings gate. Here is why.",
+}
+
+There is no test framework in this repository. No Jest, no Vitest, no Playwright, no `test` script.
+
+There are **thirty-six standalone assertion scripts** in `scripts/`, one more that checks this
+documentation site, and the strings gate.
+
+## Running them
+
+```bash
+npm run check
+```
+
+That loops every `scripts/check-*.ts` through `tsx`, then runs `scripts/check-strings.mjs`. Any
+failure exits non-zero. It is one of the two gates in CI.
+
+## What they look like
+
+Plain Node with `node:assert`. No framework, no fixtures, no describe blocks:
+
+```ts
+import assert from "node:assert"
+import { roleHome } from "../src/lib/nav"
+
+assert.equal(roleHome("REGISTERER"), "/dashboard")
+```
+
+## Two kinds
+
+**Behavioural checks** exercise real logic: quiz scoring and receipts, password hashing, the realtime
+bus and client, recruitment transitions, permissions and sessions, event state, delegate import,
+datetime handling.
+
+**Static linters** walk the source and assert a convention. `check-ink-band-tokens.ts` fails if
+`bg-foreground` and `text-background` appear on the same line. `check-strings.mjs` fails on a
+hardcoded literal or an em dash. `check-staging-isolation.ts` asserts staging cannot point at
+production resources. `check-docs-links.ts` fails if a documentation link or screenshot does not
+resolve, or if the sidebar and the page files disagree.
+
+The second kind is the more valuable half: they enforce rules a reviewer would otherwise have to
+remember on every pull request.
+
+## Type checking
+
+There is no separate `tsc` step. **`npm run build` is the type check.** Run it before pushing.
+
+## Beyond the scripts
+
+- **The deploy workflow** checks the running container: `/api/health` must report a healthy
+  database and the exact commit that was deployed, over real HTTPS through Caddy.
+- **The health workflow** repeats that for both sites every 30 minutes.
+- **Staging** is where a change is exercised by hand before release.
+
+## Adding a check
+
+<Steps>
+1. Create `scripts/check-<thing>.ts`. The glob in `npm run check` picks it up.
+
+2. Use `node:assert`. Do not add a test framework for one file.
+
+3. Keep it fast and dependency-free. Anything that needs a database must be opt-in, like
+   `RECRUITMENT_DB_CHECKS`, because CI has no database.
+
+4. Give the assertion a message that says what broke, not what was expected.
+</Steps>
+
+## Is this enough?
+
+It covers the logic that is easy to get subtly wrong (scoring, permissions, state machines,
+concurrency) and the conventions that are easy to forget. It does **not** cover rendering, and there
+is no automated end-to-end test of a user journey. A browser test framework would be a real
+improvement; it has not been added.

@@ -1,3 +1,4 @@
+import createMDX from "@next/mdx";
 import type { NextConfig } from "next";
 
 // There were no security headers at all. These four are unconditional: none of
@@ -21,7 +22,7 @@ const SECURITY_HEADERS = [
 // A blocking CSP shipped blind is exactly the change that breaks production
 // silently, and this app has several things a strict policy would cut: Tiptap
 // and recharts inject styles at runtime, Next itself needs an inline bootstrap
-// script, and blog images come from the Supabase storage origin.
+// script, and blog images come from the S3 bucket's origin.
 //
 // So: observe first. Watch the browser console on /admin, /blog/[slug] and
 // /quiz/[code], tighten whatever reports, and only then rename the header to
@@ -44,10 +45,32 @@ const CSP_REPORT_ONLY = [
   "object-src 'none'",
 ].join("; ");
 
+// docs.deltechmun.in is served by the same app, from the (docs) route group.
+// beforeFiles is required: it runs ahead of filesystem matching, so "/" on the
+// docs host resolves to /docs instead of the marketing homepage.
+//
+// The lookahead is not optional. Without it this rule also captures
+// /_next/static/*, rewrites it to /docs/_next/static/* and 404s every asset on
+// the docs host. "docs" itself is excluded so /docs/... and /docs/*.webp stay
+// reachable on both hostnames.
+const DOCS_HOST = [{ type: "host" as const, value: "docs.deltechmun.in" }];
+const NOT_RESERVED = "/:path((?!docs|_next|api|favicon\\.ico|icon).*)";
+
 const nextConfig: NextConfig = {
   // A self-contained server for the AWS Docker image (see Dockerfile).
   output: "standalone",
+  pageExtensions: ["ts", "tsx", "md", "mdx"],
   serverExternalPackages: ["@prisma/client", "@prisma/adapter-pg", "xlsx"],
+  async rewrites() {
+    return {
+      beforeFiles: [
+        { source: "/", has: DOCS_HOST, destination: "/docs" },
+        { source: NOT_RESERVED, has: DOCS_HOST, destination: "/docs/:path" },
+      ],
+      afterFiles: [],
+      fallback: [],
+    };
+  },
   async headers() {
     return [
       {
@@ -61,4 +84,14 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+// Turbopack is the Next 16 default and cannot receive plugin *functions* --
+// they are JavaScript and the compiler is Rust. Plugins must be named as
+// serializable strings. Do not import remark-gfm / rehype-slug here.
+const withMDX = createMDX({
+  options: {
+    remarkPlugins: [["remark-gfm", {}]],
+    rehypePlugins: [["rehype-slug", {}]],
+  },
+});
+
+export default withMDX(nextConfig);

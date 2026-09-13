@@ -1,0 +1,114 @@
+export const metadata = {
+  title: "Local setup",
+  description: "From a clean clone to a running dev server, including the database options.",
+}
+
+From a clean clone to a running dev server.
+
+## Prerequisites
+
+Node 22 (the production image uses `node:22-bookworm-slim`), npm, and Docker for a local
+Postgres.
+
+## Steps
+
+<Steps>
+1. **Install.**
+
+   ```bash
+   npm install
+   ```
+
+   `postinstall` runs `prisma generate`. It reads the datasource URL through `process.env`
+   rather than Prisma's `env()`, so this step **does not need a database**.
+
+2. **Start a local Postgres.** Production runs `postgres:17`; match it.
+
+   ```bash
+   docker run -d --name mun-db -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgres:17
+   ```
+
+3. **Configure the environment.**
+
+   ```bash
+   cp .env.example .env
+   ```
+
+   Set `DATABASE_URL` and `DIRECT_URL` to
+   `postgresql://postgres:postgres@localhost:5432/postgres`, and `AUTH_SECRET` to any long
+   random string. Everything else is optional locally. See
+   [environment variables](/docs/developers/env).
+
+4. **Apply migrations.**
+
+   ```bash
+   npm run db:deploy
+   ```
+
+5. **Seed.** See below for which one.
+
+   ```bash
+   npm run db:seed
+   ```
+
+6. **Run.**
+
+   ```bash
+   npm run dev
+   ```
+</Steps>
+
+## Which seed to use
+
+`prisma/seed.ts` creates settings, five committees, six fees and one admin, and **zero
+portfolios and zero delegates**, so allotment, payment and check-in cannot be exercised.
+
+`prisma/seed-staging.ts` builds a usable world: portfolios, delegates in every state,
+payments, posts, a quiz and a recruitment cycle. It **truncates tables**, so it is guarded:
+
+```bash
+ALLOW_DESTRUCTIVE_SEED=1 npx tsx prisma/seed-staging.ts
+```
+
+<Callout type="danger">
+Check what `DATABASE_URL` points at before running it. It wipes the delegate, allotment,
+payment, blog and quiz tables of whatever database that is.
+</Callout>
+
+## Signing in locally
+
+Magic links need a working email transport. Locally it is easier to give yourself a password:
+
+```bash
+npx tsx scripts/set-password.ts you@example.com 'a-long-password' ADMIN
+```
+
+## Working against staging
+
+Staging's database listens on its box's loopback interface only, so there is no connection
+string you can paste. `npm run staging:migrate` and `npm run staging:refresh` read
+`.env.staging.local`, which must point at an SSH tunnel you have opened to the staging box.
+Most of the time, use the Staging seed workflow in GitHub Actions instead. See
+[CI and deployment](/docs/developers/ci).
+
+## The scripts
+
+| Command | Does |
+| --- | --- |
+| `npm run dev` | Dev server on port 3000 |
+| `npm run build` | Production build. Also the TypeScript check. |
+| `npm run check` | Every assertion script plus the strings gate |
+| `npm run db:deploy` | Apply existing migrations |
+| `npm run db:migrate` | Create a migration in development (interactive) |
+| `npm run db:status` | Show migration state |
+| `npm run db:seed` | Minimal seed |
+| `npm run staging:migrate` | Migrate staging through a tunnel, reads `.env.staging.local` |
+| `npm run staging:refresh` | Reseed staging through a tunnel, destructive |
+
+## Before you push
+
+```bash
+npm run check && npm run build
+```
+
+Both run in CI on every pull request.

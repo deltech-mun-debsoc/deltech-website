@@ -1,0 +1,48 @@
+export const metadata = {
+  title: "Glossary",
+  description: "Committee, portfolio, matrix, allotment, double delegation, GD, PI, dispatch, cycle.",
+}
+
+Words used throughout the platform and these docs. If a term is not here, search for
+it; most concepts have a page of their own.
+
+## Conference terms
+
+| Term | What it means |
+|---|---|
+| **Committee** | A simulated body, such as UNGA-DISEC or a crisis cabinet. Every committee has an agenda, a type and a set of portfolios. Staff create them in [committees and the matrix](/docs/staff/committees). |
+| **Committee type** | One of `STANDARD`, `CRISIS` or `PRESS`. The type can change the fee, because fees are defined per type. |
+| **Portfolio** | The specific seat you occupy in a committee, usually a country but sometimes a named individual or a press outlet. "Delegate of France" means France is your portfolio. |
+| **Matrix** | The full grid of committees and their portfolios, published at `/availability`. See [reading the portfolio matrix](/docs/delegates/matrix). |
+| **Allotment** | A staff member assigning you a specific portfolio in a specific committee. Until you are allotted you have preferences, but no seat. |
+| **Double delegation** | A committee where each portfolio is held by two people working together. If your first preference is one of these, registration will ask for a partner. See [partner or second choice](/docs/delegates/register-partner). |
+| **Co-delegate** | Your partner in a double delegation committee. |
+| **Undertaking** | The declaration you tick at the end of registration. |
+| **Comped** | A fee a staff member has waived. The delegate is confirmed without paying. |
+| **Check-in** | Being marked present at the desk on conference day, usually by scanning the QR code on your status page. |
+| **Waitlisted** | Registered, but not currently in line for a seat. Waitlisting is a status a staff member sets; it is not automatic. |
+
+## Society and recruitment terms
+
+| Term | What it means |
+|---|---|
+| **Society** | The permanent student body that organises the conferences, as opposed to the delegates who attend one. |
+| **Cycle** | One complete recruitment round, from opening applications to selecting members. See [the cycle lifecycle](/docs/recruitment/lifecycle). |
+| **GD** | Group discussion. The first evaluated stage, run as a panel with several candidates at once. |
+| **PI** | Personal interview. The second stage, one candidate at a time. |
+| **Rubric** | The named criteria a candidate is scored against, each with a maximum and a weight. Set per cycle. See [scoring and the rubric](/docs/recruitment/scoring). |
+| **Bypass** | Skipping a candidate past the group discussion straight to interview, with a recorded reason. |
+| **JC, SC, AC** | Junior Council, Senior Council and Administrative Council: the three recruitment roles. See [council roles](/docs/recruitment/roles). |
+| **Dispatch** | The society's publication, at `/blog`. An individual article is also called a dispatch. |
+
+## Platform terms
+
+| Term | What it means |
+|---|---|
+| **Operating mode** | One of `SOCIETY`, `INTRA_MUN` or `CONFERENCE`. Decides whether a conference is promoted at all, and whether payments apply. See [operating modes](/docs/staff/modes). |
+| **Status token** | The long random string in your `/status/...` link. Anyone holding it can see your application, so treat it as private. |
+| **Application status** | Where your registration has got to: `REGISTERED`, `ALLOTTED`, `PAYMENT_SENT`, `CONFIRMED`, `WAITLISTED` or `CANCELLED`. Explained in [tracking your application](/docs/delegates/status). |
+| **Quarantine** | Where a bad import row goes instead of being thrown away, so it can be corrected and retried. See [cross-delegation imports](/docs/staff/imports). |
+| **Activity log** | The record of who changed what and when, at `/admin/logs`. |
+| **Maintainer / Admin** | The two staff roles. Maintainers run the conference; admins can additionally do the guarded, irreversible things. See [roles and permissions](/docs/staff/roles). |
+| **Magic link** | A one-time sign-in link emailed to you instead of a password. See [signing in](/docs/delegates/signing-in). |

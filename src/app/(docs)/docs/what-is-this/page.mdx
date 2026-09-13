@@ -1,0 +1,98 @@
+export const metadata = {
+  title: "What the platform does",
+  description: "A tour of the five surfaces: the public site, the delegate area, the admin console, the recruitment console and the live quiz.",
+}
+
+The platform is one website that does five quite different jobs. Most people only
+ever see one or two of them. This page is the map.
+
+## 1. The public site
+
+Everything anyone can see without signing in.
+
+- **The homepage** shows either the current conference or, between conferences, the
+  society itself. Which one you get is controlled by a single setting called the
+  operating mode, described in [operating modes](/docs/staff/modes).
+- **The portfolio matrix** at `/availability` lists every committee and every
+  portfolio in it, with its current state. See [reading the matrix](/docs/delegates/matrix).
+- **The Dispatch** at `/blog` is the society's publication.
+- **The team page** at `/team` is the secretariat roster.
+- **Quiz join** at `/quiz/join` is where an audience enters a room code.
+- **Registration** at `/register` is the five-step delegate form.
+
+Any of these six sections can be switched off individually. When a section is off it
+disappears from the homepage, the header and the footer at the same time, so there
+are never links pointing at a hidden page.
+
+## 2. The delegate area
+
+Once you have registered you get a private link, `/status/<your token>`, that shows
+your application state, your allotment when it arrives, your payment, and eventually
+your check-in QR code. You do not need an account for that link to work.
+
+If you also create an account, `/dashboard` shows the same information without
+needing the link. See [your dashboard](/docs/delegates/dashboard).
+
+## 3. The admin console
+
+`/admin` is where the conference is actually run: settings, committees, the matrix,
+fees, registrations, allotments, payments, the check-in desk, imports, the Dispatch
+review queue, quizzes, the team roster, user accounts and the activity log.
+
+Two roles can enter it. Maintainers do everyday operations; admins can additionally
+do the things that move money or destroy data. The full split is in
+[roles and permissions](/docs/staff/roles).
+
+## 4. The recruitment console
+
+`/recruitment` is a separate area for the society's own hiring: group discussions,
+interviews, scoring and selection. It has **its own three-tier role system** that is
+deliberately not the same as the admin roles, so a Junior Council member can run a
+group discussion without ever being able to open the admin console.
+
+See [the recruitment overview](/docs/recruitment).
+
+## 5. The live quiz
+
+A presenter builds slides in `/admin/quiz`, then puts a six-digit room code on a
+projector. The audience joins from their phones at `/quiz/join`, with no account and
+no app. It runs in two modes: anonymous polling, or a scored quiz with a leaderboard.
+
+<Callout type="note">
+The quiz is genuinely public. Anyone with the room code can join, so treat the code
+as the only access control there is.
+</Callout>
+
+## How the pieces connect
+
+<Figure caption="A delegate record is the hub. Registration creates it; allotment attaches a portfolio and a payment; payment confirms it; check-in closes it out.">
+<svg viewBox="0 0 720 190" role="img" aria-label="Registration creates a delegate record, allotment attaches a portfolio and payment, payment confirms, check-in completes." style={{width:"100%",height:"auto"}}>
+  <defs>
+    <marker id="wia" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="color-mix(in oklch, var(--foreground) 45%, transparent)" />
+    </marker>
+  </defs>
+  {[
+    { x: 8,   label: "Register",  sub: "public form" },
+    { x: 188, label: "Allot",     sub: "staff action" },
+    { x: 368, label: "Pay",       sub: "delegate" },
+    { x: 548, label: "Check in",  sub: "at the door" },
+  ].map((s) => (
+    <g key={s.label}>
+      <rect x={s.x} y="52" width="164" height="66" rx="8"
+        fill="var(--card)" stroke="color-mix(in oklch, var(--foreground) 18%, transparent)" />
+      <text x={s.x + 82} y="80" textAnchor="middle" fontSize="15" fontWeight="600" fill="var(--foreground)">{s.label}</text>
+      <text x={s.x + 82} y="99" textAnchor="middle" fontSize="11.5" fill="var(--muted-foreground)">{s.sub}</text>
+    </g>
+  ))}
+  {[172, 352, 532].map((x) => (
+    <line key={x} x1={x} y1="85" x2={x + 14} y2="85" stroke="color-mix(in oklch, var(--foreground) 45%, transparent)" strokeWidth="1.5" markerEnd="url(#wia)" />
+  ))}
+  <text x="360" y="150" textAnchor="middle" fontSize="12" fill="var(--muted-foreground)">
+    Every step sends an email and is written to the activity log.
+  </text>
+</svg>
+</Figure>
+
+Next: the [glossary](/docs/glossary), or jump straight to your section from
+[the introduction](/docs).

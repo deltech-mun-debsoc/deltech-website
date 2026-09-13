@@ -1,0 +1,52 @@
+export const metadata = {
+  title: "Selection emails",
+  description: "Sending results, what the message contains, and why it cannot double-send.",
+}
+
+Selection emails are their own button. They do not go out when you set a result.
+
+## Sending them
+
+From the cycle page, Administrative Council. The cycle must be in **Finalisation** or
+**Completed**, so results cannot be emailed while evaluation is still happening.
+
+You can also email a selection of candidates from the candidate list.
+
+## What the email contains
+
+The selection message, plus two things you configured in
+[setting up a cycle](/docs/recruitment/setup):
+
+- the **WhatsApp group URL**, so a selected candidate lands somewhere immediately;
+- your **note**, up to a thousand characters.
+
+Write both before finalisation. It is not a moment for drafting copy.
+
+## It cannot double-send
+
+Sending is idempotent. Pressing the button twice does not email anyone twice, because each
+send is recorded and checked against. If you are unsure whether a batch went out, pressing
+it again is safe.
+
+## Delivery failures
+
+Recorded like every other email. A failure does not undo the selection. See
+[email delivery](/docs/staff/email) for how failures surface and how to resend.
+
+## Before you press it
+
+<Steps>
+1. Check every candidate has a result. Nobody should be Pending.
+
+2. Read the finalists list once more, as a list.
+
+3. Check the WhatsApp link actually works, from a phone, signed out.
+
+4. Check the note for last year's dates.
+</Steps>
+
+<Callout type="warning">
+This is the least reversible thing in the recruitment console. A wrongly selected
+candidate can have their result changed, but they have already been told. Read the list
+before you send, not after.
+</Callout>

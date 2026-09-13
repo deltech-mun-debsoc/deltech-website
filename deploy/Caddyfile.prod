@@ -16,3 +16,15 @@ www.deltechmun.in {
 		header_up X-Forwarded-For {remote_host}
 	}
 }
+
+# The documentation site. Same app container: next.config.ts rewrites this host
+# onto /docs, which works because reverse_proxy forwards the original Host
+# header upstream. The certificate is issued once DNS for this name points at
+# this box; until then Caddy retries on its own and the other sites are
+# unaffected.
+docs.deltechmun.in {
+	encode zstd gzip
+	reverse_proxy app:3000 {
+		header_up X-Forwarded-For {remote_host}
+	}
+}

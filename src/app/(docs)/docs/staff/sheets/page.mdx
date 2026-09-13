@@ -1,0 +1,54 @@
+export const metadata = {
+  title: "Google Forms and Sheets",
+  description: "Live form intake, the nightly re-sync, and the sheet mirror.",
+}
+
+Three separate integrations, often confused with each other.
+
+## 1. Live intake from a Google Form
+
+A Google Form posts each response to the platform as it is submitted. The delegate
+record is created immediately, with the same validation the public form uses.
+
+Rows that fail validation go to the import quarantine rather than being lost, so a
+badly answered form response is recoverable.
+
+The connection is authenticated with a shared secret, so only your form can post.
+
+## 2. The nightly re-sync
+
+Once a day the platform re-reads every configured sheet and pushes it back through the
+same intake path.
+
+This is a self-heal, not the primary route. If the live webhook was down for an hour,
+or somebody edited a row after submitting it, the nightly pass picks it up. It cannot
+create duplicates, because the email is still the identity.
+
+## 3. The outbound mirror
+
+Allotment and payment state is pushed **out** to a Google Sheet, so people who live in
+a spreadsheet can see the current state without an admin account.
+
+Configured by an admin in [fees and payment setup](/docs/staff/fees) as the sheet sync
+URL. It runs on allotment and on payment confirmation.
+
+<Callout type="warning">
+The mirror is one-way. Editing the Google Sheet does **not** change the platform. It is
+a display, not a source. Anyone treating it as editable will lose their edits at the
+next sync and will believe they changed something they did not.
+</Callout>
+
+## Which one do I want?
+
+| I want to... | Use |
+|---|---|
+| Let a partner delegation submit directly | The Google Form webhook |
+| Load a spreadsheet somebody emailed me | [The import wizard](/docs/staff/imports) |
+| Let non-admins see live allotment state | The outbound mirror |
+| Recover rows a broken form connection missed | Nothing. The nightly sync already did it. |
+
+## Setting one up
+
+The Apps Script that connects a form or a sheet lives with the codebase, and wiring it
+requires an admin because it involves the shared secret. See
+[the intake pipeline](/docs/developers/intake) for how it works underneath.

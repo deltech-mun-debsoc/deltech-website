@@ -1,0 +1,43 @@
+export const metadata = {
+  title: "Staff overview",
+  description: "What the admin console is, and the order to read these pages in.",
+}
+
+The admin console at `/admin` is where a conference is actually run. This section
+covers all of it.
+
+## If you are new
+
+Read in this order. Later pages assume the earlier ones.
+
+<Steps>
+1. [Roles and permissions](/docs/staff/roles) so you know what you can and cannot do.
+
+2. [A tour of the console](/docs/staff/console) so you can find things.
+
+3. [Launching a conference](/docs/staff/launch), which is the order everything else
+   has to happen in.
+</Steps>
+
+Then read whichever desk you are working: registrations, allotment, payments,
+check-in or imports.
+
+## The one rule worth learning first
+
+**Correct records, do not recreate them.** Almost every mess in this system comes from
+someone creating a second record instead of fixing the first. A delegate with two
+registrations has two statuses, two payments and two emails, and untangling that is
+manual work for somebody.
+
+The guarded actions exist for the same reason. Revoking an allotment, marking a
+payment offline and deleting anything are all admin-only, not because maintainers are
+not trusted but because those are the actions that cannot be undone by editing.
+
+## Everything in this section
+
+<SectionIndex sectionId="staff" />
+
+## There is also a guide inside the product
+
+`/admin/guide` is a permanent short-form version of this section, available while you
+are working. These pages are the long form.

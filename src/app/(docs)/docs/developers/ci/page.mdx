@@ -1,0 +1,114 @@
+export const metadata = {
+  title: "CI and deployment",
+  description: "The workflows, the deploy pipeline to AWS, and what happens on a push to staging or main.",
+}
+
+GitHub Actions is the only deployment system. There are no preview deployments per pull
+request.
+
+```text
+pull request      -> CI: npm run check + production build. Deploys nothing.
+push to staging   -> AWS deploy to test.deltechmun.in + automatic staging migration
+push to main      -> AWS deploy to www.deltechmun.in. Production migration is manual.
+every 30 minutes  -> health check of both sites and both databases
+```
+
+## The workflows
+
+| Workflow | Trigger | Does |
+| --- | --- | --- |
+| `check.yml` | Pull request, manual | `npm ci`, `npm run check`, `npm run build`. Dummy database URLs; never connects. |
+| `deploy.yml` | Push to `staging` or `main`, manual rollback | Builds the image, ships it over SSH, switches the container, verifies HTTPS and the database. |
+| `health.yml` | Minutes 17 and 47 of every hour, manual | Calls `/api/health` on both hosts and checks environment and database. |
+| `staging-migrate.yml` | Schema change pushed to `staging`, manual | `prisma migrate deploy` through an SSH tunnel to the staging box. |
+| `staging-seed.yml` | Manual, requires typing `RESET` | Wipes and reseeds staging. |
+| `cron.yml` | Daily schedules, manual | Calls the production cron routes. See [cron jobs](/docs/developers/cron). |
+
+## The flow a change takes
+
+<Steps>
+1. Branch from `staging`, open a pull request **into `staging`**. CI runs.
+
+2. Merge. `deploy.yml` builds `mun:staging-<sha>` and puts it on `test.deltechmun.in`.
+   If the change has a migration, `staging-migrate.yml` applies it.
+
+3. Check it on staging. Staging is a full copy with its own database and test payment keys.
+
+4. Release: a pull request from `staging` into `main`. Merging deploys production.
+</Steps>
+
+## What a deploy actually does
+
+<Steps>
+1. **Build on the runner.** `docker build` with `APP_ENV`, `NEXT_PUBLIC_APP_URL` and
+   `APP_VERSION`. A 1 GB box never builds.
+
+2. **Sync the box's config.** `deploy/compose.yml`, `deploy/deploy.sh` and
+   `deploy/Caddyfile.<env>` are copied to `/srv/mun`, and Caddy is reloaded. So a Caddy change
+   ships with the commit that makes it.
+
+3. **Ship.** `docker save | gzip | ssh ... docker load`. There is no registry.
+
+4. **Switch.** `deploy/deploy.sh` points the `app` service at the new tag and waits up to 90
+   seconds for the container healthcheck. If it is not healthy, it switches back to the
+   previous tag and the job fails.
+
+5. **Verify from outside.** `curl --resolve` pins the public hostname to that box's address and
+   requires `/api/health` to report `status: ok`, `database: ok`, the right environment and
+   this commit's SHA.
+</Steps>
+
+The box keeps the five newest images per environment.
+
+<Callout type="note">
+Recreating the container drops requests for the roughly ten seconds Next.js takes to boot.
+That is a known trade of running one container; see the comment in `deploy/deploy.sh`.
+</Callout>
+
+## Rollback
+
+Code only; schemas do not roll back.
+
+```bash
+ssh deploy@<box> /srv/mun/deploy.sh prod <older-sha>
+```
+
+Or run the AWS deploy workflow by hand with an older SHA.
+
+## Migrations
+
+Staging applies automatically. Production does not, on purpose:
+
+```bash
+ssh -f -N -L 55432:127.0.0.1:5432 deploy@<production-box>
+DIRECT_URL='postgresql://mun_prod:<password>@127.0.0.1:55432/mun_prod' npm run db:deploy
+```
+
+**Apply a production migration before merging code that needs it.** Prefer additive changes,
+and expand then contract for anything destructive, so the running container and the new one
+both work against the schema in between.
+
+## Safety properties
+
+- `DEPLOY_HOST` and `DEPLOY_KNOWN_HOSTS` are **Environment** secrets. The staging job cannot
+  learn the production box's address.
+- Runtime secrets never enter the image. They live in `/srv/mun/app.env` on the box.
+- `deploy.yml` does nothing unless the repository variable `AWS_DEPLOY` is `true`.
+- `/api/health` runs a real `SELECT 1`, so a page that renders with a broken database does not
+  count as healthy.
+
+## The docs subdomain
+
+`docs.deltechmun.in` is the production container. `deploy/Caddyfile.prod` has a site block for
+it, and a host-matched `beforeFiles` rewrite in `next.config.ts` maps it onto `/docs`. Its DNS A
+record must point at the production box before Caddy can issue its certificate.
+
+## Before opening a pull request
+
+```bash
+npm run check && npm run build
+```
+
+Exactly what CI runs. See [contributing](/docs/developers/contributing), and the fuller
+operational notes in
+[docs/CI.md](https://github.com/deltech-mun-debsoc/deltech-website/blob/main/docs/CI.md).

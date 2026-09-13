@@ -1,0 +1,92 @@
+export const metadata = {
+  title: "API reference",
+  description: "Every route handler: method, auth, payload and response.",
+}
+
+Sixteen route handlers under `src/app/api/`. Everything else is a server component or a
+server action.
+
+## Operations
+
+**`GET /api/health`** - public. Runs `SELECT 1` and returns `status`, `database`, `environment`, the
+first 12 characters of the deployed commit as `version`, and `responseMs`. 503 when the database is
+unavailable. Never cached. The container healthcheck, the deploy workflow and the health workflow all
+call it.
+
+**`GET` / `POST /api/realtime?channel=`** - Server-Sent Events. `GET` subscribes, optionally with
+`nickname`, `avatar` and `userId` for presence; `POST` publishes and is staff-only. Channel rules are in
+`src/lib/realtime/channels.ts`. See [the quiz system](/docs/developers/quiz).
+
+## Auth
+
+**`/api/auth/[...nextauth]`** - NextAuth handlers. See
+[authentication](/docs/developers/auth).
+
+## Admin
+
+**`GET /api/admin/export`** - CSV or XLSX export.
+Query: `entity`, `format`, plus the registration filters.
+Auth: staff for `delegates` and `matrix`; the recruitment `candidate.view` capability for
+`entity=candidates` (alias `applicants`).
+Filters apply to the export, which is the single most common operator mistake on this
+endpoint.
+
+**`/api/admin/team`**, **`/api/admin/team/[id]`** - team member CRUD. Staff.
+
+**`PUT /api/admin/team/[id]/photo`** - JPEG, PNG or WebP, 750 KB maximum, written to S3 under
+`team/`. Staff.
+
+**`GET /api/team-photo/[id]`** - legacy. Serves a photo still stored as bytes in Postgres, cached one
+hour; 404 once the member has an S3 photo.
+
+## Quiz
+
+**`GET /api/quiz/sessions?code=`** - public, rate limited. Returns the redacted live slide
+with server-computed `secondsLeft`, `locked` and `revealed`. The answer is withheld until
+reveal.
+
+**`POST /api/quiz/responses`** - public. Per-type validation, a unique constraint on
+`(sessionId, slideId, nickname)`, speed and streak scoring, and a sealed result receipt.
+Rate limited to eight per minute.
+
+**`GET /api/quiz/tally/[sessionId]/[slideId]`** - live tally for the presenter.
+
+See [the quiz system](/docs/developers/quiz).
+
+## Webhooks
+
+**`POST /api/webhooks/razorpay`** - **HMAC-SHA256 signature verified before the body is
+parsed.** Handles `payment_link.paid`, `order.paid`, `payment.captured`, `payment.failed`.
+Confirms the delegate, sends the receipt, syncs the sheet.
+
+**`POST /api/webhooks/gform`** - shared-secret header.
+`kind: "delegate"` maps columns through a saved preset. `kind: "applicant"` uses tolerant
+header matching to create a recruitment candidate, and only into a `DRAFT` or `OPEN` cycle.
+Bad rows go to `QuarantinedRow` rather than being dropped.
+
+## Cron
+
+All three require `Authorization: Bearer $CRON_SECRET`, and are called by `cron.yml` in GitHub Actions
+once `CRON_ENABLED` is `true`.
+
+**`/api/cron/payment-reminder`** - daily 03:00 UTC.
+**`/api/cron/gform-sync`** - daily 03:30 UTC.
+**`/api/cron/media-sweep`** - daily 04:00 UTC.
+
+See [cron jobs](/docs/developers/cron).
+
+## Conventions for a new handler
+
+<Steps>
+1. **Authenticate before parsing.** Verify a signature or a bearer token against the raw
+   body, not after deserialising it.
+
+2. **Validate with a zod schema** from `src/lib/schemas/`.
+
+3. **Never drop input.** If a row cannot be processed, quarantine it.
+
+4. **Be idempotent.** Webhooks are retried and crons run twice.
+
+5. **Return a status the caller can act on.** A webhook provider retries on 5xx and gives up
+   on 4xx; choose accordingly.
+</Steps>

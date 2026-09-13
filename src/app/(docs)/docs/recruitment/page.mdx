@@ -1,0 +1,74 @@
+export const metadata = {
+  title: "Recruitment overview",
+  description: "The pipeline from an application form to a society member, in one picture.",
+}
+
+Recruitment is how the society takes on new members. It runs at `/recruitment`, is
+organised into cycles, and has **its own roles** that are not the admin roles.
+
+<Figure caption="A candidate moves left to right. Every transition is recorded, and none of them happen automatically.">
+<svg viewBox="0 0 720 210" role="img" aria-label="The recruitment pipeline from intake to society membership" style={{width:"100%",height:"auto"}}>
+  <defs>
+    <marker id="rca" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="color-mix(in oklch, var(--foreground) 45%, transparent)" />
+    </marker>
+  </defs>
+  {[
+    { x: 6,   label: "Intake",    sub: "form import" },
+    { x: 148, label: "GD",        sub: "panel" },
+    { x: 290, label: "PI",        sub: "one to one" },
+    { x: 432, label: "Decision",  sub: "select or not" },
+    { x: 574, label: "Society",   sub: "separate step" },
+  ].map((s) => (
+    <g key={s.label}>
+      <rect x={s.x} y="44" width="130" height="60" rx="8"
+        fill="var(--card)" stroke="color-mix(in oklch, var(--foreground) 18%, transparent)" />
+      <text x={s.x + 65} y="70" textAnchor="middle" fontSize="14" fontWeight="650" fill="var(--foreground)">{s.label}</text>
+      <text x={s.x + 65} y="88" textAnchor="middle" fontSize="11" fill="var(--muted-foreground)">{s.sub}</text>
+    </g>
+  ))}
+  {[136, 278, 420, 562].map((x) => (
+    <line key={x} x1={x} y1="74" x2={x + 12} y2="74" stroke="color-mix(in oklch, var(--foreground) 45%, transparent)" strokeWidth="1.5" markerEnd="url(#rca)" />
+  ))}
+  <path d="M213 104 C 213 140, 355 140, 355 108" fill="none" strokeDasharray="4 3"
+    stroke="color-mix(in oklch, var(--foreground) 35%, transparent)" strokeWidth="1.3" markerEnd="url(#rca)" />
+  <text x="284" y="158" textAnchor="middle" fontSize="11" fill="var(--muted-foreground)">bypass, with a recorded reason</text>
+  <text x="360" y="186" textAnchor="middle" fontSize="11.5" fill="var(--muted-foreground)">
+    Selecting someone and adding them to the society are two deliberate actions.
+  </text>
+</svg>
+</Figure>
+
+## The shape of it
+
+An **Administrative Council** member creates a cycle and configures it: how long each
+stage runs, what candidates are scored on, and what the selection email says. Then the
+cycle opens.
+
+Candidates arrive by importing a Google Sheet of form responses, or through a live form
+connection. Nobody is typed in by hand.
+
+**Junior Council** members build group discussion panels and run them.
+**Senior Council** members run interviews. Both score against the cycle's rubric.
+
+At the end, the Administrative Council finalises results and, as a separate action, adds
+selected candidates to the society.
+
+## Things that surprise people
+
+**Recruitment authority is not admin authority.** A Junior Council member has real power
+inside `/recruitment` and none at all inside `/admin`. A global admin is automatically an
+Administrative Council member on every cycle, so a stuck cycle can always be repaired.
+
+**Adding someone to the society can only ever grant a non-privileged role.** Recruitment
+structurally cannot hand out console access. That remains a separate, deliberate change in
+[users](/docs/staff/users).
+
+**Nothing is inferred.** A candidate's result is stored because somebody set it, never
+computed from their scores. The system will not decide who passed.
+
+**Everything is recorded.** See [the audit trail](/docs/recruitment/audit).
+
+## The pages in this section
+
+<SectionIndex sectionId="recruitment" />

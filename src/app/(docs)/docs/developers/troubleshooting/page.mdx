@@ -1,0 +1,131 @@
+export const metadata = {
+  title: "Troubleshooting",
+  description: "The errors you will actually hit, and what each one means.",
+}
+
+The errors you will actually hit, and what each one means.
+
+## Local development
+
+### `P1001: Can't reach database server`
+
+Nothing is listening where `DATABASE_URL` or `DIRECT_URL` points. Locally, your Postgres container is
+not running:
+
+```bash
+docker start mun-db
+```
+
+Against a box, the SSH tunnel is not open. The box's Postgres only listens on its own loopback, so
+there is no other way in. See [CI and deployment](/docs/developers/ci).
+
+### `P2002: Unique constraint failed`
+
+A duplicate, usually `Delegate.email`. User-facing paths turn this into a readable message; a raw one
+means the calling path is missing that handling.
+
+### Prisma client not found, or types are wrong
+
+The client is generated into `src/generated/prisma/` and is gitignored.
+
+```bash
+npm run db:generate
+```
+
+### `prisma migrate dev` hangs or refuses
+
+It is interactive and will not run from a script. Generate the SQL with `prisma migrate diff` and apply
+it with `db:deploy`. See [data model](/docs/developers/data-model).
+
+### `MediaNotConfigured`
+
+S3 variables are unset. Expected locally; only uploads are affected.
+
+### No email is sent
+
+Check, in order: `EMAIL_TRANSPORT` and the matching key are set; `EMAIL_REDIRECT_TO` is not sending
+everything to one inbox; then the `EmailLog` row, which records the provider's actual error.
+
+## CI
+
+### The build fails on strings
+
+```bash
+node scripts/check-strings.mjs
+```
+
+A hardcoded user-visible string in a `.tsx`, or an em dash under `src/`. The output names the line.
+
+### The build fails on ink band tokens
+
+`bg-foreground` and `text-background` on the same line. Use `bg-ink text-paper`.
+
+### The build fails on docs links
+
+A documentation page links to a page that was renamed, a screenshot is missing, or `_lib/nav.ts` and
+the page files disagree. The message names which.
+
+### Type errors that only appear in CI
+
+There is no separate `tsc` step. Run `npm run build` locally.
+
+## Deploys and the boxes
+
+### The deploy job fails at "did not become healthy"
+
+The new container did not pass its healthcheck in 90 seconds, and `deploy.sh` has already switched back
+to the previous image. The job log includes the last 50 lines from the container. The usual causes: a
+migration the code needs has not been applied, or a new required variable is missing from
+`/srv/mun/app.env`.
+
+### `/api/health` returns 503
+
+The app is up but cannot query Postgres. On the box:
+
+```bash
+cd /srv/mun && docker compose ps && docker compose logs --tail 50 db
+```
+
+### Sign-in redirects to `0.0.0.0:3000`
+
+Something built an absolute URL from `request.url` or `req.nextUrl`. On the standalone server those are
+the bind address. Use a path or `NEXT_PUBLIC_APP_URL`. See [authentication](/docs/developers/auth).
+
+### A value in `app.env` is silently empty
+
+It contains a `$`. Compose interpolates `$` in env files unless they are loaded with `format: raw`,
+which `deploy/compose.yml` does. If you added a new env file, give it the same treatment.
+
+### Realtime screens stop updating
+
+A deploy or restart dropped the SSE streams; clients reconnect within seconds and polling covers the
+gap. If it persists, check that exactly one app container is running: a second one splits the bus.
+
+### Payments never confirm
+
+`RAZORPAY_WEBHOOK_SECRET` is unset or wrong, so every webhook fails its signature check. That is silent
+on purpose.
+
+### Crons are not running
+
+`CRON_ENABLED` is not `true`, so the workflow skips. See [cron jobs](/docs/developers/cron).
+
+### A new hostname shows a certificate error
+
+Caddy cannot get a certificate until the name's DNS points at the box. It retries on its own. If DNS has
+been correct for a while and it still fails, restart Caddy to force an immediate attempt:
+
+```bash
+cd /srv/mun && docker compose restart caddy
+```
+
+## UI
+
+### A Select renders an empty trigger
+
+Base UI resolves the label from the `items` prop, not from children. Use `toSelectItems()`.
+
+### A dialog or dropdown is the wrong theme
+
+Portalled content does not inherit the area's theme class. Use the container from
+`src/lib/theme-portal.tsx`.

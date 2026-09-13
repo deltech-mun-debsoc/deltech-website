@@ -1,0 +1,55 @@
+export const metadata = {
+  title: "A tour of the console",
+  description: "The sidebar, the theme toggle, the preview badge and where everything lives.",
+}
+
+A short orientation so you can find things before you need them.
+
+<Screenshot src="/docs/admin-overview.webp" alt="The admin overview with statistics cards and a sidebar" caption="The overview at /admin. The sidebar is grouped by what you are doing, not by which page it is." />
+
+## The sidebar
+
+Three groups.
+
+**Run event.** Everything to do with the conference in front of you: the overview,
+event control, registrations, check-in, allotments, matrix and committees, imports.
+
+**Society.** Things that outlive a single conference: recruitment, the Dispatch queue,
+quizzes, the team roster.
+
+**Admin.** The guide, the activity log, participants, and users.
+
+Items you cannot use are hidden rather than shown greyed out, so a maintainer's
+sidebar is genuinely shorter than an admin's.
+
+## The overview
+
+The first thing you see. It carries:
+
+- **Counters** for total registrations, confirmed delegates and the confirmed
+  percentage, revenue including comped fees, and accommodation requests;
+- **A status chart** showing where everyone is in the pipeline;
+- **A source chart** showing where registrations came from;
+- **A committee fill-rate table**;
+- **Recent failed emails**, so delivery problems surface without being looked for;
+- **The launch checklist**, for maintainers, until the conference is set up.
+
+## Things worth knowing
+
+**The theme toggle** is in the header and follows you across the whole site.
+
+**A preview badge** appears in the header when you are not on production. If you see
+it, you are on a staging deployment and your changes are not affecting the live site.
+If you do not see it, you are on production. Check before doing anything destructive.
+
+**Every list has a loading skeleton**, so a blank flash is the page loading, not an
+empty result.
+
+**Bad links stay inside the console.** A wrong id or token gives you a not-found page
+with the sidebar still there, rather than throwing you onto the public site.
+
+## Where the guarded actions are
+
+They are not hidden. They are in the ordinary places, but a maintainer simply does not
+see the button. If a colleague describes a button you cannot find, you are probably a
+maintainer and they are an admin. See [roles and permissions](/docs/staff/roles).

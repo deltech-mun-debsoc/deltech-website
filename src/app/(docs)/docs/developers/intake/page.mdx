@@ -1,0 +1,69 @@
+export const metadata = {
+  title: "The intake pipeline",
+  description: "Four ways a delegate row is created, all through one function.",
+}
+
+Four ways a delegate record can be created, and **all of them go through one function**.
+
+## The single door
+
+`createDelegateFromRow()` in `src/lib/intake.ts`.
+
+| Entry point | Path |
+|---|---|
+| The public form | `src/app/(marketing)/register/actions.ts` |
+| The Google Form webhook | `src/app/api/webhooks/gform/route.ts` |
+| The nightly re-sync | `src/app/api/cron/gform-sync/route.ts` |
+| The import wizard | `src/app/(admin)/admin/import/actions.ts` |
+
+One function means one place where validation, deduplication and quarantine live. A new
+intake route must go through it too; do not write to `Delegate` directly.
+
+## Registration specifics
+
+The public action is rate limited to ten per hour per email, and re-checks that registration
+is open **inside** the serializable transaction that creates the row. It enforces the
+co-delegate requirement server-side when the first-preference committee is double delegation,
+and turns a `P2002` duplicate email into a readable message.
+
+## The webhook
+
+`POST /api/webhooks/gform`, authenticated by a shared-secret header.
+
+Two payload kinds. `kind: "delegate"` maps columns through a saved preset.
+`kind: "applicant"` uses tolerant header matching to create a recruitment candidate, and only
+into a `DRAFT` or `OPEN` cycle.
+
+## Quarantine
+
+**No row is ever silently dropped.** A row that fails validation is written to
+`QuarantinedRow` with its reason, and surfaces at `/admin/import#quarantine` where it can be
+retried or dismissed.
+
+This applies to all four entry points. It is the reason a broken form connection is
+recoverable rather than a lost afternoon of registrations.
+
+## The nightly self-heal
+
+`/api/cron/gform-sync` re-pulls every configured sheet through the same pipeline. Because
+identity is the email address, re-processing is safe and cannot duplicate.
+
+## Outbound sheet sync
+
+The other direction. `src/lib/sheet-sync.ts` pushes allotment and payment state to an Apps
+Script endpoint configured as `content.sheetSyncUrl`. It runs on allotment and on payment
+confirmation.
+
+**One-way.** Editing the sheet does not change the platform.
+
+The Apps Script sources are in `docs/apps-script/`.
+
+## Recruitment intake is separate
+
+`src/lib/recruitment/import.ts` handles candidates. Same principles, different pipeline:
+idempotent by content hash, invalid rows shown rather than dropped, and manually edited fields
+protected from being overwritten by a later import.
+
+## Checks
+
+`check-intake.ts`, `check-recruitment-import.ts`, `check-gsheet-url.ts`.
