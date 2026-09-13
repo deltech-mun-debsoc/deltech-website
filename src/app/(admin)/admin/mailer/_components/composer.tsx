@@ -117,12 +117,15 @@ export function Composer({
       else toast.error(r.error)
     })
 
-  // The count follows the filters, so whoever sends sees who it reaches before
-  // pressing anything irreversible.
+  // The preview and count follow everything that changes what is sent: who it
+  // goes to, and the text itself. Debounced, so typing does not render a mail on
+  // every keystroke. It used to follow only the filters, so choosing a preset left
+  // the previous text in the preview until someone pressed Update preview.
   useEffect(() => {
-    refreshPreview()
+    const timer = setTimeout(refreshPreview, 600)
+    return () => clearTimeout(timer)
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [audience, delegateFilters, contactTags])
+  }, [audience, delegateFilters, contactTags, subject, body, ctaLabel, ctaUrl])
 
   const applyPreset = (key: string) =>
     startTransition(async () => {
@@ -315,8 +318,8 @@ export function Composer({
         title={scheduleLocal ? "Schedule this mail?" : "Send this mail now?"}
         description={
           scheduleLocal
-            ? `It goes out at the chosen time to whoever matches the filters then. ${preview?.count ?? 0} match right now.`
-            : `${preview?.count ?? 0} people will get it. A sent mail cannot be recalled.`
+            ? `It goes out at the chosen time to whoever matches the filters then. ${preview?.count ?? 0} ${(preview?.count ?? 0) === 1 ? "matches" : "match"} right now.`
+            : `${preview?.count ?? 0} ${(preview?.count ?? 0) === 1 ? "person" : "people"} will get it. A sent mail cannot be recalled.`
         }
         confirmLabel={scheduleLocal ? "Schedule" : "Send now"}
         pending={pending}

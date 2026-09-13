@@ -72,8 +72,7 @@ export const MAIL_PRESETS: MailPreset[] = [
       subject: `${c.eventName}: dates, venue and what to expect`,
       body:
         `Hi {firstName},\n\nHere is everything you need to know about ${c.eventName}.\n\n` +
-        `Dates: ${or(c.dates, "to be announced")}\nVenue: ${or(c.venue, "to be announced")}\n\n` +
-        `Questions go to ${c.secretariatEmail}.`,
+        `Dates: ${or(c.dates, "to be announced")}\nVenue: ${or(c.venue, "to be announced")}`,
       ctaLabel: "See the conference",
       ctaUrl: c.registerUrl,
     }),

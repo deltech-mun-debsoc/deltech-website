@@ -203,7 +203,7 @@ export async function scheduleCampaign(id: string, whenIso: string | null): Prom
   if (!campaign || campaign.state !== "DRAFT") return { success: false, error: "Only a draft can be sent." }
 
   if (campaign.audience === "CONTACTS" && !(await prMailEnabled())) {
-    return { success: false, error: "PR mail is switched off. An admin has to switch it on from the Contacts page first." }
+    return { success: false, error: "PR mail is switched off. An admin has to switch it on from Outreach contacts first." }
   }
 
   let when = new Date()
