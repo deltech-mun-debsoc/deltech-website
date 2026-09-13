@@ -1,0 +1,74 @@
+export const metadata = {
+  title: "Finalisation and the society",
+  description: "Why selecting someone and adding them to the society are two deliberate steps.",
+}
+
+The end of a cycle is two separate actions. Understanding why they are separate is the
+point of this page.
+
+## The two actions
+
+**Setting a result** records the decision. The candidate is selected, rejected, held,
+withdrawn or disqualified. Nothing else happens.
+
+**Adding to the society** creates or links a user account for a selected candidate. This
+is a second, deliberate action.
+
+## Why they are separate
+
+Because a decision and an account are different things, and conflating them means every
+selection silently provisions access.
+
+Keeping them apart means the council can finalise a whole cohort, review the list, and
+only then create accounts. It also means a selected candidate who never joins does not
+leave an orphaned account behind.
+
+## Recruitment cannot grant console access
+
+Adding someone to the society can **only** assign the plain member role. This is fixed and
+not configurable.
+
+So recruitment can never produce an admin, a maintainer or a delegate account. Console
+permissions remain a separate, deliberate change made by an admin in
+[users](/docs/staff/users).
+
+<Callout type="note">
+This is a structural guarantee, not a convention. There is no setting that changes it and
+no path through the recruitment console that reaches a privileged role.
+</Callout>
+
+## The finalisation panel
+
+On the cycle page, Administrative Council only. Three lists:
+
+- **Finalists**, ready to be added;
+- **Awaiting society**, selected but not yet added;
+- **Already recruited**.
+
+The middle list is the one to work down. It is the gap between a decision and an account.
+
+## Getting into finalisation
+
+Move the cycle to **Finalisation**. Only an Administrative Council member can, and only
+from a state that allows it. See [the cycle lifecycle](/docs/recruitment/lifecycle).
+
+## Reopening
+
+Finalisation can return to In progress, and Completed can return to Finalisation. A cycle
+closed too early is recoverable.
+
+## Order of work
+
+<Steps>
+1. Move the cycle to Finalisation.
+
+2. Set every candidate's result. Nobody should be left Pending.
+
+3. Review the finalists as a list, not one at a time.
+
+4. Send [selection emails](/docs/recruitment/emails).
+
+5. Add selected candidates to the society.
+
+6. Move the cycle to Completed.
+</Steps>

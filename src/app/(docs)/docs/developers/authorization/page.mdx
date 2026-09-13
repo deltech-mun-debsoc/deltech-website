@@ -1,0 +1,82 @@
+export const metadata = {
+  title: "Authorization",
+  description: "Route gates, server guards, safe redirects and the recruitment capability matrix.",
+}
+
+Three layers, and they do different jobs. Do not rely on any one of them alone.
+
+## 1. The edge gate
+
+`authorized()` in `src/lib/auth.config.ts`, run by the proxy:
+
+| Prefix | Requires |
+|---|---|
+| `/admin` | ADMIN or MAINTAINER |
+| `/write` | AUTHOR, ADMIN or MAINTAINER |
+| `/account` | any signed-in role |
+| `/dashboard` | REGISTERER; others redirect to their own home |
+| `/recruitment` | any signed-in role, deliberately coarse |
+
+`/recruitment` is intentionally loose here, because per-cycle capability needs a database and
+the edge cannot have one. The layout does the real check.
+
+## 2. Server guards
+
+`src/lib/authz.ts`:
+
+```ts
+requireStaff()   // ADMIN | MAINTAINER
+requireAdmin()   // ADMIN
+requireAuthor()  // AUTHOR | ADMIN | MAINTAINER
+```
+
+Call these in layouts **and** in server actions. A layout guard protects the page; it does not
+protect an action someone posts to directly.
+
+## 3. Recruitment capabilities
+
+`src/lib/recruitment/permissions.ts` is the single source: over forty named actions in
+`CAPABILITIES`, plus `CYCLE_STATE_ALLOWS`.
+
+**Both must pass.** Having the capability is not enough if the cycle's state forbids the
+action. That is why an action can be missing for an Administrative Council member.
+
+`resolveRecruitmentRole()` derives a council role from the app role (`ADMIN` to `ADMIN`,
+`MAINTAINER` to `MAINTAINER`, `SUB_MAINTAINER` to `JC`). An explicit `RecruitmentMember` row
+overrides it in either direction. A **global admin always outranks the cycle**, so a
+misconfigured cycle is always repairable. When authority came from the app role, audit rows
+record `implicit: true`.
+
+## Redirect safety
+
+`safeLanding()` in `src/lib/nav.ts` accepts only same-origin absolute URLs and path-absolute
+references. It rejects `//host`, backslashes and non-HTTP schemes, and downgrades to the
+role's home when the role cannot reach the requested target.
+
+Any redirect built from user input must go through it.
+
+## The admin invariant
+
+`withAdminInvariant()` wraps `setUserRole`, `setUserDisabled` and `deleteUser` at
+**serializable** isolation, guaranteeing at least one enabled admin survives. Role changes
+cascade into `RecruitmentMember` rows in the same transaction, so the two systems cannot
+disagree.
+
+## Adding a guarded action
+
+<Steps>
+1. Add the capability to `CAPABILITIES`, and to `CYCLE_STATE_ALLOWS` if it is recruitment.
+
+2. Guard the server action itself, not just the page.
+
+3. Hide the control in the UI for roles that lack it. Hiding is cosmetic; the guard is the
+   control.
+
+4. Write an audit entry.
+
+5. Update [roles and permissions](/docs/staff/roles), `/admin/guide` and
+   `docs/MAINTAINER_GUIDE.md`. All three document the same matrix.
+
+6. Run `npm run check`. `check-role-guards.ts`, `check-recruitment-guards.ts` and
+   `check-recruitment-permissions.ts` assert this layer.
+</Steps>

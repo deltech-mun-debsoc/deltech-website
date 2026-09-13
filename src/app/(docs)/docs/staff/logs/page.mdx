@@ -1,0 +1,54 @@
+export const metadata = {
+  title: "Activity log and rollback",
+  description: "Reading the audit trail and reversing a change that should not have happened.",
+}
+
+`/admin/logs` records who changed what. It is the source of truth when accounts differ.
+
+<Screenshot src="/docs/logs.webp" alt="The activity log with filters for actor, action and entity" caption="A hundred entries a page, filterable by who, what and which record." />
+
+## What is recorded
+
+Operational changes: edits, allotments, revocations, payment overrides, role changes,
+deletions. Each entry carries the actor, the action, the record affected and the time.
+
+## Filtering
+
+By actor email, by action, and by entity. The filters are a plain form in the URL, so a
+filtered view is a shareable link.
+
+The most useful query when something looks wrong is by **entity**: pick the record and
+read its whole history in order.
+
+## Rollback
+
+Admin only. It reverses a recorded change. An entry that has been rolled back is marked
+as such, so the log shows both the change and its reversal rather than pretending
+neither happened.
+
+<Callout type="warning">
+Rollback undoes **one recorded change**, not everything downstream of it. Rolling back an
+allotment edit does not unsend the email that went out, and does not undo a payment that
+was created afterwards. Read the surrounding entries before using it, and check the
+delegate, the portfolio and the payment afterwards.
+</Callout>
+
+## Using it during an incident
+
+<Steps>
+1. Filter by the affected record.
+
+2. Read forwards from before the problem. You are looking for the first entry that is
+   not what you expected.
+
+3. Prefer editing the record to rolling anything back, unless the change was
+   structurally wrong rather than merely incorrect.
+
+4. Check linked state afterwards. Allotments touch the delegate, the portfolio, the
+   payment and the public matrix at once.
+</Steps>
+
+## Why shared accounts are banned
+
+The log records the account, not the human. A shared login makes every entry say the
+same thing, which destroys the log's only purpose at exactly the moment you need it.

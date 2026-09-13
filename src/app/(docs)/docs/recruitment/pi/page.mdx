@@ -1,0 +1,53 @@
+export const metadata = {
+  title: "Conducting interviews",
+  description: "The interview queue, the one-candidate console and the post-interview decision.",
+}
+
+Interviews are Senior Council and above. Junior Council members are redirected away from
+this section entirely.
+
+## The queue
+
+`/recruitment/pi` lists **people**, not panels, in three groups:
+
+- **Waiting**: candidates who have finished a group discussion, been bypassed past one, or
+  never needed one;
+- **In progress**: interviews happening now;
+- **Completed**.
+
+**Start interview** on a waiting candidate creates a one-person session and opens the
+console.
+
+## The console
+
+Same session machinery as a group discussion: server-run timer, start, pause, resume,
+finish, abort, and the controller lease.
+
+The difference is what is on screen. The candidate's **group discussion verdict is shown
+inline**, so you go in knowing what the GD panel thought rather than forming a first
+impression the panel already formed.
+
+Underneath that: the evaluation form for the interview rubric, and the post-interview
+decision.
+
+## After the interview
+
+Submit your evaluation, then record the decision. The decision is a deliberate act; the
+system does not infer it from the score. See
+[decisions, holds and bypasses](/docs/recruitment/decisions).
+
+## Reading the dossier first
+
+Open [the candidate dossier](/docs/recruitment/dossier) before the interview. It carries
+their verbatim application answers, their group discussion scores from every evaluator,
+and their full stage history. Five minutes there makes a better interview than five more
+minutes of it.
+
+## Practical advice
+
+- **Finish the session before the next candidate walks in.** A session left running keeps
+  the candidate locked and skews the elapsed time.
+- **Write remarks while it is fresh.** The remarks field takes four thousand characters
+  and is what the Administrative Council reads at finalisation. "Good" helps nobody.
+- **Use hold rather than guessing.** If you genuinely cannot decide, that is what hold is
+  for.

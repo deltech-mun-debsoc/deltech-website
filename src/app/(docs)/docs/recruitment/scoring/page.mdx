@@ -1,0 +1,62 @@
+export const metadata = {
+  title: "Scoring and the rubric",
+  description: "How criteria are weighted, why scores are comparable, and what a recommendation means.",
+}
+
+Scoring is per criterion, weighted, and reported on a single comparable scale.
+
+## Submitting an evaluation
+
+You give a score for **every criterion** in the rubric, written remarks of up to four
+thousand characters, and one **recommendation**: select, hold or reject.
+
+The form rejects an evaluation that has an unknown criterion, is missing a criterion, or
+has a score outside a criterion's range. You cannot half-submit.
+
+## How the number is produced
+
+<Steps>
+1. Each criterion's score is **normalised to a 0 to 1 range** against its own maximum.
+
+2. Each normalised score is multiplied by its **weight**.
+
+3. The weighted values are combined and reported on a **0 to 10 scale**.
+</Steps>
+
+The normalisation step is the one worth understanding. It means a criterion scored out of
+5 and one scored out of 100 contribute according to their **weights**, not according to
+their maxima. Without it, any criterion with a bigger scale would quietly dominate.
+
+## Recommendations and the panel verdict
+
+Each evaluator recommends independently. The panel's verdict is resolved from all of them:
+
+- a **clear majority** wins;
+- **any tie becomes HOLD**.
+
+A tie never resolves in either direction by accident. If the panel is split, the candidate
+is held for a human to look at.
+
+## Revising an evaluation
+
+Evaluations are **append-only**. Revising does not overwrite the previous version; it adds
+a new one that supersedes it. The whole chain stays visible in the dossier.
+
+Voiding an evaluation is Administrative Council only.
+
+## Who can see whose scores
+
+By default you see **your own** evaluations. Seeing other evaluators' scores is a separate
+capability, held by Senior and Administrative Council.
+
+This is deliberate: it stops evaluators anchoring on each other's numbers before they have
+formed their own view.
+
+## Writing scores that are worth having
+
+- **Use the whole scale.** A rubric where everyone scores 7 to 9 carries no information.
+- **Score the criterion, not the candidate.** Someone can be excellent on content and weak
+  on courtesy; that is what a rubric is for.
+- **The remarks matter more than the number.** At finalisation, the Administrative Council
+  reads remarks. A score of 6.4 with no remarks tells them nothing they can act on.
+- **Submit before you leave the room.** Written an hour later, remarks are worse.

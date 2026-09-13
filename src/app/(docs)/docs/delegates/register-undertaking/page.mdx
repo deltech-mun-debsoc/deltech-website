@@ -1,0 +1,51 @@
+export const metadata = {
+  title: "Registering: the undertaking",
+  description: "Step 5 of 5. The reference field and the box you have to tick.",
+}
+
+The last step. One optional field and one required tick.
+
+| Field | Required | Notes |
+|---|---|---|
+| Reference | No | How you heard about the conference, or who referred you. Free text. |
+| Undertaking | Yes | You must tick this to submit. |
+
+## The undertaking
+
+The exact wording is shown on the form. Ticking it is a declaration that the details
+you have given are true and that you agree to the conference's conduct expectations.
+It is the only field on the whole form the server will refuse outright if it is
+missing.
+
+## Submitting
+
+Press submit once. The button locks itself while the request is in flight, so
+double-clicking cannot create two registrations, and the server rejects a duplicate
+email as a second line of defence.
+
+## What happens immediately
+
+<Steps>
+1. Your delegate record is created with the status `REGISTERED`.
+
+2. You are sent to a confirmation page holding your **private status link**. Bookmark
+   it. It looks like `/status/` followed by a long random string.
+
+3. A confirmation email arrives. If your first choice was double delegation, your
+   partner gets one too.
+</Steps>
+
+<Callout type="warning">
+Save the status link somewhere you will find it again. Anyone holding it can see your
+application, so do not post it publicly, but it is also the simplest way back to your
+own record. If you lose it, [create an account](/docs/delegates/account) with the same
+email address and use the dashboard instead.
+</Callout>
+
+## If the confirmation email never arrives
+
+Your registration still went through. Email delivery is deliberately allowed to fail
+without failing the registration, and the failure is recorded so staff can resend it.
+Check your spam folder first, then see [troubleshooting](/docs/delegates/troubleshooting).
+
+Next: [tracking your application](/docs/delegates/status).

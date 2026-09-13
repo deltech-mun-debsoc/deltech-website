@@ -1,0 +1,63 @@
+export const metadata = {
+  title: "UI components",
+  description: "shadcn base-nova on Base UI, the variants, and the select gotcha.",
+}
+
+`src/components/ui/` holds twenty shadcn components in the **`base-nova`** style.
+
+## They are Base UI, not Radix
+
+This is the thing that catches people. `components.json` sets `"style": "base-nova"`, whose
+primitives come from `@base-ui/react`. Copying a snippet from the Radix-flavoured shadcn docs
+will not compile.
+
+Exceptions: `form.tsx` uses `@radix-ui/react-slot`, and `drawer.tsx` uses `vaul`.
+`@radix-ui/react-label` is declared in `package.json` but nothing imports it; `label.tsx` is
+plain React.
+
+## The components
+
+avatar, badge, button, card, checkbox, confirm-dialog, dialog, drawer, dropdown-menu, form,
+input, label, select, separator, skeleton, sonner, switch, table, tabs, textarea.
+
+## The Select gotcha
+
+Base UI's `<Select>` resolves the trigger's label from its **`items` prop**, not from its
+children. Passing only children gives you a trigger that renders nothing when a value is
+selected.
+
+`toSelectItems()` in `src/lib/utils.ts` exists for exactly this. Use it.
+
+## Button
+
+Variants: `default`, `outline`, `secondary`, `ghost`, `destructive`, `link`.
+Sizes: `default`, `xs`, `sm`, `lg`, `icon`, `icon-xs`, `icon-sm`, `icon-lg`.
+
+Note that `destructive` is **tinted**, not a solid red fill: `bg-destructive/10
+text-destructive`. That is deliberate, so a destructive action reads as serious without the
+page shouting.
+
+## cn()
+
+```ts
+import { cn } from "@/lib/utils"
+```
+
+`twMerge(clsx(...))`. Use it for every conditional class list so later classes actually win
+instead of both being emitted.
+
+## Portals need the theme class
+
+Because theme scoping is class-based and can differ per area, portalled content does not
+inherit it. `src/lib/theme-portal.tsx` provides the themed container, and dialog, select and
+dropdown already use it. If you portal something yourself, use it too.
+
+## Icons
+
+`lucide-react`. Buttons size unsized icons to `size-4` automatically.
+
+## Adding a component
+
+Use the shadcn CLI with this project's `components.json` so you get `base-nova` output. Then
+read the result: `src/components/ui/` is exempt from the strings rule precisely because it is
+generated, so anything you write **around** it is not.

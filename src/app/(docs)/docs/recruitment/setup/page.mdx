@@ -1,0 +1,63 @@
+export const metadata = {
+  title: "Setting up a cycle",
+  description: "Stage rules, the two rubrics, and the selection email settings.",
+}
+
+Administrative Council only. `/admin/recruitment` creates cycles;
+`/admin/recruitment/<cycle>` configures one.
+
+## Creating a cycle
+
+Two fields: a **name** between three and 120 characters, and a **slug** in lowercase with
+hyphens, between three and 60. The cycle starts in **Draft**.
+
+## Stage rules
+
+| Setting | What it does |
+|---|---|
+| **Group discussion required by default** | Whether new candidates need a GD. |
+| **Interview required by default** | Whether they need a PI. |
+| **Planned GD duration** | In seconds, from one minute to four hours. |
+| **Planned PI duration** | Same range. |
+| **Allow bypassing the group discussion** | Whether Senior Council can skip a candidate straight to interview. |
+
+Durations are **planned**, not enforced. A session that runs over is not cut off; the
+number sets expectations and drives the timer display.
+
+## The two rubrics
+
+One for group discussions, one for interviews. Each takes up to twelve criteria, and each
+criterion has:
+
+- a **key**: lowercase, starting with a letter, used internally;
+- a **label**: what evaluators see, up to sixty characters;
+- a **maximum**: the top of its scale, 1 to 100;
+- a **weight**: 0 to 10, how much it counts relative to the others.
+
+Criteria with different maxima are still comparable, because each is normalised before
+weighting. See [scoring and the rubric](/docs/recruitment/scoring).
+
+<Callout type="tip">
+Fewer criteria score better. Twelve is the ceiling, not a target. Five or six well-chosen
+ones produce more consistent scoring across evaluators than a long list that everyone
+interprets differently.
+</Callout>
+
+## Selection email settings
+
+A **WhatsApp group URL**, included in the email so selected candidates land somewhere,
+and a **note** of up to a thousand characters added to the message.
+
+Write the note before you need it. Sending selection emails is a moment when nobody wants
+to be composing copy.
+
+## Society roles
+
+Fixed. Recruitment can only ever grant the plain member role. This is not configurable,
+by design: recruitment cannot hand out console access. See
+[finalisation and the society](/docs/recruitment/finalisation).
+
+## Get it right before opening
+
+Everything above can be changed later, but a rubric change mid-cycle means candidates
+evaluated against different criteria. Configure in Draft, review, then open.

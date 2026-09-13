@@ -1,0 +1,72 @@
+export const metadata = {
+  title: "The cycle lifecycle",
+  description: "Draft, open, in progress, paused, finalisation, completed: what each state allows.",
+}
+
+A cycle moves through states, and the state gates what anyone can do. This is why an
+action can be missing even when your role has it.
+
+<Screenshot src="/docs/recruitment-monitor.webp" alt="The recruitment control page showing cycle state and live counters" caption="The control plane at /admin/recruitment: cycle state, and live counts across every stage." />
+
+## The states
+
+| State | What it is for |
+|---|---|
+| **Draft** | Being configured. Not accepting anybody. |
+| **Open** | Accepting candidates. Imports run. |
+| **In progress** | Sessions are being run and candidates evaluated. |
+| **Paused** | Temporarily halted, deliberately. |
+| **Finalisation** | Evaluation is done; decisions are being made. |
+| **Completed** | Finished. |
+| **Archived** | Filed away. |
+| **Cancelled** | Abandoned. Terminal: nothing follows it. |
+
+## The allowed moves
+
+| From | To |
+|---|---|
+| Draft | Open, Cancelled |
+| Open | In progress, Paused, Finalisation, Cancelled |
+| Paused | In progress, Open, Finalisation, Cancelled |
+| Finalisation | Completed, In progress, Cancelled |
+| Completed | Archived, Finalisation |
+| Archived | Completed |
+| Cancelled | nothing |
+
+Only an Administrative Council member can move a cycle, and the console only offers the
+moves that are actually legal from where you are. There is no way to jump.
+
+<Callout type="warning">
+**Cancelled is terminal.** Nothing follows it and it cannot be undone. If you want to stop
+temporarily, use **Paused**.
+</Callout>
+
+## What the state changes
+
+**Draft.** Configure freely. No candidates, no sessions.
+
+**Open.** Imports work. Candidates arrive. Live form intake only accepts responses into a
+draft or open cycle; responses arriving at any other time are quarantined so they can be
+replayed rather than lost.
+
+**In progress.** The working state. Sessions, evaluations, stage movement.
+
+**Paused.** Use it when the cycle has to stop for a week and you do not want sessions
+started in the meantime.
+
+**Finalisation.** Where results are set and selection emails can be sent. Selection emails
+require this state or Completed, so they cannot go out mid-evaluation.
+
+**Completed and Archived.** Read-only in practice. Completed can be reopened to
+Finalisation if a decision needs revisiting.
+
+## Going backwards
+
+Finalisation can return to In progress, and Completed can return to Finalisation. So a
+cycle closed too early is recoverable. Cancelled is the only one-way door.
+
+## Practical advice
+
+Do not open a cycle until the rubrics are right. Criteria can be changed later, but
+evaluations already submitted were scored against the old ones, and comparing across a
+rubric change is not something the system can do for you.

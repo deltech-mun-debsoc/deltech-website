@@ -1,0 +1,78 @@
+export const metadata = {
+  title: "Email",
+  description: "Resend or SES, React Email templates, the delivery log and the staging sink.",
+}
+
+React Email for templates, Resend or Amazon SES for delivery, `EmailLog` for accountability.
+
+## Sending
+
+`src/lib/resend.ts`, whatever the transport. `EMAIL_TRANSPORT` chooses:
+
+| Value | Sends through | Reads |
+| --- | --- | --- |
+| `resend` (default) | Resend API | `AUTH_RESEND_KEY` |
+| `ses` | SES v2, `SendEmailCommand` | `SES_REGION` (default `ap-south-1`), `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` |
+
+Production stays on Resend until the SES identity for `deltechmun.in` is verified and production
+access is granted. Switching is an edit to `/srv/mun/app.env` and a container restart; no code
+changes.
+
+Clients are created lazily, so a missing key fails when mail is sent rather than at boot. `FROM` is
+`EMAIL_FROM`, defaulting to `noreply@deltechmun.in`.
+
+## Every send is logged
+
+An `EmailLog` row is written for both outcomes, with the error text on failure. That row powers:
+
+- the failed-email card on the admin overview;
+- the email history in the delegate drawer;
+- `resendByLogId`, the resend action;
+- the idempotency check that stops selection emails double-sending.
+
+## Failures never fail the action
+
+Registration, allotment and selection all continue when mail fails. The row records it and a human
+can resend. This is the general rule in [server actions](/docs/developers/server-actions); email is
+where it matters most.
+
+## The templates
+
+In `src/emails/`, sharing `_shell.tsx`:
+
+`registration-received`, `co-delegate-registered`, `allotment`, `co-delegate-notice`,
+`payment-confirmed`, `payment-reminder`, `blog-approved`, `blog-changes-requested`,
+`blog-rejected`, `recruitment-selected`, `staff-invite`, `magic-link`.
+
+Shared chrome goes in `_shell.tsx`, not in each template.
+
+## The staging sink
+
+Staging sets `EMAIL_REDIRECT_TO`. Every message goes to that one inbox instead, with the intended
+recipient in the subject:
+
+```
+[STAGING -> real@address] Your allotment
+```
+
+<Callout type="danger">
+If `EMAIL_REDIRECT_TO` is ever unset on staging, staging starts mailing real people. The staging
+database contains form responses from real applicants.
+</Callout>
+
+## Magic links go through here too
+
+The Resend auth provider supplies a custom `sendVerificationRequest`, so sign-in links go through
+the same transport and are logged like everything else.
+
+## Adding a template
+
+<Steps>
+1. Create the component in `src/emails/`, using `_shell.tsx`.
+
+2. Put the subject in `src/content/strings.ts` under `email.subject`.
+
+3. Send it through the helper in `src/lib/resend.ts` so it is logged and respects the transport.
+
+4. Run `npm run check`. `check-emails.ts` asserts the template set.
+</Steps>

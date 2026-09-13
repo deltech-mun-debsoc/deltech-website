@@ -1,0 +1,76 @@
+export const metadata = {
+  title: "Media and uploads",
+  description: "Two-phase presigned S3 uploads, the public prefixes, team photos, and the orphan sweep.",
+}
+
+Every uploaded file lives in S3: one bucket per environment in `ap-south-1`,
+`deltechmun-media-prod` and `deltechmun-media-staging`.
+
+## Public and private prefixes
+
+| Prefix | Holds | Read |
+| --- | --- | --- |
+| `posts/` | Images inside Dispatch articles | Public, by bucket policy |
+| `covers/` | Article cover images | Public |
+| `team/` | Team roster photos | Public |
+| everything else | Recruitment documents | **Never public.** Served by signed URL. |
+
+ACLs are disabled on both buckets. Public read comes from a bucket policy limited to those three
+prefixes, so a key written anywhere else is private by construction.
+
+## Blog images: presigned, two phases
+
+`src/lib/media/` holds `s3.ts`, `keys.ts`, `actions.ts` and `upload-client.ts`.
+
+<Steps>
+1. **`createUploadIntent`** (server action) validates the request, creates a `MediaAsset` row in
+   `PENDING`, and returns a presigned PUT URL valid for five minutes.
+
+2. **The browser PUTs the file directly to S3.** The bytes never pass through the app container,
+   and credentials never leave the server. The bucket's CORS allows `PUT` from that
+   environment's own origin only.
+
+3. **`finalizeUpload`** verifies the object exists with a `HeadObject` call and marks the asset
+   ready.
+</Steps>
+
+The verification step matters: without it a client could mark an asset ready without uploading
+anything.
+
+The CSP's `connect-src` allows `https://*.amazonaws.com` for exactly this browser-to-S3 `PUT`.
+
+## Team photos
+
+`PUT /api/admin/team/[id]/photo`: JPEG, PNG or WebP up to 750 KB, cropped in the browser with
+`react-easy-crop`, written to S3 under `team/`.
+
+`src/lib/media/team-photo.ts` builds the key as `team/<member>-<random>.<ext>`. The random part is
+what makes a replaced photo appear immediately: the old key stays cached wherever it is, and
+nothing needs a cache-busting query string.
+
+On upload the member's `imageUrl` is set and the old `photoBytes` column is cleared.
+
+<Callout type="note">
+Team photos used to be stored as bytes in Postgres. `GET /api/team-photo/[id]` still exists to serve
+any member whose photo was never re-uploaded, and returns 404 once `photoBytes` is empty.
+</Callout>
+
+## Orphans
+
+An upload that starts and never finishes leaves a `PENDING` row. The media sweep cron clears those
+daily. See [cron jobs](/docs/developers/cron).
+
+## Configuration
+
+`s3Config()` reads its environment lazily and throws a typed `MediaNotConfigured` when unset. That is
+why the Docker build and CI need no S3 credentials: nothing touches the config until an upload
+happens.
+
+Locally, set `S3_ENDPOINT` to use MinIO or LocalStack instead of a real bucket.
+
+## Adding an upload surface
+
+Use the presigned path through `upload-client.ts` rather than reimplementing the handshake. Let
+`keys.ts` generate the key so `check-media-keys.ts` keeps passing, and put anything public under a
+prefix the bucket policy already allows. A new public prefix is a bucket policy change on both
+buckets, not just a code change.

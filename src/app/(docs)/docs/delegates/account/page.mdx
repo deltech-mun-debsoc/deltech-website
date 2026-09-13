@@ -1,0 +1,50 @@
+export const metadata = {
+  title: "Creating your account",
+  description: "You can register without an account, but an account gives you a dashboard.",
+}
+
+An account is optional. You can register, get allotted, pay and attend without ever
+creating one, using only your private status link.
+
+An account is useful because it gives you [a dashboard](/docs/delegates/dashboard)
+that finds your registration by email, so you never have to keep track of the link.
+
+## Creating one
+
+Go to `/signup`. There are two tabs.
+
+<Steps>
+1. **Password.** Enter your email, choose a password of at least eight characters,
+   and type it again to confirm. You are signed in straight away.
+
+2. **Magic link.** Enter your email and nothing else. A sign-in link is emailed to
+   you. Click it and you are signed in, with no password to remember. You can set a
+   password later from `/account`.
+</Steps>
+
+<Callout type="tip">
+Use the **same email address** you used on the registration form. The dashboard
+matches your account to your registration by email address alone. It ignores
+capitalisation, but it will not match two different addresses.
+</Callout>
+
+## If the address is already in use
+
+Two things can cause this.
+
+- **You already made a delegate account.** Sign in instead, at
+  [`/signin`](/docs/delegates/signing-in).
+- **The address belongs to a staff or writer account.** Signup deliberately refuses
+  to convert an existing non-delegate account into a delegate one. Use a different
+  address, or ask the secretariat.
+
+## What an account does not do
+
+Creating an account does not register you for the conference, does not reserve a
+portfolio, and does not link an existing registration made under a different email.
+Registration and accounts are separate things that happen to be matched by email.
+
+## Rate limits
+
+Signup is limited to five attempts per hour from the same address. If you hit it,
+wait rather than retrying, or you will simply keep hitting it.
