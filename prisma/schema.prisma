@@ -1199,3 +1199,90 @@ model Response {
   @@unique([sessionId, slideId, nickname])
   @@index([sessionId, slideId])
 }
+
+// ---- Mailer ----
+
+// One mail sent to many people: an announcement to delegates, or PR to the
+// outreach list. Recipients are resolved when it starts sending, not when it is
+// drafted, so a scheduled mail reaches whoever matches the filters on the day.
+model MailCampaign {
+  id          String          @id @default(cuid())
+  eventId     String?
+  audience    MailAudience
+  filters     Json            @default("{}")
+  preset      String          @default("custom")
+  subject     String
+  body        String
+  ctaLabel    String?
+  ctaUrl      String?
+  state       CampaignState   @default(DRAFT)
+  scheduledAt DateTime?
+  startedAt   DateTime?
+  finishedAt  DateTime?
+  createdBy   String
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  recipients  MailRecipient[]
+
+  @@index([state, scheduledAt])
+}
+
+// One row per person per mail. The unique (campaignId, email) is what makes a
+// resumed or overlapping send unable to mail anybody twice.
+model MailRecipient {
+  id         String          @id @default(cuid())
+  campaignId String
+  campaign   MailCampaign    @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  email      String
+  name       String?
+  delegateId String?
+  contactId  String?
+  status     RecipientStatus @default(PENDING)
+  error      String?
+  claimedAt  DateTime?
+  sentAt     DateTime?
+
+  @@unique([campaignId, email])
+  @@index([campaignId, status])
+  @@index([status, sentAt])
+}
+
+// The outreach list for PR. Separate from Delegate on purpose: a delegate
+// registered for an event, a contact only agreed to hear about them, and the two
+// must never be mailed on the same terms.
+model MailContact {
+  id             String    @id @default(cuid())
+  email          String    @unique
+  name           String?
+  institution    String?
+  tags           String[]  @default([])
+  source         String?
+  unsubscribedAt DateTime?
+  bouncedAt      DateTime?
+  lastMailedAt   DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([unsubscribedAt])
+}
+
+enum MailAudience {
+  DELEGATES
+  CONTACTS
+}
+
+enum CampaignState {
+  DRAFT
+  SCHEDULED
+  SENDING
+  SENT
+  CANCELLED
+}
+
+enum RecipientStatus {
+  PENDING
+  SENDING
+  SENT
+  FAILED
+  SKIPPED
+}

@@ -27,6 +27,9 @@ const ADMIN_REQUIRED = new Set([
   // Closing an event ends registration and allotment for everyone, and starting
   // one closes the current event, so both stay out of a maintainer's reach.
   "closeCurrentEvent", "startNewEvent",
+  // A sent mail cannot be recalled, so the send and the PR switch are ADMIN only;
+  // any staff member can still draft, preview and test.
+  "scheduleCampaign", "cancelCampaign", "runQueueNow", "removeContact", "setPrMailEnabled",
   // Hard delete with nothing behind it: the row goes, and so do the post's
   // uploaded images. Rejection is the reversible option and stays requireStaff.
   "deletePost",
