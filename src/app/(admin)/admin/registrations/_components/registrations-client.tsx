@@ -28,6 +28,7 @@ interface Filters {
   source: string
   isDtu: string
   needsAccommodation: string
+  followUp: string
   page: number
   perPage: number
   sortBy: SortField
@@ -64,6 +65,7 @@ function buildUrl(filters: Filters) {
   if (filters.source) p.set("source", filters.source)
   if (filters.isDtu) p.set("isDtu", filters.isDtu)
   if (filters.needsAccommodation) p.set("needsAccommodation", filters.needsAccommodation)
+  if (filters.followUp) p.set("followUp", filters.followUp)
   if (filters.page > 1) p.set("page", String(filters.page))
   if (filters.sortBy !== "createdAt") p.set("sortBy", filters.sortBy)
   if (filters.sortDir !== "desc") p.set("sortDir", filters.sortDir)
@@ -80,6 +82,7 @@ function buildExportUrl(filters: Filters, format: "xlsx" | "csv") {
   if (filters.source) p.set("source", filters.source)
   if (filters.isDtu) p.set("isDtu", filters.isDtu)
   if (filters.needsAccommodation) p.set("needsAccommodation", filters.needsAccommodation)
+  if (filters.followUp) p.set("followUp", filters.followUp)
   return `/api/admin/export?${p.toString()}`
 }
 
@@ -250,6 +253,21 @@ export function RegistrationsClient({ delegates, committees, total, filters }: P
             <SelectItem value="">All</SelectItem>
             <SelectItem value="true">Needs accom.</SelectItem>
             <SelectItem value="false">No accom.</SelectItem>
+          </SelectContent>
+        </Select>
+
+        {/* Payment chase */}
+        <Select
+          value={filters.followUp || undefined}
+          onValueChange={(v) => navigate({ followUp: v || "" })}
+        >
+          <SelectTrigger className="h-8 w-40 text-xs">
+            <SelectValue placeholder="Follow-up" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="">All</SelectItem>
+            <SelectItem value="due">Follow-up due</SelectItem>
+            <SelectItem value="never">Unpaid, never called</SelectItem>
           </SelectContent>
         </Select>
 

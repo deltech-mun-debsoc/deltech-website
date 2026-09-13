@@ -36,6 +36,8 @@ export interface SerializedDelegate {
   reference: string | null
   status: string
   createdAt: string
+  lastContactedAt: string | null
+  nextFollowUpAt: string | null
   coDelegate: {
     id: string
     delegateId: string
@@ -83,6 +85,8 @@ export function serializeDelegate(d: DelegateRaw): SerializedDelegate {
   return {
     ...d,
     createdAt: d.createdAt.toISOString(),
+    lastContactedAt: d.lastContactedAt?.toISOString() ?? null,
+    nextFollowUpAt: d.nextFollowUpAt?.toISOString() ?? null,
     allotment: d.allotment
       ? {
           ...d.allotment,
