@@ -21,6 +21,8 @@ interface Props {
   refundPolicy: string
   contactEmail: string
   contacts: Array<{ name: string; role: string; phone: string }>
+  statusUrl?: string
+  whatsappCommunityUrl?: string
 }
 
 export function AllotmentEmail({
@@ -41,6 +43,8 @@ export function AllotmentEmail({
   refundPolicy,
   contactEmail,
   contacts,
+  statusUrl,
+  whatsappCommunityUrl,
 }: Props) {
   const payable = paymentsEnabled && amountInr != null && payLink
   const amount = amountInr != null ? `₹${amountInr.toLocaleString("en-IN")}` : ""
@@ -140,6 +144,41 @@ export function AllotmentEmail({
         </>
       ) : (
         <Callout>Nothing to pay. Your allotment is confirmed as it stands.</Callout>
+      )}
+
+      {statusUrl && (
+        <>
+          <Hr style={{ borderColor: "#e4e4e7", margin: "24px 0" }} />
+          <P>
+            Everything about your place is on <A href={statusUrl}>your delegate page</A>:
+            your committee and portfolio, what is left to pay if anything, and the
+            check-in code the desk scans on the day. Keep the link; it stays current.
+          </P>
+          <Section style={{ margin: "16px 0 0" }}>
+            <Button
+              href={statusUrl}
+              style={{
+                backgroundColor: brand,
+                borderRadius: 4,
+                color: "#ffffff",
+                display: "inline-block",
+                fontSize: 13,
+                fontWeight: 600,
+                padding: "10px 18px",
+                textDecoration: "none",
+              }}
+            >
+              Open my delegate page
+            </Button>
+          </Section>
+        </>
+      )}
+
+      {whatsappCommunityUrl && (
+        <P>
+          Announcements and last-minute changes go out on{" "}
+          <A href={whatsappCommunityUrl}>the delegates group</A>. Please join it.
+        </P>
       )}
 
       {needsAccommodation && accommodationNote && (

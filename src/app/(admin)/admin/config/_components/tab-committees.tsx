@@ -306,7 +306,7 @@ export function TabCommittees({ committees }: Props) {
                   placeholder="Participation, Party, Region, Faction…"
                 />
                 <p className="text-xs text-muted-foreground">
-                  UNHRC: Participation · AIPPM: Party · UNSC: Membership
+                  For example: Participation, Party, or Membership
                 </p>
               </div>
               <div className="space-y-1.5">
@@ -357,7 +357,7 @@ export function TabCommittees({ committees }: Props) {
                       checked={field.value}
                       onCheckedChange={(checked) => field.onChange(checked)}
                     />
-                    Double delegation (UNHRC)
+                    Double delegation (two delegates per seat)
                   </label>
                 )}
               />

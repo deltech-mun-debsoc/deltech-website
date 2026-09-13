@@ -49,6 +49,8 @@ export function AllotDialog({
   const [isPending, startTransition] = useTransition()
   const [holdToken, setHoldToken] = useState<string | null>(null)
   const [holdFailed, setHoldFailed] = useState(false)
+  const [secondsLeft, setSecondsLeft] = useState<number | null>(null)
+  const [holdExpiresAt, setHoldExpiresAt] = useState<number | null>(null)
 
   // Soft-lock the portfolio when the dialog mounts
   useEffect(() => {
@@ -56,6 +58,7 @@ export function AllotDialog({
       .then((result) => {
         setHoldToken(result.holdToken ?? null)
         setHoldFailed(!result.success)
+        setHoldExpiresAt(result.holdExpiresAt ? Date.parse(result.holdExpiresAt) : null)
       })
       .catch(() => setHoldFailed(true))
   }, [portfolio.id])
@@ -65,6 +68,21 @@ export function AllotDialog({
       if (holdToken) void releaseHold(portfolio.id, holdToken).catch(() => {})
     }
   }, [holdToken, portfolio.id])
+
+  // The hold lasts two minutes and used to run out invisibly, so a conversation
+  // with a delegate could outlast it and Confirm would fail with "your hold
+  // expired". Counting down is display only: the server rechecks expiry inside
+  // the transaction and stays the authority on whether this seat is still ours.
+  useEffect(() => {
+    if (!holdExpiresAt) return
+    const tick = () => {
+      const left = Math.max(0, Math.round((holdExpiresAt - Date.now()) / 1000))
+      setSecondsLeft(left)
+    }
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [holdExpiresAt])
 
   // Ranked candidate list. Someone who asked for THIS seat comes before someone
   // who only asked for this committee, because that is the question being asked
@@ -143,6 +161,7 @@ export function AllotDialog({
   }
 
   const onHoldByOther = holdFailed
+  const holdLapsed = secondsLeft !== null && secondsLeft <= 0
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -153,6 +172,13 @@ export function AllotDialog({
             <span className="font-medium text-foreground">{portfolio.name}</span>
             {" · "}
             {committee.name}
+            {!onHoldByOther && secondsLeft !== null && (
+              <span className={cn("ml-2", holdLapsed ? "text-destructive" : "text-muted-foreground")}>
+                {holdLapsed
+                  ? t("admin.allotment.holdLapsed")
+                  : t("admin.allotment.holdCountdown", { seconds: secondsLeft })}
+              </span>
+            )}
             {onHoldByOther && (
               <span className="ml-2 text-amber-600 dark:text-amber-400">
                 ⚠ On hold by another admin
@@ -163,7 +189,7 @@ export function AllotDialog({
 
         {committee.doubleDelegation && (
           <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs text-muted-foreground">
-            UNHRC: selecting this delegate also brings their co-delegate on the same allotment.
+            {t("admin.allotment.doubleDelegationNote", { committee: committee.name })}
           </div>
         )}
 
@@ -269,7 +295,7 @@ export function AllotDialog({
           </Button>
           <Button
             onClick={handleConfirm}
-            disabled={!selected || !holdToken || isPending || (paymentsRequired && !computedFee)}
+            disabled={!selected || !holdToken || isPending || holdLapsed || (paymentsRequired && !computedFee)}
           >
             {isPending ? "Allotting…" : paymentsRequired ? "Confirm allotment" : "Confirm free allotment"}
           </Button>

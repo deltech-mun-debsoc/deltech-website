@@ -140,7 +140,7 @@ export function TabPortfolios({ committees }: { committees: ClientCommittee[] })
               <Button variant="outline" onClick={handleLoadSheet} disabled={isPending || !sheetUrl.trim()} className="h-11"><SheetIcon />{isPending ? "Reading…" : "Load"}</Button>
             </div>
           </div>
-          <p className="text-sm leading-relaxed text-muted-foreground">AIPPM never receives reporters. UNHRC receives Member / Non-member / Observer tags. Standard committees are ranked by agenda relevance, never alphabetically padded.</p>
+          <p className="text-sm leading-relaxed text-muted-foreground">Seats are ranked by relevance to the agenda, never padded out alphabetically. Crisis committees take no reporters, and the tag column follows whatever this committee calls its classification.</p>
         </section>
 
         <section className="space-y-4">
