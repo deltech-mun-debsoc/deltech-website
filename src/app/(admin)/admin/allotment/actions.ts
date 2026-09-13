@@ -29,7 +29,7 @@ function isPrismaP2002(err: unknown): boolean {
 // admin" warning could never render. The soft-lock existed but never fired.
 export async function holdPortfolio(
   portfolioId: string,
-): Promise<{ success: boolean; holdToken?: string }> {
+): Promise<{ success: boolean; holdToken?: string; holdExpiresAt?: string }> {
   await requireStaff()
   const now = new Date()
   const holdToken = randomUUID()
@@ -44,7 +44,11 @@ export async function holdPortfolio(
     },
     data: { status: "ON_HOLD", holdToken, holdExpiresAt },
   })
-  return count === 1 ? { success: true, holdToken } : { success: false }
+  // The expiry goes back to the dialog so it can count down against the server's
+  // clock rather than starting its own two minutes a round trip later.
+  return count === 1
+    ? { success: true, holdToken, holdExpiresAt: holdExpiresAt.toISOString() }
+    : { success: false }
 }
 
 // ── releaseHold ────────────────────────────────────────────────────────────────
@@ -212,7 +216,7 @@ export async function allotPortfolio(input: {
       }
     }
 
-    // Fire allotment email; co-delegate notice only if UNHRC (doubleDelegation).
+    // Fire allotment email; co-delegate notice only for a double-delegation committee.
     // Skipped when the pay link failed, because that email's whole point is to
     // carry the link. Regenerating it from the drawer sends the email.
     try {

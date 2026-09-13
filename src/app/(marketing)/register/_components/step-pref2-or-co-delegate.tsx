@@ -39,15 +39,20 @@ export function StepPref2OrCoDelegate({ form, committees, isDoubleDelegation }: 
     [pref2Committees]
   )
 
+  // Which committee runs double delegation is an event-by-event decision, so the
+  // copy names whichever one the delegate actually chose.
+  const doubleCommitteeName =
+    committees.find((c) => c.id === form.watch("pref1CommitteeId"))?.name ?? ""
+
   if (isDoubleDelegation) {
     return (
       <div className="space-y-5">
         <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm text-muted-foreground">
-          {t("register.preferences.unhrcOnlyNote")}
+          {t("register.preferences.doubleDelegationOnlyNote", { committee: doubleCommitteeName })}
         </div>
 
         <p className="text-base font-semibold">{t("register.coDelegate.sectionTitle")}</p>
-        <p className="text-sm text-muted-foreground">{t("register.coDelegate.sectionNote")}</p>
+        <p className="text-sm text-muted-foreground">{t("register.coDelegate.sectionNote", { committee: doubleCommitteeName })}</p>
 
         <FormField
           control={form.control}

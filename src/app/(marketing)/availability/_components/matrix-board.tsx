@@ -33,13 +33,31 @@ const STATE_STYLE: Record<PortfolioState, string> = {
     "border-border/40 bg-muted/60 text-muted-foreground/60 line-through",
 }
 
-const LEGEND: { state: PortfolioState; label: string; square: string }[] = [
-  { state: "available", label: t("marketing.statusAvailable"), square: "bg-card border border-foreground/25" },
-  { state: "allotted", label: t("marketing.statusAllotted"), square: "bg-accent border border-gold-500/50" },
-  { state: "paid", label: t("marketing.statusConfirmed"), square: "bg-primary/15 border border-primary/50" },
+// What a cell is called depends on whether the event charges, not on what the
+// event is named. A free event has nothing pending and nothing paid.
+function stateLabel(state: PortfolioState, paymentsRequired: boolean): string {
+  if (state === "allotted") {
+    return paymentsRequired ? t("marketing.statusAllotted") : t("marketing.statusAllottedFree")
+  }
+  if (state === "paid") {
+    return paymentsRequired ? t("marketing.statusConfirmed") : t("marketing.statusConfirmedFree")
+  }
+  return state === "blocked" ? t("marketing.statusBlocked") : t("marketing.statusAvailable")
+}
+
+const LEGEND_STATES: { state: PortfolioState; square: string }[] = [
+  { state: "available", square: "bg-card border border-foreground/25" },
+  { state: "allotted", square: "bg-accent border border-gold-500/50" },
+  { state: "paid", square: "bg-primary/15 border border-primary/50" },
 ]
 
-export function MatrixBoard({ committees }: { committees: MatrixCommittee[] }) {
+export function MatrixBoard({
+  committees,
+  paymentsRequired = true,
+}: {
+  committees: MatrixCommittee[]
+  paymentsRequired?: boolean
+}) {
   const router = useRouter()
   const reduce = useReducedMotion()
 
@@ -51,13 +69,13 @@ export function MatrixBoard({ committees }: { committees: MatrixCommittee[] }) {
   return (
     <div>
       <div className="mb-14 flex flex-wrap items-center gap-x-8 gap-y-4 border-y border-foreground/20 py-5">
-        {LEGEND.map((l) => (
+        {LEGEND_STATES.map((l) => (
           <span
             key={l.state}
             className="data-label flex items-center gap-2 text-muted-foreground"
           >
             <span className={`size-3 rounded-[2px] ${l.square}`} />
-            {l.label}
+            {stateLabel(l.state, paymentsRequired)}
           </span>
         ))}
       </div>
@@ -104,15 +122,7 @@ export function MatrixBoard({ committees }: { committees: MatrixCommittee[] }) {
                 {committee.portfolios.map((p) => (
                   <div
                     key={p.id}
-                    title={
-                      p.state === "allotted"
-                        ? t("marketing.statusAllotted")
-                        : p.state === "paid"
-                          ? t("marketing.statusConfirmed")
-                          : p.state === "blocked"
-                            ? t("marketing.statusBlocked")
-                            : t("marketing.statusAvailable")
-                    }
+                    title={stateLabel(p.state, paymentsRequired)}
                     className={`flex min-h-14 items-center border px-3 py-3 text-sm font-semibold leading-snug transition-colors ${STATE_STYLE[p.state]}`}
                   >
                     {p.name}
