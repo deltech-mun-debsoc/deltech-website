@@ -1,10 +1,9 @@
 name: Cron (production)
 
-# Replaces the crons in vercel.json once production runs on AWS. Inert until the
-# repo variable CRON_ENABLED is "true": flip it at the production cutover, in the
-# same minute the Vercel project is retired, so no job runs twice. (A double run
-# would be harmless -- payment-reminder claims its run, the others are
-# idempotent -- but it would be noise.) Schedules run from the default branch.
+# Production schedules are inert until the repo variable CRON_ENABLED is
+# "true". A double run would be harmless -- payment-reminder claims its run and
+# the others are idempotent -- but it would create noise. Schedules run from the
+# default branch.
 
 on:
   schedule:
