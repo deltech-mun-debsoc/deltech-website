@@ -1,5 +1,6 @@
 import { RadioTower } from "lucide-react"
 import { prisma } from "@/lib/prisma"
+import { currentEventScope } from "@/lib/event"
 import { getContent } from "@/lib/settings"
 import { deriveEventState } from "@/lib/event-state"
 import { t } from "@/content/strings"
@@ -39,8 +40,9 @@ function MatrixHero({ totalAvailable, exact }: { totalAvailable: number; exact: 
 
 export default async function AvailabilityPage() {
   const content = await getContent()
+  const scope = await currentEventScope()
   const committees = await prisma.committee.findMany({
-    where: { isActive: true },
+    where: { isActive: true, ...scope },
     orderBy: { sortOrder: "asc" },
     include: {
       portfolios: {

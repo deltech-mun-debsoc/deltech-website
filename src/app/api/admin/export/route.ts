@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
+import { currentEventScope } from "@/lib/event"
 import * as XLSX from "xlsx"
 import { buildDelegateWhere } from "@/app/(admin)/admin/registrations/_lib/build-where"
 import { resolveCycleContext } from "@/lib/recruitment/authz"
@@ -179,15 +180,19 @@ export async function GET(request: NextRequest) {
     return exportMatrix(format, sp.get("committeeId"))
   }
 
+  const scope = await currentEventScope()
   const delegates = await prisma.delegate.findMany({
-    where: buildDelegateWhere({
+    where: {
+      ...scope,
+      ...buildDelegateWhere({
       q: sp.get("q") ?? undefined,
       committeeId: sp.get("committeeId") ?? undefined,
       status: sp.get("status") ?? undefined,
       source: sp.get("source") ?? undefined,
       isDtu: sp.get("isDtu") ?? undefined,
       needsAccommodation: sp.get("needsAccommodation") ?? undefined,
-    }),
+      }),
+    },
     orderBy: { createdAt: "desc" },
     include: { coDelegate: true },
   })

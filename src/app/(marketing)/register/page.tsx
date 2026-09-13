@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation"
 import { getContent } from "@/lib/settings"
 import { prisma } from "@/lib/prisma"
+import { currentEventScope } from "@/lib/event"
 import { t } from "@/content/strings"
 import { RegistrationForm } from "./_components/registration-form"
 import { deriveEventState } from "@/lib/event-state"
@@ -22,7 +23,7 @@ export default async function RegisterPage() {
   }
 
   const committees = await prisma.committee.findMany({
-    where: { isActive: true },
+    where: { isActive: true, ...(await currentEventScope()) },
     orderBy: { sortOrder: "asc" },
     select: {
       id: true,

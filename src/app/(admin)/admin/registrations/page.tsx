@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import { currentEventScope } from "@/lib/event"
 import { buildDelegateWhere, parseSortField } from "./_lib/build-where"
 import { delegateInclude, serializeDelegate } from "./_lib/types"
 import { RegistrationsClient } from "./_components/registrations-client"
@@ -30,6 +31,7 @@ export default async function RegistrationsPage(props: {
   const sortBy = parseSortField(get("sortBy"))
   const sortDir = (get("sortDir") === "asc" ? "asc" : "desc") as "asc" | "desc"
 
+  const scope = await currentEventScope()
   const where = buildDelegateWhere({ q: q || undefined, committeeId: committeeId || undefined, status: status || undefined, source: source || undefined, isDtu: isDtu || undefined, needsAccommodation: needsAccommodation || undefined })
 
   const orderBy: Prisma.DelegateOrderByWithRelationInput = { [sortBy]: sortDir }
@@ -44,7 +46,7 @@ export default async function RegistrationsPage(props: {
     }),
     prisma.delegate.count({ where }),
     prisma.committee.findMany({
-      where: { isActive: true },
+      where: { isActive: true, ...scope },
       orderBy: { sortOrder: "asc" },
       select: { id: true, name: true, slug: true },
     }),

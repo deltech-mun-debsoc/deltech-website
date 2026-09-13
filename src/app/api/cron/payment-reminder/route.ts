@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { currentEventScope } from "@/lib/event"
 import { sendPaymentReminder } from "@/lib/resend"
 import { getContent } from "@/lib/settings"
 import { deriveEventState } from "@/lib/event-state"
@@ -71,6 +72,7 @@ export async function GET(req: NextRequest) {
   // and have NOT been sent a payment-reminder in the last 24 h.
   const candidates = await prisma.delegate.findMany({
     where: {
+      ...(await currentEventScope()),
       status: { in: ["ALLOTTED", "PAYMENT_SENT"] },
       payment: {
         status: { in: ["PENDING", "SENT", "FAILED"] },

@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { ArrowRight, RadioTower } from "lucide-react";
 import { getContent } from "@/lib/settings";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@/lib/prisma"
+import { currentEventScope } from "@/lib/event";
 import { t } from "@/content/strings";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -21,7 +22,7 @@ export default async function LandingPage() {
   const [content, committees, portfolioCounts, memberCount, postCount] = await Promise.all([
     getContent(),
     prisma.committee.findMany({
-      where: { isActive: true },
+      where: { isActive: true, ...(await currentEventScope()) },
       orderBy: { sortOrder: "asc" },
       select: {
         id: true,

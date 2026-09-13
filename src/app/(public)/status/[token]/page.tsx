@@ -153,7 +153,7 @@ export default async function StatusPage(props: {
             <p className="text-sm text-muted-foreground">
               {paymentsRequired
                 ? "Payment details will appear here once you have been allotted a committee."
-                : "No payment is required for this free Intra MUN. Your allotment confirms your place automatically."}
+                : STRINGS.marketing.noPaymentRequired}
             </p>
           )}
         </div>

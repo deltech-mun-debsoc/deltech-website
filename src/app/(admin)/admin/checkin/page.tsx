@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import { currentEventScope } from "@/lib/event"
 import type { Prisma, AppStatus } from "@/generated/prisma/client"
 import { t } from "@/content/strings"
 import { PageHeader } from "@/app/(admin)/_components/page-header"
@@ -24,7 +25,8 @@ export default async function CheckinPage(props: {
   // but staff can broaden the filter for edge cases (walk-ins, corrections).
   const status = get("status") ?? "CONFIRMED"
 
-  const where: Prisma.DelegateWhereInput = {}
+  const scope = await currentEventScope()
+  const where: Prisma.DelegateWhereInput = { ...scope }
   if (q) {
     where.AND = [
       {
@@ -68,8 +70,8 @@ export default async function CheckinPage(props: {
         payment: { select: { status: true } },
       },
     }),
-    prisma.delegate.count({ where: { status: "CONFIRMED", checkedInAt: { not: null } } }),
-    prisma.delegate.count({ where: { status: "CONFIRMED" } }),
+    prisma.delegate.count({ where: { status: "CONFIRMED", checkedInAt: { not: null }, ...scope } }),
+    prisma.delegate.count({ where: { status: "CONFIRMED", ...scope } }),
   ])
 
   const delegates: CheckinDelegate[] = delegatesRaw.map((d) => ({
