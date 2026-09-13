@@ -790,7 +790,7 @@ assert.equal(
 // Twice now a migration has been merged and never applied to production, and both
 // times the operator saw only "Something went wrong": the quiz could not present a
 // TRUE_FALSE slide, and recruitment could not add anyone to the society because
-// the Role enum had no MEMBER. build:vercel deliberately does not migrate, so this
+// the Role enum had no MEMBER. Application builds deliberately do not migrate, so this
 // will happen again; the only question is whether the screen names the cause.
 {
   for (const file of [

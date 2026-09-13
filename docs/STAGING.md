@@ -4,8 +4,8 @@ A second, complete copy of the site that shares nothing with production. Break
 whatever you like here.
 
 ```text
-test.deltechmun.in   staging branch   staging Supabase project   test-mode keys
-www.deltechmun.in    main branch      production Supabase        live keys
+test.deltechmun.in   staging branch   mun-staging box   mun_staging database   test keys
+www.deltechmun.in    main branch      mun-prod box      mun_prod database      live keys
 ```
 
 ## For someone new to the team
@@ -38,17 +38,18 @@ Nothing you can do in the browser is unrecoverable, so do not be careful.
 
 ## What is actually separate
 
-Staging is the same code, deployed twice, reading a different set of
-credentials. Vercel scopes environment variables to **Production** or
-**Preview**; `main` reads the first, `staging` reads the second.
+Staging is the same code built as a separate Docker image and deployed to its
+own Lightsail server. GitHub Environments keep each server address and host key
+separate; runtime credentials live only in that server's `/srv/mun/app.env`.
 
 | | Production | Staging |
 | --- | --- | --- |
-| Database | production Supabase | its own Supabase project |
+| Database | `mun_prod` Postgres on `mun-prod` | `mun_staging` Postgres on `mun-staging` |
+| Media | `deltechmun-media-prod` S3 bucket | `deltechmun-media-staging` S3 bucket |
 | Email | sends to the real recipient | redirected to one sink inbox, subject prefixed `[STAGING → …]` |
 | Payments | live Razorpay keys | test-mode keys, no real money |
 | Cron secret | production value | its own — staging cannot trigger production's mailout |
-| Cron jobs | run daily | **never run** (Vercel does not schedule crons on Preview) |
+| Cron jobs | GitHub Actions calls production routes | never scheduled |
 | Google Sheet | the real public sheet | empty by default, so the sync is a no-op |
 
 Email is deliberately still live, so you can test deliverability. It cannot

@@ -23,7 +23,7 @@ A single living document for building the MUN platform with Claude Code. Hand me
 | Email | **Resend** + **React Email** | Allotment emails as versioned React templates; great deliverability; cheap. Domain `deltechmun.in` verified. |
 | UI | **Tailwind CSS v4** + **shadcn/ui** + **Framer Motion** | shadcn gives you owned, themeable components (not a locked dependency); Framer Motion powers the quiz animations. Design tokens in `src/styles/tokens.ts`. |
 | Charts (results) | **Recharts** | Animated bar/donut reveals for quiz/dashboard. |
-| Hosting | **Vercel** (app) + **Supabase Cloud** (data) | Managed Next.js deploys and edge network; PRs run CI only to stay within Hobby limits. |
+| Hosting | **AWS Lightsail** (app + Postgres) + **S3** (media/backups) | Separate production/staging boxes deployed by GitHub Actions. |
 | Validation | **Zod** | One schema validates the form, the Server Action, and the DB write. |
 
 > One mental model for the whole app: **the DB (Supabase Postgres via Prisma 7) is the source of truth, Next.js Server Actions are the only thing that writes to it, and every action re-checks role + ownership server-side.** Conference content, fees, and copy are DB-driven and editable from the dashboard — nothing hardcoded.
@@ -67,7 +67,7 @@ Model this as `role` + a `permissions` array (or a simple role enum with a permi
 ### 1.4 System (automated)
 - Razorpay webhook → marks payment captured/failed.
 - Resend → sends allotment / confirmation / reminder emails.
-- Cron (Vercel Cron) → "registration closes in 24h" nudges, "complete your payment" reminders.
+- GitHub Actions cron → "registration closes in 24h" nudges, "complete your payment" reminders.
 
 ---
 

@@ -8,7 +8,7 @@
 // It has now bitten twice. The quiz could not present a TRUE_FALSE slide because
 // SlideType lacked the value, and recruitment could not add anyone to the society
 // because Role lacked MEMBER -- both because a migration had been merged but never
-// applied to production, and `build:vercel` deliberately does not migrate. Both
+// applied to production, and application builds deliberately do not migrate. Both
 // times the operator saw only "Something went wrong", which points at the code
 // rather than at the deploy step that was actually skipped.
 

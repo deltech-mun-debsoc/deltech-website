@@ -111,22 +111,13 @@ const read = (p: string) => readFileSync(join(root, p), "utf8")
 
 // ── 4. Only main and staging may deploy ─────────────────────────────────────
 //
-// Vercel's ignoreCommand skips the build on exit 0 and builds on exit 1. Every
-// other branch must stay skipped: a feature branch that deployed would get the
-// Preview env vars, and therefore the staging database.
+// The AWS workflow is the deployment boundary. Feature branches must never be
+// able to select an environment or reach either server.
 {
-  const vercel = JSON.parse(read("vercel.json")) as { ignoreCommand?: string }
-  const cmd = vercel.ignoreCommand
-  assert.ok(cmd, "vercel.json must keep an ignoreCommand")
-
-  const refs = (cmd.match(/!=\s*\\?"([^"\\]+)\\?"/g) ?? []).map((m) =>
-    m.replace(/.*!=\s*\\?"/, "").replace(/\\?"$/, ""),
-  )
-  assert.deepEqual(
-    refs.sort(),
-    ["main", "staging"],
-    `exactly main and staging may build. Found: ${refs.join(", ") || "(none)"}`,
-  )
+  const workflow = read(".github/workflows/deploy.yml")
+  assert.match(workflow, /branches:\s*\[main, staging\]/)
+  assert.match(workflow, /github\.ref_name == 'main' \|\| github\.ref_name == 'staging'/)
+  assert.doesNotMatch(workflow, /pull_request:/)
 }
 
 // ── 5. Every page says it is not production ─────────────────────────────────
@@ -156,16 +147,15 @@ const read = (p: string) => readFileSync(join(root, p), "utf8")
   assert.doesNotMatch(
     firstCode!,
     /^["']use client["']/,
-    "preview-ribbon must stay server-only; VERCEL_ENV is not inlined into client bundles, " +
-      "so a client component reading it silently gets false -- on staging, the one place it must work",
+    "preview-ribbon must stay server-only; APP_ENV is not public and a client component would miss it",
   )
   assert.match(ribbon, /IS_PREVIEW/, "the ribbon must gate on IS_PREVIEW, not render unconditionally")
 
-  // On the AWS host there is no VERCEL_ENV; APP_ENV must drive the ribbon there.
+  // APP_ENV is the only deployment signal and must drive the ribbon.
   assert.match(
     read("src/lib/preview-env.ts"),
-    /process\.env\.APP_ENV\s*\?\?\s*process\.env\.VERCEL_ENV/,
-    "preview-env must read APP_ENV first, or staging on AWS looks exactly like production",
+    /deployEnv\s*=\s*process\.env\.APP_ENV/,
+    "preview-env must read APP_ENV, or staging on AWS looks exactly like production",
   )
 }
 

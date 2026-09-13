@@ -1,119 +1,81 @@
-# CI and deployments
+# CI, AWS deployments and health
 
-Vercel's Git integration deploys. GitHub Actions only runs checks.
+GitHub Actions is the only deployment system.
 
 ```text
-pull request     → Validate (Actions). No deploy.
-push to staging  → test.deltechmun.in  + migrations applied automatically
-push to main     → Production          + migrations applied BY HAND
+pull request     → CI: checks + production build; no deployment
+push to staging  → AWS staging deployment + automatic staging migration
+push to main     → AWS production deployment; production migration is manual
+every 30 minutes → AWS health checks for both public hosts and databases
 ```
 
-A pull request does **not** get a Preview URL. `vercel.json`'s `ignoreCommand`
-cancels the build for every branch except `main` and `staging`, so a feature
-branch never deploys and never touches the staging database. (This document used
-to promise a Preview URL per PR; that stopped being true when the
-`ignoreCommand` landed.)
+There are no per-PR websites. A feature branch cannot select a GitHub
+Environment, read a server address or deploy.
 
 ## Workflows
 
 | Name | Trigger | Purpose |
 | --- | --- | --- |
-| **CI** | Pull request or manual | `npm run check` and a production build. |
-| **Staging migrate** | Push to `staging` touching `prisma/**` | `prisma migrate deploy` against the staging database. |
+| **CI** | Pull request or manual | Runs `npm run check` and a production build. |
+| **AWS deploy** | Push to `staging` or `main`, or manual rollback | Builds the Docker image, ships it over SSH, switches only after container health succeeds, then verifies HTTPS and the database through Caddy. |
+| **AWS health** | Every 30 minutes or manual | Calls `/api/health` on both sites and verifies the expected environment and database. |
+| **Staging migrate** | Schema change pushed to `staging`, or manual | Applies Prisma migrations through an SSH tunnel to `mun_staging`. |
+| **Staging seed** | Manual with `RESET` confirmation | Wipes and repopulates the staging database. |
+| **Cron (production)** | Scheduled or manual | Calls production cron endpoints once `CRON_ENABLED=true`. |
 
-Neither needs a Vercel token. See [STAGING.md](STAGING.md) for the staging
-environment itself.
+The deploy and health runs write a plain-English result to the GitHub Actions
+summary: environment, host, commit, container, database and HTTPS status.
 
-## Deployments
+## Deployment safety
 
-Vercel builds pushes to `main` and `staging`. `vercel.json` points `buildCommand` at
-`npm run build:vercel`, which is `next build` and nothing else.
+The Docker image contains `APP_ENV`, `NEXT_PUBLIC_APP_URL` and `APP_VERSION`.
+Runtime secrets remain in `/srv/mun/app.env` on the corresponding server.
+GitHub Environment secrets contain only that environment's server address and
+host key, so staging cannot reach production.
 
-**The build does not migrate.** It used to, and that was removed deliberately in
-`d476bd2` so a deployment can never alter the schema on its way out. Every
-migration is applied by hand, before the deploy that needs it.
+`deploy/deploy.sh` keeps the previous five images. If the new image does not
+become healthy within 90 seconds it switches back automatically. The health
+endpoint performs a real database query; a responsive sign-in page with a
+broken database does not count as healthy.
 
-The cost of that is a trap this document previously helped set: merging a PR
-with a migration in it deploys code that expects a column or an enum value the
-database does not have. `20260830120000_quiz_formats_and_avatars` sat unapplied
-for a day that way, and every attempt to add a true/false or typed-answer slide
-came back `invalid input value for enum "SlideType"`. **Apply the migration
-first, then merge.**
+Manual rollback:
+
+```bash
+ssh deploy@<box> /srv/mun/deploy.sh prod <older-sha>
+```
+
+This rolls back code only. Database schemas do not roll back.
 
 ## Migrations
 
-Applied by hand. Check first, then run:
+Staging migrations are automatic. Production migrations remain manual:
 
 ```bash
-DIRECT_URL='<session pooler, port 5432>' npm run db:deploy
-DIRECT_URL='<same>' npx prisma migrate status
+ssh -f -N -L 55432:127.0.0.1:5432 deploy@<production-box>
+DIRECT_URL='postgresql://mun_prod:<password>@127.0.0.1:55432/mun_prod' npm run db:deploy
 ```
 
-Use the Supabase SESSION pooler on port 5432. `db.<ref>.supabase.co` is
-IPv6-only and unreachable from CI runners, and port 6543 is the transaction
-pooler, which cannot run DDL.
-
-There is a window of a few minutes between the migration finishing and the new
-deployment being promoted, during which the OLD code runs against the NEW
-schema. Additive migrations are unaffected; for a drop or a rename use
-expand/contract (add column → deploy → backfill → drop in a later release).
-
-Vercel's Instant Rollback reverts code only. It does not revert the schema.
+Apply a production migration before deploying code that requires it. Prefer
+additive changes and expand/contract for destructive changes.
 
 ## Environment variables
 
-Set on the Vercel project, not in this repo. (On AWS they live on the box and in
-GitHub Environments; see [AWS.md](AWS.md).) Two rules that have each caused an
-outage:
+`NEXT_PUBLIC_APP_URL` is a GitHub Environment variable and is baked into the
+image. Changing it requires a deployment. `AUTH_URL` is derived from it in the
+Dockerfile because the standalone server otherwise sees its bind address.
 
-- `NEXT_PUBLIC_*` values are inlined at BUILD time. Changing one requires a
-  redeploy; editing it alone does nothing.
-- On Vercel, do not set `AUTH_URL`. Auth.js rewrites every request's origin to
-  match it, so any deployment on a different hostname fails with
-  `error=Configuration`. `VERCEL=1` already makes `trustHost` true, so each
-  deployment self-names. The AWS image is the opposite: it MUST set `AUTH_URL`
-  (the Dockerfile does, from `NEXT_PUBLIC_APP_URL`), because a standalone
-  server's request URL is its bind address, `http://0.0.0.0:3000`.
-
-`DIRECT_URL` must exist on the Production scope: the build container needs it,
-not just the runtime.
-
-## Crons
-
-`vercel.json`, Production deployments only. Vercel does not run crons for
-Preview deployments.
+See [AWS.md](AWS.md) for infrastructure and [STAGING.md](STAGING.md) for the
+test environment.
 
 ## Recruitment checks
 
-The recruitment module keeps its decision logic in pure functions
-(`src/lib/recruitment/*`) precisely so it can be asserted without a database:
+The recruitment module keeps its decision logic in pure functions under
+`src/lib/recruitment/`. `npm run check` covers permissions, transitions,
+sessions, imports, guards and media keys.
 
-| Script | Asserts |
-| --- | --- |
-| `check-recruitment-permissions` | capability matrix and the cycle-state gate |
-| `check-recruitment-transitions` | candidate stage and result machines |
-| `check-recruitment-session` | timers, idempotency, control leases, staleness |
-| `check-recruitment-import` | row identity, idempotency, duplicates, manual-edit protection |
-| `check-recruitment-guards` | static analysis: no unguarded action, and the JC withholdings hold |
-| `check-media-keys` | S3 object-key construction and upload validation |
-
-`check-recruitment-concurrency.ts` is the exception. It asserts the races the
-*database* must refuse (partial unique indexes, the candidate lock, the
-append-only audit trigger), so it needs a real writable Postgres. It exits 0
-immediately unless `RECRUITMENT_DB_CHECKS=1` is set, which keeps CI green against
-a database it must not write to. Run it against a scratch database before
-touching the recruitment schema:
+`check-recruitment-concurrency.ts` needs a writable scratch Postgres database
+and is disabled unless explicitly requested:
 
 ```bash
 RECRUITMENT_DB_CHECKS=1 DIRECT_URL=postgresql://.../scratch npx tsx scripts/check-recruitment-concurrency.ts
 ```
-
-## S3 media uploads
-
-Author images, team photos and recruitment documents go to S3 through a
-presigned PUT (`src/lib/media/`). Set `S3_BUCKET`, `S3_REGION`,
-`S3_ACCESS_KEY_ID` and `S3_SECRET_ACCESS_KEY`; see `.env.example`. They are read
-lazily, so a build without them succeeds and only uploading is disabled. Never
-expose them with a `NEXT_PUBLIC_` prefix: the browser receives a short-lived
-signature, never a credential. `/api/cron/media-sweep` deletes abandoned uploads
-and is gated by `CRON_SECRET` like the other cron routes.

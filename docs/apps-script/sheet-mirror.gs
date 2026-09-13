@@ -11,7 +11,7 @@
 //   3. Deploy → New deployment → type "Web app" →
 //      Execute as: Me · Who has access: Anyone → Deploy.
 //   4. Copy the web app URL into /admin/config → Payments tab → Sheet mirror URL.
-//   5. Set the same SECRET value as the SHEET_SYNC_SECRET env var on Vercel.
+//   5. Set the same SECRET value as SHEET_SYNC_SECRET in the AWS app environment.
 //
 // Each committee gets its own tab, rows are appended as portfolios first sync.
 // Sync is fire-and-forget from the platform; a failed call just means the
