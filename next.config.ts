@@ -22,7 +22,7 @@ const SECURITY_HEADERS = [
 // A blocking CSP shipped blind is exactly the change that breaks production
 // silently, and this app has several things a strict policy would cut: Tiptap
 // and recharts inject styles at runtime, Next itself needs an inline bootstrap
-// script, and blog images come from the Supabase storage origin.
+// script, and blog images come from the S3 bucket's origin.
 //
 // So: observe first. Watch the browser console on /admin, /blog/[slug] and
 // /quiz/[code], tighten whatever reports, and only then rename the header to

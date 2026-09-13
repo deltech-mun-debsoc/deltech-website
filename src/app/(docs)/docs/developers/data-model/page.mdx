@@ -3,30 +3,44 @@ export const metadata = {
   description: "Prisma 7, the driver adapter, the model groups and the migration workflow.",
 }
 
-Prisma 7 on PostgreSQL. Schema at `prisma/schema.prisma`, about a thousand lines,
-fifty-eight models and twenty-four enums.
+Prisma 7 on PostgreSQL 17. Schema at `prisma/schema.prisma`, about 1,090 lines, 40 models and
+25 enums.
+
+## Where the database is
+
+Each environment's box runs its own `postgres:17` container. It publishes port 5432 on
+**loopback only**: the app reaches it over the Compose network, and nothing off the box can open a
+connection at all. Administrative access is an SSH tunnel.
+
+Backups are `deploy/backup-db.sh`: an hourly `pg_dump` in custom format to that environment's S3
+bucket, kept for 30 days. Production also has a daily Lightsail snapshot.
+
+<Callout type="warning">
+There is no point-in-time restore. The worst case is losing up to an hour of writes.
+</Callout>
 
 ## Prisma 7 specifics
 
 **The generator is `prisma-client`**, not `prisma-client-js`, and it outputs to
-`src/generated/prisma/` rather than into `node_modules`. That directory is gitignored;
-`postinstall` regenerates it.
+`src/generated/prisma/` rather than `node_modules`. That directory is gitignored; `postinstall`
+regenerates it.
 
 **The datasource block has no `url`.** Configuration lives in `prisma.config.ts`, which reads
 `process.env.DIRECT_URL` directly rather than through Prisma's `env()`. That is what lets
-`prisma generate` succeed with no database, which is what lets CI build without credentials.
+`prisma generate` succeed with no database, so CI and the Docker build need no credentials.
 
-**Runtime uses a driver adapter**: `@prisma/adapter-pg` over a `pg` pool, wired in
-`src/lib/prisma.ts`. Pool size comes from `DATABASE_POOL_MAX`.
+**Runtime uses a driver adapter**: `@prisma/adapter-pg` over a `pg` pool, in `src/lib/prisma.ts`.
+Pool size comes from `DATABASE_POOL_MAX`, default 15; the boxes set 5 against Postgres's
+`max_connections=50`.
 
 ## The model groups
 
 | Group | Models |
-|---|---|
+| --- | --- |
 | **Auth** | `User`, `Account`, `Session`, `VerificationToken` |
 | **Config and content** | `Setting`, `StringOverride`, `Post` |
-| **Conference** | `Committee`, `Portfolio`, `Fee`, `Delegate`, `CoDelegate`, `Allotment`, `Payment`, `ImportPreset`, `EmailLog`, `Member` |
-| **Recruitment** | Fourteen models: cycle, member, candidate, group, group member, staff assignment, session, candidate lock, evaluation, handoff, audit event, sheet source, import |
+| **Conference** | `Committee`, `Portfolio`, `Fee`, `Delegate`, `CoDelegate`, `Allotment`, `Payment`, `ImportPreset`, `DelegateSheetSource`, `DelegateImport`, `EmailLog`, `Member` |
+| **Recruitment** | Thirteen models: cycle, member, candidate, group, group member, staff assignment, session, candidate lock, evaluation, handoff, audit event, sheet source, import |
 | **Media** | `MediaAsset` |
 | **Operations** | `AuditLog`, `RateLimit`, `QuarantinedRow` |
 | **Quiz** | `Presentation`, `Slide`, `QuizSession`, `Response` |
@@ -43,44 +57,46 @@ CandidateResult PENDING ON_HOLD SELECTED REJECTED WITHDRAWN DISQUALIFIED
 CycleState      DRAFT OPEN IN_PROGRESS PAUSED FINALISATION COMPLETED ARCHIVED CANCELLED
 ```
 
-`CandidateStage` and `CandidateResult` are separate on purpose: where someone is in the
-process and what was decided about them are different facts, and the result is always stored
-rather than derived.
+`CandidateStage` and `CandidateResult` are separate on purpose: where someone is in the process
+and what was decided about them are different facts, and the result is stored, never derived.
 
 ## Integrity that lives in the database
 
-Some invariants are enforced by constraints rather than by application code, because
-application checks lose races.
+Some invariants are constraints rather than application checks, because application checks lose
+races.
 
-- **`RecruitmentCandidateLock`** has the candidate id as its primary key, so a candidate
-  cannot be in two live sessions. Double-booking is impossible, not merely prevented.
-- **`Response`** is unique on session, slide and nickname, so a quiz answer cannot be scored
-  twice.
+- **`RecruitmentCandidateLock`** has the candidate id as its primary key, so a candidate cannot be
+  in two live sessions.
+- **`RecruitmentAuditEvent`** has a trigger that refuses `UPDATE`. Append-only is enforced by
+  Postgres, not by convention.
+- **`Response`** is unique on session, slide and nickname, so a quiz answer cannot be scored twice.
 - **`RecruitmentEvaluation`** carries a unique idempotency key.
-- **`Delegate.email`** is unique; duplicate registration surfaces as a `P2002` and is turned
-  into a readable message.
+- **`Delegate.email`** is unique; a duplicate surfaces as `P2002` and becomes a readable message.
 
 ## Concurrency patterns
 
-**Optimistic locking.** `RecruitmentSession` has a `version`; mutations pass
-`expectedVersion` and fail if it moved.
+**Optimistic locking.** `RecruitmentSession` has a `version`; mutations pass `expectedVersion`.
 
-**Serializable transactions.** Registration re-checks that intake is open *inside* the
-transaction that creates the row. Admin role changes run at serializable isolation to
-guarantee at least one admin survives.
+**Serializable transactions.** Registration re-checks that intake is open inside the transaction
+that creates the row. Admin role changes run serializable to guarantee an admin survives.
 
 **Soft holds.** A portfolio is held with a token for two minutes during allotment.
 
 ## Migrations
 
+Twenty-one so far. Never edit an applied one; add a new one.
+
 ```bash
-npm run db:migrate    # create and apply, development
-npm run db:deploy     # apply existing, CI and production
-npm run db:status     # show state
+npm run db:deploy    # apply existing migrations
+npm run db:status    # show state
 ```
 
-Twenty migrations exist. Never edit an applied one; add a new one.
+`prisma migrate dev` is interactive, so it will not run from a script or an agent. To produce a
+migration non-interactively, generate the SQL and apply it:
 
-Migrations use `DIRECT_URL`, which bypasses the pooler. That is also why they fail on an
-IPv4-only network against Supabase while the app runs fine. See
-[troubleshooting](/docs/developers/troubleshooting).
+```bash
+npx prisma migrate diff --from-config-datasource --to-schema prisma/schema.prisma --script
+```
+
+Staging applies migrations automatically; production is manual through a tunnel, and must go
+**before** the code that needs it. See [CI and deployment](/docs/developers/ci).

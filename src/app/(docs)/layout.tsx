@@ -10,6 +10,11 @@ import { DocsSearch } from "./_components/docs-search"
 import { DocsSidebar } from "./_components/docs-sidebar"
 import { DocsToc } from "./_components/docs-toc"
 
+// Absolute, not "/". On docs.deltechmun.in the host rewrite in next.config.ts
+// maps "/" back onto /docs, so a relative link would return the reader to the
+// docs index. NEXT_PUBLIC_APP_URL is baked into each environment's image.
+const MAIN_SITE = process.env.NEXT_PUBLIC_APP_URL ?? "/"
+
 export const metadata: Metadata = {
   title: {
     default: t("docs.title"),
@@ -49,12 +54,12 @@ export default function DocsLayout({ children }: { children: ReactNode }) {
           </Link>
           <div className="ml-auto flex items-center gap-2">
             <DocsSearch />
-            <Link
-              href="/"
+            <a
+              href={MAIN_SITE}
               className="hidden text-[0.875rem] text-muted-foreground transition-colors hover:text-foreground md:inline"
             >
               {t("docs.backToSite")}
-            </Link>
+            </a>
             <ThemeToggle />
           </div>
         </div>

@@ -3,72 +3,111 @@ export const metadata = {
   description: "How a request travels from the edge to the database, and what talks to what.",
 }
 
-Next.js 16 App Router, React 19, Prisma 7 on PostgreSQL, NextAuth v5, Tailwind v4. One
-application, six route groups, no monorepo.
+Next.js 16 App Router, React 19, Prisma 7 on PostgreSQL 17, NextAuth v5, Tailwind v4. One
+application, run as a single Docker container per environment on AWS Lightsail, behind
+Caddy.
 
 ## The request path
 
-<Figure caption="Only five path prefixes reach the auth proxy. Everything else is public and skips it entirely.">
-<svg viewBox="0 0 720 260" role="img" aria-label="Request flow from the edge proxy through route groups and server actions to Postgres" style={{width:"100%",height:"auto"}}>
+<Figure caption="Each environment is one box. Caddy terminates TLS, one Next.js container serves every route, and Postgres is only reachable from inside the box.">
+<svg viewBox="0 0 720 300" role="img" aria-label="Browser to Caddy to the Next.js container to Postgres, all on one Lightsail box, with S3 and email outside" style={{width:"100%",height:"auto"}}>
   <defs>
     <marker id="ara" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
       <path d="M0 0 L10 5 L0 10 z" fill="color-mix(in oklch, var(--foreground) 45%, transparent)" />
     </marker>
   </defs>
+  <rect x="150" y="60" width="410" height="226" rx="12" fill="none"
+    stroke="color-mix(in oklch, var(--foreground) 22%, transparent)" strokeDasharray="5 4" />
+  <text x="166" y="80" fontSize="11" letterSpacing="0.08em" fill="var(--muted-foreground)">LIGHTSAIL BOX · DOCKER COMPOSE</text>
   {[
-    { x: 8,   y: 8,   w: 200, h: 40, t: "Request", s: "" },
-    { x: 8,   y: 74,  w: 200, h: 52, t: "proxy.ts", s: "edge, 5 prefixes only" },
-    { x: 260, y: 74,  w: 200, h: 52, t: "Route group layout", s: "requireStaff / requireAdmin" },
-    { x: 512, y: 74,  w: 200, h: 52, t: "page.tsx", s: "server component" },
-    { x: 260, y: 152, w: 200, h: 52, t: "actions.ts", s: "zod, guard, transact, audit" },
-    { x: 512, y: 152, w: 200, h: 52, t: "Prisma 7", s: "pg driver adapter" },
-    { x: 512, y: 214, w: 200, h: 38, t: "PostgreSQL", s: "" },
+    { x: 8,   y: 110, w: 118, h: 52, t: "Browser", s: "HTTPS" },
+    { x: 172, y: 110, w: 170, h: 52, t: "Caddy", s: "TLS, Host routing" },
+    { x: 374, y: 110, w: 170, h: 52, t: "app container", s: "Next.js standalone" },
+    { x: 374, y: 214, w: 170, h: 52, t: "Postgres 17", s: "loopback only" },
+    { x: 172, y: 214, w: 170, h: 52, t: "SSE realtime bus", s: "in the app process" },
+    { x: 584, y: 110, w: 128, h: 52, t: "S3", s: "media, backups" },
+    { x: 584, y: 214, w: 128, h: 52, t: "Resend / SES", s: "email" },
   ].map((b) => (
     <g key={b.t}>
       <rect x={b.x} y={b.y} width={b.w} height={b.h} rx="8"
         fill="var(--card)" stroke="color-mix(in oklch, var(--foreground) 18%, transparent)" />
-      <text x={b.x + b.w / 2} y={b.s ? b.y + 24 : b.y + 25} textAnchor="middle" fontSize="13.5" fontWeight="650" fill="var(--foreground)">{b.t}</text>
-      {b.s ? <text x={b.x + b.w / 2} y={b.y + 41} textAnchor="middle" fontSize="11" fill="var(--muted-foreground)">{b.s}</text> : null}
+      <text x={b.x + b.w / 2} y={b.y + 23} textAnchor="middle" fontSize="13.5" fontWeight="650" fill="var(--foreground)">{b.t}</text>
+      <text x={b.x + b.w / 2} y={b.y + 40} textAnchor="middle" fontSize="11" fill="var(--muted-foreground)">{b.s}</text>
     </g>
   ))}
-  <line x1="108" y1="48" x2="108" y2="70" stroke="color-mix(in oklch, var(--foreground) 45%, transparent)" strokeWidth="1.5" markerEnd="url(#ara)" />
-  <line x1="208" y1="100" x2="256" y2="100" stroke="color-mix(in oklch, var(--foreground) 45%, transparent)" strokeWidth="1.5" markerEnd="url(#ara)" />
-  <line x1="460" y1="100" x2="508" y2="100" stroke="color-mix(in oklch, var(--foreground) 45%, transparent)" strokeWidth="1.5" markerEnd="url(#ara)" />
-  <line x1="360" y1="126" x2="360" y2="148" stroke="color-mix(in oklch, var(--foreground) 45%, transparent)" strokeWidth="1.5" markerEnd="url(#ara)" />
-  <line x1="460" y1="178" x2="508" y2="178" stroke="color-mix(in oklch, var(--foreground) 45%, transparent)" strokeWidth="1.5" markerEnd="url(#ara)" />
-  <line x1="612" y1="204" x2="612" y2="210" stroke="color-mix(in oklch, var(--foreground) 45%, transparent)" strokeWidth="1.5" markerEnd="url(#ara)" />
+  {[
+    [126, 136, 168, 136],
+    [342, 136, 370, 136],
+    [459, 162, 459, 210],
+    [544, 136, 580, 136],
+    [544, 240, 580, 240],
+  ].map(([x1, y1, x2, y2]) => (
+    <line key={`${x1}-${y1}`} x1={x1} y1={y1} x2={x2} y2={y2}
+      stroke="color-mix(in oklch, var(--foreground) 45%, transparent)" strokeWidth="1.5" markerEnd="url(#ara)" />
+  ))}
+  <line x1="410" y1="162" x2="300" y2="210" stroke="color-mix(in oklch, var(--foreground) 35%, transparent)" strokeWidth="1.3" strokeDasharray="4 3" />
+  <text x="360" y="30" textAnchor="middle" fontSize="12" fill="var(--muted-foreground)">
+    GitHub Actions builds the image, ships it over SSH and switches the container.
+  </text>
 </svg>
 </Figure>
 
-## Four things that will surprise you
+Inside the container a request goes: `src/proxy.ts` for the five protected prefixes, then the
+route group's `layout.tsx` guard, then the page or a colocated `actions.ts`, then Prisma.
 
-**Middleware is called `proxy.ts`.** Next 16 renamed it. It lives at `src/proxy.ts`, exports
-`proxy`, and its matcher covers only `/admin`, `/write`, `/dashboard`, `/account` and
-`/recruitment`. The whole public site never touches it.
+## The two environments
 
-**There is no test framework.** No Jest, no Vitest, no Playwright. There are thirty-two
-standalone `node:assert` scripts under `scripts/`, run by `npm run check`. See
-[testing](/docs/developers/testing).
+| | Production | Staging |
+| --- | --- | --- |
+| Host | `www.deltechmun.in` (apex redirects to www) and `docs.deltechmun.in` | `test.deltechmun.in`, `noindex` |
+| Box | `mun-prod`, Lightsail Sydney | `mun-staging`, Lightsail Sydney |
+| Branch | `main` | `staging` |
+| Database | `mun_prod` on its own box | `mun_staging` on its own box |
+| Media | `deltechmun-media-prod` (S3, ap-south-1) | `deltechmun-media-staging` |
 
-**No component may contain a hardcoded string, and no file may contain an em dash.** Both
-are enforced in CI. See [the strings rule](/docs/developers/strings).
+They share nothing at runtime. Each GitHub Environment holds only its own box's address and
+host key, so a staging deploy cannot reach production.
 
-**shadcn here sits on Base UI, not Radix.** The style is `base-nova`. See
-[UI components](/docs/developers/components).
+## Five things that will surprise you
 
-## External services
+**Exactly one app container per environment, permanently.** The quiz cache
+(`src/lib/quiz-cache.ts`) and the realtime bus (`src/lib/realtime/bus.ts`) both live in
+process memory. A second container would split them. Scaling out needs a shared cache
+handler and an external bus first.
 
-| Service | Used for | Degrades how |
-|---|---|---|
-| **PostgreSQL** (Supabase-hosted) | All relational data | Hard dependency |
-| **Resend** | All outbound email | Failures are logged; the action still succeeds |
-| **Razorpay** | Card, netbanking and UPI payments | Falls back to UPI QR or a static link by config |
-| **Supabase Realtime** | Live quiz only | Returns null when unconfigured rather than crashing |
-| **S3** | Blog images | Throws a typed "not configured" error |
-| **Groq** | Import column suggestions | Optional |
+**Middleware is called `proxy.ts`.** Next 16 renamed it. Its matcher covers only `/admin`,
+`/write`, `/dashboard`, `/account` and `/recruitment`.
 
-Nothing except Postgres is required for the app to boot, which is what makes CI able to
-build without any credentials.
+**The standalone server does not know its own URL.** Its `request.url` is the bind address,
+`http://0.0.0.0:3000`. The image pins `AUTH_URL` and sets `AUTH_TRUST_HOST`; never build an
+absolute redirect from `req.nextUrl`. See [authentication](/docs/developers/auth).
+
+**There is no test framework.** Thirty-six standalone `node:assert` scripts plus a strings
+gate, run by `npm run check`. See [testing](/docs/developers/testing).
+
+**No component may contain a hardcoded string, and no source file an em dash.** Both are
+enforced in CI. See [the strings rule](/docs/developers/strings).
+
+## What the app depends on
+
+| Dependency | Used for | If it is down |
+| --- | --- | --- |
+| **Postgres** (container on the box) | All relational data | Hard dependency. `/api/health` returns 503. |
+| **S3** | Blog images, team photos, recruitment documents, hourly database backups | Uploads fail with a typed "not configured" error; existing pages still render. |
+| **Resend** or **SES** | All outbound email, chosen by `EMAIL_TRANSPORT` | Failures are logged to `EmailLog`; the action still succeeds. |
+| **Razorpay** | Card, netbanking and UPI payments | Falls back to UPI QR or a static link by configuration. |
+| **Groq** | Import column suggestions | Optional. |
+| **GitHub Actions** | Deploys, scheduled cron calls, health checks | The site keeps running; nothing new ships and crons do not fire. |
+
+Realtime used to be Supabase. It is now `/api/realtime`, Server-Sent Events from the app
+process itself. See [the quiz system](/docs/developers/quiz).
+
+## The infrastructure runbook
+
+This site explains how the code works. Operating the boxes (creating one, restoring a backup,
+growing to 2 GB, rotating keys) is in
+[docs/AWS.md](https://github.com/deltech-mun-debsoc/deltech-website/blob/main/docs/AWS.md) in
+the repository.
 
 ## Where to go next
 

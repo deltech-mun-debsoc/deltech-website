@@ -23,9 +23,27 @@ every participant's clock agrees. `GET /api/quiz/sessions` returns a server-comp
 
 ## Realtime
 
-Supabase Realtime, used for presence and live updates. `src/lib/supabase.ts` returns `null`
-when unconfigured, so a missing or wrong URL degrades to polling rather than white-screening
-the page. `check-realtime-optional.ts` asserts that.
+Server-Sent Events from the app process. There is no third-party realtime service.
+
+| Piece | File |
+| --- | --- |
+| The bus: in-memory fan-out and presence | `src/lib/realtime/bus.ts` |
+| Channel names and who may subscribe or publish | `src/lib/realtime/channels.ts` |
+| The endpoint: `GET` subscribes, `POST` publishes (staff only) | `src/app/api/realtime/route.ts` |
+| The browser hook, built on `EventSource` | `src/lib/realtime/client.ts` |
+
+SSE rather than WebSockets because the traffic is one-directional (the host drives the room),
+`EventSource` reconnects on its own, and it survives a phone locking and waking. A 25 second
+heartbeat keeps proxies and phone radios from dropping an idle stream. Presence is simply the set of
+subscribers currently connected with a nickname.
+
+<Callout type="warning">
+The bus is in process memory, which is why each environment runs **exactly one** app container. A
+second would split the room in two. A deploy or restart drops every stream; clients reconnect by
+themselves, and the quiz keeps a poll as a floor so nobody is stranded.
+</Callout>
+
+`check-realtime-bus.ts` and `check-realtime-client.ts` cover it.
 
 ## Answering
 
