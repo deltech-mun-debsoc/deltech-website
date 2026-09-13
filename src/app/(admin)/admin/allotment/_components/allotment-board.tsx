@@ -9,6 +9,7 @@ import { revokeAllotment } from "../actions"
 import { committeeDemand } from "../_lib/balance"
 import { PortfolioCard } from "./portfolio-card"
 import { AllotDialog } from "./allot-dialog"
+import { useAllotmentLive } from "../_lib/use-allotment-live"
 import type { CommitteeType, PortfolioStatus } from "@/generated/prisma/client"
 
 // ── Serialized types (Dates converted to ISO strings for client props) ─────────
@@ -81,10 +82,18 @@ interface Props {
   delegates: SerializedDelegate[]
   fees: Fee[]
   paymentsRequired: boolean
+  eventId: string | null
 }
 
-export function AllotmentBoard({ committees, delegates, fees, paymentsRequired }: Props) {
+export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, eventId }: Props) {
   const router = useRouter()
+  const { notify } = useAllotmentLive(eventId)
+  // Every refresh on this board follows something that changed seat state, so
+  // each one also nudges the other open boards to catch up.
+  const refreshAndNotify = () => {
+    router.refresh()
+    notify()
+  }
   const [selectedCommitteeId, setSelectedCommitteeId] = useState(committees[0]?.id ?? "")
   const [dialogPortfolio, setDialogPortfolio] = useState<SerializedPortfolio | null>(null)
   const [dialogCommittee, setDialogCommittee] = useState<SerializedCommittee | null>(null)
@@ -95,7 +104,7 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired }
 
   // Preference demand across the unallotted pool (delegates are REGISTERED only,
   // so this is *remaining* demand, the balancing signal). Recomputed as the
-  // pool shrinks on router.refresh().
+  // pool shrinks on refreshAndNotify().
   const demand = useMemo(() => committeeDemand(delegates), [delegates])
   const selectedDemand = selectedCommittee ? demand.get(selectedCommittee.id) : undefined
 
@@ -114,13 +123,13 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired }
   const handleDialogClose = () => {
     setDialogPortfolio(null)
     setDialogCommittee(null)
-    router.refresh()
+    refreshAndNotify()
   }
 
   const handleAllotted = (hadWarning?: boolean) => {
     setDialogPortfolio(null)
     setDialogCommittee(null)
-    router.refresh()
+    refreshAndNotify()
     // The dialog already showed the warning toast; don't contradict it.
     if (!hadWarning) toast.success("Portfolio allotted successfully.")
   }
@@ -138,7 +147,7 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired }
       if (result.success) {
         toast.success("Allotment revoked.")
         setRevokeTarget(null)
-        router.refresh()
+        refreshAndNotify()
       } else {
         toast.error(result.error ?? "Revoke failed.")
       }

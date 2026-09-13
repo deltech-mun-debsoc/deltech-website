@@ -34,6 +34,20 @@ assert.equal(canPublish(quiz, member), false, "a signed-in non-staff user must n
 assert.equal(canPublish(quiz, staff), true, "the host drives the room")
 assert.equal(canPublish(recruitment, member), true, "any recruiter may nudge their own screens")
 
+// ── The allotment board ─────────────────────────────────────────────────────
+// Which seats are moving, and when, is staff business. A signed-in delegate must
+// not be able to watch the board refresh, nor nudge organisers' screens.
+{
+  const board = parseChannel("allotment:evt_abc123")!
+  assert.deepEqual(board, { kind: "allotment", id: "evt_abc123" })
+  assert.equal(parseChannel("allotment:evt;drop"), null, "punctuation must not slip into an allotment channel")
+  assert.equal(canSubscribe(board, anon), false, "a stranger must never watch the allotment board")
+  assert.equal(canSubscribe(board, member), false, "a signed-in delegate must not watch the allotment board")
+  assert.equal(canSubscribe(board, staff), true, "organisers watch their own board")
+  assert.equal(canPublish(board, member), false, "a signed-in delegate must not nudge organisers' boards")
+  assert.equal(canPublish(board, staff), true, "an organiser's allotment nudges the other boards")
+}
+
 // ── Fan-out and presence ────────────────────────────────────────────────────
 {
   const seen: unknown[] = []
