@@ -442,7 +442,7 @@ export const SECTIONS: DocSection[] = [
         href: "/docs/developers",
         label: "Architecture",
         summary: "How a request travels from the edge to the database, and what talks to what.",
-        keywords: ["architecture", "overview", "stack", "diagram", "next.js"],
+        keywords: ["architecture", "overview", "stack", "diagram", "next.js", "aws", "hosting", "lightsail", "caddy", "infrastructure"],
       },
       {
         href: "/docs/developers/setup",
@@ -525,13 +525,13 @@ export const SECTIONS: DocSection[] = [
       {
         href: "/docs/developers/email",
         label: "Email",
-        summary: "Resend, React Email templates, the delivery log and the staging sink.",
+        summary: "Resend or SES, React Email templates, the delivery log and the staging sink.",
         keywords: ["email", "resend", "react email", "template", "emaillog", "staging"],
       },
       {
         href: "/docs/developers/media",
         label: "Media and uploads",
-        summary: "Two-phase presigned S3 uploads, the orphan sweep, and the team photo path.",
+        summary: "Two-phase presigned S3 uploads, the public prefixes, team photos, and the orphan sweep.",
         keywords: ["media", "upload", "s3", "presign", "image", "storage", "sweep"],
       },
       {
@@ -544,7 +544,7 @@ export const SECTIONS: DocSection[] = [
         href: "/docs/developers/quiz",
         label: "The quiz system",
         summary: "Server-authoritative timing, realtime, scoring and sealed result receipts.",
-        keywords: ["quiz", "realtime", "supabase", "scoring", "receipt", "session", "slides"],
+        keywords: ["quiz", "realtime", "sse", "event source", "scoring", "receipt", "session", "slides"],
       },
       {
         href: "/docs/developers/audit",
@@ -556,7 +556,7 @@ export const SECTIONS: DocSection[] = [
         href: "/docs/developers/cron",
         label: "Cron jobs",
         summary: "Three scheduled routes, how they authenticate and how they stay idempotent.",
-        keywords: ["cron", "scheduled", "vercel", "reminder", "sweep", "sync"],
+        keywords: ["cron", "scheduled", "github actions", "cron_enabled", "reminder", "sweep", "sync"],
       },
       {
         href: "/docs/developers/security",
@@ -567,14 +567,14 @@ export const SECTIONS: DocSection[] = [
       {
         href: "/docs/developers/testing",
         label: "Testing",
-        summary: "There is no test framework. There are thirty-five assertion scripts. Here is why.",
+        summary: "There is no test framework. There are thirty-six assertion scripts and a strings gate. Here is why.",
         keywords: ["test", "testing", "check", "assert", "jest", "vitest", "scripts"],
       },
       {
         href: "/docs/developers/ci",
         label: "CI and deployment",
-        summary: "The one workflow, the Vercel config, and what happens on merge to main.",
-        keywords: ["ci", "deploy", "vercel", "github actions", "workflow", "build"],
+        summary: "The workflows, the deploy pipeline to AWS, and what happens on a push to staging or main.",
+        keywords: ["ci", "deploy", "aws", "lightsail", "docker", "caddy", "github actions", "rollback", "migration"],
       },
       {
         href: "/docs/developers/api",

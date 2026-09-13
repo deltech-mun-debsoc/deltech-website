@@ -1,72 +1,107 @@
 export const metadata = {
   title: "CI and deployment",
-  description: "The one workflow, the Vercel config, and what happens on merge to main.",
+  description: "The workflows, the deploy pipeline to AWS, and what happens on a push to staging or main.",
 }
 
-One workflow, one deploy path.
+GitHub Actions is the only deployment system. There are no preview deployments per pull
+request.
 
-## The workflow
-
-`.github/workflows/check.yml`. Triggers on **pull request** and manual dispatch. There is no
-push-to-main job.
-
-```
-ubuntu-latest, Node 20
-npm ci            (postinstall runs prisma generate)
-npm run check     (32 assertion scripts plus the strings gate)
-npm run build     (this is also the type check)
+```text
+pull request      -> CI: npm run check + production build. Deploys nothing.
+push to staging   -> AWS deploy to test.deltechmun.in + automatic staging migration
+push to main      -> AWS deploy to www.deltechmun.in. Production migration is manual.
+every 30 minutes  -> health check of both sites and both databases
 ```
 
-Concurrency group `ci-${{ github.ref }}` with cancel-in-progress, so pushing again cancels the
-previous run.
+## The workflows
 
-`DATABASE_URL` and `DIRECT_URL` are dummy values. **The build never connects to a database**,
-which is only possible because `prisma.config.ts` reads its URL through `process.env` rather
-than Prisma's `env()`.
+| Workflow | Trigger | Does |
+| --- | --- | --- |
+| `check.yml` | Pull request, manual | `npm ci`, `npm run check`, `npm run build`. Dummy database URLs; never connects. |
+| `deploy.yml` | Push to `staging` or `main`, manual rollback | Builds the image, ships it over SSH, switches the container, verifies HTTPS and the database. |
+| `health.yml` | Minutes 17 and 47 of every hour, manual | Calls `/api/health` on both hosts and checks environment and database. |
+| `staging-migrate.yml` | Schema change pushed to `staging`, manual | `prisma migrate deploy` through an SSH tunnel to the staging box. |
+| `staging-seed.yml` | Manual, requires typing `RESET` | Wipes and reseeds staging. |
+| `cron.yml` | Daily schedules, manual | Calls the production cron routes. See [cron jobs](/docs/developers/cron). |
 
-There is no separate lint or `tsc` step. The Next build does the type checking.
+## The flow a change takes
 
-## Deployment
+<Steps>
+1. Branch from `staging`, open a pull request **into `staging`**. CI runs.
 
-`vercel.json`:
+2. Merge. `deploy.yml` builds `mun:staging-<sha>` and puts it on `test.deltechmun.in`.
+   If the change has a migration, `staging-migrate.yml` applies it.
 
-```json
-{
-  "buildCommand": "npm run build:vercel",
-  "ignoreCommand": "[ \"$VERCEL_GIT_COMMIT_REF\" != \"main\" ]",
-  "regions": ["syd1"],
-  "crons": [ ... ]
-}
+3. Check it on staging. Staging is a full copy with its own database and test payment keys.
+
+4. Release: a pull request from `staging` into `main`. Merging deploys production.
+</Steps>
+
+## What a deploy actually does
+
+<Steps>
+1. **Build on the runner.** `docker build` with `APP_ENV`, `NEXT_PUBLIC_APP_URL` and
+   `APP_VERSION`. A 1 GB box never builds.
+
+2. **Sync the box's config.** `deploy/compose.yml`, `deploy/deploy.sh` and
+   `deploy/Caddyfile.<env>` are copied to `/srv/mun`, and Caddy is reloaded. So a Caddy change
+   ships with the commit that makes it.
+
+3. **Ship.** `docker save | gzip | ssh ... docker load`. There is no registry.
+
+4. **Switch.** `deploy/deploy.sh` points the `app` service at the new tag and waits up to 90
+   seconds for the container healthcheck. If it is not healthy, it switches back to the
+   previous tag and the job fails.
+
+5. **Verify from outside.** `curl --resolve` pins the public hostname to that box's address and
+   requires `/api/health` to report `status: ok`, `database: ok`, the right environment and
+   this commit's SHA.
+</Steps>
+
+The box keeps the five newest images per environment.
+
+<Callout type="note">
+Recreating the container drops requests for the roughly ten seconds Next.js takes to boot.
+That is a known trade of running one container; see the comment in `deploy/deploy.sh`.
+</Callout>
+
+## Rollback
+
+Code only; schemas do not roll back.
+
+```bash
+ssh deploy@<box> /srv/mun/deploy.sh prod <older-sha>
 ```
 
-**Only `main` deploys.** The ignore command stops every other branch building, so a pull
-request gets CI but not a deployment.
+Or run the AWS deploy workflow by hand with an older SHA.
 
-Functions run in `syd1`. Cron schedules are declared here; see
-[cron jobs](/docs/developers/cron).
+## Migrations
 
-## Migrations are not automatic
+Staging applies automatically. Production does not, on purpose:
 
-The build does not run `db:deploy`. Applying a migration to production is a deliberate,
-separate step. A pull request that adds a migration needs someone to apply it, and the code
-must tolerate both schema versions during the window between deploy and migrate, or the
-migration must go first.
+```bash
+ssh -f -N -L 55432:127.0.0.1:5432 deploy@<production-box>
+DIRECT_URL='postgresql://mun_prod:<password>@127.0.0.1:55432/mun_prod' npm run db:deploy
+```
 
-## Environments
+**Apply a production migration before merging code that needs it.** Prefer additive changes,
+and expand then contract for anything destructive, so the running container and the new one
+both work against the schema in between.
 
-| Environment | Notes |
-|---|---|
-| Production | `deltechmun.in`, plus `docs.deltechmun.in` for this site |
-| Preview | `test.deltechmun.in`. The admin header shows a preview badge. |
-| Local | `localhost:3000` |
+## Safety properties
 
-Set `EMAIL_REDIRECT_TO` on every non-production environment.
+- `DEPLOY_HOST` and `DEPLOY_KNOWN_HOSTS` are **Environment** secrets. The staging job cannot
+  learn the production box's address.
+- Runtime secrets never enter the image. They live in `/srv/mun/app.env` on the box.
+- `deploy.yml` does nothing unless the repository variable `AWS_DEPLOY` is `true`.
+- `/api/health` runs a real `SELECT 1`, so a page that renders with a broken database does not
+  count as healthy.
 
 ## The docs subdomain
 
-`docs.deltechmun.in` is the same Vercel project. A host-matched `beforeFiles` rewrite in
-`next.config.ts` maps it onto `/docs`. Adding the domain in the Vercel dashboard is a manual
-step outside the repository.
+`docs.deltechmun.in` is the production container. `deploy/Caddyfile.prod` has a site block for
+it, and a host-matched `beforeFiles` rewrite in `next.config.ts` maps it onto `/docs`. Its DNS A
+record must point at the production box before Caddy can issue its certificate.
 
 ## Before opening a pull request
 
@@ -74,4 +109,6 @@ step outside the repository.
 npm run check && npm run build
 ```
 
-Both are exactly what CI runs. See [contributing](/docs/developers/contributing).
+Exactly what CI runs. See [contributing](/docs/developers/contributing), and the fuller
+operational notes in
+[docs/CI.md](https://github.com/deltech-mun-debsoc/deltech-website/blob/main/docs/CI.md).

@@ -5,9 +5,19 @@ export const metadata = {
 
 What is in place, what is deliberately not, and how to tighten it.
 
+## The network
+
+- **Postgres has no network path.** Its container publishes 5432 on the box's loopback interface
+  only. Reaching it takes an SSH session to the box first.
+- **Only 22, 80 and 443 are open** on each Lightsail firewall.
+- **SSH is key-only**, as the `deploy` user. The deploy key is a GitHub secret; each environment's
+  host key is pinned in `DEPLOY_KNOWN_HOSTS`.
+- **Caddy overwrites `X-Forwarded-For`** with the real peer address instead of appending. The quiz
+  rate limits key on its first entry, which a client could otherwise choose.
+
 ## Headers
 
-Set unconditionally in `next.config.ts` on every path:
+Set in `next.config.ts` on every path:
 
 ```
 X-Content-Type-Options: nosniff
@@ -16,16 +26,17 @@ X-Frame-Options: DENY
 Permissions-Policy: camera=(), microphone=(), geolocation=(), interest-cohort=()
 ```
 
-`X-Frame-Options: DENY` is the important one. The admin console was framable by any origin,
-which is a clickjacking route to one-click destructive actions performed by an authenticated
-staff member.
+`X-Frame-Options: DENY` matters most: without it the admin console could be framed by any origin, a
+clickjacking route to one-click destructive actions by a signed-in staff member.
+
+Staging adds `X-Robots-Tag: noindex, nofollow` in its Caddyfile.
 
 ## The CSP is report-only, on purpose
 
 ```
 Content-Security-Policy-Report-Only: default-src 'self'; script-src 'self' 'unsafe-inline'
   'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:;
-  font-src 'self' data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co;
+  font-src 'self' data:; connect-src 'self' https://*.amazonaws.com;
   frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'
 ```
 
@@ -33,51 +44,54 @@ Content-Security-Policy-Report-Only: default-src 'self'; script-src 'self' 'unsa
 This is documentation with telemetry attached, not a control. Do not cite it as protection.
 </Callout>
 
-A blocking CSP shipped blind is the change that breaks production silently. Several things
-here would be cut by a strict policy: Tiptap and recharts inject styles at runtime, Next needs
-an inline bootstrap script, Supabase is contacted over HTTPS and WebSocket, and images come
-from an external origin.
+`connect-src` allows S3 because browsers upload straight to it. Realtime is same-origin SSE, so
+`'self'` already covers it.
 
 ### Promoting it
 
 <Steps>
-1. Watch the browser console on `/admin`, `/blog/[slug]` and `/quiz/[code]`, which are the
-   three surfaces that will report.
+1. Watch the browser console on `/admin`, `/blog/[slug]` and `/quiz/[code]`, the three surfaces
+   most likely to report.
 
 2. Fix or explicitly allow whatever reports.
 
-3. Remove `'unsafe-inline'` and `'unsafe-eval'` from `script-src`. This needs the proxy to
-   stamp a nonce on every response, which is the real work.
+3. Remove `'unsafe-inline'` and `'unsafe-eval'` from `script-src`. That needs the proxy to stamp a
+   nonce on every response, which is the real work.
 
 4. Only then rename the header to `Content-Security-Policy`.
 </Steps>
 
+## Secrets
+
+- Runtime secrets live only in `/srv/mun/app.env` on each box, mode 600. They are not in the image,
+  not in git, and not in GitHub except the few the workflows need.
+- Anything `NEXT_PUBLIC_` is in the browser bundle.
+- S3 credentials are server-only; the browser gets a presigned URL.
+- Lightsail cannot assume IAM roles, so each environment has a static IAM key scoped to its own
+  bucket and the SES identity. Rotate by adding a second key, restarting, then deleting the first.
+
 ## Rate limits
 
-Database-backed, in `src/lib/rate-limit.ts`, and **fail-open**: if the limiter errors the
-request proceeds. Availability is preferred to a lockout. Limits are listed in
+Database-backed, in `src/lib/rate-limit.ts`, and **fail-open**: if the limiter itself errors, the
+request proceeds. Availability is preferred to a lockout. Limits are in
 [authentication](/docs/developers/auth).
 
 ## Redirect safety
 
-`safeLanding()` rejects `//host`, backslashes and non-HTTP schemes, and downgrades to the
-role's home when the role cannot reach the target. Route every redirect built from user input
-through it.
+`safeLanding()` rejects `//host`, backslashes and non-HTTP schemes, and downgrades to the role's home
+when the role cannot reach the target. Route every redirect built from user input through it.
+
+On the boxes, also never build an absolute URL from `request.url`: it is `http://0.0.0.0:3000`.
 
 ## Account enumeration
 
-Sign-in and magic link requests always land on the same page whether or not the account
-exists, and accounts are never auto-provisioned by a magic link.
+Sign-in and magic link requests always land on the same page whether or not the account exists, and
+a magic link never provisions an account.
 
 ## Webhook verification
 
-The Razorpay webhook verifies its HMAC-SHA256 signature **before parsing the body**. The
-Google Form webhook checks a shared-secret header. Any new webhook must do the same.
-
-## Secrets
-
-Anything `NEXT_PUBLIC_` is in the browser bundle. S3 credentials are server-only and the
-browser gets a presigned URL instead. Razorpay's secret never reaches the client.
+Razorpay's HMAC-SHA256 signature is verified **before the body is parsed**. The Google Form webhook
+checks a shared-secret header. A new webhook must do the same.
 
 ## The admin invariant
 
@@ -87,10 +101,12 @@ At least one enabled admin always survives, enforced at serializable isolation. 
 ## Known gaps
 
 - The CSP is not enforcing.
-- There is no automated dependency scanning beyond Dependabot.
-- Rate limiting fails open, which is a deliberate availability trade, not an oversight.
+- There is no point-in-time database restore; backups are hourly.
+- Monitoring is a daily script, not continuous alerting.
+- Rate limiting fails open, a deliberate availability trade.
 
 ## Checks
 
-`check-security.ts` asserts the header set. `check-auth-page-guards.ts` and
-`check-role-guards.ts` assert that guarded routes are actually guarded.
+`check-security.ts` asserts the header set. `check-auth-page-guards.ts` and `check-role-guards.ts`
+assert that guarded routes are guarded. `check-staging-isolation.ts` asserts staging cannot reach
+production's resources.

@@ -3,89 +3,106 @@ export const metadata = {
   description: "Every variable the app reads, what it is for, and where to get its value.",
 }
 
-Declared in `.env.example`. Never commit a filled-in `.env`; `.gitignore` already excludes
-it.
+There are three places a value can live, and which one it belongs in is decided by when it is
+read.
 
-## Required to run at all
+| Where | What goes there | Read |
+| --- | --- | --- |
+| **GitHub Environment variable** (`production`, `staging`) | `NEXT_PUBLIC_APP_URL` | At image build. Changing it needs a deploy. |
+| **`/srv/mun/app.env` on the box**, mode 600 | Every runtime secret | When the container starts. Edit, then `docker compose up -d app`. |
+| **`.env` locally** | Your own copies | By `next dev`. Never committed. |
+
+`NEXT_PUBLIC_*` values are inlined into the JavaScript bundle at build time. Never put a
+secret behind that prefix.
+
+## Set by the image
+
+The `Dockerfile` sets these; do not put them in `app.env`.
+
+| Variable | Why |
+| --- | --- |
+| `APP_ENV` | `production` or `staging`. Drives the staging ribbon. Replaces the old `VERCEL_ENV`. |
+| `APP_VERSION` | The commit SHA. `/api/health` reports it, and the deploy workflow checks it. |
+| `AUTH_URL` | Derived from `NEXT_PUBLIC_APP_URL`. Without it Auth.js puts `http://0.0.0.0:3000` into sign-in redirects. |
+| `AUTH_TRUST_HOST` | `true`. Safe because Caddy only forwards this deployment's own hostnames. |
+| `PORT`, `HOSTNAME` | `3000`, `0.0.0.0`. |
+
+## Database
 
 | Variable | What it is |
-|---|---|
-| `DATABASE_URL` | Runtime connection. Pooled. Append `?pgbouncer=true` when going through pgBouncer. |
-| `DIRECT_URL` | Direct connection, used by migrations only. Bypasses the pooler. |
-| `AUTH_SECRET` | Signs session tokens. Generate a long random string. |
-| `NEXT_PUBLIC_APP_URL` | The app's own origin. Used to build links in emails. |
+| --- | --- |
+| `DATABASE_URL` | Runtime connection. On a box, the Postgres container over the Compose network. |
+| `DIRECT_URL` | Used by migrations. Locally the same as `DATABASE_URL`; against a box, a URL through an SSH tunnel. |
+| `DATABASE_POOL_MAX` | Pool size. Code default 15; the boxes set **5**, against `max_connections=50`. |
 
-<Callout type="warning">
-`DIRECT_URL` on Supabase resolves to an IPv6-only host. On an IPv4-only network,
-migrations fail with `P1001` while the app itself runs fine through the pooled
-`DATABASE_URL`. See [troubleshooting](/docs/developers/troubleshooting).
-</Callout>
+## Auth
+
+| Variable | What it is |
+| --- | --- |
+| `AUTH_SECRET` | Signs session tokens. **Different per environment.** |
+| `ADMIN_EMAIL` | The seeded admin account. |
 
 ## Email
 
 | Variable | What it is |
-|---|---|
-| `AUTH_RESEND_KEY` | Resend API key. Without it no mail is sent, including magic links. |
-| `EMAIL_FROM` | Sender address. Defaults to `noreply@deltechmun.in`. |
-| `EMAIL_REDIRECT_TO` | Staging sink. Every message goes here instead, with the real recipient in the subject. |
-
-## Payments
-
-| Variable | What it is |
-|---|---|
-| `RAZORPAY_KEY_ID` | Public key id. |
-| `RAZORPAY_KEY_SECRET` | Secret key. Server only. |
-| `RAZORPAY_WEBHOOK_SECRET` | Verifies inbound webhook signatures. Without it, webhooks are rejected. |
-
-UPI details are configured in the admin console, not here.
-
-## Realtime
-
-| Variable | What it is |
-|---|---|
-| `NEXT_PUBLIC_SUPABASE_URL` | Project URL. Quiz realtime only. |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Publishable key. Quiz realtime only. |
-
-Both are public by design. Supabase is used here for **realtime and as the Postgres host**,
-not for auth and not for data access.
+| --- | --- |
+| `EMAIL_TRANSPORT` | `resend` (default) or `ses`. Production stays on Resend until SES production access is granted. |
+| `AUTH_RESEND_KEY` | Resend API key. |
+| `SES_REGION` | Defaults to `ap-south-1`. |
+| `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | Read by the SES client. On the boxes, the same per-environment IAM key as S3. |
+| `EMAIL_FROM` | Sender. Defaults to `noreply@deltechmun.in`. |
+| `EMAIL_REDIRECT_TO` | **Staging only.** Sends every message to one inbox, real recipient in the subject. If it is ever unset, staging mails real people. |
 
 ## Storage
 
 | Variable | What it is |
-|---|---|
-| `S3_BUCKET`, `S3_REGION` | Bucket and region. |
-| `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | Credentials. Server only, never exposed. |
-| `S3_PUBLIC_BASE_URL` | Public origin uploaded files are served from. |
-| `S3_ENDPOINT` | For S3-compatible providers that are not AWS. |
+| --- | --- |
+| `S3_BUCKET`, `S3_REGION` | `deltechmun-media-prod` or `-staging`, `ap-south-1`. |
+| `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY` | Server only. The browser gets a presigned URL instead. |
+| `S3_PUBLIC_BASE_URL` | Optional public origin. Defaults to the bucket's own URL. |
+| `S3_ENDPOINT` | Optional, for MinIO or LocalStack locally. |
 
-Unset means blog image upload throws a typed "not configured" error. Everything else works.
-
-## Integrations and jobs
+## Payments
 
 | Variable | What it is |
-|---|---|
-| `CRON_SECRET` | Bearer token the three cron routes require. |
+| --- | --- |
+| `RAZORPAY_KEY_ID`, `RAZORPAY_KEY_SECRET` | Live keys on production, test keys on staging. |
+| `RAZORPAY_WEBHOOK_SECRET` | Verifies webhook signatures. Unset means every webhook is rejected. |
+| `UPI_VPA`, `UPI_PAYEE_NAME` | Fallbacks when the admin console has none. |
+
+## Integrations
+
+| Variable | What it is |
+| --- | --- |
+| `CRON_SECRET` | Bearer token the cron routes require. Staging has its own value. |
 | `GFORM_SHARED_SECRET` | Header secret for the Google Form webhook. |
 | `SHEET_SYNC_SECRET` | Authenticates the outbound sheet mirror. |
-| `GROQ_API_KEY`, `GROQ_MODEL` | AI import mapping. Optional. Model defaults to `llama-3.3-70b-versatile`. |
-| `ADMIN_EMAIL` | Seeded admin account. |
+| `GROQ_API_KEY`, `GROQ_MODEL` | AI import mapping. Optional. |
 
-## Read by code but not in `.env.example`
+## Development and scripts only
 
 | Variable | What it is |
-|---|---|
-| `DATABASE_POOL_MAX` | Postgres pool size. |
+| --- | --- |
 | `ALLOW_DESTRUCTIVE_SEED` | Must be `1` for the staging seed to run. |
-| `NEXTAUTH_SECRET` | Legacy fallback for `AUTH_SECRET`. |
-| `RECRUITMENT_DB_CHECKS` | Enables database-backed recruitment checks. |
-| `QUIZ_LOAD_*` | Options for the quiz load-test script. |
+| `RECRUITMENT_DB_CHECKS` | Enables the database-backed recruitment concurrency check. |
+| `QUIZ_LOAD_*` | Options for `scripts/load-quiz.ts`. |
 
-Platform-supplied: `NODE_ENV`, `VERCEL`, `VERCEL_ENV`, `NEXT_PUBLIC_VERCEL_URL`,
-`VERCEL_PROJECT_PRODUCTION_URL`.
+## Other files on the box
 
-## Rules
+| File | Holds |
+| --- | --- |
+| `/srv/mun/caddy.env` | `ACME_EMAIL` for certificate notices. |
+| `/srv/mun/db.env` | The Postgres container's credentials. |
 
-- Anything named `NEXT_PUBLIC_` is **in the browser bundle**. Never put a secret behind that
-  prefix.
-- Credentials are read lazily, so a missing key throws when the feature is used rather than
-  at boot. That is what lets CI build with dummy values.
+Compose would normally expand `$` inside these files, which silently empties a value such as a
+password hash. They are loaded with `format: raw` in `deploy/compose.yml` for that reason.
+
+## GitHub
+
+| Name | Kind | What it is |
+| --- | --- | --- |
+| `DEPLOY_HOST`, `DEPLOY_KNOWN_HOSTS` | Environment secret | That environment's box address and host key. |
+| `DEPLOY_SSH_KEY` | Secret | The deploy user's key. |
+| `CRON_SECRET` | Repository secret | Production's value, used by the cron workflow. |
+| `AWS_DEPLOY` | Repository variable | Deploys do nothing unless `true`. |
+| `CRON_ENABLED` | Repository variable | Scheduled cron calls do nothing unless `true`. |

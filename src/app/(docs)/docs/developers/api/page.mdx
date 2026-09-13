@@ -3,8 +3,19 @@ export const metadata = {
   description: "Every route handler: method, auth, payload and response.",
 }
 
-Fourteen route handlers under `src/app/api/`. Everything else is a server component or a
+Sixteen route handlers under `src/app/api/`. Everything else is a server component or a
 server action.
+
+## Operations
+
+**`GET /api/health`** - public. Runs `SELECT 1` and returns `status`, `database`, `environment`, the
+first 12 characters of the deployed commit as `version`, and `responseMs`. 503 when the database is
+unavailable. Never cached. The container healthcheck, the deploy workflow and the health workflow all
+call it.
+
+**`GET` / `POST /api/realtime?channel=`** - Server-Sent Events. `GET` subscribes, optionally with
+`nickname`, `avatar` and `userId` for presence; `POST` publishes and is staff-only. Channel rules are in
+`src/lib/realtime/channels.ts`. See [the quiz system](/docs/developers/quiz).
 
 ## Auth
 
@@ -22,10 +33,11 @@ endpoint.
 
 **`/api/admin/team`**, **`/api/admin/team/[id]`** - team member CRUD. Staff.
 
-**`PUT /api/admin/team/[id]/photo`** - JPEG, PNG or WebP, 750 KB maximum, stored as bytes in
-Postgres. Staff.
+**`PUT /api/admin/team/[id]/photo`** - JPEG, PNG or WebP, 750 KB maximum, written to S3 under
+`team/`. Staff.
 
-**`GET /api/team-photo/[id]`** - public image serving, cached one hour.
+**`GET /api/team-photo/[id]`** - legacy. Serves a photo still stored as bytes in Postgres, cached one
+hour; 404 once the member has an S3 photo.
 
 ## Quiz
 
@@ -54,7 +66,8 @@ Bad rows go to `QuarantinedRow` rather than being dropped.
 
 ## Cron
 
-All three require `Authorization: Bearer $CRON_SECRET`.
+All three require `Authorization: Bearer $CRON_SECRET`, and are called by `cron.yml` in GitHub Actions
+once `CRON_ENABLED` is `true`.
 
 **`/api/cron/payment-reminder`** - daily 03:00 UTC.
 **`/api/cron/gform-sync`** - daily 03:30 UTC.

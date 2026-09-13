@@ -31,7 +31,9 @@ The `signIn` callback calls `mayStartSession()`, which refuses an address with n
 user. Without it, Auth.js would happily create an account for any address that clicked a
 magic link.
 
-It retries once, because a Supabase pooler cold start can look like "no such user".
+It retries once on a transient database error, so a single dropped connection during a burst of
+first sign-ins does not turn into a refusal. (The comment above it in `auth.ts` still names the old
+Supabase pooler; the retry is still correct without it.)
 
 ## Sessions revalidate
 
@@ -49,6 +51,19 @@ matcher: ["/admin/:path*", "/write/:path*", "/dashboard/:path*",
 ```
 
 Everything else, including the public site and this documentation, never touches it.
+
+## Behind Caddy: `AUTH_URL` and `AUTH_TRUST_HOST`
+
+The production image runs Next's standalone server, whose `request.url` is its bind address,
+`http://0.0.0.0:3000`. Auth.js would put that into every sign-in redirect and `callbackUrl`.
+
+The `Dockerfile` therefore sets `AUTH_URL` from `NEXT_PUBLIC_APP_URL` and `AUTH_TRUST_HOST=true`.
+Trusting the forwarded host is safe because Caddy only routes this deployment's own hostnames.
+
+<Callout type="danger">
+Never build an absolute redirect from `req.nextUrl` or `request.url` on a server. On a box they
+resolve to `0.0.0.0`. Use a path, or `NEXT_PUBLIC_APP_URL`.
+</Callout>
 
 ## Password recovery
 

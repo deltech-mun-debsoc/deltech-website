@@ -3,21 +3,38 @@ export const metadata = {
   description: "Three scheduled routes, how they authenticate and how they stay idempotent.",
 }
 
-Three scheduled routes, declared in `vercel.json`.
+Three ordinary route handlers, called on a schedule by `.github/workflows/cron.yml`.
 
-| Path | Schedule (UTC) | Does |
-|---|---|---|
+| Route | Schedule (UTC) | Does |
+| --- | --- | --- |
 | `/api/cron/payment-reminder` | `0 3 * * *` | Emails allotted, unpaid delegates |
 | `/api/cron/gform-sync` | `30 3 * * *` | Re-pulls every configured sheet through intake |
 | `/api/cron/media-sweep` | `0 4 * * *` | Clears orphaned pending and failed media assets |
 
+## Off unless switched on
+
+The workflow does nothing unless the repository variable `CRON_ENABLED` is `true`. It exists so
+a new scheduler can be merged before the old one is turned off.
+
+<Callout type="warning">
+If reminders are not arriving, check this first. A disabled schedule fails silently: the
+workflow run shows as skipped, and no route is called.
+</Callout>
+
+```bash
+gh variable list
+```
+
+```bash
+gh run list --workflow cron.yml --limit 5
+```
+
+Only production is scheduled. Staging's routes exist but are never called on a timer.
+
 ## Authentication
 
-All three require `Authorization: Bearer $CRON_SECRET`. Without the secret set they reject
-everything, which presents as "reminders stopped working" with no error anywhere visible.
-
-They are ordinary route handlers. Anything that can send that header can trigger them, which
-is what makes them testable locally.
+Every route requires `Authorization: Bearer $CRON_SECRET`. Without a match it rejects the call.
+Production and staging have different secrets, so staging cannot trigger production's mailout.
 
 ## Payment reminder
 
@@ -31,23 +48,28 @@ The most defensive of the three:
 
 ## Google Form sync
 
-Re-pulls each `sheetPullSources` CSV through `createDelegateFromRow()`. Because identity is
-the email address, re-processing cannot duplicate. It is a self-heal for a webhook outage,
-not the primary intake route. See [the intake pipeline](/docs/developers/intake).
+Re-pulls each configured sheet through `createDelegateFromRow()`. Identity is the email address,
+so re-processing cannot create duplicates. A self-heal for webhook outages, not the primary route.
+See [the intake pipeline](/docs/developers/intake).
 
 ## Media sweep
 
-Removes `MediaAsset` rows stuck in `PENDING` or `FAILED`, the residue of uploads that started
-and never finished. See [media and uploads](/docs/developers/media).
+Removes `MediaAsset` rows stuck in `PENDING` or `FAILED`, the residue of uploads that started and
+never finished. See [media and uploads](/docs/developers/media).
 
-## Testing one
+## Running one by hand
+
+From the Actions tab: **Cron (production)** → Run workflow → pick the job. This runs regardless
+of the schedule but still respects `CRON_ENABLED`.
+
+Locally, against your own dev server:
 
 ```bash
 curl -H "Authorization: Bearer $CRON_SECRET" http://localhost:3000/api/cron/media-sweep
 ```
 
-Point at a local database. The payment reminder sends real email unless `EMAIL_REDIRECT_TO`
-is set, so set it.
+Set `EMAIL_REDIRECT_TO` first if you run the payment reminder, or it mails whoever is in your
+database.
 
 ## Adding a job
 
@@ -58,12 +80,7 @@ is set, so set it.
 
 3. Make it idempotent. It will be retried, and it may run twice.
 
-4. Cap the work per invocation. An unbounded job is a timeout waiting for a busy week.
+4. Cap the work per invocation. The whole request has five minutes in the workflow's `curl`.
 
-5. Add it to `vercel.json`.
+5. Add a schedule line and a `case` entry in `cron.yml`.
 </Steps>
-
-## Region
-
-Functions run in `syd1`. Latency to the database matters for a job that does many small
-writes; keep them batched.

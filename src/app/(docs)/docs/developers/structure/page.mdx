@@ -13,7 +13,7 @@ src/
     (public)/       public, pages self-gate
     (recruitment)/  per-cycle council access
     (registerer)/   REGISTERER
-    api/            14 route handlers
+    api/            16 route handlers
     globals.css     every design token
     layout.tsx      html, fonts, providers
   components/
@@ -26,12 +26,16 @@ src/
   emails/           React Email templates
   generated/prisma/ generated, gitignored
   lib/              domain logic
-    media/ payments/ recruitment/ schemas/
+    media/ payments/ realtime/ recruitment/ schemas/
+  mdx-components.tsx  required by @next/mdx
   photos/           .webp imported as modules
   proxy.ts          Next 16 middleware
 prisma/             schema, migrations, seeds
-scripts/            32 check-*.ts plus tools
-docs/               internal engineering notes
+scripts/            37 check-*.ts plus tools
+deploy/             compose.yml, Caddyfiles, deploy and backup scripts
+Dockerfile          the production image
+.github/workflows/  CI, deploy, health, cron, staging migrate and seed
+docs/               internal engineering runbooks (AWS, CI, staging)
 ```
 
 ## Route groups
@@ -40,22 +44,22 @@ Parentheses group routes without affecting URLs. Each group's `layout.tsx` carri
 access check, so authorization is a property of the group rather than something each page
 remembers.
 
-`src/proxy.ts` is a coarse edge gate over five prefixes. The real check is always in the
-layout. `/recruitment` is the clearest case: the proxy only requires *some* session, and
-the layout does the per-cycle capability check.
+`src/proxy.ts` is a coarse gate over five prefixes. The real check is always in the layout.
+`/recruitment` is the clearest case: the proxy only requires some session, and the layout does
+the per-cycle capability check.
 
 ## Colocation
 
 Inside a route segment:
 
 | Folder | Holds |
-|---|---|
+| --- | --- |
 | `_components/` | Components used only by this segment |
 | `_hooks/` | Hooks used only by this segment |
 | `_lib/` | Helpers used only by this segment |
 | `actions.ts` | Server actions for this segment |
 
-The leading underscore keeps a folder out of routing. There are 26 files with
+The leading underscore keeps a folder out of routing. There are 28 files with
 `"use server"`, almost all colocated this way.
 
 ## Where a new file goes
@@ -66,16 +70,17 @@ The leading underscore keeps a folder out of routing. There are 26 files with
 - **Domain logic with no JSX?** `src/lib/`.
 - **A zod schema?** `src/lib/schemas/`.
 - **User-visible text?** `src/content/strings.ts`. Always.
+- **Something the box needs?** `deploy/`. It is synced to `/srv/mun` on every deploy.
 
-Do not create a shared abstraction for a single caller. The convention here is to leave code
-beside its only user until a second one exists.
+Do not create a shared abstraction for a single caller. Leave code beside its only user until a
+second one exists.
 
 ## Path alias
 
-`@/*` maps to `src/*`. Use it; relative parent traversal is not the house style.
+`@/*` maps to `src/*`. Use it.
 
-## Not in the tree
+## Not in the image
 
-`docs/` at the repository root is internal engineering material: the spec, the plan of
-action, CI notes and the maintainer guide. It is excluded from `tsconfig`. This
-documentation site is separate and lives under `src/app/(docs)/`.
+`.dockerignore` excludes `docs/`, `deploy/`, `.github/`, root-level `*.md` files and every
+`.env*`. The documentation site is not affected: its pages are `.mdx` under `src/`, and both
+exclusions are anchored at the repository root.

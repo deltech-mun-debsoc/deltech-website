@@ -9,7 +9,7 @@ Conference management platform for Model United Nations events — registrations
 | Framework | Next.js 16 (App Router, TypeScript) |
 | Styling | Tailwind CSS v4 + shadcn/ui |
 | Auth | NextAuth v5 (beta) + Resend magic-link |
-| ORM | Prisma + PostgreSQL (Supabase) |
+| ORM | Prisma + PostgreSQL 17 (a container on each AWS box) |
 | Storage | S3 (presigned uploads) |
 | Payments | Razorpay (card / UPI) |
 | Email | Resend + React Email |
@@ -49,16 +49,11 @@ All user-visible strings live in `src/content/strings.ts`. Never hardcode text l
 
 All design values live in `src/app/globals.css`. Tailwind v4 is configured in CSS: there is no `tailwind.config.ts` and no `src/styles/tokens.ts`. See `docs/DESIGN_TOKENS.md`.
 
-## Supabase environment variables
+## Hosting
 
-Find these values in your Supabase project dashboard:
-
-| Env var | Where to find it | Purpose |
-|---|---|---|
-| `DATABASE_URL` | Settings → Database → Connection string → **Transaction** (Session mode) — append `?pgbouncer=true` | App runtime (pooled via pgBouncer) |
-| `DIRECT_URL` | Settings → Database → Connection string → **Direct** | Prisma migrations (bypasses pgBouncer) |
-
-> `DATABASE_URL` must include `?pgbouncer=true` (and optionally `&connection_limit=1` in edge environments).
+Production and staging each run on their own AWS Lightsail box: Caddy in front, one Next.js
+container, and a private Postgres container. See [docs/AWS.md](docs/AWS.md) for the runbook and
+[docs/CI.md](docs/CI.md) for the deploy pipeline.
 
 ## Resend domain verification (deltechmun.in)
 
