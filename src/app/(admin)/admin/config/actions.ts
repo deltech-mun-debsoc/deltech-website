@@ -10,6 +10,9 @@ import { callAI, AIRateLimitError } from "@/lib/ai"
 import { revalidatePath } from "next/cache"
 import { ContentSchema, type Content } from "@/content/contentSchema"
 import { pickValues, reversibleSettingsMeta } from "@/lib/audit-change"
+import { fetchSheetRows, SheetFetchError } from "@/lib/sheet-fetch"
+import { portfoliosFromSheetRows, type PortfolioEntry } from "@/lib/portfolio-sheet"
+import { deriveCsvUrl } from "@/lib/gsheet-url"
 
 // Money/sync config only an ADMIN may touch, kept out of saveContent entirely.
 const PAYMENT_KEYS = new Set([
@@ -326,6 +329,34 @@ export async function addPortfolio(
     return { success: true }
   } catch {
     return { success: false, error: "Portfolio already exists in this committee." }
+  }
+}
+
+// Read a committee's portfolios straight from the society's matrix spreadsheet,
+// for the volunteer to review in the draft box before publishing. Read-only:
+// nothing is saved here, so the existing review-then-publish step still applies.
+export async function readPortfolioSheet(sheetUrl: string): Promise<{
+  success: boolean
+  error?: string
+  entries?: PortfolioEntry[]
+  nameColumn?: string
+  tagColumn?: string | null
+  alreadyAllotted?: number
+  duplicates?: number
+}> {
+  await requireStaff()
+  const csvUrl = deriveCsvUrl(sheetUrl)
+  if (!csvUrl) return { success: false, error: "That doesn't look like a Google Sheets link. Copy it from the browser's address bar." }
+  try {
+    const { rows } = await fetchSheetRows(csvUrl)
+    const result = portfoliosFromSheetRows(rows)
+    if (!result.nameColumn || result.entries.length === 0) {
+      return { success: false, error: "Couldn't find any portfolio names in that tab. Name its column Portfolio." }
+    }
+    return { success: true, ...result, nameColumn: result.nameColumn }
+  } catch (err) {
+    if (err instanceof SheetFetchError) return { success: false, error: err.message }
+    throw err
   }
 }
 
