@@ -39,6 +39,11 @@ const REDIRECT_TO = process.env.EMAIL_REDIRECT_TO?.trim()
 // rolling back is one environment variable. SES credentials come from the SDK's
 // default chain (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY).
 const TRANSPORT = process.env.EMAIL_TRANSPORT === "ses" ? "ses" : "resend"
+// Every SES send is tagged with this configuration set, which is what turns on
+// the account suppression list for bounces and complaints, keeps reputation
+// metrics, and publishes bounce/complaint/reject events to SNS so a bad address
+// is noticed rather than retried forever.
+const SES_CONFIGURATION_SET = process.env.SES_CONFIGURATION_SET?.trim()
 let sesClient: SESv2Client | undefined
 function getSes(): SESv2Client {
   return (sesClient ??= new SESv2Client({ region: process.env.SES_REGION ?? "ap-south-1" }))
@@ -81,6 +86,7 @@ async function deliver(
     new SendEmailCommand({
       FromEmailAddress: FROM,
       Destination: { ToAddresses: [to] },
+      ...(SES_CONFIGURATION_SET ? { ConfigurationSetName: SES_CONFIGURATION_SET } : {}),
       Content: {
         Simple: {
           Subject: { Data: subject, Charset: "UTF-8" },
