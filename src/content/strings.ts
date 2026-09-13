@@ -126,6 +126,12 @@ export const STRINGS = {
     // reads as though money is owed on every seat.
     statusAllottedFree: "Allotted",
     statusConfirmedFree: "Confirmed",
+    // Said to a delegate whose event charges nothing. Names no event, because
+    // which event is free changes every year.
+    noPaymentRequired:
+      "There is nothing to pay for this event. Your allotment confirms your place.",
+    freeRegistrationReceived:
+      "Your registration is in. The secretariat will email your committee and portfolio allotment. There is nothing to pay.",
     statusBlocked: "Not open",
     statusFull: "Full",
     teamEyebrow: "The secretariat · current term",

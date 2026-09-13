@@ -1,5 +1,6 @@
 import { Users, IndianRupee, BedDouble, CheckCircle2, Building2 } from "lucide-react"
 import { prisma } from "@/lib/prisma"
+import { currentEventScope } from "@/lib/event"
 import { getContent } from "@/lib/settings"
 import { deriveEventState } from "@/lib/event-state"
 import { requireStaff } from "@/lib/authz"
@@ -29,6 +30,8 @@ export default async function AdminOverviewPage() {
   const session = await requireStaff()
   const isMaintainer = (session.user as { role?: string }).role === "MAINTAINER"
 
+  const scope = await currentEventScope()
+
   const [
     total,
     byStatus,
@@ -45,16 +48,16 @@ export default async function AdminOverviewPage() {
     recentFailedEmails,
     content,
   ] = await Promise.all([
-    prisma.delegate.count(),
-    prisma.delegate.groupBy({ by: ["status"], _count: { _all: true } }),
-    prisma.delegate.groupBy({ by: ["source"], _count: { _all: true } }),
-    prisma.delegate.count({ where: { needsAccommodation: true } }),
+    prisma.delegate.count({ where: scope }),
+    prisma.delegate.groupBy({ by: ["status"], where: scope, _count: { _all: true } }),
+    prisma.delegate.groupBy({ by: ["source"], where: scope, _count: { _all: true } }),
+    prisma.delegate.count({ where: { needsAccommodation: true, ...scope } }),
     prisma.payment.aggregate({
       where: { status: { in: ["PAID", "COMPED"] } },
       _sum: { amountInr: true },
     }),
     prisma.committee.findMany({
-      where: { isActive: true },
+      where: { isActive: true, ...scope },
       orderBy: { sortOrder: "asc" },
       select: {
         id: true,

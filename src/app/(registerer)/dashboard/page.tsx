@@ -186,7 +186,7 @@ export default async function DashboardPage() {
                 <p className="text-sm text-muted-foreground">
                   {paymentsRequired
                     ? t("dashboard.paymentPendingNote")
-                    : "No payment is required for this free Intra MUN. Your allotment confirms your place automatically."}
+                    : t("marketing.noPaymentRequired")}
                 </p>
               )}
             </div>

@@ -25,3 +25,67 @@ export async function requireActiveEvent(): Promise<Event> {
   if (!event) throw new Error("No event is running, so there is nothing to register for.")
   return event
 }
+
+// Closing an event is a state flip, not a deletion. Its delegates, allotments and
+// payments stay exactly where they are, which is what makes a past event
+// queryable afterwards: certificates, exports and "who came last year" all need
+// the rows to still be there.
+//
+// It is also what frees the next event's registrations. Identity is per event, so
+// a student who attended this one can only register for the next once this one is
+// no longer the active one.
+export async function closeEvent(id: string): Promise<void> {
+  await prisma.event.update({
+    where: { id },
+    data: { state: "CLOSED", closedAt: new Date() },
+  })
+}
+
+// A new event starts empty. Committees and portfolios belong to an event, so
+// nothing is inherited: last year's matrix does not quietly become this year's.
+//
+// The database allows only one event outside CLOSED/ARCHIVED, so this closes the
+// current one in the same transaction rather than failing halfway and leaving the
+// society with two half-open events.
+export async function createEvent(input: {
+  name: string
+  slug: string
+  kind?: string
+}): Promise<{ id: string }> {
+  return prisma.$transaction(async (tx) => {
+    const running = await tx.event.findFirst({
+      where: { state: { notIn: [...INACTIVE_STATES] } },
+      select: { id: true },
+    })
+    if (running) {
+      await tx.event.update({
+        where: { id: running.id },
+        data: { state: "CLOSED", closedAt: new Date() },
+      })
+    }
+    return tx.event.create({
+      data: {
+        name: input.name,
+        slug: input.slug,
+        kind: input.kind ?? "CONFERENCE",
+        state: "DRAFT",
+      },
+      select: { id: true },
+    })
+  })
+}
+
+// A where-fragment scoping a list to the event being run now.
+//
+// Spread into the where clause of anything that LISTS or COUNTS delegates or
+// committees. Not for findUnique by id: those take unique fields only, and a row
+// fetched by its own id is already unambiguous.
+//
+// When no event is running this matches nothing rather than everything. That is
+// the safe direction: an unscoped list would show a closed event's delegates as
+// though they were this year's, and the society's resting state genuinely has no
+// delegates to show.
+export async function currentEventScope(): Promise<{ eventId: string }> {
+  const event = await getActiveEvent()
+  return { eventId: event?.id ?? "__no-active-event__" }
+}

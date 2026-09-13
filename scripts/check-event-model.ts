@@ -85,4 +85,39 @@ assert.ok(delegateModel, "could not find the Delegate model in the schema")
   )
 }
 
-console.log("event model checks passed (per-event identity, one live event, safe backfill)")
+
+// ── 5. Lists are scoped to the event being run ──────────────────────────────
+// Once a second event exists, an unscoped list quietly blends the two: last
+// year's delegates appear in this year's registrations, exports and counts.
+// Nothing fails loudly when that happens, so it is pinned here instead.
+{
+  const mustScope = [
+    "src/app/(admin)/admin/registrations/page.tsx",
+    "src/app/(admin)/admin/allotment/page.tsx",
+    "src/app/(admin)/admin/checkin/page.tsx",
+    "src/app/(admin)/admin/participants/page.tsx",
+    "src/app/(admin)/admin/page.tsx",
+    "src/app/(marketing)/availability/page.tsx",
+    "src/app/(marketing)/register/page.tsx",
+    "src/app/api/admin/export/route.ts",
+    "src/app/api/cron/payment-reminder/route.ts",
+  ]
+  for (const file of mustScope) {
+    assert.match(
+      readFileSync(file, "utf8"),
+      /currentEventScope\(/,
+      `${file} lists delegates or committees, so it must scope to the current event`,
+    )
+  }
+
+  // No active event must match nothing, not everything. Matching everything would
+  // show a closed event's delegates as though they were current.
+  const lib = readFileSync("src/lib/event.ts", "utf8")
+  assert.match(
+    lib,
+    /eventId: event\?\.id \?\? "__no-active-event__"/,
+    "with no event running, the scope must match nothing rather than falling through to every row",
+  )
+}
+
+console.log("event model checks passed (per-event identity, one live event, safe backfill, scoped lists)")
