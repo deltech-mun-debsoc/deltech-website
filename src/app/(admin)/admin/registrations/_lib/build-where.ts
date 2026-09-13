@@ -10,9 +10,12 @@ export interface FilterParams {
   committeeId?: string
   isDtu?: string
   needsAccommodation?: string
+  followUp?: string
 }
 
-export function buildDelegateWhere(params: FilterParams): Prisma.DelegateWhereInput {
+// `now` is a parameter so scripts/check-contact-log.ts can pin "due" against a
+// fixed clock rather than whenever the check happens to run.
+export function buildDelegateWhere(params: FilterParams, now: Date = new Date()): Prisma.DelegateWhereInput {
   const where: Prisma.DelegateWhereInput = {}
   const andConditions: Prisma.DelegateWhereInput[] = []
 
@@ -33,6 +36,16 @@ export function buildDelegateWhere(params: FilterParams): Prisma.DelegateWhereIn
         { pref2CommitteeId: params.committeeId },
       ],
     })
+  }
+
+  // The payment chase. Pushed into AND rather than assigned, so it narrows an
+  // existing status filter instead of silently replacing it.
+  //   due:   the latest follow-up date set for them has passed
+  //   never: allotted, payment still outstanding, and nobody has logged a call
+  if (params.followUp === "due") {
+    andConditions.push({ nextFollowUpAt: { lte: now } })
+  } else if (params.followUp === "never") {
+    andConditions.push({ lastContactedAt: null, status: { in: ["ALLOTTED", "PAYMENT_SENT"] } })
   }
 
   if (andConditions.length > 0) where.AND = andConditions

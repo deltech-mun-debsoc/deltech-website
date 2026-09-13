@@ -207,18 +207,18 @@ model Fee {
 // ---- Registrations ----
 
 model Delegate {
-  id                 String      @id @default(cuid())
+  id                 String            @id @default(cuid())
   eventId            String
-  event              Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  publicToken        String      @unique @default(uuid(4))
+  event              Event             @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  publicToken        String            @unique @default(uuid(4))
   fullName           String
   email              String
   whatsapp           String
   altPhone           String?
   institution        String
-  isDtu              Boolean     @default(false)
+  isDtu              Boolean           @default(false)
   munExperience      String?
-  source             Source      @default(SELF)
+  source             Source            @default(SELF)
   sourceNote         String?
   // A preference is stored twice on purpose: the id when the delegate picked a
   // real seat from a published matrix, and the name they typed when there was no
@@ -229,24 +229,30 @@ model Delegate {
   pref1CommitteeId   String?
   pref1Portfolio     String?
   pref1PortfolioId   String?
-  pref1PortfolioRef  Portfolio?  @relation("Pref1Portfolio", fields: [pref1PortfolioId], references: [id], onDelete: SetNull)
+  pref1PortfolioRef  Portfolio?        @relation("Pref1Portfolio", fields: [pref1PortfolioId], references: [id], onDelete: SetNull)
   pref2CommitteeId   String?
   pref2Portfolio     String?
   pref2PortfolioId   String?
-  pref2PortfolioRef  Portfolio?  @relation("Pref2Portfolio", fields: [pref2PortfolioId], references: [id], onDelete: SetNull)
+  pref2PortfolioRef  Portfolio?        @relation("Pref2Portfolio", fields: [pref2PortfolioId], references: [id], onDelete: SetNull)
   pref3CommitteeId   String?
   pref3Portfolio     String?
   pref3PortfolioId   String?
-  pref3PortfolioRef  Portfolio?  @relation("Pref3Portfolio", fields: [pref3PortfolioId], references: [id], onDelete: SetNull)
-  needsAccommodation Boolean     @default(false)
-  outsideNcr         Boolean     @default(false)
+  pref3PortfolioRef  Portfolio?        @relation("Pref3Portfolio", fields: [pref3PortfolioId], references: [id], onDelete: SetNull)
+  needsAccommodation Boolean           @default(false)
+  outsideNcr         Boolean           @default(false)
   reference          String?
-  status             AppStatus   @default(REGISTERED)
+  status             AppStatus         @default(REGISTERED)
+  // Kept on the delegate, not derived from the log, so Registrations can filter
+  // "never contacted" and "follow-up due" in one indexed query. Every write to the
+  // log updates both in the same transaction; see logContact.
+  lastContactedAt    DateTime?
+  nextFollowUpAt     DateTime?
+  contacts           DelegateContact[]
   coDelegate         CoDelegate?
   allotment          Allotment?
   payment            Payment?
   emailLogs          EmailLog[]
-  createdAt          DateTime    @default(now())
+  createdAt          DateTime          @default(now())
   checkedInAt        DateTime?
   checkedInBy        String?
 
@@ -270,10 +276,42 @@ model Delegate {
 
   @@unique([sourceSheetKey, sourceRowKey])
   @@unique([eventId, email])
+  @@index([eventId, nextFollowUpAt])
   @@index([eventId])
   @@index([status])
   @@index([createdAt])
   @@index([status, checkedInAt])
+}
+
+// ---- Follow-up log ----
+
+// One row per attempt to reach a delegate: a call that was answered, one that
+// was not, a WhatsApp, a promise to pay. Append-only on purpose. It is the
+// secretariat's shared memory of who has been chased and what they said, and a
+// log you can quietly edit is not one anybody can rely on at the desk.
+model DelegateContact {
+  id         String         @id @default(cuid())
+  delegateId String
+  delegate   Delegate       @relation(fields: [delegateId], references: [id], onDelete: Cascade)
+  outcome    ContactOutcome
+  note       String?
+  followUpAt DateTime?
+  createdBy  String
+  createdAt  DateTime       @default(now())
+
+  @@index([delegateId, createdAt])
+}
+
+enum ContactOutcome {
+  CALLED_REACHED
+  CALLED_NO_ANSWER
+  CALLED_BUSY
+  WRONG_NUMBER
+  WHATSAPP_SENT
+  EMAIL_SENT
+  PROMISED_TO_PAY
+  NOT_INTERESTED
+  NOTE
 }
 
 enum Source {

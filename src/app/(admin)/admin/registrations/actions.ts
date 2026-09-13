@@ -411,3 +411,98 @@ export async function resendEmail(
     return { success: false, error: err instanceof Error ? err.message : "Resend failed." }
   }
 }
+
+// ---- Follow-up log ----
+
+const CONTACT_OUTCOMES = new Set([
+  "CALLED_REACHED", "CALLED_NO_ANSWER", "CALLED_BUSY", "WRONG_NUMBER",
+  "WHATSAPP_SENT", "EMAIL_SENT", "PROMISED_TO_PAY", "NOT_INTERESTED", "NOTE",
+])
+
+export interface ContactEntry {
+  id: string
+  outcome: string
+  note: string | null
+  followUpAt: string | null
+  createdBy: string
+  createdAt: string
+}
+
+export async function getDelegateContacts(delegateId: string): Promise<ContactEntry[]> {
+  await requireStaff()
+  const rows = await prisma.delegateContact.findMany({
+    where: { delegateId },
+    orderBy: { createdAt: "desc" },
+    take: 100,
+    select: { id: true, outcome: true, note: true, followUpAt: true, createdBy: true, createdAt: true },
+  })
+  return rows.map((r) => ({
+    ...r,
+    followUpAt: r.followUpAt?.toISOString() ?? null,
+    createdAt: r.createdAt.toISOString(),
+  }))
+}
+
+// Log one attempt to reach a delegate.
+//
+// The entry and the delegate's lastContactedAt / nextFollowUpAt are written in one
+// transaction, because Registrations filters on those two columns. If they could
+// drift from the log, "follow-up due" would list people already called back.
+//
+// The latest attempt decides what happens next: a call logged without a
+// follow-up date clears the pending one, since whoever made it has dealt with it.
+// A plain NOTE is not an attempt, so it neither counts as contact nor clears a
+// follow-up, unless it sets a new date itself.
+//
+// followUpAt arrives as a full ISO timestamp built in the browser. A bare
+// datetime-local value would be read in the server's zone (UTC on the box) and
+// land five and a half hours off for a secretariat working in IST.
+export async function logContact(
+  delegateId: string,
+  input: { outcome: string; note?: string; followUpAt?: string | null },
+): Promise<{ success: boolean; error?: string; entries?: ContactEntry[] }> {
+  const session = await requireStaff()
+  if (!CONTACT_OUTCOMES.has(input.outcome)) return { success: false, error: "Choose what happened." }
+
+  const note = (input.note ?? "").trim()
+  if (note.length > 1000) return { success: false, error: "Keep the note under 1000 characters." }
+  if (input.outcome === "NOTE" && !note) return { success: false, error: "Write the note before saving it." }
+
+  let followUpAt: Date | null = null
+  if (input.followUpAt) {
+    followUpAt = new Date(input.followUpAt)
+    if (Number.isNaN(followUpAt.getTime())) return { success: false, error: "That follow-up time is not valid." }
+  }
+
+  const isAttempt = input.outcome !== "NOTE"
+  const now = new Date()
+  try {
+    await prisma.$transaction(async (tx) => {
+      const exists = await tx.delegate.findUnique({ where: { id: delegateId }, select: { id: true } })
+      if (!exists) throw new Error("DELEGATE_NOT_FOUND")
+      await tx.delegateContact.create({
+        data: {
+          delegateId,
+          outcome: input.outcome as never,
+          note: note || null,
+          followUpAt,
+          createdBy: session.user?.email ?? "unknown",
+        },
+      })
+      await tx.delegate.update({
+        where: { id: delegateId },
+        data: isAttempt
+          ? { lastContactedAt: now, nextFollowUpAt: followUpAt }
+          : followUpAt
+            ? { nextFollowUpAt: followUpAt }
+            : {},
+      })
+    })
+  } catch (error) {
+    if (error instanceof Error && error.message === "DELEGATE_NOT_FOUND") {
+      return { success: false, error: "That delegate no longer exists." }
+    }
+    return { success: false, error: "Could not save the log entry. Please try again." }
+  }
+  return { success: true, entries: await getDelegateContacts(delegateId) }
+}

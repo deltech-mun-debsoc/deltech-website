@@ -191,6 +191,8 @@ export async function GET(request: NextRequest) {
       source: sp.get("source") ?? undefined,
       isDtu: sp.get("isDtu") ?? undefined,
       needsAccommodation: sp.get("needsAccommodation") ?? undefined,
+      // So exporting the payment chase list gives the same rows as the screen.
+      followUp: sp.get("followUp") ?? undefined,
       }),
     },
     orderBy: { createdAt: "desc" },
