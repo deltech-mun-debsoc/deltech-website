@@ -39,11 +39,9 @@ yarn-error.log*
 .env*.local.*
 *.env.bak
 
-# vercel
-.vercel
-
 # generated
 src/generated/
+graphify-out/
 
 # typescript
 *.tsbuildinfo
