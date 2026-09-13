@@ -1,0 +1,77 @@
+export const metadata = {
+  title: "Payments and reconciliation",
+  description: "Marking paid offline, comping a fee, cancelling, and the reminder cron.",
+}
+
+Most of this page is admin-only. Maintainers can see payment state everywhere but
+cannot change it.
+
+## How a payment is created
+
+Only by allotment. There is no way to raise a payment against an unallotted delegate,
+and no way to change an amount after the fact except by comping and re-raising.
+
+## The payment states
+
+| State | Meaning |
+|---|---|
+| **Pending** | Created but not yet sent. |
+| **Sent** | The link is with the delegate. |
+| **Paid** | Money received. The delegate is confirmed. |
+| **Failed** | An attempt failed. The delegate is unchanged and can retry. |
+| **Comped** | Waived by a staff member. The delegate is confirmed without paying. |
+| **Offline** | Received outside the platform and recorded by hand. |
+
+## Automatic confirmation
+
+With Razorpay, a paid link fires a webhook. The signature is verified, the payment is
+marked paid, the delegate is confirmed, a receipt is emailed and the sheet is updated.
+Nobody does anything.
+
+With UPI or a static link there is no webhook. **Every payment must be reconciled by
+hand.** Budget for that when choosing a provider in [fees and payment setup](/docs/staff/fees).
+
+## The three admin actions
+
+**Mark paid offline.** Records that money arrived outside the platform. Confirms the
+delegate.
+
+**Comp.** Waives the fee entirely. Confirms the delegate with no payment.
+
+**Cancel.** Withdraws the registration.
+
+<Callout type="danger">
+Never mark a payment received without external confirmation in front of you: a bank
+statement line, a UPI reference, a receipt. A wrongly marked payment confirms a
+delegate who has not paid, sends them a receipt, and is invisible afterwards except in
+the activity log.
+</Callout>
+
+## Reminders
+
+A daily job emails everyone who is allotted and unpaid. It sends at most eighty
+messages per run, never sends the same reminder twice within twenty-four hours, and
+does nothing at all when payments are disabled.
+
+You do not trigger it and you cannot send one manually from the console. If a specific
+delegate needs chasing, resend their allotment email from
+[the registrations desk](/docs/staff/registrations).
+
+## Reconciling: a workable routine
+
+<Steps>
+1. Filter the registrations list to status **Payment sent**.
+
+2. Match against your bank or UPI statement for the day.
+
+3. For each match, mark paid offline with the reference in hand.
+
+4. Leave the rest. The reminder job chases them.
+</Steps>
+
+## Refunds
+
+The platform does not process refunds. It shows the refund policy you wrote on the
+payment page; the money movement happens in your payment provider's own dashboard.
+Record what you did by cancelling or annotating the delegate so the next person
+understands the state.

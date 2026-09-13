@@ -1,0 +1,83 @@
+export const metadata = {
+  title: "Council roles",
+  description: "Junior, Senior and Administrative Council, and why they are separate from staff roles.",
+}
+
+Three council roles, assigned **per cycle**. Someone can be Junior Council on this cycle
+and nothing on the next.
+
+## What each can do
+
+### Junior Council
+
+The working level. A JC can:
+
+- create and edit group discussion panels;
+- assign candidates and staff to them;
+- run a GD session: start, pause, resume, finish, abort;
+- mark attendance;
+- advance and hold candidates;
+- preview and apply imports;
+- read the audit trail.
+
+A JC **can only score where a Senior Council member ticked "may score"** on their
+assignment to that group. Without the tick they can assist a session without evaluating
+it.
+
+A JC cannot touch the interview stage at all. Visiting it redirects them.
+
+### Senior Council
+
+Everything above, plus:
+
+- the entire interview surface;
+- bypassing a candidate past the group discussion;
+- withdrawing a candidate;
+- disqualifying a candidate.
+
+### Administrative Council
+
+Everything above, plus the powers that change the shape of the cycle:
+
+- creating, configuring and transitioning the cycle;
+- reopening a finished session;
+- voiding an evaluation;
+- reversing a bypass;
+- reconsidering and overriding a candidate;
+- finalising results;
+- adding a candidate to the society;
+- configuring imports.
+
+## Two gates, not one
+
+Every action is checked twice: **does this role have the capability**, and **does the
+cycle's current state allow it**. Both must pass.
+
+So an Administrative Council member cannot score a candidate in a cycle that is still in
+draft, and nobody can start a session in a cancelled one. If an action you expect to have
+is missing, check the cycle's state before assuming it is a permissions problem. See
+[the cycle lifecycle](/docs/recruitment/lifecycle).
+
+## How you get a role
+
+Two ways.
+
+**Derived from your admin role.** An admin becomes Administrative Council, a maintainer
+becomes Senior Council, a sub-maintainer becomes Junior Council.
+
+**Assigned explicitly** on the cycle, which overrides the derived role in either
+direction: it can promote someone with no admin access at all, and it can demote someone
+who has one.
+
+A **global admin always outranks the cycle**, so an Administrative Council seat can never
+be taken away from them by a cycle assignment. That is the escape hatch for a
+misconfigured cycle.
+
+When authority came from an admin role rather than an explicit assignment, the audit
+entry records that fact.
+
+## The sub-maintainer role
+
+An account whose only surface is recruitment. It lands on `/recruitment` and is
+structurally locked out of `/admin`. Use it for council members who should never see
+delegate data or payments.

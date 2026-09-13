@@ -1,0 +1,70 @@
+export const metadata = {
+  title: "Decisions, holds and bypasses",
+  description: "Advancing, holding, skipping a stage, withdrawing and disqualifying.",
+}
+
+A candidate's result is **stored because somebody set it**. It is never computed from
+scores. This page covers every way it moves.
+
+## The results
+
+| Result | Meaning |
+|---|---|
+| **Pending** | No decision yet. The default. |
+| **On hold** | Deliberately undecided. Also what a tied panel produces. |
+| **Selected** | In. |
+| **Rejected** | Not in. |
+| **Withdrawn** | The candidate pulled out. |
+| **Disqualified** | Removed for cause. |
+
+Withdrawn and disqualified are kept apart from rejected on purpose: they mean different
+things and next year's council will want to know which.
+
+## The stages
+
+Intake, GD pending, GD active, GD complete or GD bypassed, PI pending, PI active, PI
+complete, decision, closed.
+
+Stage is where they are in the process. Result is what was decided. They move
+independently.
+
+## Advancing and holding
+
+Junior Council and up can advance a candidate to the next stage, and hold one.
+
+**Hold is not a soft rejection.** It means the decision is genuinely open. A tied panel
+produces a hold automatically, and leaving it there until somebody looks properly is the
+correct behaviour.
+
+## Bypassing the group discussion
+
+Senior Council and up, and only if the cycle allows it. It skips a candidate straight to
+interview and **requires a reason**, which is recorded and shown permanently on their
+dossier.
+
+Reasonable uses: the candidate could not attend any GD slot, or they are already known to
+the council. Unreasonable use: clearing a backlog. Every bypass is one candidate assessed
+on less evidence than everyone else.
+
+Only Administrative Council can **reverse** a bypass.
+
+## Withdrawing and disqualifying
+
+Both Senior Council and up. Withdraw when the candidate has told you they are out.
+Disqualify for cause, and write down the cause.
+
+## The Administrative Council powers
+
+Reconsider, override and reverse a bypass. These exist to repair a cycle that has got into
+a state it should not be in. Each one is recorded with who did it.
+
+<Callout type="warning">
+Override is a repair tool, not a shortcut. Using it to move a candidate whose evaluation
+you disagree with hides the disagreement instead of recording it. Change the result, and
+write the reason.
+</Callout>
+
+## Everything is recorded
+
+Every one of these actions writes to [the audit trail](/docs/recruitment/audit) with the
+actor, the candidate, the outcome and the reason where one was required.

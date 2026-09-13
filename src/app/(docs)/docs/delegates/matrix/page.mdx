@@ -1,0 +1,48 @@
+export const metadata = {
+  title: "Reading the portfolio matrix",
+  description: "What available, on hold, allotted and blocked mean before you pick.",
+}
+
+The matrix at `/availability` is the public list of every committee and what is still
+open in it. Check it before you name a preference.
+
+<Screenshot src="/docs/matrix.webp" alt="The portfolio matrix showing committees and their portfolios with state labels" caption="Each committee is a card; each portfolio inside it carries a state." />
+
+## The two views
+
+The secretariat chooses how much to publish.
+
+**Full matrix.** Every portfolio is listed by name with its state. This is the useful
+view, and the one you will usually see.
+
+**Counts only.** Just the number of open seats per committee, with no portfolio names.
+Some conferences use this to stop delegates targeting specific seats, or to keep the
+matrix private until it is finished.
+
+You cannot tell from the page which mode is deliberate. If you only see counts, that
+is the secretariat's choice, not a fault.
+
+## What the states mean
+
+| State | Meaning |
+|---|---|
+| **Available** | Nobody holds it. This is what you want to see. |
+| **On hold** | A staff member has the allotment dialog open on this portfolio right now. The hold lasts two minutes and then releases itself. It is a short-lived working state, not a reservation for a delegate. |
+| **Allotted** | Given to a delegate. Not necessarily paid for yet. |
+| **Blocked** | Deliberately taken out of circulation by the secretariat. It will not be allotted to anyone. |
+
+## What it does not tell you
+
+The matrix does not show who holds a portfolio, and it does not show how many people
+have asked for one. A portfolio can be marked available while ten people have already
+named it as their first preference.
+
+Nor is it a queue. Naming an available portfolio does not put you in line for it.
+Allotment is a manual decision, described in
+[the allotment floor](/docs/staff/allotment).
+
+## When it changes
+
+The matrix reflects the live state of the database. A portfolio disappears from
+"available" the moment a staff member allots it, so it is worth re-checking if you
+last looked a while ago.

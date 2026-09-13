@@ -1,0 +1,58 @@
+export const metadata = {
+  title: "Fees and payment setup",
+  description: "Fee tiers, the payment provider, deadlines and the refund note.",
+}
+
+`/admin/config/money` has two halves. The fee table is open to all staff. Everything
+about payment routing is **admin only**.
+
+## Fee tiers
+
+A fee row is a label, a committee type, a DTU flag, and an amount in rupees.
+
+The fee applied to a delegate is chosen **at allotment**, from the type of the
+committee they were allotted to and whether they are marked DTU. So a conference with
+three committee types needs up to six rows to cover everyone.
+
+<Callout type="danger">
+A missing tier is not a free delegate; it is an allotment that cannot price itself.
+Define every combination you will actually use **before** you allot anyone.
+</Callout>
+
+Changing a fee does not reprice anyone already allotted. Their payment was created at
+the old amount and stays there.
+
+## Payment and email control, admin only
+
+| Setting | What it does |
+|---|---|
+| **Provider** | `razorpay`, `upi_qr` or `static_link`. Decides what a delegate sees on the payment page. |
+| **Static payment link** | Used when the provider is `static_link`. |
+| **UPI ID and payee name** | Used to build the QR code and the UPI intent. |
+| **Payment deadline** | Shown to delegates. It is displayed, not enforced automatically. |
+| **Payment proof URL** | Where delegates upload proof for manual methods. |
+| **Refund policy** | Free text shown on the payment page. |
+| **WhatsApp community URL** | Included in confirmation and selection emails. |
+| **Secretariat email** | The address delegates are told to contact. |
+| **Sheet sync URL** | The endpoint allotment and payment state is mirrored to. See [Google Forms and Sheets](/docs/staff/sheets). |
+
+## Choosing a provider
+
+**Razorpay** is the only one that confirms automatically. A delegate pays, the webhook
+arrives, and the delegate is confirmed and emailed a receipt without anyone doing
+anything. Use it if you can.
+
+**UPI QR** and **static link** both require a human to mark each payment received. That
+is real daily work: someone has to reconcile transactions against records. Plan for it
+before choosing.
+
+## The payments switch
+
+Event control carries a separate, global payments switch, also admin only. It is
+distinct from the operating mode. Turning it off stops payments being created at all.
+
+## Verify before opening registration
+
+Raise a payment against a test delegate and pay it end to end, on the real provider,
+before the first real delegate is allotted. A misconfigured provider discovered on day
+one is an hour's work; discovered on day thirty it is a hundred manual reconciliations.

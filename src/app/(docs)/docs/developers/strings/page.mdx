@@ -1,0 +1,67 @@
+export const metadata = {
+  title: "The strings rule",
+  description: "No hardcoded copy, no em dashes, and the CI gate that enforces both.",
+}
+
+Two rules, both enforced by `scripts/check-strings.mjs` in CI.
+
+## Rule 1: no hardcoded user-visible strings
+
+Every string a person can read goes through `t()`:
+
+```tsx
+import { t } from "@/content/strings"
+
+<Button>{t("common.save")}</Button>
+```
+
+`src/content/strings.ts` is the single source. It is a deeply nested `as const` object, and
+`t()` is typed against its leaf paths, so a typo in a key is a compile error rather than a
+key rendered on screen.
+
+Interpolation:
+
+```tsx
+t("email.subject.blogApproved", { title: post.title })
+```
+
+### What gets flagged
+
+- JSX text nodes containing multi-word English;
+- `placeholder`, `aria-label`, `title` and `alt` attributes containing English.
+
+### The allowed escapes
+
+- `src/content/strings.ts` and `src/content/contentSchema.ts` themselves;
+- everything under `src/components/ui/`, which is generated shadcn output;
+- symbol-only content: icons, separators, single characters, empty strings.
+
+`{"D"}` for the brand mark is fine. `placeholder="type your name"` is not.
+
+## Rule 2: no em dashes anywhere under `src/`
+
+Checked across every `.ts`, `.tsx`, `.mjs`, `.js` and `.css` file, in code and in comments.
+Use a colon, a comma, parentheses or two sentences.
+
+`.md` and `.mdx` are not scanned, which is why the prose on this documentation site can use
+them freely.
+
+## Running it
+
+```bash
+node scripts/check-strings.mjs
+```
+
+Also included in `npm run check`.
+
+## Runtime overrides
+
+The `StringOverride` table lets an admin change an individual string in production without a
+deployment. In a server component, read through `getStrings()` from `@/lib/settings` to pick
+those up. `t()` is the compiled fallback and is safe on both client and server.
+
+## Why this exists
+
+Copy changes constantly and is written by people who do not open the editor. Centralising it
+means a wording change is one file and one review, not a search across two hundred
+components. The em dash rule is a house style decision, enforced rather than remembered.

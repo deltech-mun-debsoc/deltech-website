@@ -1,0 +1,60 @@
+export const metadata = {
+  title: "The delegate journey",
+  description: "The whole path from registering to walking into your committee, in one picture.",
+}
+
+Everything you need to do, in order. Each step has its own page; this one is the map.
+
+<Figure caption="You do steps 1, 3 and 5. The secretariat does step 2. Step 4 happens on its own.">
+<svg viewBox="0 0 720 250" role="img" aria-label="The five stages of the delegate journey" style={{width:"100%",height:"auto"}}>
+  <defs>
+    <marker id="dja" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="color-mix(in oklch, var(--foreground) 45%, transparent)" />
+    </marker>
+  </defs>
+  {[
+    { y: 10,  n: "1", who: "You",  label: "Register",    sub: "Five short steps. Takes about five minutes." },
+    { y: 56,  n: "2", who: "Us",   label: "Allotment",   sub: "The secretariat gives you a committee and a portfolio." },
+    { y: 102, n: "3", who: "You",  label: "Payment",     sub: "A link arrives by email. Pay before the deadline." },
+    { y: 148, n: "4", who: "Auto", label: "Confirmed",   sub: "Your seat is secured and a receipt is emailed." },
+    { y: 194, n: "5", who: "You",  label: "Check in",    sub: "Show the QR code on your status page at the desk." },
+  ].map((s) => (
+    <g key={s.n}>
+      <rect x="8" y={s.y} width="704" height="38" rx="7"
+        fill="var(--card)" stroke="color-mix(in oklch, var(--foreground) 15%, transparent)" />
+      <circle cx="32" cy={s.y + 19} r="12" fill="color-mix(in oklch, var(--primary) 14%, transparent)" />
+      <text x="32" y={s.y + 23} textAnchor="middle" fontSize="12" fontWeight="700" fill="var(--primary)">{s.n}</text>
+      <text x="56" y={s.y + 17} fontSize="13.5" fontWeight="650" fill="var(--foreground)">{s.label}</text>
+      <text x="56" y={s.y + 31} fontSize="11.5" fill="var(--muted-foreground)">{s.sub}</text>
+      <text x="700" y={s.y + 23} textAnchor="end" fontSize="10.5" letterSpacing="0.08em" fill="var(--muted-foreground)">{s.who.toUpperCase()}</text>
+    </g>
+  ))}
+</svg>
+</Figure>
+
+## Before you start
+
+You do **not** need an account to register. The form is public and takes five minutes.
+Have ready:
+
+- your full name as you want it printed on your placard and certificate;
+- an email address you actually check, because everything important arrives there;
+- a WhatsApp number;
+- your institution name, unless you are a DTU student;
+- if your first-choice committee is double delegation, your partner's name, email
+  and phone.
+
+It is worth opening [the portfolio matrix](/docs/delegates/matrix) in another tab
+first so you can see which portfolios are still open before you name your
+preferences.
+
+## What happens after you submit
+
+You are immediately given a private status link, and a confirmation email arrives.
+Nothing else is required from you until the secretariat allots you a portfolio,
+which can take days. Do not register twice while you wait; a second registration
+with the same email is rejected.
+
+## The pages in this section
+
+<SectionIndex sectionId="delegates" />

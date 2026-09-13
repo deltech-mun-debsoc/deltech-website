@@ -1,0 +1,50 @@
+export const metadata = {
+  title: "The audit trail",
+  description: "Every recruitment action is recorded. Here is how to read it.",
+}
+
+Recruitment keeps its own append-only record, separate from the admin activity log.
+
+`/recruitment/audit`, for anyone with audit access, which includes Junior Council.
+
+## What is recorded
+
+Every action that changes a candidate, a session or a cycle: assignments, attendance,
+session starts and stops, evaluations, stage moves, holds, bypasses, withdrawals,
+disqualifications, result changes, imports and cycle transitions.
+
+Each entry carries the event, the actor, the candidate where relevant, and the outcome.
+
+## Filtering
+
+By event, outcome, actor and candidate. Filtering by candidate gives you their whole
+history in order, which is usually what you want.
+
+## Append-only
+
+Entries are not edited or deleted. A correction is a new entry, so the record shows both
+what happened and what was done about it.
+
+## Implicit authority is marked
+
+When somebody acted using authority derived from their admin role rather than an explicit
+council assignment, the entry records that. So "an admin did this because they are an
+admin" is distinguishable from "a council member did this because they were assigned",
+which matters when reviewing how a cycle was run.
+
+## When to read it
+
+**A candidate is in an unexpected state.** Filter to them and read forwards. The first
+entry that is not what you expected is your answer.
+
+**Two people disagree about what happened.** The log settles it.
+
+**Reviewing a finished cycle.** Bypasses and overrides are worth reading as a group. A
+cycle with many of either was run under pressure, and that is worth knowing before you
+plan the next one.
+
+## Do not share accounts
+
+The log records the account, not the person. A shared login makes every entry say the same
+thing and destroys the record's only purpose. This applies to council accounts exactly as
+it applies to [staff accounts](/docs/staff/account).

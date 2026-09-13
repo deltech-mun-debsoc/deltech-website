@@ -1,0 +1,51 @@
+export const metadata = {
+  title: "Email delivery",
+  description: "Which messages the platform sends, how to spot a failure and how to resend.",
+}
+
+Every message the platform sends is logged, whether it succeeded or failed.
+
+## The principle
+
+**A failed email never fails the action.** If the allotment email bounces, the delegate
+is still allotted. The failure is recorded with its error and can be resent.
+
+This is deliberate: an email provider having a bad minute should not stop a conference
+running. It does mean nobody finds out about failures unless somebody looks.
+
+## Where failures surface
+
+**On the admin overview**, as a card showing the eight most recent failures. Check it
+daily; it is there so you do not have to go looking.
+
+**On the delegate**, in the drawer at
+[the registrations desk](/docs/staff/registrations), which lists every message sent to
+that person with its outcome.
+
+## Resending
+
+From the delegate drawer, against the specific failed message. This is the fix for "I
+never got my allotment email" and it takes about five seconds.
+
+## The messages
+
+Delegates get: registration received, co-delegate registered, allotment, co-delegate
+notice, payment confirmed, payment reminder. Writers get the three review outcomes.
+Staff get the invite. Anyone can get a magic link. Recruitment sends selection emails.
+
+Delegate-facing detail is in [emails you will receive](/docs/delegates/emails), which is
+worth reading so you know what your delegates have been told.
+
+## Why an email fails
+
+In rough order of frequency: a typo in the address, an institutional mail server
+rejecting it, a full mailbox, and provider problems. The recorded error usually says
+which.
+
+A typo is fixable: correct the address on the delegate record, then resend.
+
+## Staging
+
+On a preview deployment every outgoing message is redirected to a single address and its
+subject is prefixed to make that obvious. If you are testing and the delegate did not get
+their mail, check whether you were on staging.

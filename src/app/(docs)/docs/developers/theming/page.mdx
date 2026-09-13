@@ -1,0 +1,66 @@
+export const metadata = {
+  title: "Theming",
+  description: "next-themes, the theme cookie, per-area toggles and portal theming.",
+}
+
+`next-themes`, with a cookie so server-rendered shells get the right first paint.
+
+## The provider
+
+`src/components/providers.tsx`:
+
+```tsx
+<ThemeProvider attribute="class" defaultTheme="system" enableSystem
+  storageKey={THEME_STORAGE_KEY} disableTransitionOnChange>
+```
+
+`<html>` carries `suppressHydrationWarning`, which is required: the theme class is written
+before React hydrates.
+
+## Cookie and storage
+
+`src/lib/theme.ts`:
+
+| Constant | Value |
+|---|---|
+| `THEME_COOKIE` | `theme-preference` |
+| `THEME_STORAGE_KEY` | `theme-site` |
+| `DEFAULT_THEME` | `system` |
+| `THEME_COOKIE_MAX_AGE` | one year |
+
+Both exist for different jobs. `localStorage` applies the choice before paint on public
+pages. The **cookie** is what a server component reads, so the admin shell renders with the
+right class in its first response rather than flashing.
+
+Legacy per-area cookies (`theme-admin`, `theme-recruitment`) are read as a migration path.
+New choices always write the single global cookie.
+
+## themeClass
+
+```ts
+themeClass(theme) // "dark" | "theme-light" | ""
+```
+
+`theme-light` is not the same as no class. It has to actively override an inherited `.dark`.
+See the custom variant in [the design system](/docs/developers/design-system).
+
+## Two toggles
+
+`AreaThemeToggle` (`src/components/theme/area-theme-toggle.tsx`) is for authenticated shells.
+It sets optimistic state, persists the preference, toggles the class directly on
+`.${area}-shell`, then calls `router.refresh()` so the server-rendered class agrees with the
+cookie.
+
+`ThemeToggle` (`src/app/(marketing)/_components/theme-toggle.tsx`) is the simpler public one.
+This documentation site uses it, because `areaForPath` puts `/docs` in the `site` area.
+
+## Adding a themed area
+
+`areaForPath()` maps a path to an area. If you add one, add its shell class in `globals.css`
+and give it a matching `-shell` suffix, because `AreaThemeToggle` targets
+`.${area}-shell` by name.
+
+## The convention check
+
+`scripts/check-theme-preference.ts` enforces the pattern. Run `npm run check` after touching
+anything here.

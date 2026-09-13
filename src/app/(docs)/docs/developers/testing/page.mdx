@@ -1,0 +1,70 @@
+export const metadata = {
+  title: "Testing",
+  description: "There is no test framework. There are thirty-five assertion scripts. Here is why.",
+}
+
+There is no test framework in this repository. No Jest, no Vitest, no Playwright, no `test`
+script, no `__tests__` directory.
+
+There are **thirty-two standalone assertion scripts** in `scripts/`, plus the strings gate.
+
+## Running them
+
+```bash
+npm run check
+```
+
+That loops every `scripts/check-*.ts` through `tsx`, then runs `scripts/check-strings.mjs`.
+Any failure exits non-zero. It is one of the two gates in CI.
+
+## What they look like
+
+Plain Node with `node:assert`. No framework, no fixtures, no describe blocks:
+
+```ts
+import assert from "node:assert"
+import { resolveRecruitmentRole } from "@/lib/recruitment/permissions"
+
+assert.equal(resolveRecruitmentRole("ADMIN", null), "ADMIN")
+```
+
+## Two kinds
+
+**Behavioural checks** exercise real logic: quiz scoring, receipt sealing, password hashing,
+recruitment transitions, permissions, concurrency, event state derivation, datetime handling.
+
+**Static linters** walk the source and assert a convention. `check-ink-band-tokens.ts` fails
+if `bg-foreground` and `text-background` appear on the same line anywhere under `src/`.
+`check-strings.mjs` fails on a hardcoded literal or an em dash. `check-nav.ts` and
+`check-dead-ends.ts` assert navigation integrity.
+
+The second kind is the more valuable half. They enforce rules that a reviewer would otherwise
+have to remember on every pull request.
+
+## Type checking
+
+There is no separate `tsc` step. **`npm run build` is the type check**, because a Next build
+type-checks the whole project. Run it before pushing.
+
+## Adding a check
+
+<Steps>
+1. Create `scripts/check-<thing>.ts`. It is picked up automatically by the glob in
+   `npm run check`.
+
+2. Use `node:assert`. Do not add a test framework for one file.
+
+3. Make it fast and dependency-free. These run on every pull request, and most need no
+   database. Anything that does needs `RECRUITMENT_DB_CHECKS`.
+
+4. Give the assertion a message that says what broke, not what was expected.
+</Steps>
+
+## Is this enough?
+
+It is what exists. It covers the logic that is easy to get subtly wrong (scoring,
+permissions, state machines, concurrency) and the conventions that are easy to forget. It does
+**not** cover rendering, and there is no end-to-end coverage of a user journey.
+
+Adding a browser test framework would be a real improvement. It has not been done, and
+pretending otherwise in a document would not make the coverage exist.

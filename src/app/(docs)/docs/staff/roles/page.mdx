@@ -1,0 +1,65 @@
+export const metadata = {
+  title: "Roles and permissions",
+  description: "Every role in the system and exactly which actions each one can take.",
+}
+
+There are six account roles. Most people only ever hold one, and most of them exist to
+keep a person out of places they do not need.
+
+## The roles
+
+| Role | Lands on | What it is for |
+|---|---|---|
+| **Admin** | `/admin` | Full control, including everything that moves money or destroys data. |
+| **Maintainer** | `/admin` | Runs the conference day to day. Cannot do the guarded actions below. |
+| **Sub-maintainer** | `/recruitment` | Recruitment only. Structurally cannot open `/admin`. |
+| **Author** | `/write` | Writes for the Dispatch. |
+| **Registerer** | `/dashboard` | A delegate. This is what public signup creates. |
+| **Member** | `/account` | A society member with no console access. What recruitment grants. |
+
+Signing in always sends you to your role's home page. Being redirected is not a
+permissions error.
+
+## Admin versus maintainer
+
+Maintainers can do all normal operations: edit delegates, create committees and
+portfolios, allot portfolios, open and close registration, run imports, moderate the
+Dispatch, run quizzes, manage the team roster, and edit non-payment conference
+content.
+
+An **admin** is required for:
+
+- deleting anything;
+- revoking an allotment;
+- marking a payment received offline, comping a fee, or cancelling a delegate;
+- changing payment routing or the payments switch;
+- inviting staff, changing roles, disabling or deleting users;
+- rolling back an entry in the activity log;
+- creating or configuring a recruitment cycle, and adding someone to the society.
+
+<Callout type="note">
+The pattern is consistent: an admin is needed for anything that touches money, destroys
+data, or changes who has power. Everything else is a maintainer's job.
+</Callout>
+
+## The admin safety net
+
+The system will not let you remove the last admin. Changing a role, disabling an
+account or deleting a user all run inside a check that at least one enabled admin
+survives. If you are the only admin, promote someone before changing yourself.
+
+## Recruitment roles are a separate axis
+
+Recruitment permissions do **not** come from the roles above. They come from a
+per-cycle council assignment, so someone can be a maintainer here and a Junior Council
+member there, or hold council authority with no admin access at all.
+
+One connection exists: a global **admin is implicitly an Administrative Council member
+on every cycle**, so a stuck cycle can always be repaired. See
+[council roles](/docs/recruitment/roles).
+
+## Changing roles
+
+At `/admin/users`, admin only. A role change takes effect on the person's live session
+rather than waiting for them to sign out, so someone demoted mid-session loses access
+promptly.

@@ -1,0 +1,71 @@
+export const metadata = {
+  title: "Committees and the matrix",
+  description: "Creating committees, building the portfolio matrix, and who can see it.",
+}
+
+`/admin/config/committees` does two related jobs: it defines the committees, and it
+builds the portfolio matrix inside them.
+
+<Screenshot src="/docs/committees.webp" alt="The committees page listing committees with their agendas" caption="Committees on the left, the matrix studio for the selected committee alongside." />
+
+## Creating a committee
+
+| Field | Notes |
+|---|---|
+| **Name** | As delegates will see it. |
+| **Slug** | The URL-safe short name. Set it once and leave it. |
+| **Agenda** | The topic. Shown publicly and on delegates' status pages. |
+| **Type** | `STANDARD`, `CRISIS` or `PRESS`. **This changes the fee**, because fees are defined per type. |
+| **Double delegation** | If on, registration requires a partner when this is someone's first preference. |
+| **Aliases** | Alternative names. Used when matching imported rows to this committee. |
+| **Sort order** | The order committees appear in publicly and on the form. |
+| **Active** | Inactive committees disappear from the public site and the registration form. |
+| **Portfolio tag label** | What the second column of the matrix is called for this committee, for example a bloc or a role. |
+| **Matrix brief** | A short note shown with the committee on the public matrix. |
+
+<Callout type="warning">
+Setting **double delegation** after people have already registered does not go back and
+ask them for partners. Decide it before opening registration.
+</Callout>
+
+## Building the matrix
+
+The matrix studio adds portfolios to the selected committee. You can add them one at a
+time, paste a block in bulk, or use the AI generator to draft a list for the committee
+and agenda, which you then edit.
+
+Each portfolio has a name, an optional tag, a priority, and a state:
+
+| State | Use it for |
+|---|---|
+| **Available** | Open for allotment. |
+| **On hold** | Set automatically while an allotment dialog is open. You do not set this by hand. |
+| **Allotted** | Set automatically when allotted. |
+| **Blocked** | Deliberately withheld. Will not be allotted. |
+
+<Callout type="tip">
+Read the generated list before publishing it. The AI produces plausible portfolio lists
+that are occasionally wrong for the specific agenda, and delegates will type these
+names from memory. Odd spellings become matching work at allotment.
+</Callout>
+
+## Matrix visibility
+
+One switch decides what the public sees at `/availability`:
+
+- **Public**: every portfolio by name with its state;
+- **Hidden**: per-committee open-seat counts only.
+
+Use hidden while you are still building. Switch to public before registration opens, so
+delegates can name preferences that exist.
+
+## Resync
+
+The resync card recomputes portfolio states from the actual allotments. Use it if the
+matrix and the allotment board ever disagree, which should not happen but is worth
+having a fix for.
+
+## Deleting
+
+Admin only, and rarely the right move. Deactivating a committee removes it from the
+public site without destroying the records of anyone already allotted into it.

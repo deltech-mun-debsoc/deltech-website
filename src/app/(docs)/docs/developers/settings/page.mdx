@@ -1,0 +1,66 @@
+export const metadata = {
+  title: "Settings and content",
+  description: "The Setting table, the content schema, and how event mode is derived.",
+}
+
+Runtime configuration lives in the database, not in environment variables. Env holds
+credentials; the `Setting` table holds everything an admin can change.
+
+## The pieces
+
+**`Setting`** is a key-value table with JSON values.
+
+**`src/content/contentSchema.ts`** types and validates that content.
+
+**`getContent()`** in `src/lib/settings.ts` reads it, applying defaults for anything unset.
+
+**`getStrings()`** layers `StringOverride` rows on top of the compiled `STRINGS`, so an admin
+can change an individual string without a deployment. See
+[the strings rule](/docs/developers/strings).
+
+## Event state derivation
+
+`src/lib/event-state.ts` exports `deriveEventState()`, which turns the stored mode and
+switches into the booleans the app actually branches on: whether registration is accepted,
+whether payments are required, which public sections render.
+
+**Read the derived state, never the raw setting.** The interesting logic is here, in
+particular that `INTRA_MUN` forces `paymentsRequired` to false, which is what makes allotment
+confirm a delegate immediately instead of raising a payment.
+
+## The eight section switches
+
+`content.publicSections.*` gates the homepage blocks, the header and the footer from the same
+value, so a hidden section can never be linked to from navigation.
+
+## Where settings are edited
+
+| Page | Holds |
+|---|---|
+| `/admin/config` | Mode, presets, event details, section switches, registration |
+| `/admin/config/conference` | Public identity, venue, awards, contacts |
+| `/admin/config/committees` | Committees, matrix, matrix visibility |
+| `/admin/config/money` | Fees, and admin-only payment routing |
+| `/admin/config/registration` | The intake switch and closed message |
+
+## Adding a setting
+
+<Steps>
+1. Add it to `contentSchema.ts` with a default. Every setting needs one; a missing key must
+   not be a crash.
+
+2. Read it through `getContent()`.
+
+3. If it changes behaviour rather than copy, derive it in `event-state.ts` and read the
+   derived value.
+
+4. Add the control to the right config page.
+
+5. Run `npm run check`. `check-settings.ts` and `check-event-state.ts` cover this.
+</Steps>
+
+## Why not environment variables
+
+Because the people who change these are not the people who deploy. A conference's dates,
+venue, fees and mode are edited by the secretariat during the run-up, sometimes several times
+a day. Requiring a deployment for each would put an engineer in the loop for copy changes.

@@ -1,0 +1,70 @@
+export const metadata = {
+  title: "Payments",
+  description: "The provider abstraction, the Razorpay webhook, and the UPI fallback.",
+}
+
+`src/lib/payments/` abstracts three providers behind one interface, chosen at runtime from
+settings.
+
+## The providers
+
+| Module | Behaviour |
+|---|---|
+| `razorpay.ts` | Creates a payment link. Confirmation arrives by webhook. |
+| `upi.ts` | Builds a `upi://pay?...` intent and a QR. Confirmation is manual. |
+| `static-link.ts` | Returns a configured link. Confirmation is manual. |
+
+`index.ts` selects between them; `public-link.ts` builds the delegate-facing URL.
+
+Only Razorpay confirms itself. The other two require a staff member to mark the payment
+received, which is an operational cost worth stating out loud when configuring one.
+
+## When a payment is created
+
+Only during allotment, and only when `paymentsRequired` is true. In `INTRA_MUN` mode no
+payment row is created at all and the delegate is confirmed immediately. See
+[settings and content](/docs/developers/settings).
+
+The amount comes from the `Fee` table, keyed on the allotted committee's type and the
+delegate's DTU flag. It is resolved **at allotment**, so later fee edits do not reprice
+existing payments.
+
+## The Razorpay webhook
+
+`src/app/api/webhooks/razorpay/route.ts`.
+
+**The signature is verified first**, HMAC-SHA256 against `RAZORPAY_WEBHOOK_SECRET`. An
+unverified body is rejected before anything is parsed. Without the secret set, every webhook
+is rejected, which presents as "payments never confirm".
+
+Handled events: `payment_link.paid`, `order.paid`, `payment.captured`, `payment.failed`.
+
+On success it marks the payment paid, confirms the delegate, sends the receipt and syncs the
+sheet.
+
+## Manual paths
+
+`markPaidOffline`, `compDelegate` and `cancelDelegate` are all admin-only server actions.
+Each writes to the audit log.
+
+## The reminder cron
+
+`/api/cron/payment-reminder`, daily at 03:00 UTC. Capped at eighty messages per run,
+eight-way concurrency, a run lock so two invocations cannot overlap, twenty-four hour
+deduplication per delegate, and a no-op when payments are disabled.
+
+## Adding a provider
+
+<Steps>
+1. Implement the same interface in a new module under `src/lib/payments/`.
+
+2. Register it in `index.ts`.
+
+3. Add it to the provider option in the money settings page.
+
+4. If it can confirm itself, add a webhook route and **verify its signature before parsing
+   the body**.
+
+5. Make sure a failed or missing configuration produces a clear "not configured" state on the
+   payment page rather than a broken page.
+</Steps>

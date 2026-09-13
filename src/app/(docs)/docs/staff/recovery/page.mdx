@@ -1,0 +1,62 @@
+export const metadata = {
+  title: "When something goes wrong",
+  description: "The five-step recovery protocol, and the rules that keep incidents small.",
+}
+
+When something has gone wrong, work in this order. It is written to be followed under
+pressure.
+
+## The protocol
+
+<Steps>
+1. **Stop the blast radius.** If new submissions could make it worse,
+   [close registration](/docs/staff/registration) first. You can reopen in ten minutes.
+   You cannot un-create two hundred bad records.
+
+2. **Read the activity log.** Go to [`/admin/logs`](/docs/staff/logs) and filter to the
+   affected record. Establish who did what and when **before** deciding what to change.
+
+3. **Prefer correction to deletion.** Edit the affected record. If the fix needs a
+   guarded action, get an admin; do not work around it.
+
+4. **Verify linked state.** One allotment touches the delegate, the allotment, the
+   portfolio, the payment, the emails sent and the public matrix. Fixing one does not
+   fix the rest.
+
+5. **Recheck the public surface.** Look at the real public site: the registration state,
+   the matrix, and the delegate's own status page. That is what your delegates see.
+</Steps>
+
+## Common situations
+
+**Registration opened too early.** Close it. Look at what came in. The records are valid;
+they just arrived before you were ready. Do not delete them.
+
+**A committee was set up wrong.** Fix the committee. Then check anyone already allotted
+into it: their fee was priced from the committee type at allotment and does not update.
+
+**Payments were misrouted.** Close registration, get an admin to fix the provider, and
+reconcile by hand what came in during the window. Do not comp people to make the problem
+disappear.
+
+**A delegate was allotted the wrong portfolio.** An admin revokes and re-allots. The
+delegate has already had an email saying otherwise, so tell them.
+
+**Bad rows were imported.** Check quarantine first: the rows you are worried about may
+already be there. See [cross-delegation imports](/docs/staff/imports).
+
+## Operator rules
+
+These exist because each one has bitten somebody.
+
+- Do not share admin or maintainer accounts.
+- Do not use destructive actions as a shortcut for incorrect data.
+- Do not mark payments received without external confirmation in hand.
+- Do not open registration with incomplete committees, fees or payment routing.
+- Treat the activity log as the source of truth for what happened.
+- Escalate unclear financial, permission and deletion work to an admin.
+
+## Afterwards
+
+Write down what happened while it is fresh, including what the log showed. The next
+person to hit it will be someone else, next year.

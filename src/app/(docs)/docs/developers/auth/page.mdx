@@ -1,0 +1,84 @@
+export const metadata = {
+  title: "Authentication",
+  description: "NextAuth v5, JWT sessions, the edge proxy, and session invalidation.",
+}
+
+NextAuth v5 beta with JWT sessions, split across two files for a reason.
+
+## Two config files
+
+**`src/lib/auth.config.ts`** is edge-safe. No providers, no Prisma import. It holds the
+session strategy, the custom pages, the session callback and the `authorized` callback. This
+is what `src/proxy.ts` runs on the edge.
+
+**`src/lib/auth.ts`** is Node-only. Providers, the Prisma adapter, and the callbacks that
+need a database.
+
+Importing Prisma into `auth.config.ts` breaks the edge runtime. That split is the whole
+reason there are two files.
+
+## Providers
+
+**Resend**, for magic links. It supplies a custom `sendVerificationRequest` so the link goes
+through the app's own mailer and is written to `EmailLog` like every other message.
+
+**Credentials**, for email and password. Verifies against `passwordHash` using scrypt from
+`src/lib/password.ts`, and refuses accounts with `disabledAt` set.
+
+## Accounts are never auto-provisioned
+
+The `signIn` callback calls `mayStartSession()`, which refuses an address with no existing
+user. Without it, Auth.js would happily create an account for any address that clicked a
+magic link.
+
+It retries once, because a Supabase pooler cold start can look like "no such user".
+
+## Sessions revalidate
+
+The `jwt` callback re-reads the user row when `sessionNeedsRefresh(token.checkedAt)` is true,
+and returns `null` to invalidate. So a role change, a disable or a delete propagates to live
+sessions instead of waiting for expiry.
+
+## The proxy
+
+`src/proxy.ts`. Next 16 renamed middleware; the export is `proxy`.
+
+```ts
+matcher: ["/admin/:path*", "/write/:path*", "/dashboard/:path*",
+          "/account/:path*", "/recruitment/:path*"]
+```
+
+Everything else, including the public site and this documentation, never touches it.
+
+## Password recovery
+
+There is no reset token. "Forgot password" switches the form to the magic link tab with
+`callbackUrl=/account`, where the user sets a new password. `setOwnPassword` only demands the
+current password if one is already set.
+
+Fewer moving parts, and no reset link to leak or expire badly.
+
+## Not leaking who has an account
+
+A magic link request lands on `/signin/sent` whether or not the address exists.
+`underlyingError()` distinguishes an infrastructure failure from a real refusal, so a genuine
+outage reports "try again" instead of silently pretending to have sent mail.
+
+## Rate limits
+
+Database-backed, in `src/lib/rate-limit.ts`, and **fail-open**: if the limiter itself errors,
+the request proceeds. Availability is preferred to a hard lockout.
+
+| Action | Limit |
+|---|---|
+| Sign in | 10 per 10 minutes |
+| Magic link | 5 per 15 minutes |
+| Signup | 5 per hour |
+| Register | 10 per hour |
+| Quiz lookup | 30 per minute |
+| Quiz answer | 8 per minute |
+
+## Checks
+
+`check-auth-errors.ts`, `check-auth-page-guards.ts`, `check-password.ts`,
+`check-user-admin.ts`.

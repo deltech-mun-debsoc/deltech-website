@@ -1,0 +1,54 @@
+export const metadata = {
+  title: "Moderating the Dispatch",
+  description: "The review queue and the three decisions you can make on a post.",
+}
+
+`/admin/blog` is the review queue for the Dispatch. Nothing published itself.
+
+<Screenshot src="/docs/blog-moderation.webp" alt="The Dispatch review queue showing articles needing review" caption="Needs review at the top with a count badge, recently reviewed below." />
+
+## The queue
+
+Two lists. **Needs review** carries everything waiting on you: newly submitted articles
+and ones you previously sent back that have been resubmitted. It has a count badge, so
+you can see the backlog without opening the page.
+
+**Recently reviewed** shows the last thirty days, so you can find something you handled
+last week.
+
+## Reviewing
+
+Open an article and you get the full rendered preview exactly as a reader would see it,
+plus a sidebar with the author, when it was submitted, its reading time, its tags and
+any previous review note.
+
+Three decisions:
+
+| Decision | Effect | Email sent |
+|---|---|---|
+| **Approve** | Published immediately at `/blog`. | Article approved |
+| **Request changes** | Back to the author with your note. | Changes requested |
+| **Reject** | Not published, with your note. | Article not published |
+
+## Write a useful note
+
+For both **request changes** and **reject**, your note is shown to the author inline on
+their own page and included in their email. It is the only feedback they get. "Needs
+work" wastes a round trip; "the second and third sections repeat each other, and the
+quote in paragraph four needs a source" gets a fixed article back.
+
+## Requesting changes versus rejecting
+
+Request changes when you expect a better version. Reject when the piece is not right for
+the Dispatch at all. Rejection is not deletion: the article still exists, and the author
+can be told a different angle would be welcome.
+
+## Deleting
+
+Admin only. Rarely necessary, since rejecting already keeps a piece off the public site.
+
+## Checking after publishing
+
+Look at `/blog` and at the article's own page after approving. The Dispatch index shows
+the newest post prominently, so a bad cover image or a missing subtitle is immediately
+visible to everyone.

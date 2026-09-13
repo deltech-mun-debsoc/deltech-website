@@ -1,0 +1,65 @@
+export const metadata = {
+  title: "Importing responses",
+  description: "Connecting a Google Sheet, mapping columns, and why re-importing is safe.",
+}
+
+Candidates come in from a Google Sheet of form responses. Nobody is typed in by hand.
+
+`/recruitment/responses` is where this happens. Configuring a source is Administrative
+Council; previewing and applying is Junior Council and up.
+
+## Setting up a source
+
+| Field | Notes |
+|---|---|
+| **Label** | What to call this source. |
+| **Sheet URL** | The Google Sheet holding responses. |
+| **Mapping** | Which column is which field. |
+
+Mappable fields: full name and email are **required**; phone, year, branch and timestamp
+are optional.
+
+## Preview then apply
+
+Always preview. It shows a diff: what will be created, what will be updated, and what
+cannot be read. Then apply.
+
+## Re-importing is safe
+
+This is the important property. Imports are **idempotent**: running the same sheet twice
+does not create duplicate candidates. Each row is matched, and identical content is
+recognised as already imported.
+
+So the safe habit is to re-import whenever the sheet has grown. You do not need to track
+which rows you have already done.
+
+## Manual edits survive
+
+If somebody corrected a candidate's details inside the platform, a later import of the
+same row **does not overwrite that correction**. Manual edits win.
+
+## Invalid rows are shown, not dropped
+
+Rows that cannot be read are displayed with their reason. They are never silently
+discarded. Fix the sheet and re-import, or handle them individually.
+
+## Import history
+
+The last ten imports are listed with counts of created, updated, skipped and invalid rows,
+and the rejected rows themselves. That is the answer to "did that import actually work",
+and it is worth checking rather than assuming.
+
+## Live form intake
+
+Responses can also be pushed in as they are submitted, without waiting for an import.
+This only works into a **Draft** or **Open** cycle. A response arriving at any other time
+is quarantined rather than dropped, so it can be replayed once the cycle state is right.
+
+## Practical advice
+
+- **Import once before you start**, then re-import each morning. Late applicants are
+  normal.
+- **Check the invalid rows.** They are usually a missing email, and a candidate with no
+  email cannot be told anything.
+- **Do not edit the sheet to fix data.** Fix it in the platform, where the correction is
+  protected from the next import.
