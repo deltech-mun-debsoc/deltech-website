@@ -2,6 +2,7 @@ import { cache } from "react"
 import { prisma } from "@/lib/prisma"
 import { mappedRowSchema, type MappedRow } from "@/lib/schemas/import"
 import type { Source, Prisma } from "@/generated/prisma/client"
+import { requireActiveEvent } from "@/lib/event"
 
 // ---------------------------------------------------------------------------
 // Deterministic normalizers, run before (and independently of) any AI pass.
@@ -202,6 +203,10 @@ export async function createDelegateFromRow(
     return { ok: false, reason: "invalid", errors, quarantinedId: q.id }
   }
 
+  // Every delegate belongs to an event. Automatic intake is already gated on
+  // registration being open, which cannot be true without one, so this is the
+  // backstop rather than the message anybody should see.
+  const event = await requireActiveEvent()
   const isCrossDel = source === "CROSS_DEL"
   const committeeId = (name?: string) => matchCommittee(name, committees)?.id ?? null
 
@@ -209,6 +214,7 @@ export async function createDelegateFromRow(
     const { delegateId, allotted } = await prisma.$transaction(async (tx) => {
       const d = await tx.delegate.create({
         data: {
+          eventId: event.id,
           fullName: row.fullName,
           email: row.email,
           whatsapp: row.whatsapp ?? row.email,

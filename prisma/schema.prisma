@@ -92,20 +92,71 @@ model Setting {
   updatedAt DateTime @updatedAt
 }
 
+// ---- Events ----
+
+// An event is a conference, an intra, or anything else the society runs. Before
+// this existed, "the event" was a handful of Setting rows and every Committee and
+// Delegate belonged to it implicitly, which meant two events could not coexist and
+// a student who attended last year collided on Delegate.email.
+//
+// Modelled on RecruitmentCycle, which already solved the same problem for the
+// other half of the product: a row with a state, and children carrying its id.
+//
+// `kind` is a label for copy only. Nothing branches on it. What an event can do
+// lives in the capability flags below, so a new sort of event is configuration
+// rather than a new enum value and a dozen new branches.
+model Event {
+  id       String     @id @default(cuid())
+  name     String
+  slug     String     @unique
+  kind     String     @default("CONFERENCE")
+  state    EventState @default(DRAFT)
+  startsAt DateTime?
+  endsAt   DateTime?
+
+  // Capabilities. These replace the eventMode branches.
+  registrationOpen Boolean @default(false)
+  paymentsEnabled  Boolean @default(false)
+  matrixPublic     Boolean @default(false)
+
+  committees Committee[]
+  delegates  Delegate[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  closedAt  DateTime?
+
+  @@index([state])
+}
+
+enum EventState {
+  DRAFT
+  OPEN
+  ALLOTMENT
+  LIVE
+  CLOSED
+  ARCHIVED
+}
+
 model Committee {
-  id               String        @id @default(cuid())
-  name             String
-  slug             String        @unique
-  agenda           String?
-  aliases          String[]      @default([])
-  type             CommitteeType @default(STANDARD)
-  doubleDelegation Boolean       @default(false)
-  ebMembers        Json?
-  isActive         Boolean       @default(true)
-  sortOrder        Int           @default(0)
+  id                String        @id @default(cuid())
+  eventId           String
+  event             Event         @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  name              String
+  slug              String
+  agenda            String?
+  aliases           String[]      @default([])
+  type              CommitteeType @default(STANDARD)
+  doubleDelegation  Boolean       @default(false)
+  ebMembers         Json?
+  isActive          Boolean       @default(true)
+  sortOrder         Int           @default(0)
   portfolioTagLabel String?
-  matrixBrief      String?
-  portfolios       Portfolio[]
+  matrixBrief       String?
+  portfolios        Portfolio[]
+
+  @@unique([eventId, slug])
+  @@index([eventId])
 }
 
 enum CommitteeType {
@@ -115,16 +166,16 @@ enum CommitteeType {
 }
 
 model Portfolio {
-  id          String          @id @default(cuid())
-  committeeId String
-  committee   Committee       @relation(fields: [committeeId], references: [id])
-  name        String
-  tag         String?
-  priority    Int             @default(0)
-  status      PortfolioStatus @default(AVAILABLE)
-  holdToken   String?
+  id            String          @id @default(cuid())
+  committeeId   String
+  committee     Committee       @relation(fields: [committeeId], references: [id])
+  name          String
+  tag           String?
+  priority      Int             @default(0)
+  status        PortfolioStatus @default(AVAILABLE)
+  holdToken     String?
   holdExpiresAt DateTime?
-  allotment   Allotment?
+  allotment     Allotment?
 
   @@unique([committeeId, name])
   @@index([status])
@@ -149,16 +200,18 @@ model Fee {
 // ---- Registrations ----
 
 model Delegate {
-  id                 String     @id @default(cuid())
-  publicToken        String     @unique @default(uuid(4))
+  id                 String      @id @default(cuid())
+  eventId            String
+  event              Event       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  publicToken        String      @unique @default(uuid(4))
   fullName           String
-  email              String     @unique
+  email              String
   whatsapp           String
   altPhone           String?
   institution        String
-  isDtu              Boolean    @default(false)
+  isDtu              Boolean     @default(false)
   munExperience      String?
-  source             Source     @default(SELF)
+  source             Source      @default(SELF)
   sourceNote         String?
   pref1CommitteeId   String?
   pref1Portfolio     String?
@@ -166,25 +219,25 @@ model Delegate {
   pref2Portfolio     String?
   pref3CommitteeId   String?
   pref3Portfolio     String?
-  needsAccommodation Boolean    @default(false)
-  outsideNcr         Boolean    @default(false)
+  needsAccommodation Boolean     @default(false)
+  outsideNcr         Boolean     @default(false)
   reference          String?
-  status             AppStatus  @default(REGISTERED)
+  status             AppStatus   @default(REGISTERED)
   coDelegate         CoDelegate?
   allotment          Allotment?
   payment            Payment?
   emailLogs          EmailLog[]
-  createdAt          DateTime   @default(now())
+  createdAt          DateTime    @default(now())
   checkedInAt        DateTime?
   checkedInBy        String?
 
   // Intra MUN: DTU roll number from the registration form. Optional because
   // conference delegates are not DTU students.
-  rollNumber         String?
+  rollNumber      String?
   // "Any queries?" from the registration form: a question an organiser owes an
   // answer to. Resolved when someone has replied, so open ones can be listed.
-  query              String?
-  queryResolvedAt    DateTime?
+  query           String?
+  queryResolvedAt DateTime?
 
   // Google Sheet sync identity, mirroring RecruitmentCandidate. A delegate created
   // from a response sheet remembers which tab and which row it came from, so a
@@ -194,9 +247,11 @@ model Delegate {
   sourceSheetKey     String?
   sourceRowKey       String?
   sourceRowHash      String?
-  manualEditedFields String[]   @default([])
+  manualEditedFields String[] @default([])
 
   @@unique([sourceSheetKey, sourceRowKey])
+  @@unique([eventId, email])
+  @@index([eventId])
   @@index([status])
   @@index([createdAt])
   @@index([status, checkedInAt])
@@ -389,31 +444,31 @@ model RecruitmentCandidate {
   branch   String?
 
   // Raw imported form row, kept verbatim for the PI dossier.
-  formAnswers Json?
+  formAnswers        Json?
   // Fields a human has edited by hand. Imports never overwrite these.
-  manualEditedFields String[] @default([])
+  manualEditedFields String[]  @default([])
   // Import provenance — makes re-import idempotent and traceable.
-  sourceSheetKey String?
-  sourceRowKey   String?
-  sourceRowHash  String?
-  importedById   String?
-  importedAt     DateTime?
+  sourceSheetKey     String?
+  sourceRowKey       String?
+  sourceRowHash      String?
+  importedById       String?
+  importedAt         DateTime?
 
   // Explicit pipeline state. `stage` is where they are, `result` is the outcome —
   // two different questions, never conflated.
-  stage  CandidateStage  @default(INTAKE)
-  result CandidateResult @default(PENDING)
+  stage      CandidateStage  @default(INTAKE)
+  result     CandidateResult @default(PENDING)
   // Which stages this candidate actually needs. Direct-to-PI is `gdRequired: false`,
   // a configured shape rather than a missing GD record.
-  gdRequired Boolean @default(true)
-  piRequired Boolean @default(true)
+  gdRequired Boolean         @default(true)
+  piRequired Boolean         @default(true)
   // Optimistic lock — stale UI cannot overwrite newer state.
-  version    Int     @default(0)
+  version    Int             @default(0)
 
   // Finalisation → society. Separate actions: `result` is the decision,
   // recruitedUserId is the membership.
-  recruitedUserId String?  @unique
-  recruitedUser   User?    @relation("recruitedUser", fields: [recruitedUserId], references: [id])
+  recruitedUserId String?   @unique
+  recruitedUser   User?     @relation("recruitedUser", fields: [recruitedUserId], references: [id])
   recruitedById   String?
   recruitedAt     DateTime?
   memberId        String?
@@ -523,17 +578,17 @@ enum Attendance {
 }
 
 model RecruitmentStaffAssignment {
-  id        String            @id @default(cuid())
-  groupId   String
-  group     RecruitmentGroup  @relation(fields: [groupId], references: [id], onDelete: Cascade)
-  memberId  String
-  member    RecruitmentMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  id           String            @id @default(cuid())
+  groupId      String
+  group        RecruitmentGroup  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  memberId     String
+  member       RecruitmentMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
   // Denormalised from RecruitmentMember at assign time so an evaluation can be
   // attributed to the role the person actually held for this group.
-  role      RecruitmentRole
-  canEvaluate Boolean         @default(false)
+  role         RecruitmentRole
+  canEvaluate  Boolean           @default(false)
   assignedById String
-  createdAt DateTime          @default(now())
+  createdAt    DateTime          @default(now())
 
   @@unique([groupId, memberId])
   @@index([memberId])
@@ -571,12 +626,12 @@ model RecruitmentSession {
   lastActivityAt DateTime?
   plannedSeconds Int?
 
-  startedById  String?
-  endedById    String?
-  abortedById  String?
-  abortReason  String?
+  startedById    String?
+  endedById      String?
+  abortedById    String?
+  abortReason    String?
   reopenedFromId String?
-  reopenReason String?
+  reopenReason   String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -630,20 +685,20 @@ model RecruitmentEvaluation {
   evaluatorRole RecruitmentRole
 
   // { criterionKey: number } — criteria come from cycle.config.
-  scores         Json    @default("{}")
+  scores         Json            @default("{}")
   overall        Float?
   remarks        String?
   recommendation Recommendation?
 
-  state   EvaluationState @default(DRAFT)
-  version Int             @default(1)
+  state          EvaluationState @default(DRAFT)
+  version        Int             @default(1)
   // Set on the NEW row when it replaces an earlier one; the old row is marked
   // SUPERSEDED in the same transaction. Nothing is ever overwritten.
   supersedesId   String?
   overrideById   String?
   overrideReason String?
   // Client-generated. The @unique turns a network retry into a no-op.
-  idempotencyKey String? @unique
+  idempotencyKey String?         @unique
 
   submittedAt DateTime?
   createdAt   DateTime  @default(now())
@@ -694,8 +749,8 @@ model RecruitmentHandoff {
   previousState Json?
   newState      Json?
 
-  reversedById String?
-  reversedAt   DateTime?
+  reversedById  String?
+  reversedAt    DateTime?
   reverseReason String?
 
   createdAt DateTime @default(now())
@@ -801,12 +856,12 @@ model RecruitmentImport {
 // the Intra MUN registration form. The same shape as RecruitmentSheetSource, but
 // not scoped to a recruitment cycle.
 model DelegateSheetSource {
-  id       String @id @default(cuid())
+  id       String  @id @default(cuid())
   label    String
   sheetUrl String
   csvUrl   String
   // "<spreadsheetId>:<gid>", stored on every delegate the tab produced.
-  sheetKey String @unique
+  sheetKey String  @unique
   // { delegateField: sheetColumnHeader }
   mapping  Json    @default("{}")
   isActive Boolean @default(true)
@@ -912,17 +967,17 @@ enum MediaVisibility {
 // ---- Team ----
 
 model Member {
-  id          String  @id @default(cuid())
-  name        String
-  designation String
-  level       TeamLevel @default(JC)
-  order       Int     @default(0)
-  imageUrl    String?
-  photoBytes  Bytes?
+  id            String    @id @default(cuid())
+  name          String
+  designation   String
+  level         TeamLevel @default(JC)
+  order         Int       @default(0)
+  imageUrl      String?
+  photoBytes    Bytes?
   photoMimeType String?
-  socials     Json?
-  isActive    Boolean @default(true)
-  updatedAt   DateTime @updatedAt
+  socials       Json?
+  isActive      Boolean   @default(true)
+  updatedAt     DateTime  @updatedAt
 
   @@index([level, order])
 }
@@ -1007,13 +1062,13 @@ enum PostStatus {
 // ---- Quiz ----
 
 model Presentation {
-  id        String     @id @default(cuid())
+  id        String   @id @default(cuid())
   ownerId   String
   title     String
   theme     Json?
-  mode      QuizMode   @default(POLL)
+  mode      QuizMode @default(POLL)
   slides    Slide[]
-  createdAt DateTime   @default(now())
+  createdAt DateTime @default(now())
 }
 
 enum QuizMode {
@@ -1047,23 +1102,23 @@ enum SlideType {
 }
 
 model QuizSession {
-  id             String    @id @default(cuid())
-  presentationId String
-  roomCode       String    @unique
-  status         String    @default("lobby")
-  currentSlideId String?
+  id                     String    @id @default(cuid())
+  presentationId         String
+  roomCode               String    @unique
+  status                 String    @default("lobby")
+  currentSlideId         String?
   // Server-side clock for speed scoring. The presenter used to only broadcast
   // GOTO over Realtime, so the server had no idea which slide was live or when
   // it started, and had to take the participant's word for how fast they
   // answered. Both columns are written by startSlide().
-  currentSlideStartedAt DateTime?
+  currentSlideStartedAt  DateTime?
   // Authoritative question lifecycle. Realtime tells browsers quickly; these
   // fields tell reloads and direct API callers what is actually allowed.
   currentSlideDeadlineAt DateTime?
   currentSlideLockedAt   DateTime?
   currentSlideRevealedAt DateTime?
-  startedAt      DateTime?
-  endedAt        DateTime?
+  startedAt              DateTime?
+  endedAt                DateTime?
 }
 
 model Response {
@@ -1079,11 +1134,11 @@ model Response {
   points    Int      @default(0)
   createdAt DateTime @default(now())
 
-  @@index([sessionId, slideId])
   // The application-level "already submitted" check is a read-then-write, so
   // two taps ~50ms apart both passed it and scored twice. This is the real
   // guard. ponytail: Postgres treats NULLs as distinct, so it covers QUIZ mode
   // (nicknamed, where points matter) and not anonymous POLL votes; add
   // NULLS NOT DISTINCT if anonymous ballot-stuffing ever matters.
   @@unique([sessionId, slideId, nickname])
+  @@index([sessionId, slideId])
 }

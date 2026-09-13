@@ -44,11 +44,20 @@ async function main() {
     { name: "IP", slug: "ip", type: CommitteeType.PRESS, doubleDelegation: false, sortOrder: 5 },
   ];
 
+  // Committees hang off an event, so the seed needs one to exist. Reuse whatever
+  // event is already there rather than making a second: the database allows only
+  // one active at a time.
+  const seedEvent =
+    (await prisma.event.findFirst({ orderBy: { createdAt: "desc" } })) ??
+    (await prisma.event.create({
+      data: { name: "DelTech MUN", slug: "current-event", kind: "CONFERENCE", state: "LIVE" },
+    }));
+
   for (const c of committees) {
     await prisma.committee.upsert({
-      where: { slug: c.slug },
+      where: { eventId_slug: { eventId: seedEvent.id, slug: c.slug } },
       update: {},
-      create: c,
+      create: { ...c, eventId: seedEvent.id },
     });
   }
 
