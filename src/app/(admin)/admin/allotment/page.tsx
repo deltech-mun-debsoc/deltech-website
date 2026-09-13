@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma"
-import { currentEventScope } from "@/lib/event"
+import { currentEventScope, getActiveEvent } from "@/lib/event"
 import { requireStaff } from "@/lib/authz"
 import { AllotmentBoard } from "./_components/allotment-board"
 import { PageHeader } from "@/app/(admin)/_components/page-header"
@@ -94,6 +94,7 @@ export default async function AllotmentPage() {
           : "Select a committee, then allot a portfolio. The delegate is confirmed immediately, no payment is created."}
       />
       <AllotmentBoard
+        eventId={(await getActiveEvent())?.id ?? null}
         committees={serializedCommittees}
         delegates={serializedDelegates}
         fees={fees}

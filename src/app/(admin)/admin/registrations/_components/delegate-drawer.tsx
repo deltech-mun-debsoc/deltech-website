@@ -215,7 +215,7 @@ export function DelegateDrawer({ delegate, committees, onClose, onUpdated }: Pro
                       disabled={isPending}
                       onClick={() => setCancelOpen(true)}
                     >
-                      <Ban className="size-3.5" /> Cancel
+                      <Ban className="size-3.5" /> Remove from event
                     </Button>
                   )}
                 </div>
@@ -419,15 +419,15 @@ export function DelegateDrawer({ delegate, committees, onClose, onUpdated }: Pro
     <ConfirmDialog
       open={cancelOpen}
       onOpenChange={setCancelOpen}
-      title="Cancel this registration?"
-      description={delegate ? `Cancel ${delegate.fullName}'s registration and free their portfolio?` : ""}
-      confirmLabel="Cancel registration"
+      title="Remove from this event?"
+      description={delegate ? `${delegate.fullName} is removed from the event and any seat they hold goes back on the board. Unpaid payment links are dropped. A settled payment has to be refunded first.` : ""}
+      confirmLabel="Remove from event"
       destructive
       pending={isPending}
       onConfirm={() =>
         delegate && runAction(
           () => cancelDelegate(delegate.id),
-          "Registration cancelled.",
+          "Removed from the event. Their seat is free again.",
           () => setCancelOpen(false),
         )
       }

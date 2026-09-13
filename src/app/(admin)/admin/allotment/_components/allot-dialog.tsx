@@ -69,6 +69,24 @@ export function AllotDialog({
     }
   }, [holdToken, portfolio.id])
 
+  // A dialog left open in a background tab kept its seat held until the two
+  // minutes ran out, invisible to every other admin. Hiding the tab now gives the
+  // seat back and closes the dialog, so the board is never blocked by a tab
+  // nobody is looking at. Unmount alone does not cover this: a hidden tab never
+  // unmounts.
+  useEffect(() => {
+    if (!holdToken) return
+    const onHidden = () => {
+      if (document.visibilityState !== "hidden" || isPending) return
+      void releaseHold(portfolio.id, holdToken).catch(() => {})
+      setHoldToken(null)
+      setOpen(false)
+      onClose()
+    }
+    document.addEventListener("visibilitychange", onHidden)
+    return () => document.removeEventListener("visibilitychange", onHidden)
+  }, [holdToken, portfolio.id, isPending, onClose])
+
   // The hold lasts two minutes and used to run out invisibly, so a conversation
   // with a delegate could outlast it and Confirm would fail with "your hold
   // expired". Counting down is display only: the server rechecks expiry inside

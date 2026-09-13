@@ -240,10 +240,12 @@ export async function cancelDelegate(
         select: { status: true, payment: { select: { status: true } } },
       })
       if (!delegate) throw new Error("DELEGATE_NOT_FOUND")
-      if (
-        delegate.status === "CONFIRMED" ||
-        (delegate.payment && ["PAID", "OFFLINE", "COMPED"].includes(delegate.payment.status))
-      ) {
+      // Refuse only when money has actually settled. This used to refuse every
+      // CONFIRMED delegate, but in a free event allotment confirms a delegate on the
+      // spot with no payment at all, so nobody allotted could be removed without
+      // first revoking the allotment and then cancelling. A settled payment is what
+      // genuinely needs the separate refund process; a confirmed place alone is not.
+      if (delegate.payment && ["PAID", "OFFLINE", "COMPED"].includes(delegate.payment.status)) {
         throw new Error("CONFIRMED_CANNOT_CANCEL")
       }
       if (delegate.payment?.status === "SENT") {
@@ -275,7 +277,7 @@ export async function cancelDelegate(
     return { success: true, delegate: await reloadDelegate(delegateId) }
   } catch (error) {
     if (error instanceof Error && error.message === "CONFIRMED_CANNOT_CANCEL") {
-      return { success: false, error: "Confirmed delegates need a separate refund/removal process; they cannot be cancelled here." }
+      return { success: false, error: "This delegate has a settled payment, so removing them needs the refund process first." }
     }
     if (error instanceof Error && error.message === "LIVE_PAYMENT_LINK") {
       return { success: false, error: "This delegate has a live payment link. Disable that link before cancelling the registration." }
