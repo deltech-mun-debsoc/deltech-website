@@ -45,8 +45,7 @@ const CSP_REPORT_ONLY = [
 ].join("; ");
 
 const nextConfig: NextConfig = {
-  // A self-contained server for the Docker image (see Dockerfile). Vercel
-  // ignores this and builds as it always has.
+  // A self-contained server for the AWS Docker image (see Dockerfile).
   output: "standalone",
   serverExternalPackages: ["@prisma/client", "@prisma/adapter-pg", "xlsx"],
   async headers() {

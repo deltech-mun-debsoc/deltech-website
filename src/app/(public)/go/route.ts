@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
   const to = req.nextUrl.searchParams.get("to")
   // Our public origin, so an absolute same-origin callbackUrl (what NextAuth's
   // bounce produces) is honored, while foreign origins fall back to role home.
-  // The proxy in front (Vercel, or Caddy on AWS) sets X-Forwarded-Host.
+  // Caddy sets X-Forwarded-Host for the standalone AWS server.
   const host = req.headers.get("x-forwarded-host") ?? req.nextUrl.host
   const proto = req.headers.get("x-forwarded-proto")?.split(",")[0]?.trim() ?? req.nextUrl.protocol.replace(/:$/, "")
   redirect(safeLanding(to, role, `${proto}://${host}`))

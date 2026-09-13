@@ -1,16 +1,17 @@
 # Hosting on AWS
 
-Production and staging each run on their own Lightsail box behind Caddy, sharing
-one managed Postgres instance. Media is S3, email is SES, and realtime is our own
-in-process SSE bus. There is no Supabase.
+Production and staging each run on their own Lightsail box behind Caddy. Each
+box also runs its own private Postgres container. Media is S3, email currently
+uses Resend while SES production access is pending, and realtime is our own
+in-process SSE bus.
 
 ```text
 Registrar DNS ──┬─► mun-prod    box (Sydney, 1 GB, $7/mo)  Caddy → app
                 │      deltechmun.in → 301 www.deltechmun.in
                 └─► mun-staging box (Sydney, 1 GB, $7/mo)  Caddy → app
                        test.deltechmun.in (noindex)
-                  Lightsail managed Postgres (private, same region)
-                    mun_prod / mun_staging, one role each
+                  Postgres 17 on each box, bound to loopback only
+                    mun_prod / mun_staging, physically separate
                   S3  deltechmun-media-prod / -staging (ap-south-1)
                   SES deltechmun.in (ap-south-1)
 ```
@@ -25,8 +26,9 @@ A box each rather than two containers on one box: a new AWS account is capped at
 the 1 GB plan, and 1 GB cannot hold both. It is also better isolation, for $2 more
 than the single 2 GB box would have cost.
 
-The box holds no data. Losing it means rebuilding it from this document, not
-restoring anything.
+The Postgres volume lives on its box. Losing a box means rebuilding it and
+restoring the newest hourly S3 backup; production also has a daily Lightsail
+snapshot.
 
 ## Deploys
 
@@ -70,7 +72,7 @@ roll back.
 `NEXT_PUBLIC_*` and `APP_ENV` are baked in at build time from the GitHub
 Environment (`production` / `staging`) variable `NEXT_PUBLIC_APP_URL`. The image
 derives `AUTH_URL` from `NEXT_PUBLIC_APP_URL` and sets `AUTH_TRUST_HOST=true`;
-both are required off Vercel.
+both are required by the standalone server.
 
 Runtime secrets live only on the box, mode 600, one per line `KEY=value`:
 
@@ -91,24 +93,17 @@ variables `AWS_DEPLOY`, `CRON_ENABLED`.
 
 ## Database
 
-One managed Postgres instance (`mun-db`, $15/mo, private) holds both
-environments as separate databases with a role each, so staging credentials
-cannot reach production data. Automated backups run 17:00-17:30 UTC with
-point-in-time restore.
-
-Connections use `sslmode=no-verify`: encrypted, but the RDS CA is not in the
-image's trust store.
-`ponytail: ship the RDS CA bundle and move to verify-full when convenient.`
-
-There is no Supabase any more. Realtime is `src/lib/realtime/` (SSE, in-process),
-which is why each environment must run exactly one app container.
+Each box runs `postgres:17` with no public interface. The app connects over the
+private Compose network; administrative access uses an SSH tunnel to the box's
+loopback port. `deploy/backup-db.sh` uploads an hourly custom-format dump to that
+environment's S3 bucket with a 30-day lifecycle. Realtime is
+`src/lib/realtime/` (SSE, in-process), which is why each environment must run
+exactly one app container.
 
 ## Crons
 
-`.github/workflows/cron.yml` calls the three cron routes on production at the
-same UTC times `vercel.json` did, once `CRON_ENABLED=true`. Flip that at the
-production cutover, when the Vercel project stops running them. Any job can be
-run by hand from the Actions tab.
+`.github/workflows/cron.yml` calls the three production cron routes once
+`CRON_ENABLED=true`. Any job can also be run by hand from the Actions tab.
 
 ## One-time setup
 
@@ -208,24 +203,14 @@ Lightsail instances cannot assume IAM roles, so static keys are unavoidable
 here. Rotate: create a second key, update the env file, `docker compose up -d`,
 delete the old key.
 
-## Cutover
+## Cutover state
 
-**Staging first:** point `test` (A record) at the static IP, set
-`AWS_DEPLOY=true`, push to `staging`, walk the site (sign-in both ways, ribbon,
-upload, email to the sink, form sync, a quiz load test with `scripts/load-quiz.ts` against staging only while watching
-`docker stats`). Then remove the `staging` branch from Vercel.
-
-**Production:**
-
-1. A day ahead, lower the TTL on `@` and `www` to 300.
-2. Push `main`; smoke-test through `/etc/hosts` (`<ip> www.deltechmun.in`).
-3. Flip `@` and `www` to the static IP. Caddy issues certificates within a minute.
-4. Set `EMAIL_TRANSPORT=ses` in `prod.env` once SES production access is granted,
-   `docker compose up -d prod`, send yourself a magic link.
-5. Set `CRON_ENABLED=true`; remove the crons from Vercel.
-6. Watch `docker compose logs -f prod` for an hour. Keep the Vercel project for a
-   week as a fallback (flip DNS back). Then delete `vercel.json`, `build:vercel`,
-   the `VERCEL_ENV` fallbacks and the Resend records.
+Both DNS records now point at their dedicated Lightsail static IPs, Caddy is
+serving valid certificates, GitHub Actions is the only deployment system, and
+hourly database backups are present in both S3 buckets. Keep
+`EMAIL_TRANSPORT=resend` until the SES identity is verified and production
+access is granted. Enable `CRON_ENABLED` only after confirming the previous
+scheduler is no longer calling the production routes.
 
 ## What Supabase used to do, and who does it now
 
