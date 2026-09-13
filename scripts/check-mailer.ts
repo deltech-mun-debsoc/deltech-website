@@ -120,6 +120,9 @@ import { MAIL_PRESETS, presetFor } from "../src/lib/mailer/presets"
     "the token must be verified before any contact is changed",
   )
   assert.match(unsub, /where: \{ id: contactId, unsubscribedAt: null \}/, "unsubscribing twice must keep the first time")
+  // Behind the standalone server req.url is the bind address, so a redirect built
+  // from it lands on https://0.0.0.0:3000. Found on staging.
+  assert.doesNotMatch(unsub, /new URL\([^)]*req\.url/, "unsubscribe redirects must be built from APP_URL, never req.url")
 }
 
 console.log("mailer checks passed (merge fields, unsubscribe tokens, audiences, frequency cap, presets, PR gate, claims, one-click unsubscribe)")
