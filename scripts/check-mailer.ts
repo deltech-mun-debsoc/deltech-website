@@ -83,6 +83,11 @@ import { MAIL_PRESETS, presetFor } from "../src/lib/mailer/presets"
   assert.equal(presetFor("countdown").build(ctx).subject, "3 days to Intra MUN 2026")
   assert.equal(presetFor("countdown").build({ ...ctx, daysToGo: 1 }).subject, "1 day to Intra MUN 2026")
   assert.equal(presetFor("nope").key, "custom")
+  // Every mail's footer already names the secretariat address, so a preset that
+  // says it again prints it twice. Caught in the first real send on staging.
+  for (const preset of MAIL_PRESETS) {
+    assert.ok(!preset.build(ctx).body.includes(ctx.secretariatEmail), `${preset.key} repeats the contact address the footer already gives`)
+  }
 }
 
 
