@@ -229,6 +229,7 @@ export const STRINGS = {
       pref1CommitteeLabel: "First preference committee",
       pref1PortfolioLabel: "First preference portfolio",
       pref1PortfolioPlaceholder: "Country / role you would like",
+      portfolioPickPlaceholder: "Choose from the matrix",
       pref2CommitteeLabel: "Second preference committee",
       pref2PortfolioLabel: "Second preference portfolio",
       pref2PortfolioPlaceholder: "Country / role you would like",
@@ -455,6 +456,7 @@ export const STRINGS = {
       confirmAllotDescription:
         "Allot {portfolio} in {committee} to {delegate}? This cannot be undone.",
       onHoldWarning: "Portfolio is on hold by another admin.",
+      requestedThisSeat: "Asked for this seat · {rank}",
       doubleAllotError: "This portfolio has already been allotted.",
     },
     config: {

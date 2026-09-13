@@ -177,6 +177,13 @@ model Portfolio {
   holdExpiresAt DateTime?
   allotment     Allotment?
 
+  // Delegates who asked for this exact seat. Three relations because a delegate
+  // states three ranked preferences; see the Delegate model for why the typed
+  // name is kept alongside the id.
+  pref1Delegates Delegate[] @relation("Pref1Portfolio")
+  pref2Delegates Delegate[] @relation("Pref2Portfolio")
+  pref3Delegates Delegate[] @relation("Pref3Portfolio")
+
   @@unique([committeeId, name])
   @@index([status])
   @@index([holdExpiresAt])
@@ -213,12 +220,24 @@ model Delegate {
   munExperience      String?
   source             Source      @default(SELF)
   sourceNote         String?
+  // A preference is stored twice on purpose: the id when the delegate picked a
+  // real seat from a published matrix, and the name they typed when there was no
+  // matrix to pick from. Google Form imports and every row registered before the
+  // matrix was published only ever have the text, so the id cannot be relied on
+  // alone. Republishing a matrix deletes portfolios and nulls the ids, and the
+  // text is what keeps those preferences readable afterwards.
   pref1CommitteeId   String?
   pref1Portfolio     String?
+  pref1PortfolioId   String?
+  pref1PortfolioRef  Portfolio?  @relation("Pref1Portfolio", fields: [pref1PortfolioId], references: [id], onDelete: SetNull)
   pref2CommitteeId   String?
   pref2Portfolio     String?
+  pref2PortfolioId   String?
+  pref2PortfolioRef  Portfolio?  @relation("Pref2Portfolio", fields: [pref2PortfolioId], references: [id], onDelete: SetNull)
   pref3CommitteeId   String?
   pref3Portfolio     String?
+  pref3PortfolioId   String?
+  pref3PortfolioRef  Portfolio?  @relation("Pref3Portfolio", fields: [pref3PortfolioId], references: [id], onDelete: SetNull)
   needsAccommodation Boolean     @default(false)
   outsideNcr         Boolean     @default(false)
   reference          String?

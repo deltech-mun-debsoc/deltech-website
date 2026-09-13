@@ -1,3 +1,5 @@
+import { cleanPortfolioName } from "@/lib/portfolio-sheet"
+
 // Pure helpers for the balance-aware allotment assist. No DB, no React.
 // so they stay testable via scripts/check-allot-assist.ts.
 
@@ -5,6 +7,17 @@ export interface PrefDelegate {
   pref1CommitteeId: string | null
   pref2CommitteeId: string | null
   pref3CommitteeId: string | null
+}
+
+// A delegate states a preference twice: the id, when they picked a real seat from
+// a published matrix, and the name they typed when there was no matrix yet.
+export interface SeatPrefDelegate extends PrefDelegate {
+  pref1PortfolioId: string | null
+  pref1Portfolio: string | null
+  pref2PortfolioId: string | null
+  pref2Portfolio: string | null
+  pref3PortfolioId: string | null
+  pref3Portfolio: string | null
 }
 
 export interface CommitteeDemand {
@@ -40,4 +53,47 @@ export function preferenceRank(d: PrefDelegate, committeeId: string): 1 | 2 | 3 
   if (d.pref2CommitteeId === committeeId) return 2
   if (d.pref3CommitteeId === committeeId) return 3
   return null
+}
+
+// Did this delegate ask for THIS seat, and at what rank?
+//
+// The id wins whenever it is there. It is absent for anyone imported from a
+// Google Form, anyone who registered before the matrix was published, and anyone
+// whose committee had its matrix republished since, so the typed name is the
+// fallback rather than the exception.
+//
+// Matching is exact on a normalised string, deliberately. cleanPortfolioName is
+// reused rather than reimplemented so the two sides are normalised identically,
+// and nothing fuzzier is attempted: "Sudan" and "South Sudan" are one edit apart
+// and are different chairs. A miss shows the delegate lower down the list, which
+// staff can see and search past. A wrong hit seats somebody in the wrong country.
+//
+// The seat must also be in a committee the delegate actually asked for. Without
+// that, "India" in UNSC would light up for someone who wanted "India" in AIPPM.
+export function portfolioRank(
+  d: SeatPrefDelegate,
+  portfolio: { id: string; name: string; committeeId: string },
+): 1 | 2 | 3 | null {
+  const wanted = normalisePortfolioName(portfolio.name)
+
+  const prefs = [
+    { id: d.pref1PortfolioId, name: d.pref1Portfolio, committeeId: d.pref1CommitteeId, rank: 1 as const },
+    { id: d.pref2PortfolioId, name: d.pref2Portfolio, committeeId: d.pref2CommitteeId, rank: 2 as const },
+    { id: d.pref3PortfolioId, name: d.pref3Portfolio, committeeId: d.pref3CommitteeId, rank: 3 as const },
+  ]
+
+  for (const pref of prefs) {
+    if (pref.id && pref.id === portfolio.id) return pref.rank
+  }
+  for (const pref of prefs) {
+    if (pref.id) continue
+    if (pref.committeeId !== portfolio.committeeId) continue
+    if (!pref.name) continue
+    if (normalisePortfolioName(pref.name) === wanted) return pref.rank
+  }
+  return null
+}
+
+function normalisePortfolioName(raw: string): string {
+  return cleanPortfolioName(raw).toLowerCase()
 }

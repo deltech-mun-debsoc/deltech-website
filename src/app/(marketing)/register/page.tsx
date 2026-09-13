@@ -24,7 +24,21 @@ export default async function RegisterPage() {
   const committees = await prisma.committee.findMany({
     where: { isActive: true },
     orderBy: { sortOrder: "asc" },
-    select: { id: true, name: true, doubleDelegation: true },
+    select: {
+      id: true,
+      name: true,
+      doubleDelegation: true,
+      // Offered as a picker so a preference can be an actual seat rather than a
+      // typed guess. Only seats still going, and only once the matrix is public:
+      // before that the list is not the society's to show.
+      portfolios: content.matrixPublic
+        ? {
+            where: { status: "AVAILABLE" },
+            orderBy: [{ priority: "asc" }, { name: "asc" }],
+            select: { id: true, name: true },
+          }
+        : false,
+    },
   })
 
   return (

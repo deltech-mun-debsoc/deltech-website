@@ -14,8 +14,9 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
+import { t } from "@/content/strings"
 import { holdPortfolio, releaseHold, allotPortfolio } from "../actions"
-import { preferenceRank } from "../_lib/balance"
+import { preferenceRank, portfolioRank } from "../_lib/balance"
 import type { SerializedPortfolio, SerializedCommittee, SerializedDelegate, Fee } from "./allotment-board"
 
 interface Props {
@@ -30,6 +31,7 @@ interface Props {
 
 interface RankedDelegate extends SerializedDelegate {
   preferenceRank: 1 | 2 | 3 | null
+  seatRank: 1 | 2 | 3 | null
 }
 
 export function AllotDialog({
@@ -64,21 +66,30 @@ export function AllotDialog({
     }
   }, [holdToken, portfolio.id])
 
-  // Ranked candidate list: pref1 matches first, then pref2, then unmatched;
-  // within each group, earlier registration wins.
+  // Ranked candidate list. Someone who asked for THIS seat comes before someone
+  // who only asked for this committee, because that is the question being asked
+  // at the desk: who wanted this chair? Within a group, earlier registration wins.
   const rankedDelegates = useMemo((): RankedDelegate[] => {
     return delegates
       .map((d) => ({
         ...d,
         preferenceRank: preferenceRank(d, committee.id),
+        seatRank: portfolioRank(d, {
+          id: portfolio.id,
+          name: portfolio.name,
+          committeeId: committee.id,
+        }),
       }))
       .sort((a, b) => {
+        const sa = a.seatRank ?? 99
+        const sb = b.seatRank ?? 99
+        if (sa !== sb) return sa - sb
         const ra = a.preferenceRank ?? 99
         const rb = b.preferenceRank ?? 99
         if (ra !== rb) return ra - rb
         return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
       })
-  }, [delegates, committee.id])
+  }, [delegates, committee.id, portfolio.id, portfolio.name])
 
   const filtered = useMemo(() => {
     if (!search.trim()) return rankedDelegates
@@ -187,6 +198,11 @@ export function AllotDialog({
                     {d.isDtu && (
                       <span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">
                         DTU
+                      </span>
+                    )}
+                    {d.seatRank !== null && (
+                      <span className="shrink-0 rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                        {t("admin.allotment.requestedThisSeat", { rank: d.seatRank })}
                       </span>
                     )}
                     {d.preferenceRank === 1 && (
