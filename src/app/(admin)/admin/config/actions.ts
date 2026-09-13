@@ -13,7 +13,7 @@ import { pickValues, reversibleSettingsMeta } from "@/lib/audit-change"
 import { fetchSheetRows, SheetFetchError } from "@/lib/sheet-fetch"
 import { portfoliosFromSheetRows, type PortfolioEntry } from "@/lib/portfolio-sheet"
 import { deriveCsvUrl } from "@/lib/gsheet-url"
-import { requireActiveEvent } from "@/lib/event"
+import { closeEvent, createEvent, getActiveEvent, requireActiveEvent } from "@/lib/event"
 
 // Money/sync config only an ADMIN may touch, kept out of saveContent entirely.
 const PAYMENT_KEYS = new Set([
@@ -618,5 +618,45 @@ export async function deleteFee(
     return { success: true }
   } catch {
     return { success: false, error: "Failed to delete fee." }
+  }
+}
+
+// Closing and starting events are ADMIN only. Closing ends registration and
+// allotment for everyone at once, and starting a new event closes the current
+// one, so neither is something a maintainer should be able to do in passing.
+// Both are reversible state changes rather than deletions: every delegate,
+// allotment and payment of a closed event stays exactly where it is.
+export async function closeCurrentEvent(): Promise<{ success: boolean; error?: string }> {
+  const session = await requireAdmin()
+  const event = await getActiveEvent()
+  if (!event) return { success: false, error: "No event is running, so there is nothing to close." }
+  try {
+    await closeEvent(event.id)
+    await audit(session.user?.email ?? "unknown", "event.close", "Event", event.id, { name: event.name })
+    publishContentChanges()
+    return { success: true }
+  } catch {
+    return { success: false, error: "Could not close the event." }
+  }
+}
+
+export async function startNewEvent(input: { name: string }): Promise<{ success: boolean; error?: string }> {
+  const session = await requireAdmin()
+  const name = input.name.trim()
+  if (!name) return { success: false, error: "Name the new event before starting it." }
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")
+  if (!slug) return { success: false, error: "Use letters or numbers in the event name." }
+  try {
+    // createEvent closes whatever is running in the same transaction, so the
+    // society is never left with two events open at once.
+    const event = await createEvent({ name, slug })
+    await audit(session.user?.email ?? "unknown", "event.create", "Event", event.id, { name, slug })
+    publishContentChanges()
+    return { success: true }
+  } catch (err) {
+    if (typeof err === "object" && err !== null && "code" in err && (err as { code: unknown }).code === "P2002") {
+      return { success: false, error: "An event with that name already exists. Choose a different name." }
+    }
+    return { success: false, error: "Could not start the new event." }
   }
 }
