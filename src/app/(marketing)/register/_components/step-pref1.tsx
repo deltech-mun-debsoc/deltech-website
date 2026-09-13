@@ -12,11 +12,13 @@ import {
 } from "@/components/ui/select"
 import { t } from "@/content/strings"
 import { toSelectItems } from "@/lib/utils"
+import { PortfolioPreferenceField, type PortfolioOption } from "./portfolio-preference-field"
 
 interface Committee {
   id: string
   name: string
   doubleDelegation: boolean
+  portfolios?: PortfolioOption[]
 }
 
 interface Props {
@@ -57,21 +59,14 @@ export function StepPref1({ form, committees }: Props) {
         )}
       />
 
-      <FormField
-        control={form.control}
-        name="pref1Portfolio"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>{t("register.preferences.pref1PortfolioLabel")}</FormLabel>
-            <FormControl>
-              <Input
-                placeholder={t("register.preferences.pref1PortfolioPlaceholder")}
-                {...field}
-              />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
+      <PortfolioPreferenceField
+        form={form}
+        nameField="pref1Portfolio"
+        idField="pref1PortfolioId"
+        label={t("register.preferences.pref1PortfolioLabel")}
+        portfolios={
+          committees.find((c) => c.id === form.watch("pref1CommitteeId"))?.portfolios ?? []
+        }
       />
     </div>
   )

@@ -13,11 +13,13 @@ import {
 } from "@/components/ui/select"
 import { t } from "@/content/strings"
 import { toSelectItems } from "@/lib/utils"
+import { PortfolioPreferenceField, type PortfolioOption } from "./portfolio-preference-field"
 
 interface Committee {
   id: string
   name: string
   doubleDelegation: boolean
+  portfolios?: PortfolioOption[]
 }
 
 interface Props {
@@ -179,25 +181,14 @@ export function StepPref2OrCoDelegate({ form, committees, isDoubleDelegation }: 
         )}
       />
 
-      <FormField
-        control={form.control}
-        name="pref2Portfolio"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>
-              {t("register.preferences.pref2PortfolioLabel")}
-              <span className="ml-1 text-xs text-muted-foreground">({t("common.optional")})</span>
-            </FormLabel>
-            <FormControl>
-              <Input
-                placeholder={t("register.preferences.pref2PortfolioPlaceholder")}
-                {...field}
-                value={field.value ?? ""}
-              />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
+      <PortfolioPreferenceField
+        form={form}
+        nameField="pref2Portfolio"
+        idField="pref2PortfolioId"
+        label={t("register.preferences.pref2PortfolioLabel")}
+        portfolios={
+          committees.find((c) => c.id === form.watch("pref2CommitteeId"))?.portfolios ?? []
+        }
       />
     </div>
   )
