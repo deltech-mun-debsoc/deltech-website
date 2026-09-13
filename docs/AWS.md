@@ -299,3 +299,17 @@ starving production.
 Create a new instance (section 2), move the static IP to it, copy the env files
 from your password manager, run the Deploy workflow for `main` and `staging`.
 About 15 minutes; nothing else lives there.
+
+## Mailer tick
+
+Scheduled mail, and any campaign held back by the daily cap, is sent by a tick
+every two minutes on each box. Install it once per box, next to the backup job:
+
+```bash
+scp deploy/mailer-tick.sh deploy@<box>:/srv/mun/ && ssh deploy@<box> 'chmod +x /srv/mun/mailer-tick.sh && (crontab -l; echo "*/2 * * * * /srv/mun/mailer-tick.sh >> /srv/mun/mailer.log 2>&1") | crontab -'
+```
+
+It calls `/api/cron/mailer` from inside the app container, which already holds
+`CRON_SECRET`. Pressing Send starts sending at once; the tick is the backstop, and
+the only thing that sends mail scheduled for later.
+

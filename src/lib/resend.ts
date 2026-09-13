@@ -19,6 +19,7 @@ import { BlogRejectedEmail } from "@/emails/blog-rejected"
 import { StaffInviteEmail } from "@/emails/staff-invite"
 import { MagicLinkEmail } from "@/emails/magic-link"
 import { RecruitmentSelectedEmail } from "@/emails/recruitment-selected"
+import { MailerEmail } from "@/emails/mailer"
 import { parseCycleConfig } from "@/lib/schemas/recruitment"
 import { MAGIC_LINK_MAX_AGE_MIN } from "@/lib/magic-link"
 import { deriveEventState } from "@/lib/event-state"
@@ -39,6 +40,8 @@ const REDIRECT_TO = process.env.EMAIL_REDIRECT_TO?.trim()
 // rolling back is one environment variable. SES credentials come from the SDK's
 // default chain (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY).
 const TRANSPORT = process.env.EMAIL_TRANSPORT === "ses" ? "ses" : "resend"
+// Read by the mailer to size its daily cap to the provider actually in use.
+export const EMAIL_TRANSPORT_NAME = TRANSPORT
 // Every SES send is tagged with this configuration set, which is what turns on
 // the account suppression list for bounces and complaints, keeps reputation
 // metrics, and publishes bounce/complaint/reject events to SNS so a bad address
@@ -67,6 +70,7 @@ async function deliver(
   subject: string,
   reactElement: React.ReactElement,
   idempotencyKey?: string,
+  headers?: Record<string, string>,
 ): Promise<string | undefined> {
   if (TRANSPORT === "resend") {
     const { error } = await getResend().emails.send(
@@ -76,6 +80,7 @@ async function deliver(
         subject,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         react: reactElement as any,
+        ...(headers ? { headers } : {}),
       },
       idempotencyKey ? { idempotencyKey } : undefined,
     )
@@ -91,6 +96,7 @@ async function deliver(
         Simple: {
           Subject: { Data: subject, Charset: "UTF-8" },
           Body: { Html: { Data: html, Charset: "UTF-8" }, Text: { Data: text, Charset: "UTF-8" } },
+          ...(headers ? { Headers: Object.entries(headers).map(([Name, Value]) => ({ Name, Value })) } : {}),
         },
       },
     }),
@@ -110,6 +116,7 @@ async function loggedSend({
   subject,
   reactElement,
   idempotencyKey,
+  headers,
 }: {
   delegateId?: string
   template: string
@@ -117,6 +124,7 @@ async function loggedSend({
   subject: string
   reactElement: React.ReactElement
   idempotencyKey?: string
+  headers?: Record<string, string>
 }): Promise<void> {
   if (idempotencyKey && TRANSPORT === "ses" && (await sentRecently(template, toEmail))) return
 
@@ -126,7 +134,7 @@ async function loggedSend({
   try {
     const recipient = REDIRECT_TO || toEmail
     const deliveredSubject = REDIRECT_TO ? `[STAGING → ${toEmail}] ${subject}` : subject
-    const apiError = await deliver(recipient, deliveredSubject, reactElement, idempotencyKey)
+    const apiError = await deliver(recipient, deliveredSubject, reactElement, idempotencyKey, headers)
     if (apiError) {
       status = "FAILED"
       error = apiError
@@ -603,3 +611,54 @@ export async function resendByLogId(logId: string): Promise<void> {
   if (!log.delegateId) throw new Error(`Log ${logId} has no delegateId`)
   await fn(log.delegateId)
 }
+
+// ---------------------------------------------------------------------------
+// Mailer
+// ---------------------------------------------------------------------------
+
+// One recipient of a campaign from the admin mailer. The queue has already merged
+// this person's fields into the text; this lays it out, logs it under the
+// campaign, and throws on failure so the queue can mark the recipient FAILED.
+//
+// Outreach mail carries List-Unsubscribe and List-Unsubscribe-Post. Gmail and
+// Yahoo require one-click unsubscribe from bulk senders, and a mail they cannot
+// unsubscribe from is a mail they file as spam, which costs every email the site
+// sends, sign-in links included.
+export async function sendMailerEmail(input: {
+  campaignId: string
+  toEmail: string
+  delegateId?: string
+  subject: string
+  paragraphs: string[]
+  eventName: string
+  contactEmail: string
+  reason: string
+  ctaLabel?: string
+  ctaUrl?: string
+  unsubscribeUrl?: string
+  unsubscribePostUrl?: string
+}): Promise<void> {
+  await loggedSend({
+    delegateId: input.delegateId,
+    template: `mailer:${input.campaignId}`,
+    toEmail: input.toEmail,
+    subject: input.subject,
+    reactElement: MailerEmail({
+      eventName: input.eventName,
+      subject: input.subject,
+      paragraphs: input.paragraphs,
+      ctaLabel: input.ctaLabel,
+      ctaUrl: input.ctaUrl,
+      contactEmail: input.contactEmail,
+      reason: input.reason,
+      unsubscribeUrl: input.unsubscribeUrl,
+    }),
+    headers: input.unsubscribePostUrl
+      ? {
+          "List-Unsubscribe": `<${input.unsubscribePostUrl}>`,
+          "List-Unsubscribe-Post": "List-Unsubscribe=One-Click",
+        }
+      : undefined,
+  })
+}
+

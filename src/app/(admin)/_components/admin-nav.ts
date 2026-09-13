@@ -12,6 +12,7 @@ import { FileSpreadsheet,
   ShieldCheck,
   BookOpenText,
   UserCheck,
+  Mail,
   type LucideIcon,
 } from "lucide-react"
 
@@ -35,6 +36,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/admin", icon: LayoutDashboard, label: "Overview" },
       { href: "/admin/config", icon: Settings2, label: "Event control" },
       { href: "/admin/registrations", icon: Users, label: "Registrations" },
+      { href: "/admin/mailer", icon: Mail, label: "Mailer" },
       { href: "/admin/form-responses", icon: FileSpreadsheet, label: "Google Form responses" },
       { href: "/admin/checkin", icon: UserCheck, label: "Check-in" },
       { href: "/admin/allotment", icon: Kanban, label: "Allotments" },
