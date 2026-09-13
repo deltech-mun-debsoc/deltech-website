@@ -57,10 +57,13 @@ export interface SerializedDelegate {
   munExperience: string | null
   pref1CommitteeId: string | null
   pref1Portfolio: string | null
+  pref1PortfolioId: string | null
   pref2CommitteeId: string | null
   pref2Portfolio: string | null
+  pref2PortfolioId: string | null
   pref3CommitteeId: string | null
   pref3Portfolio: string | null
+  pref3PortfolioId: string | null
   coDelegate: { id: string; fullName: string } | null
   createdAt: string
 }

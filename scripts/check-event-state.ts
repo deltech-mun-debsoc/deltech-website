@@ -10,18 +10,38 @@ const society = ContentSchema.parse({
   publicSections: { activeEvent: true },
   activeEventName: "Old event",
 })
-assert.equal(deriveEventState(society).paymentsRequired, false)
+// Society is the resting state: no event, so nothing is charged or open. getContent
+// forces these to false whenever it finds no active event, which is what makes the
+// capability flags safe to trust on their own.
+const restingSociety = ContentSchema.parse({ eventMode: "SOCIETY", paymentsEnabled: false })
+assert.equal(deriveEventState(restingSociety).paymentsRequired, false)
 assert.equal(deriveEventState(society).showEventHero, false)
 assert.equal(deriveEventState(society).acceptsRegistrations, false)
 
-const intra = ContentSchema.parse({
+// A free event is free because its capability says so, not because of its name.
+const intraFree = ContentSchema.parse({
+  eventMode: "INTRA_MUN",
+  paymentsEnabled: false,
+  publicSections: { activeEvent: true },
+  activeEventName: "DTU Intra",
+})
+assert.equal(deriveEventState(intraFree).paymentsRequired, false)
+assert.equal(deriveEventState(intraFree).showEventHero, true)
+
+// The decoupling itself: an Intra that is configured to charge, does. This used to
+// be impossible, because payments were welded to the CONFERENCE name, so a new kind
+// of paid event meant editing deriveEventState and every caller.
+const intraPaid = ContentSchema.parse({
   eventMode: "INTRA_MUN",
   paymentsEnabled: true,
   publicSections: { activeEvent: true },
   activeEventName: "DTU Intra",
 })
-assert.equal(deriveEventState(intra).paymentsRequired, false)
-assert.equal(deriveEventState(intra).showEventHero, true)
+assert.equal(
+  deriveEventState(intraPaid).paymentsRequired,
+  true,
+  "capabilities decide what an event charges, never the name of its mode",
+)
 
 const conference = ContentSchema.parse({
   eventMode: "CONFERENCE",

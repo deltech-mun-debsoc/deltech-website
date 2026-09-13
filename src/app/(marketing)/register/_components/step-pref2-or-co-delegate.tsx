@@ -13,11 +13,13 @@ import {
 } from "@/components/ui/select"
 import { t } from "@/content/strings"
 import { toSelectItems } from "@/lib/utils"
+import { PortfolioPreferenceField, type PortfolioOption } from "./portfolio-preference-field"
 
 interface Committee {
   id: string
   name: string
   doubleDelegation: boolean
+  portfolios?: PortfolioOption[]
 }
 
 interface Props {
@@ -37,15 +39,20 @@ export function StepPref2OrCoDelegate({ form, committees, isDoubleDelegation }: 
     [pref2Committees]
   )
 
+  // Which committee runs double delegation is an event-by-event decision, so the
+  // copy names whichever one the delegate actually chose.
+  const doubleCommitteeName =
+    committees.find((c) => c.id === form.watch("pref1CommitteeId"))?.name ?? ""
+
   if (isDoubleDelegation) {
     return (
       <div className="space-y-5">
         <div className="rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm text-muted-foreground">
-          {t("register.preferences.unhrcOnlyNote")}
+          {t("register.preferences.doubleDelegationOnlyNote", { committee: doubleCommitteeName })}
         </div>
 
         <p className="text-base font-semibold">{t("register.coDelegate.sectionTitle")}</p>
-        <p className="text-sm text-muted-foreground">{t("register.coDelegate.sectionNote")}</p>
+        <p className="text-sm text-muted-foreground">{t("register.coDelegate.sectionNote", { committee: doubleCommitteeName })}</p>
 
         <FormField
           control={form.control}
@@ -179,25 +186,14 @@ export function StepPref2OrCoDelegate({ form, committees, isDoubleDelegation }: 
         )}
       />
 
-      <FormField
-        control={form.control}
-        name="pref2Portfolio"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>
-              {t("register.preferences.pref2PortfolioLabel")}
-              <span className="ml-1 text-xs text-muted-foreground">({t("common.optional")})</span>
-            </FormLabel>
-            <FormControl>
-              <Input
-                placeholder={t("register.preferences.pref2PortfolioPlaceholder")}
-                {...field}
-                value={field.value ?? ""}
-              />
-            </FormControl>
-            <FormMessage />
-          </FormItem>
-        )}
+      <PortfolioPreferenceField
+        form={form}
+        nameField="pref2Portfolio"
+        idField="pref2PortfolioId"
+        label={t("register.preferences.pref2PortfolioLabel")}
+        portfolios={
+          committees.find((c) => c.id === form.watch("pref2CommitteeId"))?.portfolios ?? []
+        }
       />
     </div>
   )

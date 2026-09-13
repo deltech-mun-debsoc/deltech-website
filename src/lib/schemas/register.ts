@@ -28,9 +28,11 @@ export const registerSchema = z.object({
   // Step 2 – first preference
   pref1CommitteeId: z.string().min(1, "Select a committee"),
   pref1Portfolio: z.string().min(1, "Enter a portfolio preference"),
+  pref1PortfolioId: z.string().optional(),
   // Step 3 – second preference or co-delegate (conditional; server action enforces business rules)
   pref2CommitteeId: z.string().optional(),
   pref2Portfolio: z.string().optional(),
+  pref2PortfolioId: z.string().optional(),
   coDelegate: coDelegateSchema.optional(),
   // Step 4 – accommodation
   needsAccommodation: z.boolean(),

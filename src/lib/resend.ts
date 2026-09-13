@@ -39,6 +39,11 @@ const REDIRECT_TO = process.env.EMAIL_REDIRECT_TO?.trim()
 // rolling back is one environment variable. SES credentials come from the SDK's
 // default chain (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY).
 const TRANSPORT = process.env.EMAIL_TRANSPORT === "ses" ? "ses" : "resend"
+// Every SES send is tagged with this configuration set, which is what turns on
+// the account suppression list for bounces and complaints, keeps reputation
+// metrics, and publishes bounce/complaint/reject events to SNS so a bad address
+// is noticed rather than retried forever.
+const SES_CONFIGURATION_SET = process.env.SES_CONFIGURATION_SET?.trim()
 let sesClient: SESv2Client | undefined
 function getSes(): SESv2Client {
   return (sesClient ??= new SESv2Client({ region: process.env.SES_REGION ?? "ap-south-1" }))
@@ -81,6 +86,7 @@ async function deliver(
     new SendEmailCommand({
       FromEmailAddress: FROM,
       Destination: { ToAddresses: [to] },
+      ...(SES_CONFIGURATION_SET ? { ConfigurationSetName: SES_CONFIGURATION_SET } : {}),
       Content: {
         Simple: {
           Subject: { Data: subject, Charset: "UTF-8" },
@@ -231,7 +237,17 @@ export async function sendRegistrationEmails(delegateId: string): Promise<void> 
   }
 }
 
-export async function sendAllotmentEmail(delegateId: string): Promise<void> {
+// `force` is what the resend button passes. Without it this is a no-op once the
+// allotment email has already gone out.
+//
+// Allotment.emailSentAt was written but never read, EmailLog has no unique
+// constraint, and this template passes no idempotency key, so nothing stopped the
+// same delegate being told twice. Allotment is the one email people act on, so a
+// duplicate reads as a changed allotment.
+export async function sendAllotmentEmail(
+  delegateId: string,
+  { force = false }: { force?: boolean } = {},
+): Promise<void> {
   const delegate = await prisma.delegate.findUniqueOrThrow({
     where: { id: delegateId },
     select: {
@@ -251,6 +267,8 @@ export async function sendAllotmentEmail(delegateId: string): Promise<void> {
   if (!delegate.allotment) {
     throw new Error(`Delegate ${delegateId} has no allotment record`)
   }
+
+  if (delegate.allotment.emailSentAt && !force) return
 
   const committee = delegate.allotment.portfolio.committee
   const portfolio = delegate.allotment.portfolio
@@ -286,6 +304,12 @@ export async function sendAllotmentEmail(delegateId: string): Promise<void> {
       refundPolicy: content.refundPolicy,
       contactEmail: content.secretariatEmail,
       contacts: content.queryContacts,
+      // Their own page: allotment, payment state, and the check-in QR the desk
+      // scans on the day. The QR lives there rather than in the email because
+      // mail clients strip inline SVG, and a broken QR at the door is worse than
+      // a link to a working one.
+      statusUrl: `${APP_URL}/status/${delegate.publicToken}`,
+      whatsappCommunityUrl: content.whatsappCommunityUrl,
     }),
   })
 
@@ -564,7 +588,9 @@ export async function sendMagicLink(email: string, url: string): Promise<void> {
 const RESENDABLE_TEMPLATES: Record<string, (id: string) => Promise<void>> = {
   "registration-received": sendRegistrationReceived,
   "co-delegate-registered": sendCoDelegateRegistered,
-  allotment: sendAllotmentEmail,
+  // Explicitly forced: pressing Resend is a person deciding to send it again, so
+  // it must override the once-only guard rather than silently doing nothing.
+  allotment: (id: string) => sendAllotmentEmail(id, { force: true }),
   "co-delegate-notice": sendCoDelegateNotice,
   "payment-confirmed": sendPaymentConfirmed,
   "payment-reminder": sendPaymentReminder,

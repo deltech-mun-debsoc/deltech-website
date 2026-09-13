@@ -335,7 +335,31 @@ async function main() {
     }
   }
 
-  console.log(
+  // ── Allotment is sent once unless a person asks again ───────────────────────
+// Allotment.emailSentAt was written but never read, EmailLog has no unique
+// constraint, and this template passes no idempotency key, so nothing stopped a
+// delegate being told twice. Allotment is the email people act on: a duplicate
+// reads as a changed allotment. The guard is static, so pin it statically.
+{
+  const src = readFileSync("src/lib/resend.ts", "utf8")
+  const fn = src.slice(src.indexOf("export async function sendAllotmentEmail"))
+
+  assert.match(
+    fn.slice(0, fn.indexOf("loggedSend")),
+    /if \(delegate\.allotment\.emailSentAt && !force\) return/,
+    "sendAllotmentEmail must refuse a second send before it reaches loggedSend",
+  )
+
+  // The resend button is a person deciding to send it again, so it has to be able
+  // to override the guard. If it stops forcing, Resend silently does nothing.
+  assert.match(
+    src,
+    /allotment: \(id: string\) => sendAllotmentEmail\(id, \{ force: true \}\)/,
+    "the resend path must force, or pressing Resend would quietly do nothing",
+  )
+}
+
+console.log(
     `✅ check-emails passed (${templates.length} templates on the shared shell, ${cases.length} render cases)`,
   );
 }

@@ -14,8 +14,9 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
+import { t } from "@/content/strings"
 import { holdPortfolio, releaseHold, allotPortfolio } from "../actions"
-import { preferenceRank } from "../_lib/balance"
+import { preferenceRank, portfolioRank } from "../_lib/balance"
 import type { SerializedPortfolio, SerializedCommittee, SerializedDelegate, Fee } from "./allotment-board"
 
 interface Props {
@@ -30,6 +31,7 @@ interface Props {
 
 interface RankedDelegate extends SerializedDelegate {
   preferenceRank: 1 | 2 | 3 | null
+  seatRank: 1 | 2 | 3 | null
 }
 
 export function AllotDialog({
@@ -47,6 +49,8 @@ export function AllotDialog({
   const [isPending, startTransition] = useTransition()
   const [holdToken, setHoldToken] = useState<string | null>(null)
   const [holdFailed, setHoldFailed] = useState(false)
+  const [secondsLeft, setSecondsLeft] = useState<number | null>(null)
+  const [holdExpiresAt, setHoldExpiresAt] = useState<number | null>(null)
 
   // Soft-lock the portfolio when the dialog mounts
   useEffect(() => {
@@ -54,6 +58,7 @@ export function AllotDialog({
       .then((result) => {
         setHoldToken(result.holdToken ?? null)
         setHoldFailed(!result.success)
+        setHoldExpiresAt(result.holdExpiresAt ? Date.parse(result.holdExpiresAt) : null)
       })
       .catch(() => setHoldFailed(true))
   }, [portfolio.id])
@@ -64,21 +69,45 @@ export function AllotDialog({
     }
   }, [holdToken, portfolio.id])
 
-  // Ranked candidate list: pref1 matches first, then pref2, then unmatched;
-  // within each group, earlier registration wins.
+  // The hold lasts two minutes and used to run out invisibly, so a conversation
+  // with a delegate could outlast it and Confirm would fail with "your hold
+  // expired". Counting down is display only: the server rechecks expiry inside
+  // the transaction and stays the authority on whether this seat is still ours.
+  useEffect(() => {
+    if (!holdExpiresAt) return
+    const tick = () => {
+      const left = Math.max(0, Math.round((holdExpiresAt - Date.now()) / 1000))
+      setSecondsLeft(left)
+    }
+    tick()
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [holdExpiresAt])
+
+  // Ranked candidate list. Someone who asked for THIS seat comes before someone
+  // who only asked for this committee, because that is the question being asked
+  // at the desk: who wanted this chair? Within a group, earlier registration wins.
   const rankedDelegates = useMemo((): RankedDelegate[] => {
     return delegates
       .map((d) => ({
         ...d,
         preferenceRank: preferenceRank(d, committee.id),
+        seatRank: portfolioRank(d, {
+          id: portfolio.id,
+          name: portfolio.name,
+          committeeId: committee.id,
+        }),
       }))
       .sort((a, b) => {
+        const sa = a.seatRank ?? 99
+        const sb = b.seatRank ?? 99
+        if (sa !== sb) return sa - sb
         const ra = a.preferenceRank ?? 99
         const rb = b.preferenceRank ?? 99
         if (ra !== rb) return ra - rb
         return new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
       })
-  }, [delegates, committee.id])
+  }, [delegates, committee.id, portfolio.id, portfolio.name])
 
   const filtered = useMemo(() => {
     if (!search.trim()) return rankedDelegates
@@ -132,6 +161,7 @@ export function AllotDialog({
   }
 
   const onHoldByOther = holdFailed
+  const holdLapsed = secondsLeft !== null && secondsLeft <= 0
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -142,6 +172,13 @@ export function AllotDialog({
             <span className="font-medium text-foreground">{portfolio.name}</span>
             {" · "}
             {committee.name}
+            {!onHoldByOther && secondsLeft !== null && (
+              <span className={cn("ml-2", holdLapsed ? "text-destructive" : "text-muted-foreground")}>
+                {holdLapsed
+                  ? t("admin.allotment.holdLapsed")
+                  : t("admin.allotment.holdCountdown", { seconds: secondsLeft })}
+              </span>
+            )}
             {onHoldByOther && (
               <span className="ml-2 text-amber-600 dark:text-amber-400">
                 ⚠ On hold by another admin
@@ -152,7 +189,7 @@ export function AllotDialog({
 
         {committee.doubleDelegation && (
           <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs text-muted-foreground">
-            UNHRC: selecting this delegate also brings their co-delegate on the same allotment.
+            {t("admin.allotment.doubleDelegationNote", { committee: committee.name })}
           </div>
         )}
 
@@ -187,6 +224,11 @@ export function AllotDialog({
                     {d.isDtu && (
                       <span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">
                         DTU
+                      </span>
+                    )}
+                    {d.seatRank !== null && (
+                      <span className="shrink-0 rounded-full bg-primary/15 px-1.5 py-0.5 text-[10px] font-medium text-primary">
+                        {t("admin.allotment.requestedThisSeat", { rank: d.seatRank })}
                       </span>
                     )}
                     {d.preferenceRank === 1 && (
@@ -253,7 +295,7 @@ export function AllotDialog({
           </Button>
           <Button
             onClick={handleConfirm}
-            disabled={!selected || !holdToken || isPending || (paymentsRequired && !computedFee)}
+            disabled={!selected || !holdToken || isPending || holdLapsed || (paymentsRequired && !computedFee)}
           >
             {isPending ? "Allotting…" : paymentsRequired ? "Confirm allotment" : "Confirm free allotment"}
           </Button>

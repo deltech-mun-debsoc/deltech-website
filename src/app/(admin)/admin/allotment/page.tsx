@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import { currentEventScope } from "@/lib/event"
 import { requireStaff } from "@/lib/authz"
 import { AllotmentBoard } from "./_components/allotment-board"
 import { PageHeader } from "@/app/(admin)/_components/page-header"
@@ -8,9 +9,11 @@ import { deriveEventState } from "@/lib/event-state"
 export default async function AllotmentPage() {
   await requireStaff()
 
+  const scope = await currentEventScope()
+
   const [committees, delegates, fees, content] = await Promise.all([
     prisma.committee.findMany({
-      where: { isActive: true },
+      where: { isActive: true, ...scope },
       orderBy: { sortOrder: "asc" },
       include: {
         portfolios: {
@@ -34,7 +37,7 @@ export default async function AllotmentPage() {
       },
     }),
     prisma.delegate.findMany({
-      where: { status: "REGISTERED" },
+      where: { status: "REGISTERED", ...scope },
       orderBy: { createdAt: "asc" },
       select: {
         id: true,
@@ -45,10 +48,13 @@ export default async function AllotmentPage() {
         munExperience: true,
         pref1CommitteeId: true,
         pref1Portfolio: true,
+        pref1PortfolioId: true,
         pref2CommitteeId: true,
         pref2Portfolio: true,
+        pref2PortfolioId: true,
         pref3CommitteeId: true,
         pref3Portfolio: true,
+        pref3PortfolioId: true,
         coDelegate: { select: { id: true, fullName: true } },
         createdAt: true,
       },

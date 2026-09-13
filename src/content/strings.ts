@@ -122,6 +122,16 @@ export const STRINGS = {
     statusAvailable: "Available",
     statusAllotted: "Allotted · payment pending",
     statusConfirmed: "Confirmed · paid",
+    // A free event has nothing pending and nothing paid. Without these, an Intra
+    // reads as though money is owed on every seat.
+    statusAllottedFree: "Allotted",
+    statusConfirmedFree: "Confirmed",
+    // Said to a delegate whose event charges nothing. Names no event, because
+    // which event is free changes every year.
+    noPaymentRequired:
+      "There is nothing to pay for this event. Your allotment confirms your place.",
+    freeRegistrationReceived:
+      "Your registration is in. The secretariat will email your committee and portfolio allotment. There is nothing to pay.",
     statusBlocked: "Not open",
     statusFull: "Full",
     teamEyebrow: "The secretariat · current term",
@@ -230,16 +240,19 @@ export const STRINGS = {
       pref1CommitteeLabel: "First preference committee",
       pref1PortfolioLabel: "First preference portfolio",
       pref1PortfolioPlaceholder: "Country / role you would like",
+      portfolioPickPlaceholder: "Choose from the matrix",
       pref2CommitteeLabel: "Second preference committee",
       pref2PortfolioLabel: "Second preference portfolio",
       pref2PortfolioPlaceholder: "Country / role you would like",
-      unhrcOnlyNote:
-        "UNHRC is a double-delegation committee. It will be your only preference.",
+      // Named by the committee it applies to, rather than baked in. Any committee
+      // can be double delegation, and which one it is changes every event.
+      doubleDelegationOnlyNote:
+        "{committee} is a double-delegation committee. It will be your only preference.",
     },
     coDelegate: {
       sectionTitle: "Co-delegate details",
       sectionNote:
-        "UNHRC requires two delegates per portfolio. Please provide your co-delegate's information.",
+        "{committee} requires two delegates per portfolio. Please provide your co-delegate's information.",
       fullNameLabel: "Co-delegate full name",
       emailLabel: "Co-delegate email",
       emailPlaceholder: "co@example.com",
@@ -456,6 +469,11 @@ export const STRINGS = {
       confirmAllotDescription:
         "Allot {portfolio} in {committee} to {delegate}? This cannot be undone.",
       onHoldWarning: "Portfolio is on hold by another admin.",
+      requestedThisSeat: "Asked for this seat · {rank}",
+      holdCountdown: "Held for you · {seconds}s",
+      holdLapsed: "Your hold has lapsed. Close this and reopen the seat.",
+      doubleDelegationNote:
+        "{committee} seats two delegates, so this also brings their co-delegate onto the same allotment.",
       doubleAllotError: "This portfolio has already been allotted.",
     },
     config: {

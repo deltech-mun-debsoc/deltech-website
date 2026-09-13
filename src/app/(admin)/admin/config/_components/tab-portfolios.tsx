@@ -3,29 +3,19 @@
 import { useMemo, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { Download, Pencil, Plus, Sparkles, Trash2 } from "lucide-react"
+import { Download, Pencil, Plus, Sheet as SheetIcon, Sparkles, Trash2 } from "lucide-react"
 import { Button, buttonVariants } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger } from "@/components/ui/select"
-import { addPortfolio, bulkAddPortfolios, deletePortfolio, generatePortfolios, updatePortfolio } from "../actions"
+import { addPortfolio, bulkAddPortfolios, deletePortfolio, generatePortfolios, readPortfolioSheet, updatePortfolio } from "../actions"
+import { lineFor, parseDraft } from "../_lib/draft-lines"
 import type { ClientCommittee, ClientPortfolio } from "../_lib/types"
 
 const STATUS_LABEL: Record<string, string> = {
   AVAILABLE: "Available", ON_HOLD: "On hold", ALLOTTED: "Allotted", BLOCKED: "Blocked",
-}
-
-function lineFor(entry: { name: string; tag?: string; priority?: number }) {
-  return [entry.name, entry.tag || "", entry.priority || ""].join(" | ").replace(/\s+\|\s*$/, "")
-}
-
-function parseDraft(text: string) {
-  return text.split("\n").map((line, index) => {
-    const [name = "", tag = "", priority = ""] = line.split("|").map((part) => part.trim())
-    return { name, tag, priority: Number(priority) || index + 1 }
-  }).filter((entry) => entry.name)
 }
 
 export function TabPortfolios({ committees }: { committees: ClientCommittee[] }) {
@@ -35,6 +25,7 @@ export function TabPortfolios({ committees }: { committees: ClientCommittee[] })
   const [newTag, setNewTag] = useState("")
   const [draft, setDraft] = useState("")
   const [brief, setBrief] = useState("")
+  const [sheetUrl, setSheetUrl] = useState("")
   const [sourceNote, setSourceNote] = useState("")
   const [genSize, setGenSize] = useState(36)
   const [editing, setEditing] = useState<ClientPortfolio | null>(null)
@@ -50,6 +41,7 @@ export function TabPortfolios({ committees }: { committees: ClientCommittee[] })
     setBrief(next?.matrixBrief ?? "")
     setDraft("")
     setSourceNote("")
+    setSheetUrl("")
   }
 
   const handleGenerate = () => startTransition(async () => {
@@ -59,6 +51,26 @@ export function TabPortfolios({ committees }: { committees: ClientCommittee[] })
     setDraft(result.portfolios.map(lineFor).join("\n"))
     setSourceNote(result.sourceNote ?? "Verify time-sensitive facts before publishing.")
     toast.success(`Drafted ${result.portfolios.length} ranked portfolios. Nothing has been saved yet.`)
+  })
+
+  // The society keeps its matrix in a spreadsheet, so this reads that tab straight
+  // into the same review box the AI draft lands in. Nothing is saved here: publishing
+  // stays the one deliberate step.
+  const handleLoadSheet = () => startTransition(async () => {
+    if (!selectedId || !sheetUrl.trim()) return
+    const result = await readPortfolioSheet(sheetUrl.trim())
+    if (!result.success || !result.entries) { toast.error(result.error ?? "Could not read that sheet."); return }
+    setDraft(result.entries.map(lineFor).join("\n"))
+    // Seats already filled in by hand in the sheet are invisible once the names are
+    // parsed, so say so. The matrix here is the seat list, not the allotments.
+    const notes = [
+      `Read ${result.entries.length} from the ${result.nameColumn} column`,
+      result.tagColumn ? `tags from ${result.tagColumn}` : null,
+      result.duplicates ? `${result.duplicates} duplicate rows skipped` : null,
+      result.alreadyAllotted ? `${result.alreadyAllotted} already allotted in the sheet` : null,
+    ].filter(Boolean).join(" · ")
+    setSourceNote(notes)
+    toast.success(`${notes}. Nothing has been saved yet.`)
   })
 
   const handlePublish = () => startTransition(async () => {
@@ -121,7 +133,14 @@ export function TabPortfolios({ committees }: { committees: ClientCommittee[] })
             <div className="space-y-2"><Label htmlFor="matrix-size">Seats</Label><Input id="matrix-size" type="number" min={1} max={300} value={genSize} onChange={(e) => setGenSize(Number(e.target.value) || 36)} className="h-11 w-24" /></div>
             <Button onClick={handleGenerate} disabled={isPending} className="h-11 flex-1"><Sparkles />{isPending ? "Thinking…" : "Generate ranked draft"}</Button>
           </div>
-          <p className="text-sm leading-relaxed text-muted-foreground">AIPPM never receives reporters. UNHRC receives Member / Non-member / Observer tags. Standard committees are ranked by agenda relevance, never alphabetically padded.</p>
+          <div className="space-y-2 border-t border-border pt-5">
+            <Label htmlFor="matrix-sheet">Or load the matrix from a sheet</Label>
+            <div className="flex gap-2">
+              <Input id="matrix-sheet" value={sheetUrl} onChange={(e) => setSheetUrl(e.target.value)} placeholder="https://docs.google.com/spreadsheets/..." className="h-11 flex-1" />
+              <Button variant="outline" onClick={handleLoadSheet} disabled={isPending || !sheetUrl.trim()} className="h-11"><SheetIcon />{isPending ? "Reading…" : "Load"}</Button>
+            </div>
+          </div>
+          <p className="text-sm leading-relaxed text-muted-foreground">Seats are ranked by relevance to the agenda, never padded out alphabetically. Crisis committees take no reporters, and the tag column follows whatever this committee calls its classification.</p>
         </section>
 
         <section className="space-y-4">

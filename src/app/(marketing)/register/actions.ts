@@ -6,6 +6,8 @@ import { registerSchema, type RegisterFormValues } from "@/lib/schemas/register"
 import { sendRegistrationEmails } from "@/lib/resend"
 import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit"
 import { deriveEventState } from "@/lib/event-state"
+import { getActiveEvent, INACTIVE_STATES } from "@/lib/event"
+import type { Prisma } from "@/generated/prisma/client"
 
 type ActionResult =
   | { success: true; delegateId: string; publicToken: string }
@@ -54,8 +56,19 @@ export async function registerDelegate(data: RegisterFormValues): Promise<Action
     return { success: false, error: "Co-delegate information is required for this committee." }
   }
 
-  // Duplicate email guard (DB unique index is the hard guard; this gives a friendly error)
-  const existing = await prisma.delegate.findFirst({ where: { email: vals.email } })
+  // Duplicate email guard (DB unique index is the hard guard; this gives a friendly error).
+  //
+  // Scoped to the current event, and that scope is the point: identity is per-event,
+  // so somebody who attended a previous conference must be able to register for this
+  // one. An unscoped check here would turn them away with "already registered" even
+  // though the database would accept the row.
+  const activeEvent = await getActiveEvent()
+  if (!activeEvent) {
+    return { success: false, error: "Registrations are closed." }
+  }
+  const existing = await prisma.delegate.findFirst({
+    where: { email: vals.email, eventId: activeEvent.id },
+  })
   if (existing) {
     return { success: false, error: "This email is already registered. Sign in to view your application status." }
   }
@@ -63,16 +76,19 @@ export async function registerDelegate(data: RegisterFormValues): Promise<Action
   let delegate
   try {
     delegate = await prisma.$transaction(async (tx) => {
-      const settings = await tx.setting.findMany({
-        where: { key: { in: ["eventMode", "registrationOpen"] } },
+      // Re-read inside the transaction, so registration closing while this form was
+      // being filled in is caught rather than raced past. Reading the event row is
+      // also what makes the check single-sourced: it is the same row that decides
+      // whether the site is accepting anyone at all.
+      const event = await tx.event.findFirst({
+        where: { state: { notIn: [...INACTIVE_STATES] } },
+        select: { id: true, registrationOpen: true },
       })
-      const current = Object.fromEntries(settings.map(({ key, value }) => [key, value]))
-      const mode = current.eventMode ?? content.eventMode
-      const registrationOpen = current.registrationOpen ?? content.registrationOpen
-      if (mode === "SOCIETY" || registrationOpen !== true) return null
+      if (!event || !event.registrationOpen) return null
 
       return tx.delegate.create({
         data: {
+          eventId: event.id,
           fullName: vals.fullName,
           email: vals.email,
           whatsapp: vals.whatsapp,
@@ -83,9 +99,13 @@ export async function registerDelegate(data: RegisterFormValues): Promise<Action
           source: "SELF",
           pref1CommitteeId: vals.pref1CommitteeId,
           pref1Portfolio: vals.pref1Portfolio,
+          pref1PortfolioId: await validSeat(tx, vals.pref1PortfolioId, vals.pref1CommitteeId),
           // For double-delegation committees, clear pref2, it is not applicable
           pref2CommitteeId: isDoubleDelegation ? null : (vals.pref2CommitteeId ?? null),
           pref2Portfolio: isDoubleDelegation ? null : (vals.pref2Portfolio ?? null),
+          pref2PortfolioId: isDoubleDelegation
+            ? null
+            : await validSeat(tx, vals.pref2PortfolioId, vals.pref2CommitteeId),
           needsAccommodation: vals.needsAccommodation,
           outsideNcr: vals.outsideNcr,
           reference: vals.reference || null,
@@ -128,4 +148,21 @@ export async function registerDelegate(data: RegisterFormValues): Promise<Action
   }
 
   return { success: true, delegateId: delegate.id, publicToken: delegate.publicToken }
+}
+
+// A preference id arrives from the browser, so it is checked rather than trusted:
+// it has to be a real seat, still going, in the committee the delegate actually
+// chose. Anything else is dropped to null and the typed name carries the
+// preference instead, which is the same path every Google Form import takes.
+async function validSeat(
+  tx: Prisma.TransactionClient,
+  portfolioId: string | undefined,
+  committeeId: string | null | undefined,
+): Promise<string | null> {
+  if (!portfolioId || !committeeId) return null
+  const seat = await tx.portfolio.findFirst({
+    where: { id: portfolioId, committeeId, status: "AVAILABLE" },
+    select: { id: true },
+  })
+  return seat?.id ?? null
 }

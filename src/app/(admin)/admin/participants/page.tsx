@@ -1,5 +1,6 @@
 import Link from "next/link"
 import { prisma } from "@/lib/prisma"
+import { currentEventScope } from "@/lib/event"
 import { requireStaff } from "@/lib/authz"
 import { Badge } from "@/components/ui/badge"
 import { buttonVariants } from "@/components/ui/button"
@@ -44,7 +45,7 @@ export default async function ParticipantsPage({
 
   // One query for every matching application rather than one per row.
   const delegates = await prisma.delegate.findMany({
-    where: { email: { in: users.map((u) => u.email) } },
+    where: { email: { in: users.map((u) => u.email) }, ...(await currentEventScope()) },
     select: {
       email: true,
       publicToken: true,

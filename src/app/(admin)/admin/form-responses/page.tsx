@@ -1,5 +1,6 @@
 import { requireStaff } from "@/lib/authz"
 import { prisma } from "@/lib/prisma"
+import { currentEventScope } from "@/lib/event"
 import { t } from "@/content/strings"
 import { formatDateTime } from "@/lib/datetime"
 import { PageHeader } from "@/app/(admin)/_components/page-header"
@@ -19,7 +20,7 @@ export default async function FormResponsesPage() {
       select: { id: true, label: true, sheetUrl: true, sheetKey: true, mapping: true, lastImportedAt: true },
     }),
     prisma.delegate.findMany({
-      where: { query: { not: null }, queryResolvedAt: null, NOT: { query: "" } },
+      where: { query: { not: null }, queryResolvedAt: null, NOT: { query: "" }, ...(await currentEventScope()) },
       orderBy: { createdAt: "asc" },
       select: { id: true, fullName: true, email: true, whatsapp: true, query: true },
       take: 200,

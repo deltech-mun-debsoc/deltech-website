@@ -1,5 +1,16 @@
 import type { Content } from "@/content/contentSchema"
 
+// What the current event can do.
+//
+// paymentsRequired used to be `isConference && paymentsEnabled`, which welded
+// behaviour to the names in the eventMode enum: an Intra could never charge, and a
+// fourth kind of event meant a new branch here and at every caller. Capabilities now
+// come from the Event row, which getContent overlays onto Content, so a new sort of
+// event is configuration rather than code.
+//
+// isSociety / isIntra / isConference remain, but only as labels for copy and for the
+// DTU-only intake rule below. Nothing about what the platform CHARGES or OPENS may
+// branch on them again: add a capability instead.
 export function deriveEventState(content: Content) {
   const isSociety = content.eventMode === "SOCIETY"
   const isIntra = content.eventMode === "INTRA_MUN"
@@ -14,7 +25,9 @@ export function deriveEventState(content: Content) {
       content.publicSections.activeEvent &&
       content.activeEventName.trim().length > 0,
     acceptsRegistrations: !isSociety && content.registrationOpen,
-    paymentsRequired: isConference && content.paymentsEnabled,
+    // No active event leaves this false already: getContent falls back to the
+    // society's resting state when it finds none.
+    paymentsRequired: content.paymentsEnabled,
   }
 }
 

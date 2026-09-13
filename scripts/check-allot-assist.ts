@@ -1,6 +1,6 @@
 // Runnable check for the allotment balance helpers: npx tsx scripts/check-allot-assist.ts
 import assert from "node:assert"
-import { committeeDemand, preferenceRank } from "../src/app/(admin)/admin/allotment/_lib/balance"
+import { committeeDemand, preferenceRank, portfolioRank } from "../src/app/(admin)/admin/allotment/_lib/balance"
 
 const D = (p1: string | null, p2: string | null = null, p3: string | null = null) => ({
   pref1CommitteeId: p1,
@@ -33,4 +33,75 @@ assert.equal(preferenceRank(D("A", "B", "C"), "Z"), null)
 assert.equal(preferenceRank(D("A", "A"), "A"), 1)
 assert.equal(preferenceRank(D(null, null, null), "A"), null)
 
-console.log("allot-assist checks passed")
+
+// ── portfolioRank: who asked for THIS seat ──────────────────────────────────
+// The badge this drives is the whole point of the allotment screen, so the ways
+// it can be wrong matter more than the way it is right.
+{
+  const seat = { id: "p_india_unsc", name: "India", committeeId: "unsc" }
+
+  const base = {
+    pref1CommitteeId: null, pref2CommitteeId: null, pref3CommitteeId: null,
+    pref1PortfolioId: null, pref1Portfolio: null,
+    pref2PortfolioId: null, pref2Portfolio: null,
+    pref3PortfolioId: null, pref3Portfolio: null,
+  }
+
+  // The id wins, and carries its rank.
+  assert.equal(portfolioRank({ ...base, pref1PortfolioId: "p_india_unsc" }, seat), 1)
+  assert.equal(portfolioRank({ ...base, pref2PortfolioId: "p_india_unsc" }, seat), 2)
+  assert.equal(portfolioRank({ ...base, pref3PortfolioId: "p_india_unsc" }, seat), 3)
+
+  // No id, so the typed name is matched, but only inside the committee they asked
+  // for. This is the Google Form and the pre-matrix registration case.
+  assert.equal(
+    portfolioRank({ ...base, pref1CommitteeId: "unsc", pref1Portfolio: "India" }, seat),
+    1,
+  )
+
+  // Typed casing and stray spacing must not lose a real preference.
+  assert.equal(
+    portfolioRank({ ...base, pref1CommitteeId: "unsc", pref1Portfolio: "  india  " }, seat),
+    1,
+    "a delegate typing in lower case still asked for that seat",
+  )
+
+  // The same name in a different committee is a different chair.
+  assert.equal(
+    portfolioRank({ ...base, pref1CommitteeId: "aippm", pref1Portfolio: "India" }, seat),
+    null,
+    "India in AIPPM must not light up India in UNSC",
+  )
+
+  // Near misses are different countries, not typos to be guessed at.
+  assert.equal(
+    portfolioRank({ ...base, pref1CommitteeId: "unsc", pref1Portfolio: "South Sudan" }, { id: "p", name: "Sudan", committeeId: "unsc" }),
+    null,
+    "one edit apart is a different seat, so no fuzzy matching",
+  )
+
+  // An id that points somewhere else must not fall through to a name that happens
+  // to match: the delegate picked a specific seat and it was not this one.
+  assert.equal(
+    portfolioRank(
+      { ...base, pref1CommitteeId: "unsc", pref1PortfolioId: "p_other", pref1Portfolio: "India" },
+      seat,
+    ),
+    null,
+    "a chosen seat is authoritative, so a stale name must not override it",
+  )
+
+  // Nothing stated at all.
+  assert.equal(portfolioRank(base, seat), null)
+
+  // A delegate who asked for this seat second and something else first keeps rank 2.
+  assert.equal(
+    portfolioRank(
+      { ...base, pref1CommitteeId: "unsc", pref1Portfolio: "France", pref2CommitteeId: "unsc", pref2Portfolio: "India" },
+      seat,
+    ),
+    2,
+  )
+}
+
+console.log("allot assist checks passed (committee demand, preference rank, seat-level requests)")
