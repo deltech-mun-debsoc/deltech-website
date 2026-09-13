@@ -201,6 +201,7 @@ export const STRINGS = {
     blog: "Blog",
     register: "Register",
     quizJoin: "Join Quiz",
+    docs: "Docs",
     adminDashboard: "Dashboard",
     signIn: "Sign in",
     signOut: "Sign out",

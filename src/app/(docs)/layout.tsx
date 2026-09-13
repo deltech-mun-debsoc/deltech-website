@@ -4,6 +4,7 @@ import type { ReactNode } from "react"
 
 import { ThemeToggle } from "@/app/(marketing)/_components/theme-toggle"
 import { t } from "@/content/strings"
+import { APP_URL } from "@/lib/app-url"
 import { DocsMobileNav } from "./_components/docs-mobile-nav"
 import { DocsPageHeader, DocsPager } from "./_components/docs-page-frame"
 import { DocsSearch } from "./_components/docs-search"
@@ -12,8 +13,8 @@ import { DocsToc } from "./_components/docs-toc"
 
 // Absolute, not "/". On docs.deltechmun.in the host rewrite in next.config.ts
 // maps "/" back onto /docs, so a relative link would return the reader to the
-// docs index. NEXT_PUBLIC_APP_URL is baked into each environment's image.
-const MAIN_SITE = process.env.NEXT_PUBLIC_APP_URL ?? "/"
+// docs index.
+const MAIN_SITE = APP_URL || "/"
 
 export const metadata: Metadata = {
   title: {

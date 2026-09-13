@@ -3,7 +3,7 @@
 // must never leak localhost from a stale build variable.
 import assert from "node:assert"
 import { readFileSync } from "node:fs"
-import { resolveAppUrl } from "../src/lib/app-url"
+import { resolveAppUrl, resolveDocsUrl } from "../src/lib/app-url"
 
 assert.equal(resolveAppUrl("https://deltechmun.in"), "https://www.deltechmun.in")
 assert.equal(resolveAppUrl("https://test.deltechmun.in/"), "https://test.deltechmun.in")
@@ -18,6 +18,14 @@ assert.equal(resolveAppUrl("http://127.0.0.1:3000", false), "http://127.0.0.1:30
 assert.equal(resolveAppUrl("http://localhost:3000", true), "")
 assert.equal(resolveAppUrl("http://127.0.0.1:3000", true), "")
 assert.equal(resolveAppUrl(undefined, true), "")
+
+// The Docs button: production goes to the subdomain, everything else to /docs on
+// its own origin, so staging never sends a tester to the live docs host.
+assert.equal(resolveDocsUrl("https://www.deltechmun.in"), "https://docs.deltechmun.in")
+assert.equal(resolveDocsUrl(resolveAppUrl("https://deltechmun.in")), "https://docs.deltechmun.in")
+assert.equal(resolveDocsUrl("https://test.deltechmun.in"), "https://test.deltechmun.in/docs")
+assert.equal(resolveDocsUrl("http://localhost:3000"), "http://localhost:3000/docs")
+assert.equal(resolveDocsUrl(""), "/docs")
 
 const CONSUMERS = [
   "src/lib/resend.ts",
