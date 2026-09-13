@@ -2,7 +2,7 @@
 // Delhi; a delegate reading "GD at 09:00" has to be able to walk into the room.
 //
 // Pinning the zone explicitly matters more than it looks. These same components
-// render twice: once on the server, where Vercel's clock is UTC, and again in the
+// render twice: once on the server, whose clock is UTC, and again in the
 // browser, where the clock is wherever the viewer is. A format call that omits
 // `timeZone` therefore produced two different strings for the same instant, which
 // is a hydration mismatch as well as a wrong time. Setting TZ=Asia/Kolkata on the

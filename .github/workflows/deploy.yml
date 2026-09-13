@@ -1,4 +1,5 @@
-name: Deploy (AWS)
+name: AWS deploy
+run-name: AWS deploy · ${{ github.ref_name == 'main' && 'Production' || 'Staging' }} · ${{ inputs.sha || github.sha }}
 
 # main -> www.deltechmun.in, staging -> test.deltechmun.in, on their own boxes.
 # The image is built here (a 1 GB box must never build), shipped over SSH, and
@@ -25,6 +26,7 @@ concurrency:
 
 jobs:
   deploy:
+    name: Deploy ${{ github.ref_name == 'main' && 'Production' || 'Staging' }}
     if: vars.AWS_DEPLOY == 'true' && (github.ref_name == 'main' || github.ref_name == 'staging')
     runs-on: ubuntu-latest
     environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
@@ -38,11 +40,13 @@ jobs:
 
       - name: Build image
         run: |
-          echo "SHA=$(git rev-parse HEAD)" >> "$GITHUB_ENV"
+          sha=$(git rev-parse HEAD)
+          echo "SHA=$sha" >> "$GITHUB_ENV"
           docker build \
             --build-arg APP_ENV="$APP_ENV" \
             --build-arg NEXT_PUBLIC_APP_URL="${{ vars.NEXT_PUBLIC_APP_URL }}" \
-            -t "mun:$SVC-$(git rev-parse HEAD)" .
+            --build-arg APP_VERSION="$sha" \
+            -t "mun:$SVC-$sha" .
 
       - name: SSH key
         run: |
@@ -63,12 +67,32 @@ jobs:
           docker save "mun:$SVC-$SHA" | gzip | ssh "deploy@${{ secrets.DEPLOY_HOST }}" 'gunzip | docker load'
           ssh "deploy@${{ secrets.DEPLOY_HOST }}" "/srv/mun/deploy.sh $SVC $SHA"
 
-      # Hit the box by IP with the real Host header, so this tests THIS
-      # deployment rather than whatever DNS currently points at. deploy.sh has
-      # already gated on the container's own health check.
-      - name: Smoke test through Caddy
+      # Resolve the public hostname to this environment's box explicitly. This
+      # proves Caddy, TLS, the new application version and its database without
+      # accidentally testing a stale DNS target.
+      - name: Verify AWS deployment health
         run: |
           host=$(echo "${{ vars.NEXT_PUBLIC_APP_URL }}" | sed 's|https\?://||')
-          code=$(curl -sS -o /dev/null -w '%{http_code}' -H "Host: $host" "http://${{ secrets.DEPLOY_HOST }}/signin" || echo 000)
-          echo "Caddy answered $code for $host"
-          case "$code" in 200|301|302|308) ;; *) echo "unexpected"; exit 1 ;; esac
+          response_file=$(mktemp)
+          code=$(curl --connect-timeout 10 --max-time 30 -sS \
+            --resolve "$host:443:${{ secrets.DEPLOY_HOST }}" \
+            -o "$response_file" -w '%{http_code}' \
+            "https://$host/api/health" || true)
+
+          cat "$response_file"
+          [ "$code" = 200 ]
+          version=$(printf '%.12s' "$SHA")
+          jq -e --arg expected "$APP_ENV" --arg version "$version" \
+            '.status == "ok" and .database == "ok" and .environment == $expected and .version == $version' \
+            "$response_file" >/dev/null
+
+          response_ms=$(jq -r '.responseMs' "$response_file")
+          {
+            echo "### AWS deployment healthy"
+            echo "- Environment: $APP_ENV"
+            echo "- Host: https://$host"
+            echo "- Commit: \`$SHA\`"
+            echo "- Container: healthy"
+            echo "- Database: healthy (${response_ms} ms)"
+            echo "- HTTPS through Caddy: healthy"
+          } >> "$GITHUB_STEP_SUMMARY"

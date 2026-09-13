@@ -6,7 +6,7 @@ import { automaticIntakeAllowed } from "@/lib/event-state"
 import { createDelegateFromRow } from "@/lib/intake"
 import { applyMapping, type ColumnMapping } from "@/lib/schemas/import"
 
-// Daily self-heal for Google Form intake (vercel.json cron). Pulls each
+// Daily self-heal for Google Form intake (GitHub Actions cron). Pulls each
 // published-CSV URL from the sheetPullSources setting and re-runs every row
 // through the shared pipeline. Duplicates skip silently (unique email index),
 // so this is safe to run any number of times.

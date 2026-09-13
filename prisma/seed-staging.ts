@@ -7,8 +7,8 @@
 // that depends on them cannot be tested at all. This fills that in.
 //
 // Email is deliberately live on staging so it can be tested. Delegate,
-// applicant, and co-delegate fixtures use a domain we control, and Vercel
-// Preview redirects every outbound message to ADMIN_EMAIL. The staff addresses
+// applicant, and co-delegate fixtures use a domain we control, and the AWS
+// staging environment redirects every outbound message to ADMIN_EMAIL. The staff addresses
 // below are the explicit test accounts requested by the owner. Never copy
 // production application data into staging.
 //

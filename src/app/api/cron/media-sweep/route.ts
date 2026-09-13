@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { ORPHAN_AFTER_MS } from "@/lib/media/keys"
 import { MediaNotConfigured, deleteObject } from "@/lib/media/s3"
 
-// Orphaned-upload cleanup (vercel.json cron). An upload that got a presigned URL but
+// Orphaned-upload cleanup (GitHub Actions cron). An upload that got a presigned URL but
 // never finalised leaves a PENDING row: the browser closed, the network dropped, the
 // user changed their mind. After ORPHAN_AFTER_MS those rows are swept: the object is
 // deleted if it exists, and the row is marked FAILED rather than removed, so the

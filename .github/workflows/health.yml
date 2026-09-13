@@ -1,0 +1,59 @@
+name: AWS health
+run-name: AWS health · ${{ github.event_name == 'workflow_dispatch' && 'manual' || 'scheduled' }}
+
+on:
+  schedule:
+    - cron: "17,47 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: aws-health
+  cancel-in-progress: true
+
+jobs:
+  health:
+    name: ${{ matrix.name }} health
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Production
+            url: https://www.deltechmun.in
+            environment: production
+          - name: Staging
+            url: https://test.deltechmun.in
+            environment: staging
+    steps:
+      - name: Check application and database
+        env:
+          URL: ${{ matrix.url }}
+          EXPECTED_ENV: ${{ matrix.environment }}
+        run: |
+          response_file=$(mktemp)
+          code=000
+          for attempt in 1 2 3; do
+            code=$(curl --connect-timeout 10 --max-time 30 -sS -o "$response_file" -w '%{http_code}' "$URL/api/health" || true)
+            [ "$code" = 200 ] && break
+            echo "Attempt $attempt returned HTTP $code"
+            sleep 5
+          done
+
+          cat "$response_file"
+          [ "$code" = 200 ]
+          jq -e --arg expected "$EXPECTED_ENV" \
+            '.status == "ok" and .database == "ok" and .environment == $expected' \
+            "$response_file" >/dev/null
+
+          version=$(jq -r '.version' "$response_file")
+          response_ms=$(jq -r '.responseMs' "$response_file")
+          {
+            echo "### ${{ matrix.name }} is healthy"
+            echo "- URL: $URL"
+            echo "- Environment: $EXPECTED_ENV"
+            echo "- Application version: \`$version\`"
+            echo "- Database check: healthy (${response_ms} ms)"
+          } >> "$GITHUB_STEP_SUMMARY"

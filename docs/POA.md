@@ -8,7 +8,7 @@ Execution plan for building from an empty folder to deployed, on the finalized f
 > - **Next 16:** Turbopack is the default bundler. `middleware.ts` is renamed to **`proxy.ts`** (export `proxy`, Node runtime only). `params`/`searchParams` are **async** (`await props.params`). Use `next typegen` for `PageProps<'/route'>` types. Node 20.19+.
 > - **Prisma 7:** Rust-free, ESM-only. The datasource **URL lives in `prisma.config.ts`, not `schema.prisma`**. Generator is **`prisma-client`** (not `prisma-client-js`) with a required **`output`** path. A **driver adapter is mandatory** — `new PrismaClient()` with no adapter throws. Import `PrismaClient` from the **generated path**, not `@prisma/client`. Env is **not auto-loaded** (`import "dotenv/config"`).
 **Rejected (kept out):** tRPC, Redis, BullMQ, Clerk.
-**Hosting (all free tier):** Vercel Hobby (app) · Supabase Free (DB/Storage/Realtime) · Resend Free (email) · Razorpay (per-txn, no monthly) or UPI (free).
+**Hosting:** AWS Lightsail (app + private Postgres) · S3 (media/backups) · Resend/SES (email) · Razorpay or UPI (payments).
 
 ---
 
@@ -346,7 +346,7 @@ export interface PaymentProvider {
 **6.1** Verify your domain in Resend (DNS records). Until then, only your own address receives mail.
 **6.2** React Email templates in `emails/`: **registration received**, **allotment + payment link** (committee, portfolio, agenda, amount, link/QR, accommodation note if requested), **co-delegate notice** (UNHRC), **payment confirmed**, **payment reminder**, **blog approved/changes**.
 **6.3** `lib/resend.ts` send helpers; every send logged (status, template, recipient) and surfaced in the admin drawer with a **resend** button.
-**6.4** No queue (BullMQ rejected): sends happen inline in the triggering Server Action; scheduled nudges via **Vercel Cron** (one daily job scanning for unpaid allotments / approaching deadline). Watch the free-tier 100 emails/day Resend cap on bulk days.
+**6.4** No queue (BullMQ rejected): sends happen inline in the triggering Server Action; scheduled nudges run through **GitHub Actions**. Watch the free-tier 100 emails/day Resend cap until SES is enabled.
 
 **Exit criteria:** confirming an allotment emails the delegate their portfolio + payment link automatically; admin can resend.
 
@@ -390,14 +390,14 @@ export interface PaymentProvider {
 
 **10.1 Design system pass** — tokens (8px grid, radii, the teal-anchored palette from your brochure headers, light+dark), type scale, motion (springs for data, 150–300ms for UI, `prefers-reduced-motion`), empty/loading(skeleton)/error states everywhere, toasts via sonner.
 **10.2 QA** — mobile, accessibility (focus, ARIA, contrast), the double-allot race, webhook idempotency, RLS-equivalent checks in Server Actions (every mutation re-checks role + ownership server-side).
-**10.3 Deploy** — push to GitHub; import to Vercel; set env vars; point Supabase; verify Resend domain; add the Razorpay webhook URL; set the Vercel Cron job. PRs run CI only; merges deploy Test, and Production is a manual one-click workflow after Test is inspected.
+**10.3 Deploy** — PRs run CI only; pushes to `staging` and `main` build Docker images in GitHub Actions and deploy them to their isolated Lightsail boxes. Verify staging before promoting it to production.
 
 ---
 
 ## Free-tier ceilings to keep in mind
 - **Resend:** 3,000 emails/mo, 100/day, domain verification required. Plan bulk allotment emails around the daily cap (batch over days, or upgrade only if a single edition exceeds it).
 - **Supabase Free:** 500MB DB, generous Realtime for ≤200 concurrent — fine for this. Watch project pausing after inactivity (a cron ping keeps it warm).
-- **Vercel Hobby:** fine for this traffic; Cron limited to simple schedules — one daily reminder job is enough.
+- **Lightsail:** one small box per environment keeps the database private and staging isolated; hourly S3 backups replace managed point-in-time recovery.
 - **Razorpay:** ~2% per successful txn, needs KYC; UPI-QR path is the zero-cost fallback.
 
 ## Suggested build order if you want revenue/usefulness fastest
