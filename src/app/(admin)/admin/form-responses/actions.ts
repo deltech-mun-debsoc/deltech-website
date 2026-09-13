@@ -37,6 +37,7 @@ import {
   SCHEMA_DRIFT_MESSAGE,
   unexpectedFailureMessage,
 } from "@/lib/prisma-errors"
+import { requireActiveEvent } from "@/lib/event"
 
 class ImportError extends Error {}
 
@@ -319,6 +320,11 @@ export async function applyFormImport(input: {
       async (tx) => {
         // Claiming the key inside the transaction means two concurrent applies
         // cannot both proceed: the second hits the unique index.
+        // Imported delegates join the event that is running now. An organiser
+        // pressing Import is the review step, but they still cannot import into
+        // nothing.
+        const event = await requireActiveEvent()
+
         const importRow = await tx.delegateImport.create({
           data: { sourceId: source.id, idempotencyKey, state: "PENDING", rowsTotal: plan.counts.total, importedById: actor },
           select: { id: true },
@@ -331,6 +337,7 @@ export async function applyFormImport(input: {
             const d = row.candidate
             await tx.delegate.create({
               data: {
+                eventId: event.id,
                 fullName: d.fullName,
                 email: d.email,
                 whatsapp: d.whatsapp,

@@ -13,6 +13,7 @@ import { pickValues, reversibleSettingsMeta } from "@/lib/audit-change"
 import { fetchSheetRows, SheetFetchError } from "@/lib/sheet-fetch"
 import { portfoliosFromSheetRows, type PortfolioEntry } from "@/lib/portfolio-sheet"
 import { deriveCsvUrl } from "@/lib/gsheet-url"
+import { requireActiveEvent } from "@/lib/event"
 
 // Money/sync config only an ADMIN may touch, kept out of saveContent entirely.
 const PAYMENT_KEYS = new Set([
@@ -123,6 +124,41 @@ type EventControlInput = Pick<
   | "landingHero"
 >
 
+// The Event row is where an event's identity and capabilities live; the Setting
+// rows above keep the surrounding copy. Both are written so the two never drift,
+// and getContent overlays the event on top, which is why every existing reader of
+// content.paymentsEnabled keeps working without being touched.
+//
+// SOCIETY is not a kind of event, it is the absence of one, so it is stored as
+// state rather than as a name: CLOSED, which makes getActiveEvent find nothing.
+async function writeActiveEvent(input: {
+  name: string
+  kind: string
+  registrationOpen: boolean
+  paymentsEnabled: boolean
+  matrixPublic: boolean
+}): Promise<void> {
+  const running = input.kind !== "SOCIETY"
+  const capabilities = {
+    name: input.name || "DelTech MUN",
+    kind: running ? input.kind : "CONFERENCE",
+    state: running ? ("LIVE" as const) : ("CLOSED" as const),
+    registrationOpen: input.registrationOpen,
+    paymentsEnabled: input.paymentsEnabled,
+    matrixPublic: input.matrixPublic,
+    closedAt: running ? null : new Date(),
+  }
+
+  // One event exists at a time, so this edits it in place rather than making a
+  // new one. Creating and closing events is a separate, deliberate action.
+  const current = await prisma.event.findFirst({ orderBy: { createdAt: "desc" } })
+  if (current) {
+    await prisma.event.update({ where: { id: current.id }, data: capabilities })
+    return
+  }
+  await prisma.event.create({ data: { ...capabilities, slug: "current-event" } })
+}
+
 export async function saveEventControl(
   input: EventControlInput,
 ): Promise<{ success: boolean; error?: string }> {
@@ -172,6 +208,13 @@ export async function saveEventControl(
 
   try {
     await setContent(partial)
+    await writeActiveEvent({
+      name: partial.activeEventName as string,
+      kind: eventState.eventMode,
+      registrationOpen: partial.registrationOpen as boolean,
+      paymentsEnabled: partial.paymentsEnabled as boolean,
+      matrixPublic: partial.matrixPublic as boolean,
+    })
     const keys = Object.keys(partial)
     await audit(
       session.user?.email ?? "unknown",
@@ -263,7 +306,11 @@ export async function createCommittee(data: {
 }): Promise<{ success: boolean; error?: string }> {
   const session = await requireStaff()
   try {
-    const committee = await prisma.committee.create({ data })
+    // A committee belongs to the event it is being built for. Without a running
+    // event there is nothing to attach it to, so this refuses rather than
+    // creating an orphan that no screen would ever list.
+    const event = await requireActiveEvent()
+    const committee = await prisma.committee.create({ data: { ...data, eventId: event.id } })
     await audit(session.user?.email ?? "unknown", "committee.create", "Committee", committee.id, {
       name: data.name,
     })

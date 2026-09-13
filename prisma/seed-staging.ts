@@ -322,6 +322,10 @@ async function main() {
   const unhrc = bySlug.get("unhrc")!
   const ip = bySlug.get("ip")!
 
+  // Delegates belong to an event. The committees seeded above already do, so take
+  // the event from them rather than inventing a second one.
+  const seedEventId = (await prisma.committee.findFirstOrThrow({ select: { eventId: true } })).eventId
+
   const fees = await prisma.fee.findMany()
   const feeFor = (committeeType: string, isDtu: boolean) =>
     fees.find((f) => f.committeeType === committeeType && f.isDtu === isDtu)?.amountInr ?? 1600
@@ -335,6 +339,7 @@ async function main() {
     status: AppStatus,
     overrides: Partial<Prisma.DelegateCreateInput> = {},
   ): Prisma.DelegateCreateInput => ({
+    event: { connect: { id: seedEventId } },
     fullName: `Test Delegate ${n}`,
     email: addr(`delegate${n}`),
     whatsapp: `919000000${String(n).padStart(3, "0")}`,
