@@ -60,7 +60,9 @@ jobs:
         run: |
           scp deploy/compose.yml deploy/deploy.sh "deploy@${{ secrets.DEPLOY_HOST }}:/srv/mun/"
           scp "deploy/Caddyfile.$SVC" "deploy@${{ secrets.DEPLOY_HOST }}:/srv/mun/Caddyfile"
-          ssh "deploy@${{ secrets.DEPLOY_HOST }}" 'cd /srv/mun && chmod +x deploy.sh && docker compose up -d caddy && docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile'
+          # A compose change recreates Caddy, and its admin API takes a moment to
+          # listen; reloading straight away failed with connection refused.
+          ssh "deploy@${{ secrets.DEPLOY_HOST }}" 'cd /srv/mun && chmod +x deploy.sh && docker compose up -d caddy && for i in 1 2 3 4 5 6 7 8 9 10; do docker compose exec -T caddy caddy reload --config /etc/caddy/Caddyfile && exit 0; sleep 2; done; exit 1'
 
       - name: Ship and switch
         run: |
