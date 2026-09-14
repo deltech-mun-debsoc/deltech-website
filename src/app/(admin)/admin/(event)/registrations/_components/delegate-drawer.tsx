@@ -207,7 +207,15 @@ export function DelegateDrawer({ delegate, committees, intra = false, onClose, o
 
   return (
     <>
-      <Drawer open={!!d} onOpenChange={(open) => { if (!open) handleClose() }} direction="right">
+      {/* Not modal while one of its confirmations is up: a modal drawer traps focus
+          and pointer events, so the confirmation (portalled outside it) would open
+          behind it and could not be pressed. */}
+      <Drawer
+        open={!!d}
+        onOpenChange={(open) => { if (!open && !resendTarget && !cancelOpen) handleClose() }}
+        direction="right"
+        modal={!resendTarget && !cancelOpen}
+      >
         <DrawerContent className="flex flex-col overflow-hidden sm:max-w-xl data-[vaul-drawer-direction=right]:sm:max-w-xl">
           <DrawerHeader className="flex flex-row items-start gap-3 border-b border-border/60 px-6 py-5">
             <div className="min-w-0 flex-1">
