@@ -14,7 +14,7 @@ Four ways a delegate record can be created, and **all of them go through one fun
 | The public form | `src/app/(marketing)/register/actions.ts` |
 | The Google Form webhook | `src/app/api/webhooks/gform/route.ts` |
 | The nightly re-sync | `src/app/api/cron/gform-sync/route.ts` |
-| The import wizard | `src/app/(admin)/admin/import/actions.ts` |
+| The import wizard | `src/app/(admin)/admin/(event)/import/actions.ts` |
 
 One function means one place where validation, deduplication and quarantine live. A new
 intake route must go through it too; do not write to `Delegate` directly.

@@ -3,17 +3,16 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { longestMatch } from "./admin-nav"
+import { activeHref, type Matchable } from "./admin-nav"
 
-export interface Section {
-  href: string
+export interface Section extends Matchable {
   label: string
 }
 
-// Tabs inside one area of the console (Event control, Mailer). Every page in the
-// area shows them, so there is always a way back to the others.
+// Tabs inside one area of the console (the event, its Setup, Delegates, Mail).
+// Every page in the area shows them, so there is always a way back to the others.
 export function SectionNav({ sections, vertical = false }: { sections: Section[]; vertical?: boolean }) {
-  const active = longestMatch(usePathname(), sections.map((s) => s.href))
+  const active = activeHref(usePathname(), sections)
 
   return (
     <nav

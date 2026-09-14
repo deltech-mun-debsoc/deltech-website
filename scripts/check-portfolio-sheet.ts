@@ -5,7 +5,7 @@
 // shapes below are the real ones from the Intra MUN portfolio matrix.
 import assert from "node:assert"
 import { cleanPortfolioName, portfoliosFromSheetRows } from "../src/lib/portfolio-sheet"
-import { lineFor, parseDraft } from "../src/app/(admin)/admin/config/_lib/draft-lines"
+import { lineFor, parseDraft } from "../src/app/(admin)/admin/(event)/config/_lib/draft-lines"
 
 // ── UNSC tab: S.No | Portfolio | Allotments ─────────────────────────────────
 {

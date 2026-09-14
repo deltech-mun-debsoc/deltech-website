@@ -1,6 +1,6 @@
 // Runnable check for the allotment balance helpers: npx tsx scripts/check-allot-assist.ts
 import assert from "node:assert"
-import { committeeDemand, preferenceRank, portfolioRank } from "../src/app/(admin)/admin/allotment/_lib/balance"
+import { committeeDemand, preferenceRank, portfolioRank } from "../src/app/(admin)/admin/(event)/allotment/_lib/balance"
 
 const D = (p1: string | null, p2: string | null = null, p3: string | null = null) => ({
   pref1CommitteeId: p1,

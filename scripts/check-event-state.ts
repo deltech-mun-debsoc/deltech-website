@@ -72,7 +72,7 @@ assert.equal(deriveEventState(conference).showEventHero, true)
   for (const file of [
     "src/app/api/webhooks/gform/route.ts",
     "src/app/api/cron/gform-sync/route.ts",
-    "src/app/(admin)/admin/import/actions.ts",
+    "src/app/(admin)/admin/(event)/import/actions.ts",
   ]) {
     assert.match(readFileSync(file, "utf8"), /automaticIntakeAllowed\(/, `${file} must gate on automaticIntakeAllowed`)
   }
