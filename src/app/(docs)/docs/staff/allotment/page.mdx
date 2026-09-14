@@ -1,39 +1,50 @@
 export const metadata = {
   title: "The allotment floor",
-  description: "Matching delegates to portfolios, the two-minute hold, and why revoking is guarded.",
+  description: "Giving waiting delegates their seats, and why taking a seat back is guarded.",
 }
 
 `/admin/allotment` is where a delegate stops being an application and becomes a seat.
+You work through **people**, not countries: pick someone who is waiting and give them a seat.
 
-<Screenshot src="/docs/allotment.webp" alt="The allotment board showing committees, portfolio cards and unallotted delegates" caption="Committees and their portfolios on one side, delegates waiting on the other with their three preferences." />
+## What the page shows
 
-## What the board shows
+- **A card per committee**: how many seats are filled, how many are open, and how many
+  waiting delegates want it as their first choice. That last number turns amber when more
+  people want the committee first than it has seats left.
+- **Waiting for a seat**: everyone registered and not yet seated, oldest first. Each shows
+  their choices. A choice in colour names a seat that is still open; a struck-through one
+  is already taken; a grey one did not match a seat in the matrix.
+- **Seated**: everyone who has a seat, newest first.
 
-Committees, each expanded into portfolio cards with their current state, and a list of
-delegates who have not yet been allotted. Each waiting delegate shows their first
-preference, their second, and their portfolio requests, so you can allot without
-opening anything.
+One search box filters both lists by name, email, roll number, committee or seat.
 
-## Allotting
+## Giving someone a seat
 
 <Steps>
-1. Pick the delegate.
+1. Press **Give a seat** next to their name.
 
-2. Open the allot dialog. **The portfolio is now held for two minutes** so a colleague
-   cannot allot it underneath you. They will see it marked as held by another admin.
+2. Their choices are listed first. The first one that is still open is already picked.
 
-3. Check the delegate and the portfolio are the pair you meant. Read both names.
+3. To seat them somewhere else, choose a committee under **Or any open seat in** and pick
+   a seat.
 
-4. Confirm.
+4. Check the summary (seat, and the fee at a paid event) and press **Give them …**.
 </Steps>
 
-The hold expires by itself if you walk away. You do not need to release it.
+The seat is only held for the moment you confirm, so leaving the dialog open never blocks a
+colleague. If two people give out the same seat at once, one of them is told to pick another.
+
+## On-the-spot registrations
+
+On the Delegates page, **Add delegate** takes a name, email, phone, and roll number or college.
+**Add and give a seat** brings you straight here with that person's dialog open. Staff can add
+people even when public registration is closed.
 
 ## What one allotment actually does
 
 It is not one write. In a single action the platform:
 
-- creates the allotment and flips the portfolio to **Allotted**;
+- creates the allotment and marks the seat taken;
 - works out the fee from the committee type and the delegate's DTU flag;
 - creates a payment through the configured provider;
 - moves the delegate to **Payment sent**;
@@ -45,26 +56,18 @@ At a free event none of the payment steps happen. The delegate is **Confirmed**
 immediately. See [operating modes](/docs/staff/modes).
 </Callout>
 
-## Balance hints
+## Taking a seat back
 
-The board shows hints about how full each committee is, so you can spread delegates
-rather than filling one committee and leaving another empty. They are advisory. You
-decide.
+**Take back** on the Seated list returns the delegate to waiting and reopens the seat. It is
+admin only, deliberately: it changes the delegate, the allotment, the seat and the payment
+together, and the delegate has already been emailed. They are not emailed again.
 
-## Revoking
-
-Admin only, deliberately. Revoking changes the delegate, the allotment, the portfolio
-and the payment together, and an email has already gone out saying something that is
-about to stop being true.
-
-If a delegate needs to move committees, ask an admin. Do not allot them a second
-portfolio.
+If a delegate needs to move, take the seat back and give them the new one.
 
 ## Practical advice
 
-- **Allot in batches by committee**, not delegate by delegate down the list. It is
-  faster and you keep the fill rate in view.
-- **Do the double delegation committees first.** Pairs are harder to place and leaving
-  them to the end means placing them wherever is left.
-- **Check the payment provider works** before the first allotment, not after fifty.
-  Every allotment sends a payment link.
+- **Seat double delegation pairs first.** Pairs are harder to place late.
+- **Watch the amber numbers.** An over-subscribed committee is the cue to offer people
+  their second choice.
+- **Check the payment provider works** before the first allotment at a paid event, not
+  after fifty.

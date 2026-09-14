@@ -27,8 +27,8 @@ export default async function ImportPage() {
       <div className="mx-auto max-w-4xl space-y-6">
         <PageHeader
           eyebrow="Delegates"
-          title="Partner sheets"
-          description="Upload a partner sheet, map their columns to our fields, review, and import. Google Form intake lands here automatically, only broken rows need you."
+          title="Cross delegations"
+          description="Delegates sent by other colleges. Upload their sheet, match its columns to ours, check the rows and import. Rows that could not be read wait here for you."
         />
         {/* id so the import wizard's completion screen can link straight here */}
         <div id="quarantine" className="scroll-mt-20">

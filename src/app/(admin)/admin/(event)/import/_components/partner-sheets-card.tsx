@@ -59,7 +59,7 @@ export function PartnerSheetsCard({ sources, presetNames }: Props) {
     }
     save([...sources.filter((s) => s.presetName !== preset), { presetName: preset, csvUrl, source: srcType }])
     setUrl("")
-    toast.success("Partner sheet added, syncs daily.")
+    toast.success("Sheet added. It imports once a day.")
   }
 
   const remove = (presetName: string) => save(sources.filter((s) => s.presetName !== presetName))
@@ -68,10 +68,10 @@ export function PartnerSheetsCard({ sources, presetNames }: Props) {
     <div className="editorial-card p-6">
       <div className="flex items-center gap-2">
         <FileSpreadsheet className="size-4 text-muted-foreground" />
-        <h2 className="font-heading text-lg">Partner sheets</h2>
+        <h2 className="font-heading text-lg">Linked sheets</h2>
       </div>
       <p className="mt-1 text-sm text-muted-foreground">
-        Paste a partner&apos;s Google Sheet, it auto-imports every day, no wizard needed.
+        Link a delegation&apos;s Google Sheet and it imports every day on its own.
         The sheet must be &quot;anyone with the link can view&quot;, or published to the web.
       </p>
       <div className="rule my-5" />

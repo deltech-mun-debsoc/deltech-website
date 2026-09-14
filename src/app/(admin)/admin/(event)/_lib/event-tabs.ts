@@ -18,6 +18,6 @@ export const EVENT_TABS: Tab[] = [
 export const DELEGATE_SECTIONS: Tab[] = [
   { href: "/admin/registrations", label: "All delegates" },
   { href: "/admin/form-responses", label: "Google Form" },
-  { href: "/admin/import", label: "Partner sheets" },
+  { href: "/admin/import", label: "Cross delegations" },
   { href: "/admin/participants", label: "Accounts" },
 ]

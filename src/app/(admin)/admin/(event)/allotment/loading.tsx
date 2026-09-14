@@ -8,16 +8,15 @@ export default function AllotmentLoading() {
         <Skeleton className="mt-1.5 h-4 w-72" />
       </div>
 
-      <div className="flex gap-2">
-        {Array.from({ length: 5 }).map((_, i) => (
-          <Skeleton key={i} className="h-9 w-28 rounded-lg" />
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <Skeleton key={i} className="h-24 rounded-xl" />
         ))}
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-        {Array.from({ length: 12 }).map((_, i) => (
-          <Skeleton key={i} className="h-20 rounded-xl" />
-        ))}
+      <div className="grid items-start gap-6 lg:grid-cols-[3fr_2fr]">
+        <Skeleton className="h-96 rounded-xl" />
+        <Skeleton className="h-64 rounded-xl" />
       </div>
     </div>
   )
