@@ -132,7 +132,7 @@ export default async function OperatorGuidePage() {
         </ol>
         <div className="mt-7 flex flex-wrap gap-3">
           <Link href="/admin/logs" className="inline-flex min-h-11 items-center gap-2 bg-ink px-5 py-3 font-semibold text-paper">Open activity log <ArrowRight className="size-4" /></Link>
-          <Link href="/admin/config/registration" className="inline-flex min-h-11 items-center gap-2 border border-foreground/25 px-5 py-3 font-semibold">Registration control</Link>
+          <Link href="/admin/config" className="inline-flex min-h-11 items-center gap-2 border border-foreground/25 px-5 py-3 font-semibold">Registration control</Link>
         </div>
       </section>
     </div>

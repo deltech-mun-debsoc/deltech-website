@@ -20,7 +20,10 @@ const STATUS_LABEL: Record<string, string> = {
 
 export function TabPortfolios({ committees }: { committees: ClientCommittee[] }) {
   const router = useRouter()
-  const [selectedId, setSelectedId] = useState(committees[0]?.id ?? "")
+  // The choice falls back to the first committee, so a page first loaded with
+  // none (a brand-new event) still selects the committee added a moment ago.
+  const [chosenId, setChosenId] = useState(committees[0]?.id ?? "")
+  const selectedId = committees.some((c) => c.id === chosenId) ? chosenId : (committees[0]?.id ?? "")
   const [newName, setNewName] = useState("")
   const [newTag, setNewTag] = useState("")
   const [draft, setDraft] = useState("")
@@ -36,7 +39,7 @@ export function TabPortfolios({ committees }: { committees: ClientCommittee[] })
   const tagLabel = selected?.portfolioTagLabel || "Classification"
 
   const switchCommittee = (id: string) => {
-    setSelectedId(id)
+    setChosenId(id)
     const next = committees.find((committee) => committee.id === id)
     setBrief(next?.matrixBrief ?? "")
     setDraft("")

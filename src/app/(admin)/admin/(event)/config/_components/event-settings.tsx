@@ -236,6 +236,10 @@ export function EventSettings({
               {intra ? "Leave empty to use the website's form. A Google Form link sends every Register button there instead." : "Only used for an Intra MUN."}
             </p>
           </div>
+          <div className="space-y-2 md:col-span-2">
+            <Label htmlFor="event-closed-message">Message while registration is closed</Label>
+            <Input id="event-closed-message" value={v.closedMessage} onChange={(e) => set("closedMessage", e.target.value)} placeholder="Registrations are currently closed. Check back soon." className="h-11" />
+          </div>
         </div>
       </section>
 
