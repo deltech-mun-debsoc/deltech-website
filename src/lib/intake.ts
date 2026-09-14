@@ -2,7 +2,7 @@ import { cache } from "react"
 import { prisma } from "@/lib/prisma"
 import { mappedRowSchema, type MappedRow } from "@/lib/schemas/import"
 import type { Source, Prisma } from "@/generated/prisma/client"
-import { requireActiveEvent } from "@/lib/event"
+import { currentEventScope, requireActiveEvent } from "@/lib/event"
 
 // ---------------------------------------------------------------------------
 // Deterministic normalizers, run before (and independently of) any AI pass.
@@ -108,8 +108,9 @@ export function normalizeRow(input: MappedRow, committees: CommitteeRef[]): Norm
 // its callers loop: a 300-row import fired 300 identical committee queries, and
 // the nightly gform sync did the same for every row of every sheet.
 export const getCommitteeRefs = cache(async (): Promise<CommitteeRef[]> => {
+  // The running event's committees: a name must never resolve to a closed event's room.
   return prisma.committee.findMany({
-    where: { isActive: true },
+    where: { isActive: true, ...(await currentEventScope()) },
     select: { id: true, name: true, slug: true, aliases: true },
   })
 })
@@ -130,7 +131,7 @@ async function tryAllot(
     if (!committee || !portfolio) continue
 
     const comm = await tx.committee.findFirst({
-      where: { name: { equals: committee, mode: "insensitive" }, isActive: true },
+      where: { name: { equals: committee, mode: "insensitive" }, isActive: true, ...(await currentEventScope()) },
       select: { id: true },
     })
     if (!comm) continue

@@ -37,7 +37,7 @@ import {
   SCHEMA_DRIFT_MESSAGE,
   unexpectedFailureMessage,
 } from "@/lib/prisma-errors"
-import { requireActiveEvent } from "@/lib/event"
+import { currentEventScope, requireActiveEvent } from "@/lib/event"
 
 class ImportError extends Error {}
 
@@ -142,9 +142,13 @@ export async function saveFormSource(input: {
 // Plan
 // ---------------------------------------------------------------------------
 
+// This event only. Matched against every event, a student who came last year
+// looked already imported, and a committee name could resolve to a closed event.
 async function loadPlanInputs() {
+  const scope = await currentEventScope()
   const [existing, committees] = await Promise.all([
     prisma.delegate.findMany({
+      where: scope,
       select: {
         id: true,
         email: true,
@@ -157,7 +161,7 @@ async function loadPlanInputs() {
       },
     }),
     prisma.committee.findMany({
-      where: { isActive: true },
+      where: { isActive: true, ...scope },
       select: { id: true, name: true, slug: true, aliases: true },
     }),
   ])

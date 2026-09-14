@@ -119,7 +119,7 @@ async function exportCandidates(
 
 async function exportMatrix(format: "csv" | "xlsx", committeeId?: string | null) {
   const portfolios = await prisma.portfolio.findMany({
-    where: committeeId ? { committeeId } : undefined,
+    where: committeeId ? { committeeId } : { committee: await currentEventScope() },
     orderBy: [{ committee: { sortOrder: "asc" } }, { priority: "asc" }, { name: "asc" }],
     include: {
       committee: true,

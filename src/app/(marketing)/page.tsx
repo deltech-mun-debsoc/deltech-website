@@ -36,6 +36,7 @@ export default async function LandingPage() {
     // grouped count is a handful of rows instead of one per seat.
     prisma.portfolio.groupBy({
       by: ["committeeId", "status"],
+      where: { committee: await currentEventScope() },
       _count: { _all: true },
     }),
     prisma.member.count({ where: { isActive: true } }),

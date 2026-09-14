@@ -1,20 +1,19 @@
 import { prisma } from "@/lib/prisma"
-import { getContent } from "@/lib/settings"
 import { requireStaff } from "@/lib/authz"
+import { currentEventScope } from "@/lib/event"
 import { TabCommittees } from "../_components/tab-committees"
 import { TabPortfolios } from "../_components/tab-portfolios"
-import { MatrixVisibilityCard } from "../_components/matrix-visibility-card"
 import { ResyncMatrixCard } from "../_components/resync-matrix-card"
 
 export default async function CommitteesSettingsPage() {
   await requireStaff()
-  const [content, committees] = await Promise.all([
-    getContent(),
-    prisma.committee.findMany({
+  // This event's committees only. Unscoped, a new event opened with every past
+  // event's committees and seats in its matrix studio.
+  const committees = await prisma.committee.findMany({
+      where: await currentEventScope(),
       orderBy: { sortOrder: "asc" },
       include: { portfolios: { orderBy: { name: "asc" } } },
-    }),
-  ])
+    })
 
   const serialized = committees.map((c) => ({
     id: c.id,
@@ -44,7 +43,7 @@ export default async function CommitteesSettingsPage() {
         <p className="eyebrow">01 / Structure</p>
         <h2 className="mt-3 font-heading text-3xl">Committees</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          The bodies of the conference, with import aliases for partner sheets.
+          The rooms of this event, with the other names partner sheets use for them.
         </p>
         <div className="rule my-6" />
         <TabCommittees committees={serialized} />
@@ -60,7 +59,6 @@ export default async function CommitteesSettingsPage() {
         <TabPortfolios committees={serialized} />
       </section>
 
-      <MatrixVisibilityCard matrixPublic={content.matrixPublic} />
       <ResyncMatrixCard />
     </div>
   )
