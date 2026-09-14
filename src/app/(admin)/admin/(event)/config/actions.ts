@@ -12,7 +12,7 @@ import { pickValues, reversibleSettingsMeta } from "@/lib/audit-change"
 import { fetchSheetRows, SheetFetchError } from "@/lib/sheet-fetch"
 import { portfoliosFromSheetRows, type PortfolioEntry } from "@/lib/portfolio-sheet"
 import { deriveCsvUrl } from "@/lib/gsheet-url"
-import { closeEvent, createEvent, getActiveEvent, requireActiveEvent } from "@/lib/event"
+import { closeEvent, createEvent, currentEventScope, getActiveEvent, requireActiveEvent } from "@/lib/event"
 import type { EventState } from "@/generated/prisma/client"
 
 // Money/sync config only an ADMIN may touch, kept out of saveContent entirely.
@@ -70,11 +70,11 @@ export async function resyncMatrix(): Promise<{ success: boolean; synced?: numbe
   const session = await requireStaff()
   const content = await getContent()
   if (!content.sheetSyncUrl) {
-    return { success: false, error: "No sheet sync URL configured (set it under Config → Money)." }
+    return { success: false, error: "No sheet sync URL configured (set it in Setup, under Fees & payments)." }
   }
 
   const allotted = await prisma.portfolio.findMany({
-    where: { status: "ALLOTTED", allotment: { isNot: null } },
+    where: { status: "ALLOTTED", allotment: { isNot: null }, committee: await currentEventScope() },
     select: {
       name: true,
       committee: { select: { name: true } },
@@ -580,6 +580,17 @@ export async function startNewEvent(input: { name: string; kind?: string }): Pro
     // society is never left with two events open at once.
     const kind = input.kind === "INTRA_MUN" ? "INTRA_MUN" : "CONFERENCE"
     const event = await createEvent({ name, slug, kind })
+    // An event's copy (label, brief, dates, venue, button text, form link) lives in
+    // Setting rows, so a new event would otherwise open with the last one's details
+    // already filled in and, once published, show them to visitors.
+    const content = await getContent()
+    await setContent({
+      activeEventLabel: "",
+      conferenceDates: "",
+      venue: "",
+      registrationFormUrl: "",
+      landingHero: { ...content.landingHero, subtitle: "", ctaLabel: "Register now" },
+    })
     await audit(session.user?.email ?? "unknown", "event.create", "Event", event.id, { name, slug, kind })
     publishContentChanges()
     return { success: true }

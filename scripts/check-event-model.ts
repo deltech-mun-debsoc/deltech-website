@@ -135,4 +135,24 @@ assert.ok(delegateModel, "could not find the Delegate model in the schema")
   )
 }
 
+// ── 7. Building a new event never shows or uses a past event's rooms ──────────
+// Starting an event opened Committees & matrix with every past event's committees
+// and seats, and the Google Form import resolved committee names and matched
+// existing delegates across all events. Found walking a new Intra MUN on staging.
+{
+  const pins: [string, RegExp, string][] = [
+    ["src/app/(admin)/admin/(event)/config/committees/page.tsx", /where: await currentEventScope\(\)/, "the committees page lists this event's committees only"],
+    ["src/lib/intake.ts", /where: \{ isActive: true, \.\.\.\(await currentEventScope\(\)\) \},\n    select: \{ id: true, name: true, slug: true, aliases: true \}/, "import committee names resolve within this event"],
+    ["src/lib/intake.ts", /isActive: true, \.\.\.\(await currentEventScope\(\)\) \},\n      select: \{ id: true \}/, "automatic allotment on import stays within this event"],
+    ["src/app/(admin)/admin/(event)/form-responses/actions.ts", /prisma\.delegate\.findMany\(\{\n      where: scope,/, "form responses dedupe against this event's delegates only"],
+    ["src/app/(marketing)/page.tsx", /where: \{ committee: await currentEventScope\(\) \}/, "homepage seat counts are this event's"],
+  ]
+  for (const [file, pattern, message] of pins) assert.match(readFileSync(file, "utf8"), pattern, message)
+
+  // A new event starts with blank copy rather than the last event's brief and dates.
+  const actions = readFileSync("src/app/(admin)/admin/(event)/config/actions.ts", "utf8")
+  const start = actions.slice(actions.indexOf("export async function startNewEvent"))
+  assert.match(start, /createEvent\(\{ name, slug, kind \}\)[\s\S]*conferenceDates: "",[\s\S]*venue: "",/, "starting an event clears the previous event's copy")
+}
+
 console.log("event model checks passed (per-event identity, one live event, safe backfill, scoped lists)")
