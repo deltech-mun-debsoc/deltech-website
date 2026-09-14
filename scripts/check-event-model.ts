@@ -92,11 +92,11 @@ assert.ok(delegateModel, "could not find the Delegate model in the schema")
 // Nothing fails loudly when that happens, so it is pinned here instead.
 {
   const mustScope = [
-    "src/app/(admin)/admin/registrations/page.tsx",
-    "src/app/(admin)/admin/allotment/page.tsx",
-    "src/app/(admin)/admin/checkin/page.tsx",
-    "src/app/(admin)/admin/participants/page.tsx",
-    "src/app/(admin)/admin/page.tsx",
+    "src/app/(admin)/admin/(event)/registrations/page.tsx",
+    "src/app/(admin)/admin/(event)/allotment/page.tsx",
+    "src/app/(admin)/admin/(event)/checkin/page.tsx",
+    "src/app/(admin)/admin/(event)/participants/page.tsx",
+    "src/app/(admin)/admin/(event)/page.tsx",
     "src/app/(marketing)/availability/page.tsx",
     "src/app/(marketing)/register/page.tsx",
     "src/app/api/admin/export/route.ts",
@@ -127,7 +127,7 @@ assert.ok(delegateModel, "could not find the Delegate model in the schema")
 // unless the form is keyed by the event it keeps the old name and switches, and
 // Apply writes them onto the new event. Found on staging, pinned here.
 {
-  const page = readFileSync("src/app/(admin)/admin/config/page.tsx", "utf8")
+  const page = readFileSync("src/app/(admin)/admin/(event)/config/page.tsx", "utf8")
   assert.match(
     page,
     /<EventControl\s+key=\{event\?\.id \?\? "no-event"\}/,

@@ -1,25 +1,23 @@
-import { FileSpreadsheet,
-  LayoutDashboard,
-  LayoutGrid,
-  Users,
-  UserRound,
-  Kanban,
-  Upload,
+import {
+  CalendarDays,
+  Megaphone,
   UserPlus,
   FileText,
   Presentation,
-  Settings2,
   Contact,
   ScrollText,
   ShieldCheck,
   BookOpenText,
-  UserCheck,
-  Mail,
   type LucideIcon,
 } from "lucide-react"
 
-export interface NavItem {
+export interface Matchable {
   href: string
+  // Other paths that belong to this item, e.g. every page of the event workspace.
+  match?: string[]
+}
+
+export interface NavItem extends Matchable {
   icon: LucideIcon
   label: string
   adminOnly?: boolean
@@ -30,42 +28,25 @@ export interface NavGroup {
   items: NavItem[]
 }
 
-// Shared by the desktop sidebar and the mobile drawer. The event groups follow
-// the order an event actually runs in, numbered, so a volunteer reads the
-// sidebar top to bottom as the plan: set up, take registrations, allot and tell
-// people, then the day itself. The same flow serves the main conference and an
-// Intra MUN; whatever an event does not use (payments, say) is switched off in
-// Event control rather than hidden here.
+// Every page of the event workspace. They live under src/app/(admin)/admin/(event)
+// and share one tab bar there, so the sidebar needs only one entry for all of them.
+export const EVENT_PATHS = [
+  "/admin/config",
+  "/admin/registrations",
+  "/admin/form-responses",
+  "/admin/import",
+  "/admin/participants",
+  "/admin/allotment",
+  "/admin/mailer",
+  "/admin/checkin",
+]
+
+// Shared by the desktop sidebar and the mobile drawer. The event is one place,
+// run the same way for the main conference and an Intra MUN; what differs
+// between them is switched in Setup, not spread across the sidebar.
 export const NAV_GROUPS: NavGroup[] = [
   {
-    items: [{ href: "/admin", icon: LayoutDashboard, label: "Overview" }],
-  },
-  {
-    label: "1 · Set up the event",
-    items: [
-      { href: "/admin/config", icon: Settings2, label: "Event control" },
-      { href: "/admin/config/committees", icon: LayoutGrid, label: "Committees & matrix" },
-    ],
-  },
-  {
-    label: "2 · Registrations",
-    items: [
-      { href: "/admin/registrations", icon: Users, label: "Registrations" },
-      { href: "/admin/form-responses", icon: FileSpreadsheet, label: "Google Form responses" },
-      { href: "/admin/import", icon: Upload, label: "Cross-delegation imports" },
-      { href: "/admin/participants", icon: UserRound, label: "Participant accounts" },
-    ],
-  },
-  {
-    label: "3 · Allot & notify",
-    items: [
-      { href: "/admin/allotment", icon: Kanban, label: "Allotments" },
-      { href: "/admin/mailer", icon: Mail, label: "Mailer" },
-    ],
-  },
-  {
-    label: "4 · Event day",
-    items: [{ href: "/admin/checkin", icon: UserCheck, label: "Check-in" }],
+    items: [{ href: "/admin", icon: CalendarDays, label: "Event", match: EVENT_PATHS }],
   },
   {
     label: "Society",
@@ -76,6 +57,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/admin/recruitment", icon: UserPlus, label: "Recruitment control" },
       { href: "/admin/blog", icon: FileText, label: "Dispatch" },
       { href: "/admin/quiz", icon: Presentation, label: "Quiz" },
+      { href: "/admin/outreach", icon: Megaphone, label: "PR outreach" },
       { href: "/admin/team", icon: Contact, label: "Team" },
     ],
   },
@@ -89,17 +71,23 @@ export const NAV_GROUPS: NavGroup[] = [
   },
 ]
 
-// The deepest href that contains the path wins. Plain prefix matching lit up
-// two items at once (Event control and Committees & matrix both match
-// /admin/config/committees), so the sidebar claimed you were in two places.
-export function longestMatch(pathname: string, hrefs: string[]): string | undefined {
-  return hrefs
-    .filter((h) => pathname === h || (h !== "/admin" && pathname.startsWith(h + "/")))
-    .sort((a, b) => b.length - a.length)[0]
+// The item owning the deepest path that contains the current one. Plain prefix
+// matching lit up two items at once (Event control and Committees & matrix both
+// match /admin/config/committees). "/admin" only ever matches itself, or it
+// would contain every page.
+export function activeHref(pathname: string, items: Matchable[]): string | undefined {
+  let best: { href: string; length: number } | undefined
+  for (const item of items) {
+    for (const path of [item.href, ...(item.match ?? [])]) {
+      const hit = pathname === path || (path !== "/admin" && pathname.startsWith(path + "/"))
+      if (hit && (!best || path.length > best.length)) best = { href: item.href, length: path.length }
+    }
+  }
+  return best?.href
 }
 
-const NAV_HREFS = NAV_GROUPS.flatMap((g) => g.items.map((i) => i.href))
+const NAV_ITEMS = NAV_GROUPS.flatMap((g) => g.items)
 
 export function isNavActive(pathname: string, href: string): boolean {
-  return longestMatch(pathname, NAV_HREFS) === href
+  return activeHref(pathname, NAV_ITEMS) === href
 }

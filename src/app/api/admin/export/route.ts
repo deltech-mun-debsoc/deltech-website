@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { currentEventScope } from "@/lib/event"
 import * as XLSX from "xlsx"
-import { buildDelegateWhere } from "@/app/(admin)/admin/registrations/_lib/build-where"
+import { buildDelegateWhere } from "@/app/(admin)/admin/(event)/registrations/_lib/build-where"
 import { resolveCycleContext } from "@/lib/recruitment/authz"
 import { can } from "@/lib/recruitment/permissions"
 
@@ -244,6 +244,7 @@ export async function GET(request: NextRequest) {
       needsAccommodation: sp.get("needsAccommodation") ?? undefined,
       // So exporting the payment chase list gives the same rows as the screen.
       followUp: sp.get("followUp") ?? undefined,
+      query: sp.get("query") ?? undefined,
       }),
     },
     orderBy: { createdAt: "desc" },

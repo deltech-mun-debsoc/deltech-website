@@ -16,6 +16,8 @@ export const DelegateAudienceSchema = z.object({
   isDtu: z.enum(["any", "yes", "no"]).default("any"),
   needsAccommodation: z.enum(["any", "yes", "no"]).default("any"),
   checkedIn: z.enum(["any", "yes", "no"]).default("any"),
+  // Hand-picked from the delegate list. When set, the filters above are ignored.
+  delegateIds: z.array(z.string().min(1)).max(5000).default([]),
 })
 export type DelegateAudience = z.infer<typeof DelegateAudienceSchema>
 
@@ -34,15 +36,29 @@ export function parseContactAudience(raw: unknown): ContactAudience {
   return parsed.success ? parsed.data : ContactAudienceSchema.parse({})
 }
 
+// One click for the stages a secretariat actually mails. Each is a set of
+// filters, so the composer shows exactly what it chose and it can be refined.
+export const STAGE_SHORTCUTS: { key: string; label: string; filters: Partial<DelegateAudience> }[] = [
+  { key: "unallotted", label: "Not allotted yet", filters: { statuses: ["REGISTERED", "WAITLISTED"], allotted: "no" } },
+  { key: "allotted-unpaid", label: "Allotted, unpaid", filters: { allotted: "yes", paymentStatuses: ["PENDING", "SENT", "FAILED"] } },
+  { key: "confirmed", label: "Confirmed", filters: { statuses: ["CONFIRMED"] } },
+  { key: "checked-in", label: "Checked in", filters: { checkedIn: "yes" } },
+  { key: "not-checked-in", label: "Confirmed, not checked in", filters: { statuses: ["CONFIRMED"], checkedIn: "no" } },
+]
+
 // The current event's delegates who match.
 //
 // Cancelled delegates are left out unless CANCELLED is explicitly chosen: someone
 // removed from the event should not keep receiving its announcements because a
-// filter was left broad.
+// filter was left broad. Hand-picked delegates are exactly who was picked, still
+// only within this event, so someone who has since moved to another event is not
+// mailed about this one.
 export function buildDelegateAudienceWhere(
   audience: DelegateAudience,
   scope: { eventId: string },
 ): Prisma.DelegateWhereInput {
+  if (audience.delegateIds.length > 0) return { AND: [scope, { id: { in: [...audience.delegateIds] } }] }
+
   const and: Prisma.DelegateWhereInput[] = [scope]
 
   if (audience.statuses.length > 0) and.push({ status: { in: [...audience.statuses] } })
