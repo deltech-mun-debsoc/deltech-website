@@ -8,7 +8,6 @@ import { useRouter } from "next/navigation"
 import { draftMailForDelegates } from "../../mailer/actions"
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose } from "@/components/ui/drawer"
 import { Button, buttonVariants } from "@/components/ui/button"
-import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import type { SerializedDelegate, EmailLogEntry } from "../_lib/types"
@@ -207,15 +206,7 @@ export function DelegateDrawer({ delegate, committees, intra = false, onClose, o
 
   return (
     <>
-      {/* Not modal while one of its confirmations is up: a modal drawer traps focus
-          and pointer events, so the confirmation (portalled outside it) would open
-          behind it and could not be pressed. */}
-      <Drawer
-        open={!!d}
-        onOpenChange={(open) => { if (!open && !resendTarget && !cancelOpen) handleClose() }}
-        direction="right"
-        modal={!resendTarget && !cancelOpen}
-      >
+      <Drawer open={!!d} onOpenChange={(open) => { if (!open) handleClose() }} direction="right">
         <DrawerContent className="flex flex-col overflow-hidden sm:max-w-xl data-[vaul-drawer-direction=right]:sm:max-w-xl">
           <DrawerHeader className="flex flex-row items-start gap-3 border-b border-border/60 px-6 py-5">
             <div className="min-w-0 flex-1">
@@ -509,9 +500,23 @@ export function DelegateDrawer({ delegate, committees, intra = false, onClose, o
                                   {log.status === "FAILED" && <span className="text-destructive"> · did not send</span>}
                                 </p>
                               </div>
-                              <Button variant="ghost" size="sm" className="text-xs" onClick={() => setResendTarget(log)}>
-                                <RefreshCw className="size-3.5" /> Send again
-                              </Button>
+                              {/* Confirmed in place: a dialog opened from inside this
+                                  drawer lands behind its focus trap. */}
+                              {resendTarget?.id === log.id ? (
+                                <span className="flex items-center gap-1">
+                                  <span className="text-xs text-muted-foreground">Send again?</span>
+                                  <Button variant="ghost" size="sm" className="text-xs" disabled={resending} onClick={() => setResendTarget(null)}>
+                                    Cancel
+                                  </Button>
+                                  <Button size="sm" className="text-xs" disabled={resending} onClick={confirmResend}>
+                                    {resending ? "Sending…" : "Send"}
+                                  </Button>
+                                </span>
+                              ) : (
+                                <Button variant="ghost" size="sm" className="text-xs" onClick={() => setResendTarget(log)}>
+                                  <RefreshCw className="size-3.5" /> Send again
+                                </Button>
+                              )}
                             </li>
                           ))}
                         </ul>
@@ -521,51 +526,46 @@ export function DelegateDrawer({ delegate, committees, intra = false, onClose, o
                     </Section>
                   </div>
 
-                  {d.status !== "CANCELLED" && (
-                    <div className="flex justify-end pt-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-muted-foreground hover:text-destructive"
-                        disabled={isPending}
-                        onClick={() => setCancelOpen(true)}
-                      >
-                        Remove from event
-                      </Button>
-                    </div>
-                  )}
+                  {d.status !== "CANCELLED" &&
+                    (cancelOpen ? (
+                      <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4">
+                        <p className="font-medium">{`Remove ${d.fullName} from this event?`}</p>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          Any seat they hold goes back on the board and unpaid payment links are dropped. A settled payment has to be refunded first.
+                        </p>
+                        <div className="mt-4 flex justify-end gap-2">
+                          <Button variant="outline" size="sm" disabled={isPending} onClick={() => setCancelOpen(false)}>
+                            Keep them
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            size="sm"
+                            disabled={isPending}
+                            onClick={() => runAction(() => cancelDelegate(d.id), "Removed from the event. Their seat is free again.", () => setCancelOpen(false))}
+                          >
+                            Remove from event
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex justify-end pt-2">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="text-muted-foreground hover:text-destructive"
+                          disabled={isPending}
+                          onClick={() => setCancelOpen(true)}
+                        >
+                          Remove from event
+                        </Button>
+                      </div>
+                    ))}
                 </div>
               ))}
           </div>
         </DrawerContent>
       </Drawer>
 
-      <ConfirmDialog
-        open={!!resendTarget}
-        onOpenChange={(open) => !open && setResendTarget(null)}
-        title="Send this email again?"
-        description={
-          resendTarget && d
-            ? `“${EMAIL_LABEL[resendTarget.template] ?? resendTarget.template}” goes to ${d.email} again, exactly as it was first sent.`
-            : ""
-        }
-        confirmLabel="Send again"
-        pending={resending}
-        onConfirm={confirmResend}
-      />
-
-      <ConfirmDialog
-        open={cancelOpen}
-        onOpenChange={setCancelOpen}
-        title="Remove from this event?"
-        description={d ? `${d.fullName} is removed and any seat they hold goes back on the board. Unpaid payment links are dropped. A settled payment has to be refunded first.` : ""}
-        confirmLabel="Remove from event"
-        destructive
-        pending={isPending}
-        onConfirm={() =>
-          d && runAction(() => cancelDelegate(d.id), "Removed from the event. Their seat is free again.", () => setCancelOpen(false))
-        }
-      />
     </>
   )
 }
