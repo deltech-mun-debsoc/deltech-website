@@ -26,13 +26,20 @@ export default async function RegistrationsPage(props: {
   const source = get("source") ?? ""
   const isDtu = get("isDtu") ?? ""
   const needsAccommodation = get("needsAccommodation") ?? ""
+  const followUp = get("followUp") ?? ""
   const page = Math.max(1, parseInt(get("page") ?? "1", 10) || 1)
   const perPage = Math.min(PAGE_SIZE_MAX, Math.max(1, parseInt(get("perPage") ?? String(PAGE_SIZE_DEFAULT), 10) || PAGE_SIZE_DEFAULT))
   const sortBy = parseSortField(get("sortBy"))
   const sortDir = (get("sortDir") === "asc" ? "asc" : "desc") as "asc" | "desc"
 
   const scope = await currentEventScope()
-  const where = buildDelegateWhere({ q: q || undefined, committeeId: committeeId || undefined, status: status || undefined, source: source || undefined, isDtu: isDtu || undefined, needsAccommodation: needsAccommodation || undefined })
+  // Scoped to the current event. This used to compute the scope and apply it only
+  // to the committee dropdown, so the delegate list and its count spanned every
+  // event: harmless while one existed, wrong the moment a second did.
+  const where: Prisma.DelegateWhereInput = {
+    ...buildDelegateWhere({ q: q || undefined, committeeId: committeeId || undefined, status: status || undefined, source: source || undefined, isDtu: isDtu || undefined, needsAccommodation: needsAccommodation || undefined, followUp: followUp || undefined }),
+    ...scope,
+  }
 
   const orderBy: Prisma.DelegateOrderByWithRelationInput = { [sortBy]: sortDir }
 
@@ -54,7 +61,7 @@ export default async function RegistrationsPage(props: {
 
   const delegates = delegatesRaw.map(serializeDelegate)
 
-  const filters = { q, committeeId, status, source, isDtu, needsAccommodation, page, perPage, sortBy, sortDir }
+  const filters = { q, committeeId, status, source, isDtu, needsAccommodation, followUp, page, perPage, sortBy, sortDir }
 
   return (
     <div className="space-y-6">

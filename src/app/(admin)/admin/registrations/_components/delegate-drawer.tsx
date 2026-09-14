@@ -25,6 +25,9 @@ import {
   waitlistDelegate,
   regeneratePaymentLink,
   getDelegateEmailLogs,
+  getDelegateContacts,
+  logContact,
+  type ContactEntry,
 } from "../actions"
 
 interface Props {
@@ -48,6 +51,24 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
   )
 }
 
+// What a secretariat member actually does when chasing a delegate. Kept short on
+// purpose: a long list slows logging a call to the point that nobody bothers.
+const CONTACT_OPTIONS = [
+  { value: "CALLED_NO_ANSWER", label: "No answer" },
+  { value: "CALLED_REACHED", label: "Spoke to them" },
+  { value: "CALLED_BUSY", label: "Busy, call back" },
+  { value: "PROMISED_TO_PAY", label: "Promised to pay" },
+  { value: "WHATSAPP_SENT", label: "WhatsApp sent" },
+  { value: "EMAIL_SENT", label: "Emailed" },
+  { value: "WRONG_NUMBER", label: "Wrong number" },
+  { value: "NOT_INTERESTED", label: "Not coming" },
+  { value: "NOTE", label: "Note" },
+] as const
+
+function outcomeLabel(value: string): string {
+  return CONTACT_OPTIONS.find((o) => o.value === value)?.label ?? value
+}
+
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="space-y-3">
@@ -65,6 +86,11 @@ export function DelegateDrawer({ delegate, committees, onClose, onUpdated }: Pro
   // Loaded per-delegate on open, instead of being joined onto every row of the
   // table behind this drawer.
   const [emailLogs, setEmailLogs] = useState<EmailLogEntry[] | null>(null)
+  const [contacts, setContacts] = useState<ContactEntry[] | null>(null)
+  const [outcome, setOutcome] = useState<string>("CALLED_NO_ANSWER")
+  const [contactNote, setContactNote] = useState("")
+  const [followUpLocal, setFollowUpLocal] = useState("")
+  const [savingContact, setSavingContact] = useState(false)
 
   const delegateId = delegate?.id ?? null
   const loadLogs = useCallback(() => {
@@ -78,6 +104,39 @@ export function DelegateDrawer({ delegate, committees, onClose, onUpdated }: Pro
     setEmailLogs(null)
     loadLogs()
   }, [loadLogs])
+
+  useEffect(() => {
+    setContacts(null)
+    setContactNote("")
+    setFollowUpLocal("")
+    if (!delegateId) return
+    getDelegateContacts(delegateId)
+      .then(setContacts)
+      .catch(() => setContacts([]))
+  }, [delegateId])
+
+  const saveContact = () => {
+    if (!delegateId) return
+    setSavingContact(true)
+    logContact(delegateId, {
+      outcome,
+      note: contactNote,
+      // Built here, in the browser's own zone, so a time picked in IST is not
+      // reinterpreted as UTC on the server.
+      followUpAt: followUpLocal ? new Date(followUpLocal).toISOString() : null,
+    })
+      .then((res) => {
+        if (!res.success) {
+          toast.error(res.error ?? "Could not save the log entry.")
+          return
+        }
+        setContacts(res.entries ?? [])
+        setContactNote("")
+        setFollowUpLocal("")
+        toast.success("Logged.")
+      })
+      .finally(() => setSavingContact(false))
+  }
 
   const runAction = (
     fn: () => Promise<{ success: boolean; error?: string; warning?: string; delegate?: SerializedDelegate }>,
@@ -215,7 +274,7 @@ export function DelegateDrawer({ delegate, committees, onClose, onUpdated }: Pro
                       disabled={isPending}
                       onClick={() => setCancelOpen(true)}
                     >
-                      <Ban className="size-3.5" /> Cancel
+                      <Ban className="size-3.5" /> Remove from event
                     </Button>
                   )}
                 </div>
@@ -366,6 +425,72 @@ export function DelegateDrawer({ delegate, committees, onClose, onUpdated }: Pro
 
                 <Separator />
 
+                {/* Follow-up log */}
+                <Section title="Follow-up log">
+                  {delegate.nextFollowUpAt && new Date(delegate.nextFollowUpAt) <= new Date() && (
+                    <p className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300">
+                      Follow-up due since {formatDate(delegate.nextFollowUpAt)}
+                    </p>
+                  )}
+                  <div className="flex flex-wrap gap-1.5">
+                    {CONTACT_OPTIONS.map((o) => (
+                      <button
+                        key={o.value}
+                        type="button"
+                        onClick={() => setOutcome(o.value)}
+                        className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${outcome === o.value ? "border-primary bg-primary/10 text-primary" : "border-border text-muted-foreground hover:bg-muted"}`}
+                      >
+                        {o.label}
+                      </button>
+                    ))}
+                  </div>
+                  <textarea
+                    value={contactNote}
+                    onChange={(e) => setContactNote(e.target.value)}
+                    rows={2}
+                    maxLength={1000}
+                    placeholder={outcome === "NOTE" ? "What should the team know?" : "What was said (optional)"}
+                    className="w-full rounded-md border border-border bg-background px-3 py-2 text-sm"
+                  />
+                  <div className="flex flex-wrap items-center gap-2">
+                    <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                      Follow up by
+                      <input
+                        type="datetime-local"
+                        value={followUpLocal}
+                        onChange={(e) => setFollowUpLocal(e.target.value)}
+                        className="rounded-md border border-border bg-background px-2 py-1 text-xs"
+                      />
+                    </label>
+                    <Button size="sm" className="ml-auto h-8 text-xs" disabled={savingContact} onClick={saveContact}>
+                      {savingContact ? "Saving" : "Log it"}
+                    </Button>
+                  </div>
+                  {contacts === null ? (
+                    <p className="text-sm text-muted-foreground">Loading…</p>
+                  ) : contacts.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Nobody has logged a call or message yet.</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {contacts.map((c) => (
+                        <div key={c.id} className="rounded-md border border-border/60 bg-muted/30 px-3 py-2">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="text-xs font-medium">{outcomeLabel(c.outcome)}</span>
+                            <span className="text-[11px] text-muted-foreground">{formatDate(c.createdAt)}</span>
+                          </div>
+                          {c.note && <p className="mt-1 whitespace-pre-wrap text-xs">{c.note}</p>}
+                          <p className="mt-1 text-[11px] text-muted-foreground">
+                            {c.createdBy}
+                            {c.followUpAt && ` · follow up by ${formatDate(c.followUpAt)}`}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </Section>
+
+                <Separator />
+
                 {/* Email history */}
                 <Section title="Email history">
                   {emailLogs === null ? (
@@ -419,15 +544,15 @@ export function DelegateDrawer({ delegate, committees, onClose, onUpdated }: Pro
     <ConfirmDialog
       open={cancelOpen}
       onOpenChange={setCancelOpen}
-      title="Cancel this registration?"
-      description={delegate ? `Cancel ${delegate.fullName}'s registration and free their portfolio?` : ""}
-      confirmLabel="Cancel registration"
+      title="Remove from this event?"
+      description={delegate ? `${delegate.fullName} is removed from the event and any seat they hold goes back on the board. Unpaid payment links are dropped. A settled payment has to be refunded first.` : ""}
+      confirmLabel="Remove from event"
       destructive
       pending={isPending}
       onConfirm={() =>
         delegate && runAction(
           () => cancelDelegate(delegate.id),
-          "Registration cancelled.",
+          "Removed from the event. Their seat is free again.",
           () => setCancelOpen(false),
         )
       }

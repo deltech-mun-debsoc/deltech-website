@@ -126,6 +126,13 @@ export const STRINGS = {
     // reads as though money is owed on every seat.
     statusAllottedFree: "Allotted",
     statusConfirmedFree: "Confirmed",
+    unsubscribeTitle: "Stop DelTech MUN event mail?",
+    unsubscribeBody: "You will no longer get announcements about our events. Mail about a registration you made yourself is not affected.",
+    unsubscribeButton: "Unsubscribe",
+    unsubscribeDoneTitle: "You are unsubscribed",
+    unsubscribeDoneBody: "We will not send you event announcements again.",
+    unsubscribeInvalidTitle: "This link does not work",
+    unsubscribeInvalidBody: "It may have been copied incompletely. Use the unsubscribe link from the most recent email.",
     // Said to a delegate whose event charges nothing. Names no event, because
     // which event is free changes every year.
     noPaymentRequired:

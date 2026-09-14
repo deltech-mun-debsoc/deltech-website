@@ -14,7 +14,12 @@ export default async function EventControlPage() {
         current={event ? { name: event.name, state: event.state } : null}
         canManage={isAdmin}
       />
-      <EventControl content={content} canManagePayments={isAdmin} />
+      {/* Keyed by the event so the form re-reads its values whenever the event
+          changes. Its fields are local state seeded once on mount; without the key,
+          starting or closing an event from the card above left the old event's
+          name and switches in the form, and Apply would write them back onto the
+          new event. */}
+      <EventControl key={event?.id ?? "no-event"} content={content} canManagePayments={isAdmin} />
     </div>
   )
 }
