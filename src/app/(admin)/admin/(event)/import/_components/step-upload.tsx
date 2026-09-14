@@ -77,7 +77,7 @@ export function StepUpload({ onParsed }: Props) {
         </div>
         <div>
           <p className="text-sm font-medium text-foreground">
-            {file ? file.name : "Drop your partner sheet here"}
+            {file ? file.name : "Drop the delegation's sheet here"}
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
             {file

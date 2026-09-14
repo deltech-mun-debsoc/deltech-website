@@ -5,10 +5,10 @@ import { usePathname } from "next/navigation"
 // Kept in step with the sidebar labels, so the crumb names the page the way the
 // sidebar does.
 const LABELS: Record<string, string> = {
-  registrations: "Registrations",
-  "form-responses": "Google Form responses",
-  allotment: "Allotments",
-  import: "Cross-delegation imports",
+  registrations: "Delegates",
+  "form-responses": "Google Form",
+  allotment: "Allotment",
+  import: "Cross delegations",
   mailer: "Mail",
   outreach: "PR outreach",
   new: "New",
