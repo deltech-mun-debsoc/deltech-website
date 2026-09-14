@@ -239,7 +239,8 @@ export function AllotDialog({
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className="truncate font-medium">{d.fullName}</span>
-                    {d.isDtu && (
+                    {/* DTU only changes the fee, so it is noise when nothing is charged. */}
+                    {paymentsRequired && d.isDtu && (
                       <span className="shrink-0 rounded-full bg-primary/10 px-1.5 py-0.5 text-[10px] text-primary">
                         DTU
                       </span>
@@ -249,24 +250,24 @@ export function AllotDialog({
                         {t("admin.allotment.requestedThisSeat", { rank: d.seatRank })}
                       </span>
                     )}
-                    {d.preferenceRank === 1 && (
+                    {d.seatRank === null && d.preferenceRank === 1 && (
                       <span className="shrink-0 rounded-full bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-600 dark:text-amber-400">
-                        Pref 1
+                        1st choice committee
                       </span>
                     )}
-                    {d.preferenceRank === 2 && (
+                    {d.seatRank === null && d.preferenceRank === 2 && (
                       <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                        Pref 2
+                        2nd choice committee
                       </span>
                     )}
-                    {d.preferenceRank === 3 && (
+                    {d.seatRank === null && d.preferenceRank === 3 && (
                       <span className="shrink-0 rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                        Pref 3
+                        3rd choice committee
                       </span>
                     )}
                   </div>
                   <p className="truncate text-xs text-muted-foreground">
-                    {d.email} · {d.institution}
+                    {d.isDtu ? d.email : `${d.email} · ${d.institution}`}
                   </p>
                   {committee.doubleDelegation && d.coDelegate && (
                     <p className="truncate text-xs text-muted-foreground">
