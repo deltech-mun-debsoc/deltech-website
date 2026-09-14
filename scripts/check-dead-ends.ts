@@ -191,9 +191,8 @@ for (const route of [
 //
 // The lobby's start button was disabled until the presence channel reported a
 // participant. Presence is 0 before it syncs, 0 when the projector is opened
-// first, and 0 permanently wherever realtime is unconfigured -- and there
-// getSupabase() returns null by design, so the quiz could never be started at
-// all. It failed as a click that did nothing: no error, no console line.
+// first, and 0 permanently wherever realtime is unavailable, so the quiz
+// could never be started at all. It failed as a click that did nothing: no error, no console line.
 {
   const src = read("src/app/(admin)/admin/quiz/[id]/present/_components/lobby-screen.tsx")
   assert.doesNotMatch(

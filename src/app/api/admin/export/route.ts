@@ -141,6 +141,54 @@ async function exportMatrix(format: "csv" | "xlsx", committeeId?: string | null)
   return sheetResponse(rows, format, "portfolio-matrix")
 }
 
+// One quiz run, one row per answer, so a result can be kept before its run or
+// show is deleted. Choice answers are stored as indices; they are written out as
+// the option text, which is what anyone reading the sheet wants.
+function quizAnswerText(config: unknown, answer: unknown): string {
+  const a = (answer ?? {}) as Record<string, unknown>
+  const options = (config as { options?: unknown } | null)?.options
+  if (Array.isArray(a.selectedIndices)) {
+    return a.selectedIndices.map((i) => (Array.isArray(options) ? String(options[i as number] ?? i) : String(i))).join("; ")
+  }
+  if (typeof a.text === "string") return a.text
+  if (typeof a.value === "number") return String(a.value)
+  if (Array.isArray(a.words)) return a.words.join("; ")
+  if (Array.isArray(a.values)) return a.values.join("; ")
+  return JSON.stringify(answer)
+}
+
+async function exportQuizRun(format: "csv" | "xlsx", sessionId: string | null) {
+  const run = sessionId
+    ? await prisma.quizSession.findUnique({ where: { id: sessionId }, select: { presentationId: true, roomCode: true } })
+    : null
+  if (!run || !sessionId) return new NextResponse("Not found", { status: 404 })
+
+  const [slides, responses] = await Promise.all([
+    prisma.slide.findMany({
+      where: { presentationId: run.presentationId },
+      select: { id: true, order: true, prompt: true, config: true },
+    }),
+    prisma.response.findMany({
+      where: { sessionId },
+      orderBy: [{ nickname: "asc" }, { createdAt: "asc" }],
+      select: { slideId: true, nickname: true, answer: true, points: true, createdAt: true },
+    }),
+  ])
+  const slideById = new Map(slides.map((s) => [s.id, s]))
+  const rows = responses.map((r) => {
+    const slide = slideById.get(r.slideId)
+    return {
+      Name: r.nickname ?? "Anonymous",
+      "Question #": slide ? slide.order + 1 : "",
+      Question: slide?.prompt ?? "(slide since deleted)",
+      Answer: quizAnswerText(slide?.config, r.answer),
+      Points: r.points,
+      "Answered At": r.createdAt.toISOString(),
+    }
+  })
+  return sheetResponse(rows, format, `quiz-${run.roomCode}`)
+}
+
 export async function GET(request: NextRequest) {
   const session = await auth()
   const role = (session?.user as { role?: string } | undefined)?.role
@@ -178,6 +226,9 @@ export async function GET(request: NextRequest) {
   }
   if (sp.get("entity") === "matrix") {
     return exportMatrix(format, sp.get("committeeId"))
+  }
+  if (sp.get("entity") === "quiz-run") {
+    return exportQuizRun(format, sp.get("sessionId"))
   }
 
   const scope = await currentEventScope()

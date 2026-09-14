@@ -45,8 +45,8 @@ import { hashPassword } from "../src/lib/password"
 // Guards. This truncates tables, so it must be impossible to point at prod.
 // ---------------------------------------------------------------------------
 
-// The production Supabase project ref. If DATABASE_URL contains this, refuse.
-const PROD_DB_REF = "hktvvxtiobeaphzfmpbf"
+// The production database name. If DATABASE_URL contains this, refuse.
+const PROD_DB_REF = "mun_prod"
 
 const url = process.env.DATABASE_URL ?? ""
 
@@ -65,7 +65,7 @@ if (!url) {
 
 if (url.includes(PROD_DB_REF)) {
   console.error(
-    `Refusing to run: DATABASE_URL points at the production project (${PROD_DB_REF}).\n` +
+    `Refusing to run: DATABASE_URL points at the production database (${PROD_DB_REF}).\n` +
       "This script is for the staging database only.",
   )
   process.exit(1)

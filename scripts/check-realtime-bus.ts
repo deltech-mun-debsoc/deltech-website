@@ -1,9 +1,7 @@
 #!/usr/bin/env tsx
 // Runnable check: npx tsx scripts/check-realtime-bus.ts
 //
-// The realtime bus replaced Supabase. Supabase's own rule was "anyone with the
-// publishable key can publish anywhere", so these assertions exist to stop us
-// drifting back to that: publishing to a quiz room is staff-only, and the
+// These keep the realtime bus's rules real: publishing to a quiz room is staff-only, and the
 // recruitment channels never admit a stranger.
 import assert from "node:assert"
 import { canPublish, canSubscribe, channelName, parseChannel } from "../src/lib/realtime/channels"

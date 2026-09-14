@@ -37,8 +37,7 @@ declare module "next-auth" {
 // is deliberately allowed to propagate -- src/app/(public)/signin/actions.ts
 // reads AccessDenied's cause to tell the two apart.
 //
-// The retry is for the Supabase pooler specifically: one dropped connection on a
-// serverless cold start, during a burst of first-time logins, is the difference
+// The retry covers one dropped pool connection during a burst of first-time logins, is the difference
 // between signing in and being told to go away. Anything beyond one retry
 // belongs in the pool config, not here.
 async function mayStartSession(email: string | null | undefined): Promise<boolean> {

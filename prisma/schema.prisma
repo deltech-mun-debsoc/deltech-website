@@ -1119,13 +1119,15 @@ enum PostStatus {
 // ---- Quiz ----
 
 model Presentation {
-  id        String   @id @default(cuid())
-  ownerId   String
-  title     String
-  theme     Json?
-  mode      QuizMode @default(POLL)
-  slides    Slide[]
-  createdAt DateTime @default(now())
+  id         String    @id @default(cuid())
+  ownerId    String
+  title      String
+  theme      Json?
+  mode       QuizMode  @default(POLL)
+  slides     Slide[]
+  createdAt  DateTime  @default(now())
+  // Archived shows leave the library's main view; nothing else changes.
+  archivedAt DateTime?
 }
 
 enum QuizMode {

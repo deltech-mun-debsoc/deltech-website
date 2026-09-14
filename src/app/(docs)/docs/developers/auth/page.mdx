@@ -32,8 +32,7 @@ user. Without it, Auth.js would happily create an account for any address that c
 magic link.
 
 It retries once on a transient database error, so a single dropped connection during a burst of
-first sign-ins does not turn into a refusal. (The comment above it in `auth.ts` still names the old
-Supabase pooler; the retry is still correct without it.)
+first sign-ins does not turn into a refusal.
 
 ## Sessions revalidate
 

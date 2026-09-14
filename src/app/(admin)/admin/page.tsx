@@ -53,7 +53,7 @@ export default async function AdminOverviewPage() {
     prisma.delegate.groupBy({ by: ["source"], where: scope, _count: { _all: true } }),
     prisma.delegate.count({ where: { needsAccommodation: true, ...scope } }),
     prisma.payment.aggregate({
-      where: { status: { in: ["PAID", "COMPED"] } },
+      where: { status: { in: ["PAID", "COMPED"] }, delegate: scope },
       _sum: { amountInr: true },
     }),
     prisma.committee.findMany({
@@ -69,9 +69,10 @@ export default async function AdminOverviewPage() {
     // Portfolio in the conference purely to length-filter them in JS.
     prisma.portfolio.groupBy({
       by: ["committeeId", "status"],
+      where: { committee: scope },
       _count: { _all: true },
     }),
-    prisma.portfolio.count(),
+    prisma.portfolio.count({ where: { committee: scope } }),
     prisma.fee.count(),
     prisma.member.count({ where: { isActive: true } }),
     prisma.post.count({ where: { status: "PUBLISHED" } }),

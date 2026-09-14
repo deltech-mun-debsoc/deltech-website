@@ -3,10 +3,24 @@
 # into /srv/mun/.env by deploy.sh. See docs/AWS.md.
 name: mun
 
+# Docker's json-file driver keeps every log line forever by default. On a 40 GB
+# box that is a slow, silent disk-full, and a full disk stops Postgres writing.
+# 3 × 10 MB per container is plenty to read back an incident.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   caddy:
     image: caddy:2
     restart: unless-stopped
+    logging: *logging
+    # Every realtime stream holds two sockets here (client and upstream). The
+    # container default of 1024 open files would cap a room near 500 people.
+    ulimits:
+      nofile: { soft: 65536, hard: 65536 }
     ports: ["80:80", "443:443", "443:443/udp"]
     # raw: Compose interpolates $ in env_file values by default, which silently
     # empties a bcrypt hash like $2a$14$...
@@ -24,6 +38,9 @@ services:
     image: mun:${APP_ENV:-staging}-${APP_TAG:-none}
     pull_policy: never
     restart: unless-stopped
+    logging: *logging
+    ulimits:
+      nofile: { soft: 65536, hard: 65536 }
     env_file: app.env
     environment:
       NODE_OPTIONS: --max-old-space-size=600
@@ -43,6 +60,7 @@ services:
     image: postgres:17
     profiles: ["db"]
     restart: unless-stopped
+    logging: *logging
     # Loopback only. Nothing outside the box can open a connection; CI reaches it
     # by opening an SSH tunnel to this box first (see staging-migrate.yml).
     ports: ["127.0.0.1:5432:5432"]

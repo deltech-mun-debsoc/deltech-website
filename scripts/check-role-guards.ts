@@ -24,6 +24,9 @@ const ADMIN_REQUIRED = new Set([
   // destructive
   "deleteCommittee", "deletePortfolio", "deleteImportPreset", "deleteMember",
   "cancelDelegate", "revokeAllotment",
+  // A quiz's results exist nowhere else. Archiving is the reversible option and
+  // stays requireStaff.
+  "deletePresentation", "deleteQuizRun",
   // Closing an event ends registration and allotment for everyone, and starting
   // one closes the current event, so both stay out of a maintainer's reach.
   "closeCurrentEvent", "startNewEvent",

@@ -30,8 +30,8 @@ const read = (p: string) => readFileSync(join(root, p), "utf8")
   )
   assert.match(
     seed,
-    /const PROD_DB_REF = "[a-z0-9]+"/,
-    "seed-staging must keep the production project ref it refuses to run against",
+    /const PROD_DB_REF = "[a-z0-9_]+"/,
+    "seed-staging must keep the production database name it refuses to run against",
   )
   assert.match(
     seed,

@@ -2,7 +2,7 @@
 
 Execution plan for building from an empty folder to deployed, on the finalized free-tier stack. Each phase has concrete steps. Hand me one phase per session.
 
-**Final stack:** Next.js 16 (App Router, Turbopack default, React 19.2, `proxy` not `middleware`, async `params`) · TypeScript (ESM, `"type":"module"`) · **Prisma 7** (driver-adapter required, `prisma-client` generator, `prisma.config.ts`) + Supabase Postgres · Supabase Storage · NextAuth v5 (Auth.js) · Resend · Tiptap · Framer Motion · Tailwind + shadcn/ui · Supabase Realtime (quiz only) · Razorpay **or** UPI-QR (pluggable).
+**Final stack:** Next.js 16 (App Router, Turbopack default, React 19.2, `proxy` not `middleware`, async `params`) · TypeScript (ESM, `"type":"module"`) · **Prisma 7** (driver-adapter required, `prisma-client` generator, `prisma.config.ts`) + Postgres · S3 · NextAuth v5 (Auth.js) · Resend · Tiptap · Framer Motion · Tailwind + shadcn/ui · SSE realtime (quiz only) · Razorpay **or** UPI-QR (pluggable).
 
 > **Stack notes that change syntax everywhere:**
 > - **Next 16:** Turbopack is the default bundler. `middleware.ts` is renamed to **`proxy.ts`** (export `proxy`, Node runtime only). `params`/`searchParams` are **async** (`await props.params`). Use `next typegen` for `PageProps<'/route'>` types. Node 20.19+.
@@ -46,7 +46,7 @@ npm i @tiptap/react @tiptap/starter-kit @tiptap/extension-placeholder \
       @tiptap/extension-image @tiptap/extension-link @tiptap/extension-typography \
       @tiptap/extension-character-count framer-motion
 # realtime (quiz only) + excel + qr
-npm i @supabase/supabase-js xlsx qrcode.react
+npm i xlsx qrcode.react
 # ui helpers
 npm i lucide-react class-variance-authority clsx tailwind-merge sonner
 ```
@@ -79,7 +79,6 @@ src/
     prisma.ts             # PrismaClient + PrismaPg adapter (singleton)
     auth.ts               # NextAuth config
     resend.ts
-    supabase.ts           # realtime client only
     payments/             # provider interface + razorpay + upi
     settings.ts           # getSetting()/getContent() helpers (cached)
   content/
@@ -91,8 +90,8 @@ proxy.ts                  # Next 16 (replaces middleware.ts)
 prisma.config.ts          # Prisma 7 config (datasource url, migrations, seed)
 ```
 
-**0.5 Supabase project + env.**
-- Create a free Supabase project. Grab the pooled and direct connection strings.
+**0.5 Database + env.**
+- Start Postgres (a local Docker container, or a box per docs/AWS.md). Set DATABASE_URL and DIRECT_URL.
 - `.env`:
 ```
 DATABASE_URL="postgresql://...pooler...?pgbouncer=true"   # app runtime (pooled, used by the pg adapter)
@@ -101,8 +100,6 @@ AUTH_SECRET="..."          # npx auth secret
 AUTH_RESEND_KEY="re_..."
 EMAIL_FROM="noreply@deltechmun.in"
 NEXT_PUBLIC_APP_URL="http://localhost:3000"
-NEXT_PUBLIC_SUPABASE_URL="https://xxx.supabase.co"   # realtime
-NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY="..."           # realtime
 RAZORPAY_KEY_ID="" RAZORPAY_KEY_SECRET="" RAZORPAY_WEBHOOK_SECRET=""
 UPI_VPA="yourname@upi" UPI_PAYEE_NAME="DelTech MUN"
 ADMIN_EMAIL="you@email.com"
@@ -156,7 +153,7 @@ export default nextConfig;
 
 Add `src/generated/` to `.gitignore`. Add scripts to package.json: `"db:generate":"prisma generate"`, `"db:migrate":"prisma migrate dev"`, `"db:seed":"prisma db seed"`.
 
-**Exit criteria:** `npm run dev` (Turbopack) serves a styled page; `prisma generate` outputs to `src/generated/prisma`; `prisma migrate dev` connects to Supabase via `prisma.config.ts`; importing `prisma` from `@/lib/prisma` works in a server component.
+**Exit criteria:** `npm run dev` (Turbopack) serves a styled page; `prisma generate` outputs to `src/generated/prisma`; `prisma migrate dev` connects to Postgres via `prisma.config.ts`; importing `prisma` from `@/lib/prisma` works in a server component.
 
 ---
 
@@ -288,7 +285,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
 **3.1 Public layout & landing** — all copy from `getContent()`. Hero, dates, venue, agendas, awards, contacts — every word editable from the dashboard.
 
-**3.2 Live availability board** — server component lists committees and AVAILABLE portfolio counts; a thin client island subscribes to Supabase Realtime so counts update as admins allot. Shows what's open, never who got what.
+**3.2 Live availability board** — server component lists committees and AVAILABLE portfolio counts; a thin client island polls every 20s so counts update as admins allot. Shows what's open, never who got what.
 
 **3.3 Registration form** — multi-step (mirrors your 5 form sections), one Zod schema shared by client and the Server Action:
 - Step 1: personal (name, email, WhatsApp, alt phone, institution, DTU? , MUN experience).
@@ -365,7 +362,7 @@ export interface PaymentProvider {
 
 ## Phase 8 — Blog (Tiptap, magic-link authors, moderation)
 
-**8.1 Editor** at `/write` (sign-in via magic link). Tiptap with StarterKit + Placeholder + bubble menu (selection toolbar) + floating "+" insert menu + image upload to Supabase Storage + link popover + typography + character-count → read-time. Store as JSON.
+**8.1 Editor** at `/write` (sign-in via magic link). Tiptap with StarterKit + Placeholder + bubble menu (selection toolbar) + floating "+" insert menu + image upload to S3 + link popover + typography + character-count → read-time. Store as JSON.
 **8.2 Submit** → `status=PENDING`.
 **8.3 Moderation queue** in admin: rendered preview + metadata; **approve** (→ PUBLISHED, public URL, notify author), **request changes** (author edits + resubmits), **reject** (reason).
 **8.4 Public blog** — index + article page; Medium-style serif typography, ~680px column, cover image, byline, read time, tags. Render JSON → React server-side (sanitized).
@@ -374,13 +371,13 @@ export interface PaymentProvider {
 
 ---
 
-## Phase 9 — Quiz (Supabase Realtime, ≤200, internal)
+## Phase 9 — Quiz (SSE realtime, ≤200, internal)
 
 **9.1 Builder** in admin: presentation → slides (MCQ / word cloud / scale / open text / content); per-slide config, correct answer + timer for QUIZ mode; drag reorder; live preview.
-**9.2 Realtime model** via `supabase-js` (Realtime only, independent of Prisma/auth): each session has a 6-digit room code + a channel; **Presence** = live participant count; **Broadcast** = host events (advance/lock/reveal). Anonymous join with nickname — no account.
+**9.2 Realtime model** via `/api/realtime` (Server-Sent Events, independent of Prisma/auth): each session has a 6-digit room code + a channel; **Presence** = live participant count; **Broadcast** = host events (advance/lock/reveal). Anonymous join with nickname — no account.
 **9.3 Presenter view** (big screen): current question, join code + QR, live-animating results.
 **9.4 Participant view** (phone): current question + answer control; updates the instant the host advances.
-**9.5 Aggregation:** votes write to `Response`; presenter subscribes to the aggregated tally (counts per option) — don't broadcast every vote. Framer Motion springs for bar growth, count-ups, word-cloud scale-in, leaderboard reorder; confetti on the final leaderboard (QUIZ mode). 200-connection ceiling is comfortably inside Supabase free limits.
+**9.5 Aggregation:** votes write to `Response`; presenter subscribes to the aggregated tally (counts per option) — don't broadcast every vote. Framer Motion springs for bar growth, count-ups, word-cloud scale-in, leaderboard reorder; confetti on the final leaderboard (QUIZ mode). 200-connection ceiling is comfortably inside one app container.
 
 **Exit criteria:** a room of phones can join by code and answer; presenter shows live, animated results that feel like Mentimeter.
 
@@ -396,7 +393,6 @@ export interface PaymentProvider {
 
 ## Free-tier ceilings to keep in mind
 - **Resend:** 3,000 emails/mo, 100/day, domain verification required. Plan bulk allotment emails around the daily cap (batch over days, or upgrade only if a single edition exceeds it).
-- **Supabase Free:** 500MB DB, generous Realtime for ≤200 concurrent — fine for this. Watch project pausing after inactivity (a cron ping keeps it warm).
 - **Lightsail:** one small box per environment keeps the database private and staging isolated; hourly S3 backups replace managed point-in-time recovery.
 - **Razorpay:** ~2% per successful txn, needs KYC; UPI-QR path is the zero-cost fallback.
 
