@@ -8,15 +8,6 @@ import { toast } from "sonner"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog"
-import {
   Drawer,
   DrawerClose,
   DrawerContent,
@@ -195,14 +186,33 @@ export function LogsClient({
                 {selected.rolledBack ? (
                   <p className="text-sm text-muted-foreground">This change has already been rolled back.</p>
                 ) : rollback && canRollback ? (
-                  <div className="flex items-center justify-between gap-4">
-                    <p className="max-w-sm text-sm text-muted-foreground">
-                      Rollback is available only while these values still match this entry.
-                    </p>
-                    <Button variant="destructive" onClick={() => setConfirming(true)}>
-                      <RotateCcw className="size-4" /> Roll back
-                    </Button>
-                  </div>
+                  // Confirmed in place: a dialog opened from inside this drawer lands
+                  // behind its focus trap.
+                  confirming ? (
+                    <div className="rounded-xl border border-destructive/30 bg-destructive/5 p-4">
+                      <p className="font-medium">Roll back this change?</p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        The previous values are restored only if nobody has changed them since. This creates a new audit entry.
+                      </p>
+                      <div className="mt-4 flex justify-end gap-2">
+                        <Button variant="outline" size="sm" disabled={isPending} onClick={() => setConfirming(false)}>
+                          Keep current state
+                        </Button>
+                        <Button variant="destructive" size="sm" onClick={runRollback} disabled={isPending}>
+                          {isPending ? "Rolling back…" : "Confirm rollback"}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center justify-between gap-4">
+                      <p className="max-w-sm text-sm text-muted-foreground">
+                        Rollback is available only while these values still match this entry.
+                      </p>
+                      <Button variant="destructive" onClick={() => setConfirming(true)}>
+                        <RotateCcw className="size-4" /> Roll back
+                      </Button>
+                    </div>
+                  )
                 ) : (
                   <p className="text-sm text-muted-foreground">
                     {rollback
@@ -215,23 +225,6 @@ export function LogsClient({
           )}
         </DrawerContent>
       </Drawer>
-
-      <Dialog open={confirming} onOpenChange={setConfirming}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Roll back this change?</DialogTitle>
-            <DialogDescription>
-              The previous values will be restored only if nobody has changed them since. This creates a new audit entry.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <DialogClose render={<Button variant="outline" />}>Keep current state</DialogClose>
-            <Button variant="destructive" onClick={runRollback} disabled={isPending}>
-              {isPending ? "Rolling back…" : "Confirm rollback"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </>
   )
 }
