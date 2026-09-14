@@ -17,7 +17,8 @@ export default async function AllotmentPage() {
       orderBy: { sortOrder: "asc" },
       include: {
         portfolios: {
-          orderBy: { name: "asc" },
+          // Matrix rank first, as published, then name.
+          orderBy: [{ priority: "asc" }, { name: "asc" }],
           include: {
             allotment: {
               include: {

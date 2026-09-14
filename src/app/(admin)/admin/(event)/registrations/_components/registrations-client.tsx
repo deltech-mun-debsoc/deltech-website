@@ -206,7 +206,7 @@ export function RegistrationsClient({ delegates, committees, total, filters, int
             <Input
               value={searchValue}
               onChange={e => setSearchValue(e.target.value)}
-              placeholder="Name, email, institution…"
+              placeholder={intra ? "Name, email, roll number…" : "Name, email, institution…"}
               className="h-8 w-56 pl-8 text-sm"
             />
           </div>

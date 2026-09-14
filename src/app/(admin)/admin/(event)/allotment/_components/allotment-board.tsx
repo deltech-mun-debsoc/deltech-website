@@ -6,7 +6,7 @@ import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { revokeAllotment } from "../actions"
-import { committeeDemand } from "../_lib/balance"
+import { committeeDemand, portfolioRank } from "../_lib/balance"
 import { PortfolioCard } from "./portfolio-card"
 import { AllotDialog } from "./allot-dialog"
 import { useAllotmentLive } from "../_lib/use-allotment-live"
@@ -257,13 +257,7 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, 
               </span>
               {selectedDemand && (
                 <span className="text-sm text-muted-foreground">
-                  {",  demand: "}
-                  <span className="tabular-nums">{selectedDemand.p1}</span> pref-1
-                  {" · "}
-                  <span className="tabular-nums">{selectedDemand.p2}</span> pref-2
-                  {" · "}
-                  <span className="tabular-nums">{selectedDemand.p3}</span> pref-3
-                  {" (unallotted pool)"}
+                  {`· Waiting delegates who want it: ${selectedDemand.p1} first choice, ${selectedDemand.p2} second, ${selectedDemand.p3} third`}
                 </span>
               )}
             </div>
@@ -278,6 +272,7 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, 
                   <PortfolioCard
                     key={portfolio.id}
                     portfolio={portfolio}
+                    wantedBy={delegates.filter((d) => portfolioRank(d, portfolio) !== null).length}
                     committee={selectedCommittee}
                     onClick={() => handlePortfolioClick(portfolio, selectedCommittee)}
                     onRevoke={() => setRevokeTarget(portfolio)}

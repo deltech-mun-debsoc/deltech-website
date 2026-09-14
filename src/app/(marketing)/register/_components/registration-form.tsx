@@ -44,7 +44,6 @@ export function RegistrationForm({ committees, intra = false }: Props) {
   const stepKeys: StepKey[] = intra
     ? ["personal", "preferences", "coDelegateOrPref2", "undertaking"]
     : ["personal", "preferences", "coDelegateOrPref2", "accommodation", "undertaking"]
-  const steps = stepKeys.map((key) => STEP_LABEL[key])
 
   const [step, setStep] = useState(0)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -92,6 +91,15 @@ export function RegistrationForm({ committees, intra = false }: Props) {
   const pref1CommitteeId = form.watch("pref1CommitteeId")
   const pref1Committee = committees.find((c) => c.id === pref1CommitteeId)
   const isDoubleDelegation = pref1Committee?.doubleDelegation ?? false
+  // Step 3 is a co-delegate for a double-delegation committee and a second
+  // preference otherwise; name it for what it will be once a committee is chosen.
+  const steps = stepKeys.map((key) =>
+    key !== "coDelegateOrPref2" || !pref1CommitteeId
+      ? STEP_LABEL[key]
+      : isDoubleDelegation
+        ? t("register.steps.coDelegate")
+        : t("register.steps.secondPreference"),
+  )
 
   const { onDtuChange } = useDtuInstitution(form)
 
