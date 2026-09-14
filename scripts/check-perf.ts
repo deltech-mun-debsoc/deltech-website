@@ -106,7 +106,8 @@ for (const p of ["src/app/(admin)/admin/(event)/page.tsx", "src/app/(marketing)/
 // --- recharts is split out of the admin landing page ----------------------
 {
   const src = read("src/app/(admin)/admin/(event)/page.tsx")
-  assert.match(src, /dynamic\(\s*\(\) => import\("\.\/_components\/status-bar-chart"\)/, "charts must be split")
+  assert.match(src, /dynamic\(\s*\(\) => import\("\.\/_components\/source-pie-chart"\)/, "charts must be split")
+  assert.doesNotMatch(src, /^import .* from "recharts"/m, "the landing page must not import recharts directly")
 }
 
 console.log("✅ check-perf passed")

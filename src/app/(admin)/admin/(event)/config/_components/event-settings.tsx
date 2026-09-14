@@ -4,7 +4,7 @@ import { useState, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { ArrowRight, Check, Circle, LockKeyhole } from "lucide-react"
+import { ArrowRight, Check, ChevronDown, Circle, LockKeyhole } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -210,11 +210,11 @@ export function EventSettings({
             <Input id="event-name" value={v.name} onChange={(e) => set("name", e.target.value)} placeholder="DTU Intra MUN 2026" className="h-11" />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="event-label">Short label</Label>
+            <Label htmlFor="event-label">Short label <span className="text-xs font-normal text-muted-foreground">optional</span></Label>
             <Input id="event-label" value={v.label} onChange={(e) => set("label", e.target.value)} placeholder={intra ? "Intra MUN · October 2026" : "Flagship conference · January 2027"} className="h-11" />
           </div>
           <div className="space-y-2 md:col-span-2">
-            <Label htmlFor="event-brief">One-line brief</Label>
+            <Label htmlFor="event-brief">One-line brief <span className="text-xs font-normal text-muted-foreground">optional</span></Label>
             <Input id="event-brief" value={v.brief} onChange={(e) => set("brief", e.target.value)} placeholder="A day of committees for DTU students, first-timers welcome." className="h-11" />
           </div>
           <div className="space-y-2">
@@ -225,12 +225,19 @@ export function EventSettings({
             <Label htmlFor="event-venue">Venue</Label>
             <Input id="event-venue" value={v.venue} onChange={(e) => set("venue", e.target.value)} placeholder="Delhi Technological University" className="h-11" />
           </div>
+        </div>
+        <details className="group">
+          <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground [&::-webkit-details-marker]:hidden">
+            More options: button text, external form, closed message
+            <ChevronDown className="size-4 transition-transform group-open:rotate-180" />
+          </summary>
+          <div className="mt-5 grid gap-5 md:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor="event-cta">Register button text</Label>
             <Input id="event-cta" value={v.ctaLabel} onChange={(e) => set("ctaLabel", e.target.value)} placeholder="Register now" className="h-11" />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="event-form-url">External registration form (optional)</Label>
+            <Label htmlFor="event-form-url">External registration form <span className="text-xs font-normal text-muted-foreground">optional</span></Label>
             <Input id="event-form-url" value={v.formUrl} onChange={(e) => set("formUrl", e.target.value)} placeholder="https://docs.google.com/forms/d/..." className="h-11" />
             <p className="text-xs text-muted-foreground">
               {intra ? "Leave empty to use the website's form. A Google Form link sends every Register button there instead." : "Only used for an Intra MUN."}
@@ -240,7 +247,8 @@ export function EventSettings({
             <Label htmlFor="event-closed-message">Message while registration is closed</Label>
             <Input id="event-closed-message" value={v.closedMessage} onChange={(e) => set("closedMessage", e.target.value)} placeholder="Registrations are currently closed. Check back soon." className="h-11" />
           </div>
-        </div>
+          </div>
+        </details>
       </section>
 
       <div className="sticky bottom-5 z-20 flex items-center justify-between gap-4 border border-border bg-background/95 p-4 shadow-xl backdrop-blur">

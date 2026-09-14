@@ -12,7 +12,7 @@ import { pickValues, reversibleSettingsMeta } from "@/lib/audit-change"
 import { fetchSheetRows, SheetFetchError } from "@/lib/sheet-fetch"
 import { portfoliosFromSheetRows, type PortfolioEntry } from "@/lib/portfolio-sheet"
 import { deriveCsvUrl } from "@/lib/gsheet-url"
-import { closeEvent, createEvent, currentEventScope, getActiveEvent, requireActiveEvent } from "@/lib/event"
+import { closeEvent, createEvent, currentEventScope, getActiveEvent, reopenEvent, requireActiveEvent } from "@/lib/event"
 import type { EventState } from "@/generated/prisma/client"
 
 // Money/sync config only an ADMIN may touch, kept out of saveContent entirely.
@@ -601,5 +601,18 @@ export async function startNewEvent(input: { name: string; kind?: string }): Pro
       return { success: false, error: "An event with that name already exists. Choose a different name." }
     }
     return { success: false, error: "Could not start the new event." }
+  }
+}
+
+export async function reopenPastEvent(input: { id: string }): Promise<{ success: boolean; error?: string }> {
+  const session = await requireAdmin()
+  try {
+    const result = await reopenEvent(input.id)
+    if (!result) return { success: false, error: "That event is not closed, so there is nothing to reopen." }
+    await audit(session.user?.email ?? "unknown", "event.reopen", "Event", input.id, { closed: result.closedName })
+    publishContentChanges()
+    return { success: true }
+  } catch {
+    return { success: false, error: "Could not reopen the event." }
   }
 }
