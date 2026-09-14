@@ -1,11 +1,10 @@
 import { prisma } from "@/lib/prisma"
-import { currentEventScope } from "@/lib/event"
+import { currentEventScope, getActiveEvent } from "@/lib/event"
 import { buildDelegateWhere, parseSortField } from "./_lib/build-where"
 import { delegateInclude, serializeDelegate } from "./_lib/types"
 import { RegistrationsClient } from "./_components/registrations-client"
 import { DelegateTabs } from "./_components/delegate-tabs"
 import type { Prisma } from "@/generated/prisma/client"
-import { t } from "@/content/strings"
 import { PageHeader } from "@/app/(admin)/_components/page-header"
 
 const PAGE_SIZE_DEFAULT = 25
@@ -69,8 +68,7 @@ export default async function RegistrationsPage(props: {
     <div className="space-y-6">
       <DelegateTabs />
       <PageHeader
-        eyebrow="Delegates"
-        title={t("admin.nav.registrations")}
+        title="All delegates"
         description={`${total} ${total === 1 ? "delegate" : "delegates"} match · tick rows to mail them`}
       />
       <RegistrationsClient
@@ -78,6 +76,7 @@ export default async function RegistrationsPage(props: {
         committees={committees}
         total={total}
         filters={filters}
+        intra={(await getActiveEvent())?.kind === "INTRA_MUN"}
       />
     </div>
   )

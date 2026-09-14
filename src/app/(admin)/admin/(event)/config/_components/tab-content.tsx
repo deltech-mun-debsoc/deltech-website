@@ -1,6 +1,7 @@
 "use client"
 
-import { useTransition, useEffect } from "react"
+import { useTransition } from "react"
+import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { useForm, useFieldArray } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -17,10 +18,6 @@ import type { Content } from "@/content/contentSchema"
 
 const schema = z.object({
   heroTitle: z.string(),
-  heroSubtitle: z.string(),
-  heroCtaLabel: z.string(),
-  conferenceDates: z.string(),
-  venue: z.string(),
   societyLocation: z.string(),
   societyEmail: z.string().email(),
   agendasBlurb: z.string(),
@@ -56,6 +53,8 @@ interface Props {
   content: Content
 }
 
+// The society's standing copy. The event's own name, brief, dates, venue and
+// button text live in Event control, so they are not edited twice.
 export function TabContent({ content }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -63,10 +62,6 @@ export function TabContent({ content }: Props) {
   const form = useForm<FormValues, unknown, FormValues>({
     defaultValues: {
       heroTitle: content.landingHero.title,
-      heroSubtitle: content.landingHero.subtitle,
-      heroCtaLabel: content.landingHero.ctaLabel,
-      conferenceDates: content.conferenceDates,
-      venue: content.venue,
       societyLocation: content.societyLocation,
       societyEmail: content.societyEmail,
       agendasBlurb: content.agendasBlurb,
@@ -86,13 +81,7 @@ export function TabContent({ content }: Props) {
   const onSubmit = form.handleSubmit((data) => {
     startTransition(async () => {
       const result = await saveContent({
-        landingHero: {
-          title: data.heroTitle,
-          subtitle: data.heroSubtitle,
-          ctaLabel: data.heroCtaLabel,
-        },
-        conferenceDates: data.conferenceDates,
-        venue: data.venue,
+        landingHero: { ...content.landingHero, title: data.heroTitle },
         societyLocation: data.societyLocation,
         societyEmail: data.societyEmail,
         agendasBlurb: data.agendasBlurb,
@@ -115,39 +104,28 @@ export function TabContent({ content }: Props) {
 
   return (
     <form onSubmit={onSubmit} className="max-w-2xl space-y-8">
-      {/* Hero */}
-      <Section title="Landing Hero">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Title">
-            <Input {...form.register("heroTitle")} />
-          </Field>
-          <Field label="CTA button label">
-            <Input {...form.register("heroCtaLabel")} />
-          </Field>
-        </div>
-        <Field label="Subtitle">
-          <Textarea {...form.register("heroSubtitle")} />
+      <p className="rounded-md border border-border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+        {"The event's name, brief, dates, venue and register button are set in "}
+        <Link href="/admin/config" className="font-medium text-foreground underline underline-offset-2">Event control</Link>.
+      </p>
+
+      <Section title="Society">
+        <Field label="Name shown in the site header">
+          <Input {...form.register("heroTitle")} />
         </Field>
-      </Section>
-
-      <Separator />
-
-      {/* Conference details */}
-      <Section title="Conference Details">
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Dates">
-            <Input {...form.register("conferenceDates")} placeholder="e.g. 14–16 Feb 2025" />
+          <Field label="Location">
+            <Input {...form.register("societyLocation")} />
           </Field>
-          <Field label="Venue">
-            <Input {...form.register("venue")} />
+          <Field label="Email">
+            <Input type="email" {...form.register("societyEmail")} />
           </Field>
         </div>
       </Section>
 
       <Separator />
 
-      {/* Copy */}
-      <Section title="Public Copy">
+      <Section title="Public copy">
         <Field label="Agendas blurb">
           <Textarea {...form.register("agendasBlurb")} />
         </Field>
@@ -161,7 +139,6 @@ export function TabContent({ content }: Props) {
 
       <Separator />
 
-      {/* Awards */}
       <Section title="Awards">
         <Field label="One award per line">
           <Textarea {...form.register("awardsText")} rows={5} placeholder="Best Delegate&#10;High Commendation&#10;Verbal Mention" />
@@ -170,21 +147,7 @@ export function TabContent({ content }: Props) {
 
       <Separator />
 
-      {/* Query contacts */}
-      <Section title="Society Contact">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Location">
-            <Input {...form.register("societyLocation")} />
-          </Field>
-          <Field label="Email">
-            <Input type="email" {...form.register("societyEmail")} />
-          </Field>
-        </div>
-      </Section>
-
-      <Separator />
-
-      <Section title="Query Contacts">
+      <Section title="Query contacts">
         <p className="text-sm leading-relaxed text-muted-foreground">
           These people appear on the public site and sign automated allotment and payment-confirmation emails. Update them at the start of every Secretariat term.
         </p>
@@ -192,37 +155,16 @@ export function TabContent({ content }: Props) {
           {fields.map((field, i) => (
             <div key={field.id} className="flex items-start gap-2">
               <div className="grid flex-1 gap-2 sm:grid-cols-3">
-                <Input
-                  {...form.register(`contacts.${i}.name`)}
-                  placeholder="Name"
-                />
-                <Input
-                  {...form.register(`contacts.${i}.role`)}
-                  placeholder="Role"
-                />
-                <Input
-                  {...form.register(`contacts.${i}.phone`)}
-                  placeholder="Phone"
-                />
+                <Input {...form.register(`contacts.${i}.name`)} placeholder="Name" />
+                <Input {...form.register(`contacts.${i}.role`)} placeholder="Role" />
+                <Input {...form.register(`contacts.${i}.phone`)} placeholder="Phone" />
               </div>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                className="shrink-0"
-                onClick={() => remove(i)}
-              >
+              <Button type="button" variant="ghost" size="icon" className="shrink-0" aria-label="Remove contact" onClick={() => remove(i)}>
                 <Trash2 className="size-4 text-muted-foreground" />
               </Button>
             </div>
           ))}
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="gap-1.5"
-            onClick={() => append({ name: "", role: "", phone: "" })}
-          >
+          <Button type="button" variant="outline" size="sm" className="gap-1.5" onClick={() => append({ name: "", role: "", phone: "" })}>
             <Plus className="size-3.5" /> Add contact
           </Button>
         </div>

@@ -2,7 +2,7 @@
 
 import { prisma } from "@/lib/prisma"
 import { getContent } from "@/lib/settings"
-import { registerSchema, type RegisterFormValues } from "@/lib/schemas/register"
+import { DTU_INSTITUTION, registerSchema, type RegisterFormValues } from "@/lib/schemas/register"
 import { sendRegistrationEmails } from "@/lib/resend"
 import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit"
 import { deriveEventState } from "@/lib/event-state"
@@ -66,6 +66,12 @@ export async function registerDelegate(data: RegisterFormValues): Promise<Action
   if (!activeEvent) {
     return { success: false, error: "Registrations are closed." }
   }
+  // An Intra MUN is for DTU students: the roll number is what identifies them,
+  // and college and accommodation are the same for everyone.
+  const intra = activeEvent.kind === "INTRA_MUN"
+  if (intra && !vals.rollNumber?.trim()) {
+    return { success: false, error: "Enter your DTU roll number.", fieldErrors: { rollNumber: ["Enter your DTU roll number."] } }
+  }
   const existing = await prisma.delegate.findFirst({
     where: { email: vals.email, eventId: activeEvent.id },
   })
@@ -82,9 +88,9 @@ export async function registerDelegate(data: RegisterFormValues): Promise<Action
       // whether the site is accepting anyone at all.
       const event = await tx.event.findFirst({
         where: { state: { notIn: [...INACTIVE_STATES] } },
-        select: { id: true, registrationOpen: true },
+        select: { id: true, registrationOpen: true, state: true },
       })
-      if (!event || !event.registrationOpen) return null
+      if (!event || !event.registrationOpen || event.state === "DRAFT") return null
 
       return tx.delegate.create({
         data: {
@@ -93,8 +99,9 @@ export async function registerDelegate(data: RegisterFormValues): Promise<Action
           email: vals.email,
           whatsapp: vals.whatsapp,
           altPhone: vals.altPhone ?? null,
-          institution: vals.institution,
-          isDtu: vals.isDtu,
+          institution: intra ? DTU_INSTITUTION : vals.institution,
+          isDtu: intra || vals.isDtu,
+          rollNumber: vals.rollNumber?.trim() || null,
           munExperience: vals.munExperience || null,
           source: "SELF",
           pref1CommitteeId: vals.pref1CommitteeId,
@@ -106,8 +113,8 @@ export async function registerDelegate(data: RegisterFormValues): Promise<Action
           pref2PortfolioId: isDoubleDelegation
             ? null
             : await validSeat(tx, vals.pref2PortfolioId, vals.pref2CommitteeId),
-          needsAccommodation: vals.needsAccommodation,
-          outsideNcr: vals.outsideNcr,
+          needsAccommodation: intra ? false : vals.needsAccommodation,
+          outsideNcr: intra ? false : vals.outsideNcr,
           reference: vals.reference || null,
           status: "REGISTERED",
           ...(isDoubleDelegation && vals.coDelegate

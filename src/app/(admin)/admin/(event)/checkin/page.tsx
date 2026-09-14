@@ -1,5 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { currentEventScope } from "@/lib/event"
+import { getContent } from "@/lib/settings"
+import { deriveEventState } from "@/lib/event-state"
 import type { Prisma, AppStatus } from "@/generated/prisma/client"
 import { t } from "@/content/strings"
 import { PageHeader } from "@/app/(admin)/_components/page-header"
@@ -92,11 +94,10 @@ export default async function CheckinPage(props: {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Event"
         title={t("admin.nav.checkin")}
         description={t("checkin.summary", { checkedIn: checkedInCount, confirmed: confirmedCount })}
       />
-      <CheckinClient delegates={delegates} filters={{ q, status }} capped={delegates.length === ROW_CAP} />
+      <CheckinClient delegates={delegates} filters={{ q, status }} capped={delegates.length === ROW_CAP} showPayment={deriveEventState(await getContent()).paymentsRequired} />
     </div>
   )
 }

@@ -42,6 +42,8 @@ interface Props {
   delegates: CheckinDelegate[]
   filters: Filters
   capped?: boolean
+  // A free event has no payments to show.
+  showPayment?: boolean
 }
 
 const STATUS_OPTIONS = ["REGISTERED", "ALLOTTED", "PAYMENT_SENT", "CONFIRMED", "CANCELLED", "WAITLISTED"]
@@ -67,7 +69,7 @@ function buildUrl(filters: Filters) {
   return `/admin/checkin${qs ? `?${qs}` : ""}`
 }
 
-export function CheckinClient({ delegates, filters, capped }: Props) {
+export function CheckinClient({ delegates, filters, capped, showPayment = true }: Props) {
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [searchValue, setSearchValue] = useState(filters.q)
@@ -160,7 +162,7 @@ export function CheckinClient({ delegates, filters, capped }: Props) {
                 t("admin.table.headerCommittee"),
                 t("checkin.headerPortfolio"),
                 t("admin.table.headerStatus"),
-                t("admin.table.headerPayStatus"),
+                ...(showPayment ? [t("admin.table.headerPayStatus")] : []),
                 t("admin.table.headerActions"),
               ].map((label) => (
                 <th key={label} className="px-4 py-3 text-left">
@@ -174,7 +176,7 @@ export function CheckinClient({ delegates, filters, capped }: Props) {
           <tbody className="divide-y divide-border/40">
             {delegates.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-4 py-10 text-center text-sm text-muted-foreground">
+                <td colSpan={showPayment ? 6 : 5} className="px-4 py-10 text-center text-sm text-muted-foreground">
                   {t("empty.noResults")}
                 </td>
               </tr>
@@ -197,9 +199,11 @@ export function CheckinClient({ delegates, filters, capped }: Props) {
                       )}
                     </div>
                   </td>
-                  <td className="px-4 py-3 text-xs text-muted-foreground">
-                    {d.paymentStatus ? (PAY_STATUS_LABEL[d.paymentStatus] ?? d.paymentStatus) : "-"}
-                  </td>
+                  {showPayment && (
+                    <td className="px-4 py-3 text-xs text-muted-foreground">
+                      {d.paymentStatus ? (PAY_STATUS_LABEL[d.paymentStatus] ?? d.paymentStatus) : "-"}
+                    </td>
+                  )}
                   <td className="px-4 py-3">
                     {d.checkedInAt ? (
                       <div className="flex items-center gap-2">

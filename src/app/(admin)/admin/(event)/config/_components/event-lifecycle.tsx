@@ -8,23 +8,21 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { cn } from "@/lib/utils"
 import { closeCurrentEvent, startNewEvent } from "../actions"
 
-const STATE_LABEL: Record<string, string> = {
-  DRAFT: "Draft · not published yet",
-  OPEN: "Registration open",
-  ALLOTMENT: "Allotting",
-  LIVE: "Live",
-}
+const KINDS = [
+  { value: "INTRA_MUN", label: "Intra MUN" },
+  { value: "CONFERENCE", label: "Conference" },
+] as const
 
-// Which event the platform is running, and the two deliberate ways to change
-// that. Everything else on this page configures the current event; this card is
-// the only place that ends one or begins the next.
+// Ending the running event and beginning the next. Everything else on this page
+// configures the event that is running.
 export function EventLifecycle({
   current,
   canManage,
 }: {
-  current: { name: string; state: string } | null
+  current: { name: string } | null
   canManage: boolean
 }) {
   const router = useRouter()
@@ -32,6 +30,7 @@ export function EventLifecycle({
   const [closing, setClosing] = useState(false)
   const [starting, setStarting] = useState(false)
   const [newName, setNewName] = useState("")
+  const [kind, setKind] = useState<"INTRA_MUN" | "CONFERENCE">("INTRA_MUN")
 
   const close = () =>
     startTransition(async () => {
@@ -47,49 +46,64 @@ export function EventLifecycle({
 
   const start = () =>
     startTransition(async () => {
-      const result = await startNewEvent({ name: newName })
+      const result = await startNewEvent({ name: newName, kind })
       if (!result.success) {
         toast.error(result.error ?? "Could not start the new event.")
         return
       }
       setStarting(false)
-      toast.success(`Started ${newName.trim()}. Build its committees, then publish it below.`)
+      toast.success(`Started ${newName.trim()}. Add its details and committees, then publish it.`)
       setNewName("")
       router.refresh()
     })
 
   return (
-    <section className="space-y-5 border-y border-border py-6">
+    <section className={cn("space-y-5", current ? "border-t border-border pt-8" : "editorial-card p-6 sm:p-8")}>
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="eyebrow">Events</p>
-          <h2 className="mt-2 font-heading text-2xl">
-            {current ? current.name : "No event is running"}
-          </h2>
-          <p className="mt-1 text-sm text-muted-foreground">
+          <p className="eyebrow">{current ? "Start or close" : "No event is running"}</p>
+          <h2 className="mt-2 font-heading text-2xl">{current ? "Another event" : "Start an event"}</h2>
+          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             {current
-              ? STATE_LABEL[current.state] ?? current.state
-              : "The site is in its society resting state. Start an event to take registrations."}
+              ? `Starting a new event closes ${current.name}. Nothing is deleted: its delegates and allotments stay, and it can be looked up later.`
+              : "An event starts hidden and empty. Add its details, committees and seats, then publish it when it is ready."}
           </p>
         </div>
         {canManage && current && (
           <Button variant="outline" onClick={() => setClosing(true)} disabled={pending}>
-            <CircleStop /> Close this event
+            <CircleStop /> Close {current.name}
           </Button>
         )}
       </div>
 
       {canManage ? (
-        <div className="flex flex-col gap-2 md:flex-row md:items-end">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
           <div className="flex-1 space-y-2">
-            <Label htmlFor="new-event-name">Start a new event</Label>
+            <Label htmlFor="new-event-name">Event name</Label>
             <Input
               id="new-event-name"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
-              placeholder={"e.g. Intra MUN 2026"}
+              placeholder={kind === "INTRA_MUN" ? "DTU Intra MUN 2026" : "DelTech MUN 2027"}
               className="h-11"
             />
+          </div>
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Kind</p>
+            <div className="flex h-11 overflow-hidden rounded-md border border-border" role="radiogroup" aria-label="Kind of event">
+              {KINDS.map((k) => (
+                <button
+                  key={k.value}
+                  type="button"
+                  role="radio"
+                  aria-checked={kind === k.value}
+                  onClick={() => setKind(k.value)}
+                  className={cn("px-4 text-sm transition-colors", kind === k.value ? "bg-primary text-primary-foreground" : "hover:bg-muted")}
+                >
+                  {k.label}
+                </button>
+              ))}
+            </div>
           </div>
           <Button onClick={() => setStarting(true)} disabled={pending || !newName.trim()} className="h-11">
             <CalendarPlus /> Start event
@@ -103,7 +117,7 @@ export function EventLifecycle({
         open={closing}
         onOpenChange={(next) => !pending && setClosing(next)}
         title={"Close this event?"}
-        description={`${current?.name ?? "The event"} stops taking registrations and allotments. Its delegates, allotments and payments are kept, and it can still be looked up afterwards.`}
+        description={`${current?.name ?? "The event"} stops taking registrations and allotments and leaves the website. Its delegates, allotments and payments are kept.`}
         confirmLabel={"Close event"}
         destructive
         pending={pending}
@@ -114,11 +128,7 @@ export function EventLifecycle({
         open={starting}
         onOpenChange={(next) => !pending && setStarting(next)}
         title={"Start a new event?"}
-        description={
-          current
-            ? `${current.name} will be closed first. ${newName.trim()} starts empty, with no committees, portfolios or delegates, and stays unpublished until you publish it below.`
-            : `${newName.trim()} starts empty, with no committees, portfolios or delegates, and stays unpublished until you publish it below.`
-        }
+        description={`${current ? `${current.name} will be closed first. ` : ""}${newName.trim()} starts empty and hidden, with no committees, seats or delegates.`}
         confirmLabel={"Start event"}
         pending={pending}
         onConfirm={start}

@@ -27,6 +27,7 @@ export function buildDelegateWhere(params: FilterParams, now: Date = new Date())
         { fullName: { contains: params.q, mode: "insensitive" } },
         { email: { contains: params.q, mode: "insensitive" } },
         { institution: { contains: params.q, mode: "insensitive" } },
+        { rollNumber: { contains: params.q, mode: "insensitive" } },
       ],
     })
   }

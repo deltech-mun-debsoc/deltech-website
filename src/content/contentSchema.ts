@@ -31,7 +31,7 @@ export const ContentSchema = z.object({
   // Intra mode, /register sends people there, so every Register button on the
   // site follows it without each one knowing. Deliberately a plain string here:
   // getContent() parses this schema on every page, so a strict .url() would take
-  // the whole site down over one bad saved value. saveEventControl validates it.
+  // the whole site down over one bad saved value. saveEventSettings validates it.
   registrationFormUrl: z.string().default(""),
   registrationClosedMessage: z
     .string()

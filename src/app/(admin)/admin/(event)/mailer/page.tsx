@@ -8,7 +8,7 @@ export default async function MailerPage() {
   await requireStaff()
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Event" title="Mail" description="Announcements and reminders to this event's delegates: by stage, by filter, or hand-picked from the delegate list.">
+      <PageHeader title="Mail" description="Announcements and reminders to this event's delegates: by stage, by filter, or hand-picked from the delegate list.">
         <Link href="/admin/mailer/new" className={buttonVariants()}>New mail</Link>
       </PageHeader>
       <CampaignList audience="DELEGATES" />
