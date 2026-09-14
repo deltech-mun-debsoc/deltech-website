@@ -34,7 +34,11 @@ export function AddDelegate({ committees, intra }: Props) {
   const set = <K extends keyof typeof EMPTY>(key: K, value: (typeof EMPTY)[K]) => setForm((f) => ({ ...f, [key]: value }))
   const committeeItems = [{ value: "", label: "Not decided" }, ...toSelectItems(committees, (c) => c.id, (c) => c.name)]
 
-  const submit = (thenSeat: boolean) =>
+  // Both buttons submit the form, so the browser stops on an empty required field
+  // and points at it before anything is sent, whichever button was pressed.
+  const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    const thenSeat = (e.nativeEvent as SubmitEvent).submitter?.getAttribute("value") === "seat"
     startTransition(async () => {
       const r = await addDelegate(form)
       if (!r.success) {
@@ -47,10 +51,11 @@ export function AddDelegate({ committees, intra }: Props) {
       if (thenSeat) router.push(`/admin/allotment?delegate=${r.id}`)
       else router.refresh()
     })
+  }
 
   return (
     <>
-      <Button size="sm" className="gap-1.5" onClick={() => setOpen(true)}>
+      <Button className="gap-1.5" onClick={() => setOpen(true)}>
         <UserPlus className="size-4" /> Add delegate
       </Button>
       <Dialog open={open} onOpenChange={(o) => !pending && setOpen(o)}>
@@ -58,25 +63,19 @@ export function AddDelegate({ committees, intra }: Props) {
           <DialogHeader>
             <DialogTitle>Add a delegate</DialogTitle>
             <DialogDescription>
-              For someone registering on the spot. They are added even when public registration is closed.
+              For someone registering on the spot, even while public registration is closed. Everything is needed unless it says optional.
             </DialogDescription>
           </DialogHeader>
-          <form
-            className="space-y-4"
-            onSubmit={(e) => {
-              e.preventDefault()
-              submit(true)
-            }}
-          >
+          <form className="space-y-5" onSubmit={onSubmit}>
             <Field label="Full name">
-              <Input value={form.fullName} onChange={(e) => set("fullName", e.target.value)} autoFocus required />
+              <Input value={form.fullName} onChange={(e) => set("fullName", e.target.value)} autoFocus required minLength={2} />
             </Field>
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-5 sm:grid-cols-2">
               <Field label="Email">
                 <Input type="email" value={form.email} onChange={(e) => set("email", e.target.value)} required />
               </Field>
               <Field label="WhatsApp number">
-                <Input type="tel" value={form.whatsapp} onChange={(e) => set("whatsapp", e.target.value)} required />
+                <Input type="tel" value={form.whatsapp} onChange={(e) => set("whatsapp", e.target.value)} required minLength={7} placeholder="98xxxxxxxx" />
               </Field>
             </div>
             {intra ? (
@@ -84,7 +83,7 @@ export function AddDelegate({ committees, intra }: Props) {
                 <Input value={form.rollNumber} onChange={(e) => set("rollNumber", e.target.value)} placeholder="2K23/CO/123" required />
               </Field>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <Field label="College">
                   <Input
                     value={form.isDtu ? "Delhi Technological University" : form.institution}
@@ -99,8 +98,8 @@ export function AddDelegate({ committees, intra }: Props) {
                 </label>
               </div>
             )}
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Committee they want">
+            <div className="grid gap-5 sm:grid-cols-2">
+              <Field label="Committee they want" optional>
                 <Select items={committeeItems} value={form.pref1CommitteeId || undefined} onValueChange={(v) => set("pref1CommitteeId", v ?? "")}>
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Not decided" />
@@ -112,7 +111,7 @@ export function AddDelegate({ committees, intra }: Props) {
                   </SelectContent>
                 </Select>
               </Field>
-              <Field label="Portfolio they want">
+              <Field label="Portfolio they want" optional>
                 <Input
                   value={form.pref1Portfolio}
                   onChange={(e) => set("pref1Portfolio", e.target.value)}
@@ -122,10 +121,10 @@ export function AddDelegate({ committees, intra }: Props) {
               </Field>
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" disabled={pending} onClick={() => submit(false)}>
+              <Button type="submit" name="then" value="list" variant="outline" disabled={pending}>
                 Just add
               </Button>
-              <Button type="submit" disabled={pending}>
+              <Button type="submit" name="then" value="seat" disabled={pending}>
                 {pending ? "Adding…" : "Add and give a seat"}
               </Button>
             </DialogFooter>
@@ -136,10 +135,13 @@ export function AddDelegate({ committees, intra }: Props) {
   )
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, optional, children }: { label: string; optional?: boolean; children: React.ReactNode }) {
   return (
-    <div className="space-y-1.5">
-      <Label className="text-xs">{label}</Label>
+    <div className="space-y-2">
+      <Label className="text-sm">
+        {label}
+        {optional && <span className="text-xs font-normal text-muted-foreground">optional</span>}
+      </Label>
       {children}
     </div>
   )

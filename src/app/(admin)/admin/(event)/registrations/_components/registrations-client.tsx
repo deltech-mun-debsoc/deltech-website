@@ -3,11 +3,11 @@
 import { formatDate } from "@/lib/datetime"
 import { useState, useCallback, useMemo, useTransition } from "react"
 import { useRouter } from "next/navigation"
-import { ArrowUpDown, ArrowUp, ArrowDown, Search, Download, ChevronLeft, ChevronRight, Check, Minus, Mail } from "lucide-react"
+import { ArrowUpDown, ArrowUp, ArrowDown, Search, Download, ChevronLeft, ChevronRight, Check, Minus, Mail, SlidersHorizontal, X } from "lucide-react"
 import { toast } from "sonner"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import {
   Select,
   SelectContent,
@@ -20,6 +20,7 @@ import type { SerializedDelegate } from "../_lib/types"
 import type { SortField } from "../_lib/build-where"
 import { draftMailForDelegates } from "../../mailer/actions"
 import { DelegateDrawer } from "./delegate-drawer"
+import { statusMeta } from "../_lib/status"
 
 interface Committee { id: string; name: string; slug: string }
 
@@ -51,16 +52,8 @@ interface Props {
 const STATUS_OPTIONS = ["REGISTERED", "ALLOTTED", "PAYMENT_SENT", "CONFIRMED", "CANCELLED", "WAITLISTED"]
 const SOURCE_OPTIONS = ["SELF", "CROSS_DEL", "SPONSORED", "INTERNAL", "MANUAL"]
 
-const STATUS_LABEL: Record<string, string> = {
-  REGISTERED: "Registered", ALLOTTED: "Allotted", PAYMENT_SENT: "Pay link sent",
-  CONFIRMED: "Confirmed", CANCELLED: "Cancelled", WAITLISTED: "Waitlisted",
-}
 const SOURCE_LABEL: Record<string, string> = {
   SELF: "Self", CROSS_DEL: "Cross-del", SPONSORED: "Sponsored", INTERNAL: "Internal", MANUAL: "Manual",
-}
-const STATUS_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-  REGISTERED: "secondary", ALLOTTED: "outline", PAYMENT_SENT: "outline",
-  CONFIRMED: "default", CANCELLED: "destructive", WAITLISTED: "secondary",
 }
 
 const FILTER_KEYS = ["q", "committeeId", "status", "source", "isDtu", "needsAccommodation", "followUp", "query"] as const
@@ -112,6 +105,12 @@ export function RegistrationsClient({ delegates, committees, total, filters, int
   const [searchValue, setSearchValue] = useState(filters.q)
   // Ticked rows survive paging, so people can be picked across pages.
   const [picked, setPicked] = useState<Set<string>>(new Set())
+  // The filters people reach for rarely sit behind one button, open by default only
+  // when one of them is already in use.
+  const rareKeys = (intra ? ["followUp", "query"] : ["source", "isDtu", "needsAccommodation", "followUp", "query"]) as (keyof Filters)[]
+  const rareActive = rareKeys.filter((k) => filters[k]).length
+  const anyActive = FILTER_KEYS.some((k) => filters[k])
+  const [moreOpen, setMoreOpen] = useState(rareActive > 0)
 
   // Keep local delegates in sync when server data changes
   // (delegates prop updates on navigation)
@@ -197,165 +196,157 @@ export function RegistrationsClient({ delegates, committees, total, filters, int
 
   return (
     <div className="space-y-4">
-      {/* Filter bar */}
-      <div className="flex flex-wrap items-end gap-2">
-        {/* Search */}
-        <form onSubmit={handleSearchSubmit} className="flex gap-1">
-          <div className="relative">
-            <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+      {/* Filter bar: every control is h-9, so the row lines up. */}
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <form onSubmit={handleSearchSubmit} className="relative">
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               value={searchValue}
-              onChange={e => setSearchValue(e.target.value)}
-              placeholder={intra ? "Name, email, roll number…" : "Name, email, institution…"}
-              className="h-8 w-56 pl-8 text-sm"
+              onChange={(e) => {
+                setSearchValue(e.target.value)
+                if (!e.target.value && filters.q) navigate({ q: "" })
+              }}
+              placeholder={intra ? "Search name, email, roll no." : "Search name, email, college"}
+              aria-label="Search delegates, press Enter"
+              className="h-9 w-64 pl-9 text-sm"
             />
+          </form>
+
+          <Select value={filters.status || undefined} onValueChange={(v) => navigate({ status: v || "" })}>
+            <SelectTrigger size="sm" className="w-40">
+              <SelectValue placeholder="Every stage" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Every stage</SelectItem>
+              {STATUS_OPTIONS.map((s) => (
+                <SelectItem key={s} value={s}>
+                  <span className={cn("size-2 rounded-full", statusMeta(s).dot)} />
+                  {statusMeta(s).label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Select items={committeeItems} value={filters.committeeId || undefined} onValueChange={(v) => navigate({ committeeId: v || "" })}>
+            <SelectTrigger size="sm" className="w-44">
+              <SelectValue placeholder="Every committee" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Every committee</SelectItem>
+              {committees.map((c) => (
+                <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Button variant={moreOpen || rareActive ? "secondary" : "ghost"} size="sm" onClick={() => setMoreOpen((o) => !o)} aria-expanded={moreOpen}>
+            <SlidersHorizontal className="size-4" />
+            {rareActive > 0 ? `More filters · ${rareActive}` : "More filters"}
+          </Button>
+
+          {anyActive && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground"
+              onClick={() => {
+                setSearchValue("")
+                navigate(Object.fromEntries(FILTER_KEYS.map((k) => [k, ""])))
+              }}
+            >
+              <X className="size-4" /> Clear
+            </Button>
+          )}
+
+          <div className="ml-auto flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={drafting || total === 0}
+              onClick={() => draftMail({ filters: Object.fromEntries(FILTER_KEYS.map((k) => [k, filters[k] || undefined])) })}
+            >
+              <Mail className="size-4" /> {`Email ${anyActive ? "these" : "all"} ${total}`}
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger render={<Button variant="outline" size="sm" />}>
+                <Download className="size-4" /> Export
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuItem render={<a href={buildExportUrl(filters, "xlsx")} download />}>Excel (.xlsx)</DropdownMenuItem>
+                <DropdownMenuItem render={<a href={buildExportUrl(filters, "csv")} download />}>CSV</DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
-          <Button type="submit" size="sm" variant="secondary" className="h-8">
-            Search
-          </Button>
-        </form>
-
-        {/* Committee filter */}
-        <Select
-          items={committeeItems}
-          value={filters.committeeId || undefined}
-          onValueChange={(v) => navigate({ committeeId: v || "" })}
-        >
-          <SelectTrigger className="h-8 w-44 text-xs">
-            <SelectValue placeholder="All committees" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="">All committees</SelectItem>
-            {committees.map(c => (
-              <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {/* Status filter */}
-        <Select
-          value={filters.status || undefined}
-          onValueChange={(v) => navigate({ status: v || "" })}
-        >
-          <SelectTrigger className="h-8 w-36 text-xs">
-            <SelectValue placeholder="All statuses" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="">All statuses</SelectItem>
-            {STATUS_OPTIONS.map(s => (
-              <SelectItem key={s} value={s}>{STATUS_LABEL[s]}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {!intra && (<>
-        {/* Source filter */}
-        <Select
-          value={filters.source || undefined}
-          onValueChange={(v) => navigate({ source: v || "" })}
-        >
-          <SelectTrigger className="h-8 w-32 text-xs">
-            <SelectValue placeholder="All sources" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="">All sources</SelectItem>
-            {SOURCE_OPTIONS.map(s => (
-              <SelectItem key={s} value={s}>{SOURCE_LABEL[s]}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-
-        {/* DTU filter */}
-        <Select
-          value={filters.isDtu || undefined}
-          onValueChange={(v) => navigate({ isDtu: v || "" })}
-        >
-          <SelectTrigger className="h-8 w-28 text-xs">
-            <SelectValue placeholder="DTU" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="">All</SelectItem>
-            <SelectItem value="true">DTU only</SelectItem>
-            <SelectItem value="false">Non-DTU</SelectItem>
-          </SelectContent>
-        </Select>
-
-        {/* Accommodation filter */}
-        <Select
-          value={filters.needsAccommodation || undefined}
-          onValueChange={(v) => navigate({ needsAccommodation: v || "" })}
-        >
-          <SelectTrigger className="h-8 w-32 text-xs">
-            <SelectValue placeholder="Accom." />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="">All</SelectItem>
-            <SelectItem value="true">Needs accom.</SelectItem>
-            <SelectItem value="false">No accom.</SelectItem>
-          </SelectContent>
-        </Select>
-
-        </>)}
-
-        {/* Payment chase */}
-        <Select
-          value={filters.followUp || undefined}
-          onValueChange={(v) => navigate({ followUp: v || "" })}
-        >
-          <SelectTrigger className="h-8 w-40 text-xs">
-            <SelectValue placeholder="Follow-up" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="">All</SelectItem>
-            <SelectItem value="due">Follow-up due</SelectItem>
-            <SelectItem value="never">Unpaid, never called</SelectItem>
-          </SelectContent>
-        </Select>
-
-        {/* Questions left on the registration form */}
-        <Select
-          value={filters.query || undefined}
-          onValueChange={(v) => navigate({ query: v || "" })}
-        >
-          <SelectTrigger className="h-8 w-36 text-xs">
-            <SelectValue placeholder="Questions" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="">All</SelectItem>
-            <SelectItem value="open">Unanswered question</SelectItem>
-          </SelectContent>
-        </Select>
-
-        <div className="ml-auto flex items-center gap-1">
-          <Button
-            variant="outline"
-            size="sm"
-            className="h-8 gap-1.5 text-xs"
-            disabled={drafting || total === 0}
-            onClick={() => draftMail({ filters: Object.fromEntries(FILTER_KEYS.map((k) => [k, filters[k] || undefined])) })}
-          >
-            <Mail className="size-3.5" /> {`Email all ${total}`}
-          </Button>
-          <a href={buildExportUrl(filters, "xlsx")} download>
-            <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
-              <Download className="size-3.5" /> XLSX
-            </Button>
-          </a>
-          <a href={buildExportUrl(filters, "csv")} download>
-            <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs">
-              <Download className="size-3.5" /> CSV
-            </Button>
-          </a>
         </div>
+
+        {moreOpen && (
+          <div className="flex flex-wrap items-center gap-2 rounded-lg bg-muted/40 p-2">
+            <Select value={filters.followUp || undefined} onValueChange={(v) => navigate({ followUp: v || "" })}>
+              <SelectTrigger size="sm" className="w-44">
+                <SelectValue placeholder="Any follow-up" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Any follow-up</SelectItem>
+                <SelectItem value="due">Follow-up due</SelectItem>
+                <SelectItem value="never">Unpaid, never called</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={filters.query || undefined} onValueChange={(v) => navigate({ query: v || "" })}>
+              <SelectTrigger size="sm" className="w-48">
+                <SelectValue placeholder="Any question" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="">Any question</SelectItem>
+                <SelectItem value="open">Unanswered question</SelectItem>
+              </SelectContent>
+            </Select>
+            {!intra && (
+              <>
+                <Select value={filters.source || undefined} onValueChange={(v) => navigate({ source: v || "" })}>
+                  <SelectTrigger size="sm" className="w-40">
+                    <SelectValue placeholder="Any source" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Any source</SelectItem>
+                    {SOURCE_OPTIONS.map((s) => (
+                      <SelectItem key={s} value={s}>{SOURCE_LABEL[s]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={filters.isDtu || undefined} onValueChange={(v) => navigate({ isDtu: v || "" })}>
+                  <SelectTrigger size="sm" className="w-36">
+                    <SelectValue placeholder="DTU or not" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">DTU or not</SelectItem>
+                    <SelectItem value="true">DTU only</SelectItem>
+                    <SelectItem value="false">Not DTU</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Select value={filters.needsAccommodation || undefined} onValueChange={(v) => navigate({ needsAccommodation: v || "" })}>
+                  <SelectTrigger size="sm" className="w-44">
+                    <SelectValue placeholder="Any accommodation" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="">Any accommodation</SelectItem>
+                    <SelectItem value="true">Needs accommodation</SelectItem>
+                    <SelectItem value="false">No accommodation</SelectItem>
+                  </SelectContent>
+                </Select>
+              </>
+            )}
+          </div>
+        )}
       </div>
 
       {picked.size > 0 && (
-        <div className="sticky top-0 z-10 flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
+        <div className="sticky top-2 z-10 flex flex-wrap items-center gap-2 rounded-lg border border-primary/30 bg-background px-3 py-2 text-sm shadow-sm">
           <span className="font-medium">{`${picked.size} selected`}</span>
-          <Button size="sm" className="h-8 gap-1.5 text-xs" disabled={drafting} onClick={() => draftMail({ ids: [...picked] })}>
-            <Mail className="size-3.5" /> Email selected
+          <Button size="sm" disabled={drafting} onClick={() => draftMail({ ids: [...picked] })}>
+            <Mail className="size-4" /> Email selected
           </Button>
-          <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => setPicked(new Set())}>
+          <Button variant="ghost" size="sm" onClick={() => setPicked(new Set())}>
             Clear
           </Button>
         </div>
@@ -434,9 +425,10 @@ export function RegistrationsClient({ delegates, committees, total, filters, int
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    <Badge variant={STATUS_VARIANT[d.status] ?? "secondary"}>
-                      {STATUS_LABEL[d.status] ?? d.status}
-                    </Badge>
+                    <span className={cn("inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium", statusMeta(d.status).pill)}>
+                      <span className={cn("size-1.5 rounded-full", statusMeta(d.status).dot)} />
+                      {statusMeta(d.status).label}
+                    </span>
                   </td>
                   {!intra && (<>
                   <td className="px-4 py-3">
@@ -468,7 +460,7 @@ export function RegistrationsClient({ delegates, committees, total, filters, int
           <Button
             variant="outline"
             size="sm"
-            className="h-8 gap-1"
+            className="gap-1"
             disabled={filters.page <= 1}
             onClick={() => navigate({ page: filters.page - 1 })}
           >
@@ -480,7 +472,7 @@ export function RegistrationsClient({ delegates, committees, total, filters, int
           <Button
             variant="outline"
             size="sm"
-            className="h-8 gap-1"
+            className="gap-1"
             disabled={filters.page >= totalPages}
             onClick={() => navigate({ page: filters.page + 1 })}
           >
@@ -493,6 +485,7 @@ export function RegistrationsClient({ delegates, committees, total, filters, int
       <DelegateDrawer
         delegate={selectedDelegate}
         committees={committees}
+        intra={intra}
         onClose={() => setSelectedDelegate(null)}
         onUpdated={handleDelegateUpdated}
       />

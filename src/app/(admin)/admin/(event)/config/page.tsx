@@ -8,9 +8,25 @@ import { EventLifecycle } from "./_components/event-lifecycle"
 export default async function EventControlPage() {
   const session = await requireStaff()
   const isAdmin = (session.user as { role?: string }).role === "ADMIN"
-  const [content, event] = await Promise.all([getContent(), getActiveEvent()])
+  const [content, event, pastRows] = await Promise.all([
+    getContent(),
+    getActiveEvent(),
+    prisma.event.findMany({
+      where: { state: "CLOSED" },
+      orderBy: { closedAt: "desc" },
+      take: 12,
+      select: { id: true, name: true, kind: true, closedAt: true, _count: { select: { delegates: true } } },
+    }),
+  ])
+  const past = pastRows.map((e) => ({
+    id: e.id,
+    name: e.name,
+    kind: e.kind,
+    closedAt: e.closedAt?.toISOString() ?? null,
+    delegates: e._count.delegates,
+  }))
 
-  if (!event) return <EventLifecycle current={null} canManage={isAdmin} />
+  if (!event) return <EventLifecycle current={null} past={past} canManage={isAdmin} />
 
   const [committees, seats] = await Promise.all([
     prisma.committee.count({ where: { eventId: event.id, isActive: true } }),
@@ -43,7 +59,7 @@ export default async function EventControlPage() {
         readiness={{ committees, seats }}
         canManagePayments={isAdmin}
       />
-      <EventLifecycle current={{ name: event.name }} canManage={isAdmin} />
+      <EventLifecycle current={{ name: event.name }} past={past} canManage={isAdmin} />
     </div>
   )
 }

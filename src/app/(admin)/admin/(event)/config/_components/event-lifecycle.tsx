@@ -3,70 +3,60 @@
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { CalendarPlus, CircleStop } from "lucide-react"
+import { CalendarPlus, ChevronDown, CircleStop, RotateCcw } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { formatDate } from "@/lib/datetime"
 import { cn } from "@/lib/utils"
-import { closeCurrentEvent, startNewEvent } from "../actions"
+import { closeCurrentEvent, reopenPastEvent, startNewEvent } from "../actions"
 
 const KINDS = [
   { value: "INTRA_MUN", label: "Intra MUN" },
   { value: "CONFERENCE", label: "Conference" },
 ] as const
 
-// Ending the running event and beginning the next. Everything else on this page
-// configures the event that is running.
+type PastEvent = { id: string; name: string; kind: string; closedAt: string | null; delegates: number }
+
+// Ending the running event, beginning the next, and bringing a past one back.
 export function EventLifecycle({
   current,
+  past,
   canManage,
 }: {
   current: { name: string } | null
+  past: PastEvent[]
   canManage: boolean
 }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [closing, setClosing] = useState(false)
   const [starting, setStarting] = useState(false)
+  const [reopening, setReopening] = useState<PastEvent | null>(null)
   const [newName, setNewName] = useState("")
   const [kind, setKind] = useState<"INTRA_MUN" | "CONFERENCE">("INTRA_MUN")
 
-  const close = () =>
+  const run = (fn: () => Promise<{ success: boolean; error?: string }>, ok: string, done: () => void) =>
     startTransition(async () => {
-      const result = await closeCurrentEvent()
+      const result = await fn()
       if (!result.success) {
-        toast.error(result.error ?? "Could not close the event.")
+        toast.error(result.error ?? "Something went wrong.")
         return
       }
-      setClosing(false)
-      toast.success(`Closed ${current?.name}. Its delegates and allotments are kept.`)
-      router.refresh()
-    })
-
-  const start = () =>
-    startTransition(async () => {
-      const result = await startNewEvent({ name: newName, kind })
-      if (!result.success) {
-        toast.error(result.error ?? "Could not start the new event.")
-        return
-      }
-      setStarting(false)
-      toast.success(`Started ${newName.trim()}. Add its details and committees, then publish it.`)
-      setNewName("")
+      done()
+      toast.success(ok)
       router.refresh()
     })
 
   return (
-    <section className={cn("space-y-5", current ? "border-t border-border pt-8" : "editorial-card p-6 sm:p-8")}>
-      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+    <section className={cn("space-y-8", current ? "border-t border-border pt-10" : "editorial-card p-6 sm:p-8")}>
+      <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="eyebrow">{current ? "Start or close" : "No event is running"}</p>
-          <h2 className="mt-2 font-heading text-2xl">{current ? "Another event" : "Start an event"}</h2>
-          <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            {current
-              ? `Starting a new event closes ${current.name}. Nothing is deleted: its delegates and allotments stay, and it can be looked up later.`
-              : "An event starts hidden and empty. Add its details, committees and seats, then publish it when it is ready."}
+          <p className="eyebrow">{current ? "Events" : "No event is running"}</p>
+          <h2 className="mt-2 font-heading text-2xl">{current ? "Start, close or reopen" : "Start or reopen an event"}</h2>
+          <p className="mt-2 max-w-xl text-sm text-muted-foreground">
+            Nothing is ever deleted. A closed event keeps its delegates and seats, and can be reopened.
           </p>
         </div>
         {canManage && current && (
@@ -76,21 +66,29 @@ export function EventLifecycle({
         )}
       </div>
 
-      {canManage ? (
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
+      {!canManage ? (
+        <p className="text-sm text-muted-foreground">Only an admin can start, close or reopen events.</p>
+      ) : (
+        <form
+          className="flex flex-col gap-4 rounded-xl border border-border/70 p-5 lg:flex-row lg:items-end"
+          onSubmit={(e) => {
+            e.preventDefault()
+            setStarting(true)
+          }}
+        >
           <div className="flex-1 space-y-2">
-            <Label htmlFor="new-event-name">Event name</Label>
+            <Label htmlFor="new-event-name">New event name</Label>
             <Input
               id="new-event-name"
               value={newName}
               onChange={(e) => setNewName(e.target.value)}
               placeholder={kind === "INTRA_MUN" ? "DTU Intra MUN 2026" : "DelTech MUN 2027"}
-              className="h-11"
+              required
             />
           </div>
           <div className="space-y-2">
-            <p className="text-sm font-medium">Kind</p>
-            <div className="flex h-11 overflow-hidden rounded-md border border-border" role="radiogroup" aria-label="Kind of event">
+            <p className="text-[0.9375rem] font-semibold">Kind</p>
+            <div className="flex h-11 overflow-hidden rounded-lg border border-input" role="radiogroup" aria-label="Kind of event">
               {KINDS.map((k) => (
                 <button
                   key={k.value}
@@ -105,33 +103,78 @@ export function EventLifecycle({
               ))}
             </div>
           </div>
-          <Button onClick={() => setStarting(true)} disabled={pending || !newName.trim()} className="h-11">
+          <Button type="submit" size="lg" disabled={pending || !newName.trim()}>
             <CalendarPlus /> Start event
           </Button>
-        </div>
-      ) : (
-        <p className="text-sm text-muted-foreground">Only an admin can close an event or start a new one.</p>
+        </form>
+      )}
+
+      {past.length > 0 && (
+        <details open={!current} className="group">
+          <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium [&::-webkit-details-marker]:hidden">
+            {`Past events (${past.length})`}
+            <ChevronDown className="size-4 text-muted-foreground transition-transform group-open:rotate-180" />
+          </summary>
+          <ul className="mt-4 divide-y divide-border/60 rounded-xl border border-border/70">
+            {past.map((e) => (
+              <li key={e.id} className="flex flex-wrap items-center gap-4 px-5 py-4">
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium">{e.name}</p>
+                  <p className="mt-0.5 text-sm text-muted-foreground">
+                    {`${e.kind === "INTRA_MUN" ? "Intra MUN" : "Conference"} · ${e.delegates} delegates${e.closedAt ? ` · closed ${formatDate(e.closedAt)}` : ""}`}
+                  </p>
+                </div>
+                {canManage && (
+                  <Button variant="outline" size="sm" disabled={pending} onClick={() => setReopening(e)}>
+                    <RotateCcw className="size-4" /> Reopen
+                  </Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </details>
       )}
 
       <ConfirmDialog
         open={closing}
         onOpenChange={(next) => !pending && setClosing(next)}
-        title={"Close this event?"}
-        description={`${current?.name ?? "The event"} stops taking registrations and allotments and leaves the website. Its delegates, allotments and payments are kept.`}
-        confirmLabel={"Close event"}
+        title="Close this event?"
+        description={`${current?.name ?? "The event"} stops taking registrations and allotments and leaves the website. Its delegates, seats and payments are kept, and you can reopen it later.`}
+        confirmLabel="Close event"
         destructive
         pending={pending}
-        onConfirm={close}
+        onConfirm={() => run(closeCurrentEvent, `Closed ${current?.name}.`, () => setClosing(false))}
       />
 
       <ConfirmDialog
         open={starting}
         onOpenChange={(next) => !pending && setStarting(next)}
-        title={"Start a new event?"}
+        title="Start a new event?"
         description={`${current ? `${current.name} will be closed first. ` : ""}${newName.trim()} starts empty and hidden, with no committees, seats or delegates.`}
-        confirmLabel={"Start event"}
+        confirmLabel="Start event"
         pending={pending}
-        onConfirm={start}
+        onConfirm={() =>
+          run(
+            () => startNewEvent({ name: newName, kind }),
+            `Started ${newName.trim()}. Add its details and committees, then publish it.`,
+            () => {
+              setStarting(false)
+              setNewName("")
+            },
+          )
+        }
+      />
+
+      <ConfirmDialog
+        open={!!reopening}
+        onOpenChange={(next) => !pending && !next && setReopening(null)}
+        title={`Reopen ${reopening?.name ?? "this event"}?`}
+        description={`${current ? `${current.name} will be closed first. ` : ""}It comes back hidden with registration off, with its delegates and seats as they were. Check its dates and venue before publishing: those are not saved per event.`}
+        confirmLabel="Reopen event"
+        pending={pending}
+        onConfirm={() =>
+          reopening && run(() => reopenPastEvent({ id: reopening.id }), `Reopened ${reopening.name}. Publish it when it is ready.`, () => setReopening(null))
+        }
       />
     </section>
   )

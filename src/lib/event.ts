@@ -75,6 +75,27 @@ export async function createEvent(input: {
   })
 }
 
+// Bringing a closed event back, for when it was closed too early or runs a second
+// round. It returns as a hidden draft with registration off, so nothing reappears
+// on the website until someone publishes it deliberately. Whatever is running is
+// closed in the same transaction, because only one event may be active.
+// Returns null when the event is not closed.
+export async function reopenEvent(id: string): Promise<{ closedName: string | null } | null> {
+  return prisma.$transaction(async (tx) => {
+    const target = await tx.event.findUnique({ where: { id }, select: { state: true } })
+    if (target?.state !== "CLOSED") return null
+    const running = await tx.event.findFirst({
+      where: { state: { notIn: [...INACTIVE_STATES] } },
+      select: { id: true, name: true },
+    })
+    if (running) {
+      await tx.event.update({ where: { id: running.id }, data: { state: "CLOSED", closedAt: new Date() } })
+    }
+    await tx.event.update({ where: { id }, data: { state: "DRAFT", closedAt: null, registrationOpen: false } })
+    return { closedName: running?.name ?? null }
+  })
+}
+
 // A where-fragment scoping a list to the event being run now.
 //
 // Spread into the where clause of anything that LISTS or COUNTS delegates or

@@ -29,7 +29,7 @@ const ADMIN_REQUIRED = new Set([
   "deletePresentation", "deleteQuizRun",
   // Closing an event ends registration and allotment for everyone, and starting
   // one closes the current event, so both stay out of a maintainer's reach.
-  "closeCurrentEvent", "startNewEvent",
+  "closeCurrentEvent", "startNewEvent", "reopenPastEvent",
   // A sent mail cannot be recalled, so the send and the PR switch are ADMIN only;
   // any staff member can still draft, preview and test.
   "scheduleCampaign", "cancelCampaign", "runQueueNow", "removeContact", "setPrMailEnabled",
