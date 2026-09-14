@@ -87,7 +87,6 @@ export default async function AllotmentPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        eyebrow="Event"
         title="Allotment Board"
         description={paymentsRequired
           ? "Select a committee, then allot a portfolio. A payment request is created after allotment."

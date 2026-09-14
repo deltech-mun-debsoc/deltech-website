@@ -8,12 +8,12 @@ import { requireStaff, requireAdmin } from "@/lib/authz"
 import { audit } from "@/lib/audit"
 import { callAI, AIRateLimitError } from "@/lib/ai"
 import { revalidatePath } from "next/cache"
-import { ContentSchema, type Content } from "@/content/contentSchema"
 import { pickValues, reversibleSettingsMeta } from "@/lib/audit-change"
 import { fetchSheetRows, SheetFetchError } from "@/lib/sheet-fetch"
 import { portfoliosFromSheetRows, type PortfolioEntry } from "@/lib/portfolio-sheet"
 import { deriveCsvUrl } from "@/lib/gsheet-url"
 import { closeEvent, createEvent, getActiveEvent, requireActiveEvent } from "@/lib/event"
+import type { EventState } from "@/generated/prisma/client"
 
 // Money/sync config only an ADMIN may touch, kept out of saveContent entirely.
 const PAYMENT_KEYS = new Set([
@@ -97,140 +97,70 @@ export async function resyncMatrix(): Promise<{ success: boolean; synced?: numbe
   return { success: true, synced: allotted.length }
 }
 
-const EventControlSchema = ContentSchema.pick({
-  eventMode: true,
-  activeEventName: true,
-  activeEventLabel: true,
-  registrationOpen: true,
-  registrationFormUrl: true,
-  paymentsEnabled: true,
-  publicSections: true,
-  conferenceDates: true,
-  venue: true,
-  landingHero: true,
+const EventSettingsSchema = z.object({
+  name: z.string().trim().min(1, "Name the event.").max(120),
+  kind: z.enum(["CONFERENCE", "INTRA_MUN"]),
+  published: z.boolean(),
+  registrationOpen: z.boolean(),
+  paymentsEnabled: z.boolean(),
+  matrixPublic: z.boolean(),
+  label: z.string().trim().max(120),
+  brief: z.string().trim().max(300),
+  dates: z.string().trim().max(80),
+  venue: z.string().trim().max(160),
+  ctaLabel: z.string().trim().max(60),
+  formUrl: z.string().trim().max(500),
 })
 
-type EventControlInput = Pick<
-  Content,
-  | "eventMode"
-  | "activeEventName"
-  | "activeEventLabel"
-  | "registrationOpen"
-  | "registrationFormUrl"
-  | "paymentsEnabled"
-  | "publicSections"
-  | "conferenceDates"
-  | "venue"
-  | "landingHero"
->
+export type EventSettingsInput = z.input<typeof EventSettingsSchema>
 
-// The Event row is where an event's identity and capabilities live; the Setting
-// rows above keep the surrounding copy. Both are written so the two never drift,
-// and getContent overlays the event on top, which is why every existing reader of
-// content.paymentsEnabled keeps working without being touched.
-//
-// SOCIETY is not a kind of event, it is the absence of one, so it is stored as
-// state rather than as a name: CLOSED, which makes getActiveEvent find nothing.
-async function writeActiveEvent(input: {
-  name: string
-  kind: string
-  registrationOpen: boolean
-  paymentsEnabled: boolean
-  matrixPublic: boolean
-}): Promise<void> {
-  const running = input.kind !== "SOCIETY"
-  const capabilities = {
-    name: input.name || "DelTech MUN",
-    kind: running ? input.kind : "CONFERENCE",
-    state: running ? ("LIVE" as const) : ("CLOSED" as const),
-    registrationOpen: input.registrationOpen,
-    paymentsEnabled: input.paymentsEnabled,
-    matrixPublic: input.matrixPublic,
-    closedAt: running ? null : new Date(),
-  }
-
-  // One event exists at a time, so this edits it in place rather than making a
-  // new one. Creating and closing events is a separate, deliberate action.
-  const current = await prisma.event.findFirst({ orderBy: { createdAt: "desc" } })
-  if (current) {
-    await prisma.event.update({ where: { id: current.id }, data: capabilities })
-    return
-  }
-  await prisma.event.create({ data: { ...capabilities, slug: "current-event" } })
-}
-
-export async function saveEventControl(
-  input: EventControlInput,
-): Promise<{ success: boolean; error?: string }> {
+// The running event's settings, in one save. What the website shows follows from
+// them (src/lib/event-overlay.ts): publishing shows the event, its committees and
+// its registration link, and the matrix has its own switch. The surrounding copy
+// (label, brief, dates, venue, button text) stays in Setting rows.
+export async function saveEventSettings(input: EventSettingsInput): Promise<{ success: boolean; error?: string }> {
   const session = await requireStaff()
-  const parsed = EventControlSchema.safeParse(input)
-  if (!parsed.success) return { success: false, error: "Review the event settings and try again." }
-
-  const { paymentsEnabled, ...eventState } = parsed.data
-  const role = (session.user as { role?: string }).role
-  const before = await getContent()
-  const sections = {
-    ...eventState.publicSections,
-    registration:
-      eventState.registrationOpen || eventState.publicSections.registration,
-    activeEvent:
-      eventState.eventMode === "SOCIETY"
-        ? false
-        : eventState.publicSections.activeEvent,
+  const parsed = EventSettingsSchema.safeParse(input)
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Review the event settings and try again." }
   }
-  if (sections.activeEvent && !eventState.activeEventName.trim()) {
-    return { success: false, error: "Name the active event before publishing it." }
-  }
-  const formUrl = eventState.registrationFormUrl.trim()
-  if (formUrl && !/^https:\/\/\S+$/.test(formUrl)) {
+  const v = parsed.data
+  if (v.formUrl && !/^https:\/\/\S+$/.test(v.formUrl)) {
     return { success: false, error: "The registration form link must start with https://. Copy it from your browser." }
   }
-  const partial: Record<string, unknown> = {
-    ...eventState,
-    activeEventName: eventState.activeEventName.trim(),
-    activeEventLabel: eventState.activeEventLabel.trim(),
-    conferenceDates: eventState.conferenceDates.trim(),
-    venue: eventState.venue.trim(),
-    registrationFormUrl: formUrl,
-    publicSections: sections,
-    registrationOpen:
-      eventState.eventMode === "SOCIETY" ? false : eventState.registrationOpen,
-    matrixPublic: sections.matrix,
-  }
+  const event = await getActiveEvent()
+  if (!event) return { success: false, error: "No event is running. Start one first." }
 
-  // Intra MUNs are always free. Outside Intra mode, only an admin may change
-  // the payment switch; maintainers can still publish every other event state.
-  if (eventState.eventMode !== "CONFERENCE" || !paymentsEnabled) {
-    partial.paymentsEnabled = false
-  } else if (role === "ADMIN") {
-    partial.paymentsEnabled = true
+  // Charging delegates is ADMIN only; anyone else's save keeps what is set.
+  const isAdmin = (session.user as { role?: string }).role === "ADMIN"
+  const paymentsEnabled = isAdmin ? v.paymentsEnabled : event.paymentsEnabled
+  // Publishing moves a draft to OPEN and leaves a later stage where it is.
+  const state: EventState = v.published ? (event.state === "DRAFT" ? "OPEN" : event.state) : "DRAFT"
+  const before = {
+    name: event.name,
+    kind: event.kind,
+    state: event.state,
+    registrationOpen: event.registrationOpen,
+    paymentsEnabled: event.paymentsEnabled,
+    matrixPublic: event.matrixPublic,
   }
+  const after = { name: v.name, kind: v.kind, state, registrationOpen: v.registrationOpen, paymentsEnabled, matrixPublic: v.matrixPublic }
 
   try {
-    await setContent(partial)
-    await writeActiveEvent({
-      name: partial.activeEventName as string,
-      kind: eventState.eventMode,
-      registrationOpen: partial.registrationOpen as boolean,
-      paymentsEnabled: partial.paymentsEnabled as boolean,
-      matrixPublic: partial.matrixPublic as boolean,
+    const content = await getContent()
+    await prisma.event.update({ where: { id: event.id }, data: after })
+    await setContent({
+      activeEventLabel: v.label,
+      conferenceDates: v.dates,
+      venue: v.venue,
+      registrationFormUrl: v.formUrl,
+      landingHero: { ...content.landingHero, subtitle: v.brief, ctaLabel: v.ctaLabel || content.landingHero.ctaLabel },
     })
-    const keys = Object.keys(partial)
-    await audit(
-      session.user?.email ?? "unknown",
-      "eventControl.save",
-      "Setting",
-      "event-control",
-      reversibleSettingsMeta({
-        summary: `Published ${eventState.eventMode.toLowerCase().replace("_", " ")} mode.`,
-        before: pickValues(before, keys),
-        after: partial,
-      }),
-    )
+    await audit(session.user?.email ?? "unknown", "event.settings", "Event", event.id, { before, after })
     publishContentChanges()
     return { success: true }
   } catch {
-    return { success: false, error: "Could not publish the event state." }
+    return { success: false, error: "Could not save the event settings." }
   }
 }
 
@@ -275,18 +205,17 @@ export async function setRegistrationOpen(
   open: boolean,
 ): Promise<{ success: boolean }> {
   const session = await requireStaff()
-  const content = await getContent()
-  await setContent({ registrationOpen: open })
+  // The event decides whether the form takes anyone; a Setting row would be
+  // overridden by it and change nothing.
+  const event = await getActiveEvent()
+  if (!event) return { success: false }
+  await prisma.event.update({ where: { id: event.id }, data: { registrationOpen: open } })
   await audit(
     session.user?.email ?? "unknown",
     open ? "registration.open" : "registration.close",
-    "Setting",
-    "registration",
-    reversibleSettingsMeta({
-      summary: open ? "Opened delegate registration." : "Closed delegate registration.",
-      before: { registrationOpen: content.registrationOpen },
-      after: { registrationOpen: open },
-    }),
+    "Event",
+    event.id,
+    { before: event.registrationOpen, after: open },
   )
   publishContentChanges()
   return { success: true }
@@ -640,7 +569,7 @@ export async function closeCurrentEvent(): Promise<{ success: boolean; error?: s
   }
 }
 
-export async function startNewEvent(input: { name: string }): Promise<{ success: boolean; error?: string }> {
+export async function startNewEvent(input: { name: string; kind?: string }): Promise<{ success: boolean; error?: string }> {
   const session = await requireAdmin()
   const name = input.name.trim()
   if (!name) return { success: false, error: "Name the new event before starting it." }
@@ -649,8 +578,9 @@ export async function startNewEvent(input: { name: string }): Promise<{ success:
   try {
     // createEvent closes whatever is running in the same transaction, so the
     // society is never left with two events open at once.
-    const event = await createEvent({ name, slug })
-    await audit(session.user?.email ?? "unknown", "event.create", "Event", event.id, { name, slug })
+    const kind = input.kind === "INTRA_MUN" ? "INTRA_MUN" : "CONFERENCE"
+    const event = await createEvent({ name, slug, kind })
+    await audit(session.user?.email ?? "unknown", "event.create", "Event", event.id, { name, slug, kind })
     publishContentChanges()
     return { success: true }
   } catch (err) {

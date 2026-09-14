@@ -122,16 +122,16 @@ assert.ok(delegateModel, "could not find the Delegate model in the schema")
 
 
 // ── 6. The event form follows the event ─────────────────────────────────────
-// EventControl seeds its fields from content once, on mount. Starting or closing
-// an event from the card beside it changes the event without a navigation, so
-// unless the form is keyed by the event it keeps the old name and switches, and
-// Apply writes them onto the new event. Found on staging, pinned here.
+// EventSettings seeds its fields once, on mount. Starting or closing an event
+// from the card below it changes the event without a navigation, so unless the
+// form is keyed by the event it keeps the old name and switches, and Save writes
+// them onto the new event. Found on staging, pinned here.
 {
   const page = readFileSync("src/app/(admin)/admin/(event)/config/page.tsx", "utf8")
   assert.match(
     page,
-    /<EventControl\s+key=\{event\?\.id \?\? "no-event"\}/,
-    "EventControl must be keyed by the active event so its form resets when the event changes",
+    /<EventSettings\s+key=\{event\.id\}/,
+    "EventSettings must be keyed by the active event so its form resets when the event changes",
   )
 }
 

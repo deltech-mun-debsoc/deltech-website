@@ -4,10 +4,9 @@ import { ContentSchema, DEFAULTS, type Content } from "@/content/contentSchema";
 import { STRINGS, type Strings, type StringKey } from "@/content/strings";
 import { deserializeSettingValue } from "@/lib/setting-value";
 import { getActiveEvent } from "@/lib/event";
+import { eventOverlay } from "@/lib/event-overlay";
 
 // ---- Content (conference/marketing copy) ----
-
-const KNOWN_MODES = new Set(["SOCIETY", "CONFERENCE", "INTRA_MUN"]);
 
 export const getContent = cache(async (): Promise<Content> => {
   const rows = await prisma.setting.findMany();
@@ -25,20 +24,7 @@ export const getContent = cache(async (): Promise<Content> => {
   // row is the single source of truth. A Setting row left over from before the
   // event table existed must never win, so the overlay is applied last.
   const event = await getActiveEvent();
-  const fromEvent: Record<string, unknown> = event
-    ? {
-        activeEventName: event.name,
-        registrationOpen: event.registrationOpen,
-        paymentsEnabled: event.paymentsEnabled,
-        matrixPublic: event.matrixPublic,
-        // kind is a free-text label, but ContentSchema parses eventMode as a strict
-        // enum and getContent() runs on every page: one unrecognised kind would throw
-        // here and take the whole site down. An unknown label is simply not a mode.
-        eventMode: KNOWN_MODES.has(event.kind) ? event.kind : "CONFERENCE",
-      }
-    : // No active event is the society's resting state: nothing open, nothing
-      // charged, no matrix on show.
-      { registrationOpen: false, paymentsEnabled: false, matrixPublic: false, eventMode: "SOCIETY" };
+  const fromEvent = eventOverlay(event, fromDb.publicSections);
 
   const merged = { ...DEFAULTS, ...fromDb, ...fromEvent };
   return ContentSchema.parse(merged);

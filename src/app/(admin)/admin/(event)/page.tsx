@@ -1,11 +1,13 @@
-import { Users, IndianRupee, BedDouble, CheckCircle2, Building2 } from "lucide-react"
+import Link from "next/link"
+import { Users, IndianRupee, CheckCircle2, Hourglass, ScanLine } from "lucide-react"
 import { prisma } from "@/lib/prisma"
-import { currentEventScope } from "@/lib/event"
+import { currentEventScope, getActiveEvent } from "@/lib/event"
 import { getContent } from "@/lib/settings"
 import { deriveEventState } from "@/lib/event-state"
 import { requireStaff } from "@/lib/authz"
 import { t, type StringKey } from "@/content/strings"
 import { PageHeader } from "@/app/(admin)/_components/page-header"
+import { buttonVariants } from "@/components/ui/button"
 import { StatCard } from "./_components/stat-card"
 import dynamic from "next/dynamic"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -30,13 +32,28 @@ export default async function AdminOverviewPage() {
   const session = await requireStaff()
   const isMaintainer = (session.user as { role?: string }).role === "MAINTAINER"
 
+  const event = await getActiveEvent()
+  if (!event) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Overview" description="No event is running. The society site is in its resting state." />
+        <div className="editorial-card flex flex-col items-start gap-4 p-8">
+          <p className="max-w-xl text-base text-muted-foreground">
+            Start an event to take registrations, build a matrix and allot seats. It stays hidden until you publish it.
+          </p>
+          <Link href="/admin/config" className={buttonVariants()}>Start an event</Link>
+        </div>
+      </div>
+    )
+  }
+
   const scope = await currentEventScope()
 
   const [
     total,
     byStatus,
     bySource,
-    accommodationCount,
+    checkedInCount,
     revenueResult,
     committees,
     portfolioCounts,
@@ -51,7 +68,7 @@ export default async function AdminOverviewPage() {
     prisma.delegate.count({ where: scope }),
     prisma.delegate.groupBy({ by: ["status"], where: scope, _count: { _all: true } }),
     prisma.delegate.groupBy({ by: ["source"], where: scope, _count: { _all: true } }),
-    prisma.delegate.count({ where: { needsAccommodation: true, ...scope } }),
+    prisma.delegate.count({ where: { ...scope, status: "CONFIRMED", checkedInAt: { not: null } } }),
     prisma.payment.aggregate({
       where: { status: { in: ["PAID", "COMPED"] }, delegate: scope },
       _sum: { amountInr: true },
@@ -76,9 +93,11 @@ export default async function AdminOverviewPage() {
     prisma.fee.count(),
     prisma.member.count({ where: { isActive: true } }),
     prisma.post.count({ where: { status: "PUBLISHED" } }),
-    prisma.emailLog.count({ where: { status: "FAILED" } }),
+    // This event's delegates only: a failure from a closed event is not
+    // something anyone running this one can act on.
+    prisma.emailLog.count({ where: { status: "FAILED", delegate: { is: scope } } }),
     prisma.emailLog.findMany({
-      where: { status: "FAILED" },
+      where: { status: "FAILED", delegate: { is: scope } },
       orderBy: { sentAt: "desc" },
       take: 8,
       select: { id: true, template: true, toEmail: true, error: true, sentAt: true, delegateId: true },
@@ -86,17 +105,13 @@ export default async function AdminOverviewPage() {
     getContent(),
   ])
 
-  const eventActive = content.publicSections.activeEvent
   const paymentsActive = deriveEventState(content).paymentsRequired
+  const published = event.state !== "DRAFT"
   const checklist: ChecklistItem[] = [
-    { done: true, label: `Operating mode: ${content.eventMode.replace("_", " ")}`, href: "/admin/config" },
-    ...(eventActive ? [{
-      done: !!content.conferenceDates && !!content.venue,
-      label: "Set active event dates and venue",
-      href: "/admin/config/conference",
-    }] : []),
+    { done: published, label: `Publish ${event.name}`, href: "/admin/config" },
+    { done: !!content.conferenceDates && !!content.venue, label: "Set the event's dates and venue", href: "/admin/config" },
     { done: committees.length > 0, label: "Add committees", href: "/admin/config/committees" },
-    { done: portfolioCount > 0, label: "Generate the portfolio matrix", href: "/admin/config/committees" },
+    { done: portfolioCount > 0, label: "Build the portfolio matrix", href: "/admin/config/committees" },
     ...(paymentsActive ? [{ done: feeCount > 0, label: "Set registration fees", href: "/admin/config/money" }, {
       done: content.paymentProvider !== "static_link" || !!content.staticPaymentLink,
       label: "Configure the payment provider",
@@ -108,8 +123,9 @@ export default async function AdminOverviewPage() {
   ]
 
   const revenue = revenueResult._sum.amountInr ?? 0
-  const confirmedCount =
-    byStatus.find((s) => s.status === "CONFIRMED")?._count._all ?? 0
+  const count = (status: string) => byStatus.find((s) => s.status === status)?._count._all ?? 0
+  const confirmedCount = count("CONFIRMED")
+  const waitingCount = count("REGISTERED") + count("WAITLISTED")
 
   const statusData = byStatus.map((s) => ({
     name: t(("status." + s.status) as StringKey),
@@ -133,13 +149,11 @@ export default async function AdminOverviewPage() {
     allotted: takenByCommittee.get(c.id) ?? 0,
   }))
 
+  const details = [event.kind === "INTRA_MUN" ? "Intra MUN" : "Conference", content.conferenceDates, content.venue].filter(Boolean).join(" · ")
+
   return (
     <div className="space-y-8">
-      <PageHeader
-        eyebrow="Event"
-        title={t("admin.nav.overview")}
-        description={`Live society and event operations · ${content.eventMode.replace("_", " ").toLowerCase()} mode.`}
-      />
+      <PageHeader title="Overview" description={published ? details : `${details} · not published yet`} />
 
       {isMaintainer && <MaintainerWelcome />}
       {isMaintainer && <SetupChecklist items={checklist} />}
@@ -153,44 +167,41 @@ export default async function AdminOverviewPage() {
 
       {/* KPI cards */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {paymentsActive ? <StatCard
-          title={t("admin.overview.totalRegistrations")}
-          value={total}
-          icon={Users}
-          description="all time"
-        /> : <StatCard title="Operating mode" value={content.eventMode === "INTRA_MUN" ? "Free Intra" : "Society"} icon={Building2} description="payments disabled" />}
+        <StatCard title="Delegates" value={total} icon={Users} description="registered for this event" />
+        <StatCard title="Waiting for a seat" value={waitingCount} icon={Hourglass} description="registered or waitlisted" />
         <StatCard
           title="Confirmed"
           value={confirmedCount}
           icon={CheckCircle2}
-          description="of total"
+          description="of all delegates"
           trend={total > 0 ? `${Math.round((confirmedCount / total) * 100)}%` : "-"}
         />
-        <StatCard
-          title={t("admin.overview.revenueCollected")}
-          value={`₹${revenue.toLocaleString("en-IN")}`}
-          icon={IndianRupee}
-          description="paid + comped"
-        />
-        <StatCard
-          title={t("admin.overview.accommodationRequests")}
-          value={accommodationCount}
-          icon={BedDouble}
-          description="delegates"
-        />
+        {paymentsActive ? (
+          <StatCard
+            title={t("admin.overview.revenueCollected")}
+            value={`₹${revenue.toLocaleString("en-IN")}`}
+            icon={IndianRupee}
+            description="paid + comped"
+          />
+        ) : (
+          <StatCard title="Checked in" value={checkedInCount} icon={ScanLine} description={`of ${confirmedCount} confirmed`} />
+        )}
       </div>
 
       {/* Charts */}
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className={bySource.length > 1 ? "grid gap-6 lg:grid-cols-2" : "grid gap-6"}>
         <div className="editorial-card p-5">
           <h2 className="eyebrow mb-5">{t("admin.overview.byStatus")}</h2>
           <StatusBarChart data={statusData} />
         </div>
 
-        <div className="editorial-card p-5">
-          <h2 className="eyebrow mb-5">{t("admin.overview.sourceBreakdown")}</h2>
-          <SourcePieChart data={sourceData} />
-        </div>
+        {/* Only worth a chart when people arrived more than one way. */}
+        {bySource.length > 1 && (
+          <div className="editorial-card p-5">
+            <h2 className="eyebrow mb-5">{t("admin.overview.sourceBreakdown")}</h2>
+            <SourcePieChart data={sourceData} />
+          </div>
+        )}
       </div>
 
       {/* Committee fill-rate table */}

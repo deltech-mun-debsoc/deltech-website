@@ -242,6 +242,10 @@ export const STRINGS = {
       isDtuLabel: "I am a DTU student",
       munExperienceLabel: "MUN experience",
       munExperiencePlaceholder: "List committees you have attended (if any)",
+      rollNumberLabel: "DTU roll number",
+      rollNumberPlaceholder: "23/CO/123",
+      rollNumberNote: "The Intra MUN is for DTU students, so we use your roll number instead of a college.",
+      rollNumberRequired: "Enter your DTU roll number",
     },
     preferences: {
       pref1CommitteeLabel: "First preference committee",

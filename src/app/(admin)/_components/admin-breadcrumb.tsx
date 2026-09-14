@@ -24,6 +24,7 @@ const LABELS: Record<string, string> = {
   users: "Staff & roles",
   participants: "Participant accounts",
   guide: "Operator guide",
+  site: "Website",
   conference: "Public identity",
   committees: "Committees & matrix",
   money: "Fees & payments",

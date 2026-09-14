@@ -43,6 +43,9 @@ interface Props {
   committees: Committee[]
   total: number
   filters: Filters
+  // Intra MUN: every delegate is a DTU student, so college, DTU, accommodation
+  // and source say nothing; the roll number does.
+  intra?: boolean
 }
 
 const STATUS_OPTIONS = ["REGISTERED", "ALLOTTED", "PAYMENT_SENT", "CONFIRMED", "CANCELLED", "WAITLISTED"]
@@ -100,7 +103,7 @@ function SortHeader({ label, field, currentSort, currentDir, onSort }: {
   )
 }
 
-export function RegistrationsClient({ delegates, committees, total, filters }: Props) {
+export function RegistrationsClient({ delegates, committees, total, filters, intra = false }: Props) {
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [drafting, startDrafting] = useTransition()
@@ -183,6 +186,15 @@ export function RegistrationsClient({ delegates, committees, total, filters }: P
     setSelectedDelegate(updated)
   }
 
+  const columns: { label: string; field?: SortField; tooltip?: string }[] = [
+    { label: "Name", field: "fullName" },
+    intra ? { label: "Roll no." } : { label: "Institution", field: "institution" },
+    { label: "Seat", tooltip: "The seat they were given, or their first choice while they wait" },
+    { label: "Status", field: "status" },
+    ...(intra ? [] : [{ label: "Source" }, { label: "DTU", tooltip: "DTU student" }, { label: "Accom.", tooltip: "Needs accommodation" }]),
+    { label: "Registered", field: "createdAt" },
+  ]
+
   return (
     <div className="space-y-4">
       {/* Filter bar */}
@@ -236,6 +248,7 @@ export function RegistrationsClient({ delegates, committees, total, filters }: P
           </SelectContent>
         </Select>
 
+        {!intra && (<>
         {/* Source filter */}
         <Select
           value={filters.source || undefined}
@@ -281,6 +294,8 @@ export function RegistrationsClient({ delegates, committees, total, filters }: P
             <SelectItem value="false">No accom.</SelectItem>
           </SelectContent>
         </Select>
+
+        </>)}
 
         {/* Payment chase */}
         <Select
@@ -360,16 +375,7 @@ export function RegistrationsClient({ delegates, committees, total, filters }: P
                   className="size-4 accent-primary"
                 />
               </th>
-              {[
-                { label: "Name", field: "fullName" as SortField },
-                { label: "Institution", field: "institution" as SortField },
-                { label: "Pref 1" },
-                { label: "Status", field: "status" as SortField },
-                { label: "Source" },
-                { label: "DTU", tooltip: "DTU student" },
-                { label: "Accom.", tooltip: "Needs accommodation" },
-                { label: "Registered", field: "createdAt" as SortField },
-              ].map(({ label, field, tooltip }) => (
+              {columns.map(({ label, field, tooltip }) => (
                 <th key={label} className="px-4 py-3 text-left" title={tooltip}>
                   {field ? (
                     <SortHeader
@@ -391,7 +397,7 @@ export function RegistrationsClient({ delegates, committees, total, filters }: P
           <tbody className="divide-y divide-border/40">
             {localDelegates.length === 0 ? (
               <tr>
-                <td colSpan={9} className="px-4 py-10 text-center text-sm text-muted-foreground">
+                <td colSpan={columns.length + 1} className="px-4 py-10 text-center text-sm text-muted-foreground">
                   No delegates match the current filters.
                 </td>
               </tr>
@@ -416,16 +422,23 @@ export function RegistrationsClient({ delegates, committees, total, filters }: P
                     <div className="text-xs text-muted-foreground">{d.email}</div>
                   </td>
                   <td className="max-w-40 px-4 py-3">
-                    <span className="block truncate text-muted-foreground">{d.institution}</span>
+                    <span className="block truncate text-muted-foreground">{intra ? (d.rollNumber ?? "-") : d.institution}</span>
                   </td>
-                  <td className="px-4 py-3 text-muted-foreground">
-                    {d.pref1CommitteeId ? (committeeMap.get(d.pref1CommitteeId) ?? "-") : "-"}
+                  <td className="max-w-60 px-4 py-3">
+                    {d.allotment ? (
+                      <span className="block truncate font-medium text-card-foreground">{`${committeeMap.get(d.allotment.committeeId) ?? ""} · ${d.allotment.portfolio.name}`}</span>
+                    ) : d.pref1CommitteeId ? (
+                      <span className="block truncate text-muted-foreground">{`Wants ${committeeMap.get(d.pref1CommitteeId) ?? "-"}${d.pref1Portfolio ? ` · ${d.pref1Portfolio}` : ""}`}</span>
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <Badge variant={STATUS_VARIANT[d.status] ?? "secondary"}>
                       {STATUS_LABEL[d.status] ?? d.status}
                     </Badge>
                   </td>
+                  {!intra && (<>
                   <td className="px-4 py-3">
                     <span className="text-xs text-muted-foreground">{SOURCE_LABEL[d.source] ?? d.source}</span>
                   </td>
@@ -435,6 +448,7 @@ export function RegistrationsClient({ delegates, committees, total, filters }: P
                   <td className="px-4 py-3">
                     {d.needsAccommodation ? <Check className="size-4 text-primary" /> : <Minus className="size-4 text-muted-foreground/40" />}
                   </td>
+                  </>)}
                   <td className="px-4 py-3 tabular-nums text-xs text-muted-foreground">
                     {formatDate(d.createdAt)}
                   </td>

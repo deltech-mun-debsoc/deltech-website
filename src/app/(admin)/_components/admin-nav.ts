@@ -8,6 +8,7 @@ import {
   ScrollText,
   ShieldCheck,
   BookOpenText,
+  Globe,
   type LucideIcon,
 } from "lucide-react"
 
@@ -66,6 +67,7 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/admin/guide", icon: BookOpenText, label: "Operator guide" },
       { href: "/admin/logs", icon: ScrollText, label: "Logs" },
+      { href: "/admin/site", icon: Globe, label: "Website" },
       { href: "/admin/users", icon: ShieldCheck, label: "Staff & roles", adminOnly: true },
     ],
   },

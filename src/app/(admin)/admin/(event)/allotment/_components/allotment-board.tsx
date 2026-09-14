@@ -161,7 +161,7 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, 
   if (committees.length === 0) {
     return (
       <p className="text-sm text-muted-foreground">
-        No active committees. Add committees in Config.
+        No committees yet. Add them in Setup, under Committees & matrix.
       </p>
     )
   }
@@ -222,6 +222,25 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, 
       <div className="flex-1 min-w-0">
         {selectedCommittee ? (
           <>
+            {delegates.length > 0 && (
+              <details className="mb-5 rounded-lg border border-border/60 bg-muted/20 px-4 py-3">
+                <summary className="cursor-pointer text-sm font-medium">
+                  {`${delegates.length} ${delegates.length === 1 ? "delegate is" : "delegates are"} waiting for a seat`}
+                </summary>
+                <ul className="mt-3 grid gap-x-6 gap-y-1.5 text-sm sm:grid-cols-2">
+                  {delegates.map((d) => (
+                    <li key={d.id} className="flex items-baseline justify-between gap-3">
+                      <span className="truncate">{d.fullName}</span>
+                      <span className="truncate text-xs text-muted-foreground">
+                        {committees.find((c) => c.id === d.pref1CommitteeId)?.name ?? "No preference"}
+                        {d.pref1Portfolio ? ` · ${d.pref1Portfolio}` : ""}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </details>
+            )}
+
             <div className="mb-4 flex flex-wrap items-center gap-3">
               <h2 className="text-lg font-semibold">{selectedCommittee.name}</h2>
               {selectedCommittee.doubleDelegation && (
@@ -251,7 +270,7 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, 
 
             {selectedCommittee.portfolios.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                No portfolios configured. Add them in Config.
+                No seats in this committee yet. Add them in Setup, under Committees & matrix.
               </p>
             ) : (
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
