@@ -62,8 +62,8 @@ export function MatrixBoard({
   const reduce = useReducedMotion()
 
   // The server recomputes every cell's state, so a refresh is the whole update:
-  // simpler and safer than client-side cell math. Polled rather than subscribed,
-  // because postgres_changes only works while the database is on Supabase.
+  // simpler and safer than client-side cell math. Polled: seats change a few
+  // times a minute, so a 20s lag is invisible.
   useVisiblePoll(20_000, router.refresh)
 
   return (

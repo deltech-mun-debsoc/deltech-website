@@ -1,8 +1,6 @@
 // Who may listen on a channel, and who may publish to it.
 //
-// Supabase's model was "anyone holding the publishable key can subscribe to, and
-// publish on, any channel". That was tolerable only because every payload was a
-// nudge rather than data. Running the bus ourselves, the rules can be real:
+// Every payload is a nudge rather than data, and the rules are still real:
 // publishing to a quiz room is staff-only, so a bored participant can no longer
 // push a fake leaderboard to the hall, and recruitment channels are staff-only
 // in both directions.

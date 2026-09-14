@@ -89,10 +89,10 @@ export function LobbyScreen({ roomCode, joinUrl, participants, theme, onStart }:
       {/* Start button.
           It used to be disabled whenever the participant count was zero, and
           that is the whole intermittent "Start does nothing" fault: the count comes
-          from the Supabase presence channel, so it is 0 until presence syncs,
+          from the presence channel, so it is 0 until presence syncs,
           0 for a host who opens the projector before the room joins, and 0
-          FOREVER wherever realtime is unconfigured -- `getSupabase()` returns
-          null by design there, so the quiz could never be started at all. No
+          FOREVER wherever realtime is unavailable, so the quiz could never be
+          started at all. No
           error, no console entry, nothing written: just a click that did
           nothing, which is exactly how it was reported.
           The host decides when to start. An empty room is a warning, not a

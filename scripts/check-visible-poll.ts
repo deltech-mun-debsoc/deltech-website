@@ -1,8 +1,7 @@
 #!/usr/bin/env tsx
 // Runnable check: npx tsx scripts/check-visible-poll.ts
 //
-// The availability boards poll instead of subscribing (the database is leaving
-// Supabase, and postgres_changes goes with it). Two rules matter: a hidden tab
+// The availability boards poll instead of subscribing. Two rules matter: a hidden tab
 // never refreshes, and a visible one refreshes no faster than its interval.
 import assert from "node:assert"
 import { shouldRefresh } from "../src/lib/use-visible-poll"

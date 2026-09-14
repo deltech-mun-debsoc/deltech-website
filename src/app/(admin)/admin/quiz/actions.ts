@@ -21,39 +21,68 @@ export async function createPresentation(): Promise<never> {
   redirect(`/admin/quiz/${presentation.id}`)
 }
 
-// Deleting a presentation takes every slide with it, so this is ADMIN only,
-// unlike the rest of the quiz editor (requireStaff). Nothing here is
-// recoverable from the UI afterwards.
+// Archiving only moves a show off the library's main view. Slides, runs and
+// results are untouched and it can be restored, so any staff member may do it.
+export async function setPresentationArchived(id: string, archived: boolean): Promise<{ error?: string }> {
+  const session = await requireStaff()
+  const { count } = await prisma.presentation.updateMany({
+    where: { id },
+    data: { archivedAt: archived ? new Date() : null },
+  })
+  if (count === 0) return { error: "That presentation no longer exists." }
+  await audit(session.user!.email!, archived ? "presentation.archive" : "presentation.unarchive", "Presentation", id)
+  revalidatePath("/admin/quiz")
+  return {}
+}
+
+// Deleting a presentation takes its slides, every run and every answer with it,
+// so this is ADMIN only, unlike the rest of the quiz editor (requireStaff).
+// Runs and responses are not tied to the presentation by foreign keys, so they
+// are removed explicitly here rather than left stranded. The results page offers
+// a CSV of each run first.
 export async function deletePresentation(id: string): Promise<{ error?: string }> {
   const session = await requireAdmin()
   try {
-    const presentation = await prisma.presentation.findUnique({
-      where: { id },
-      select: { title: true },
+    const removed = await prisma.$transaction(async (tx) => {
+      const presentation = await tx.presentation.findUnique({ where: { id }, select: { title: true } })
+      if (!presentation) return null
+      const runs = await tx.quizSession.findMany({ where: { presentationId: id }, select: { id: true } })
+      const runIds = runs.map((r) => r.id)
+      const responses = await tx.response.deleteMany({ where: { sessionId: { in: runIds } } })
+      await tx.quizSession.deleteMany({ where: { id: { in: runIds } } })
+      await tx.slide.deleteMany({ where: { presentationId: id } })
+      await tx.presentation.delete({ where: { id } })
+      return { title: presentation.title, runs: runIds.length, responses: responses.count }
     })
-    if (!presentation) return { error: "That presentation no longer exists." }
+    if (!removed) return { error: "That presentation no longer exists." }
 
-    // A show that has been played is somebody's record of a real event: its
-    // sessions hold the participants and their answers, and they are not tied
-    // to the presentation by a foreign key, so deleting the slides would strand
-    // them rather than clean them up. Refuse instead.
-    const played = await prisma.quizSession.count({ where: { presentationId: id } })
-    if (played > 0) {
-      return {
-        error: `"${presentation.title}" has been played ${played} time${played === 1 ? "" : "s"}. Deleting it would strand those results, so it has to stay.`,
-      }
-    }
-
-    // Slides have no cascade on the relation, so they go first.
-    await prisma.$transaction([
-      prisma.slide.deleteMany({ where: { presentationId: id } }),
-      prisma.presentation.delete({ where: { id } }),
-    ])
-
-    await audit(session.user!.email!, "presentation.delete", "Presentation", id)
+    await audit(session.user!.email!, "presentation.delete", "Presentation", id, removed)
     revalidatePath("/admin/quiz")
     return {}
   } catch (err) {
     return { error: err instanceof Error ? err.message : "Could not delete that presentation." }
   }
+}
+
+// One run: a rehearsal, or a real audience whose results are no longer wanted.
+export async function deleteQuizRun(sessionId: string): Promise<{ error?: string }> {
+  const session = await requireAdmin()
+  const run = await prisma.quizSession.findUnique({
+    where: { id: sessionId },
+    select: { presentationId: true, roomCode: true },
+  })
+  if (!run) return { error: "That run no longer exists." }
+
+  const [responses] = await prisma.$transaction([
+    prisma.response.deleteMany({ where: { sessionId } }),
+    prisma.quizSession.delete({ where: { id: sessionId } }),
+  ])
+  await audit(session.user!.email!, "quiz.run.delete", "QuizSession", sessionId, {
+    presentationId: run.presentationId,
+    roomCode: run.roomCode,
+    responses: responses.count,
+  })
+  revalidatePath(`/admin/quiz/${run.presentationId}/results`)
+  revalidatePath("/admin/quiz")
+  return {}
 }

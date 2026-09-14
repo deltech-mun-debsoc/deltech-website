@@ -23,7 +23,7 @@ function dispatchTarget(formData: FormData): string {
 //     if (!authorized) throw new AccessDenied("AccessDenied")
 //
 // mayStartSession reads the user row from Postgres, so a pooler hiccup, a cold
-// start or a dropped Supabase connection all arrived here as "this person may
+// start or a dropped database connection all arrived here as "this person may
 // not sign in" and were reported to a real user, with a correct address, as
 // "Something went wrong. Please try again." That is what made a working sign-in
 // look broken during the Junior Council onboarding wave: many simultaneous

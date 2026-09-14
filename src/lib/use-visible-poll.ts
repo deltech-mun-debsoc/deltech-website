@@ -4,8 +4,7 @@ import { useEffect, useRef } from "react"
 
 // Refresh on a timer, but only while the tab is actually being looked at.
 //
-// The availability boards used Supabase `postgres_changes`, which only works
-// while the database lives on Supabase. A poll is the replacement: seats change
+// The availability boards poll rather than subscribe: seats change
 // a few times a minute during allotment, so a 20s lag is invisible to a viewer
 // and costs one render per visible tab.
 //

@@ -3,7 +3,7 @@
 // working, it just stops being safe. These pin the ones added here, plus the
 // properties that were already correct and must not be undone.
 import assert from "node:assert"
-import { readFileSync } from "node:fs"
+import { readdirSync, readFileSync } from "node:fs"
 import { RATE_LIMITS } from "../src/lib/rate-limit"
 
 const read = (p: string) => readFileSync(p, "utf8")
@@ -113,10 +113,15 @@ const read = (p: string) => readFileSync(p, "utf8")
     "CANDIDATE_DOC access must be scoped to the caller's visible groups",
   )
 
-  // And the old Supabase upload paths must stay gone, or they would reintroduce
-  // an unverified public-bucket write alongside the hardened one.
-  for (const f of ["src/app/(author)/write/[id]/actions.ts", "src/app/(admin)/admin/team/actions.ts"]) {
-    assert.doesNotMatch(read(f), /supabase\.storage/, `${f} must not upload to Supabase Storage directly`)
+  // Supabase is gone from the app. Nothing may import it or point at it again:
+  // an old storage path would reintroduce an unverified public-bucket write.
+  assert.doesNotMatch(read("package.json"), /@supabase\//, "no Supabase SDK dependency")
+  for (const dir of ["src", "prisma", "deploy", ".github"]) {
+    for (const f of readdirSync(dir, { recursive: true, encoding: "utf8" })) {
+      const p = `${dir}/${f}`
+      if (p.startsWith("src/generated/") || !/\.(ts|tsx|mdx|sql|prisma|sh|yml|yaml)$/.test(p)) continue
+      assert.doesNotMatch(read(p), /supabase/i, `${p} still mentions Supabase`)
+    }
   }
 }
 

@@ -27,11 +27,9 @@ export default async function MailerPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Outreach" title="Mailer" description="Announcements to delegates, and PR to the outreach list." />
-      <div className="flex flex-wrap gap-2">
+      <PageHeader eyebrow="Outreach" title="Mailer" description="Announcements to delegates, and PR to the outreach list.">
         <Link href="/admin/mailer/new" className={buttonVariants()}>New mail</Link>
-        <Link href="/admin/mailer/contacts" className={buttonVariants({ variant: "outline" })}>Outreach contacts</Link>
-      </div>
+      </PageHeader>
       {campaigns.length === 0 ? (
         <p className="text-sm text-muted-foreground">No mail drafted yet.</p>
       ) : (
