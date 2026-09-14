@@ -4,6 +4,7 @@ import { buildDelegateWhere, parseSortField } from "./_lib/build-where"
 import { delegateInclude, serializeDelegate } from "./_lib/types"
 import { RegistrationsClient } from "./_components/registrations-client"
 import { DelegateTabs } from "./_components/delegate-tabs"
+import { AddDelegate } from "./_components/add-delegate"
 import type { Prisma } from "@/generated/prisma/client"
 import { PageHeader } from "@/app/(admin)/_components/page-header"
 
@@ -61,6 +62,8 @@ export default async function RegistrationsPage(props: {
   ])
 
   const delegates = delegatesRaw.map(serializeDelegate)
+  const event = await getActiveEvent()
+  const intra = event?.kind === "INTRA_MUN"
 
   const filters = { q, committeeId, status, source, isDtu, needsAccommodation, followUp, query, page, perPage, sortBy, sortDir }
 
@@ -70,13 +73,15 @@ export default async function RegistrationsPage(props: {
       <PageHeader
         title="All delegates"
         description={`${total} ${total === 1 ? "delegate" : "delegates"} match · tick rows to mail them`}
-      />
+      >
+        {event && <AddDelegate committees={committees} intra={intra} />}
+      </PageHeader>
       <RegistrationsClient
         delegates={delegates}
         committees={committees}
         total={total}
         filters={filters}
-        intra={(await getActiveEvent())?.kind === "INTRA_MUN"}
+        intra={intra}
       />
     </div>
   )

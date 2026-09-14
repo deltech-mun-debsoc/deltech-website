@@ -6,8 +6,9 @@ import { PageHeader } from "@/app/(admin)/_components/page-header"
 import { getContent } from "@/lib/settings"
 import { deriveEventState } from "@/lib/event-state"
 
-export default async function AllotmentPage() {
+export default async function AllotmentPage(props: { searchParams: Promise<{ delegate?: string }> }) {
   await requireStaff()
+  const { delegate: focusDelegateId } = await props.searchParams
 
   const scope = await currentEventScope()
 
@@ -46,6 +47,7 @@ export default async function AllotmentPage() {
         email: true,
         institution: true,
         isDtu: true,
+        rollNumber: true,
         munExperience: true,
         pref1CommitteeId: true,
         pref1Portfolio: true,
@@ -88,12 +90,13 @@ export default async function AllotmentPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Allotment Board"
+        title="Allotment"
         description={paymentsRequired
-          ? "Select a committee, then allot a portfolio. A payment request is created after allotment."
-          : "Select a committee, then allot a portfolio. The delegate is confirmed immediately, no payment is created."}
+          ? "Pick a waiting delegate and give them a seat. They are emailed a payment link straight away."
+          : "Pick a waiting delegate and give them a seat. They are confirmed and emailed straight away."}
       />
       <AllotmentBoard
+        focusDelegateId={focusDelegateId ?? null}
         eventId={(await getActiveEvent())?.id ?? null}
         committees={serializedCommittees}
         delegates={serializedDelegates}

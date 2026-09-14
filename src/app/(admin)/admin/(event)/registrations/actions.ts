@@ -5,9 +5,13 @@ import { requireStaff, requireAdmin } from "@/lib/authz"
 import { audit } from "@/lib/audit"
 import { getActiveProvider } from "@/lib/payments"
 import { delegateInclude, serializeDelegate, type SerializedDelegate, type EmailLogEntry } from "./_lib/types"
-import { sendAllotmentEmail, sendPaymentConfirmed, resendByLogId } from "@/lib/resend"
+import { sendAllotmentEmail, sendPaymentConfirmed, resendByLogId, sendRegistrationEmails } from "@/lib/resend"
 import { syncSheetCell, syncSheetForDelegate } from "@/lib/sheet-sync"
 import { detailedChangeMeta } from "@/lib/audit-change"
+import { revalidatePath } from "next/cache"
+import { z } from "zod"
+import { getActiveEvent } from "@/lib/event"
+import { DTU_INSTITUTION } from "@/lib/schemas/register"
 
 export interface DelegateEditData {
   fullName: string
@@ -120,6 +124,78 @@ export async function updateDelegate(
       return { success: false, error: "Another delegate already uses this email." }
     }
     return { success: false, error: "Update failed. Please try again." }
+  }
+}
+
+const AddDelegateSchema = z.object({
+  fullName: z.string().trim().min(2, "Enter their name."),
+  email: z.string().trim().toLowerCase().email("Enter a valid email."),
+  whatsapp: z.string().trim().min(7, "Enter a valid phone number."),
+  rollNumber: z.string().trim().max(40).optional(),
+  institution: z.string().trim().max(200).optional(),
+  isDtu: z.boolean(),
+  pref1CommitteeId: z.string().optional(),
+  pref1Portfolio: z.string().trim().max(120).optional(),
+})
+
+// On-the-spot registration at the desk. Staff add the person whatever the public
+// registration switch says, because the switch is about the website.
+export async function addDelegate(
+  input: z.input<typeof AddDelegateSchema>,
+): Promise<{ success: true; id: string } | { success: false; error: string }> {
+  const session = await requireStaff()
+  const parsed = AddDelegateSchema.safeParse(input)
+  if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Check the details." }
+  const v = parsed.data
+
+  const event = await getActiveEvent()
+  if (!event) return { success: false, error: "Start an event in Setup first." }
+  const intra = event.kind === "INTRA_MUN"
+  if (intra && !v.rollNumber) return { success: false, error: "Enter their DTU roll number." }
+  const isDtu = intra || v.isDtu
+  const institution = isDtu ? DTU_INSTITUTION : v.institution
+  if (!institution || institution.length < 2) return { success: false, error: "Enter their college." }
+
+  const committeeId = v.pref1CommitteeId || null
+  if (committeeId) {
+    const ok = await prisma.committee.findFirst({ where: { id: committeeId, eventId: event.id }, select: { id: true } })
+    if (!ok) return { success: false, error: "That committee is not part of this event." }
+  }
+
+  try {
+    const delegate = await prisma.delegate.create({
+      data: {
+        eventId: event.id,
+        fullName: v.fullName,
+        email: v.email,
+        whatsapp: v.whatsapp,
+        institution,
+        isDtu,
+        rollNumber: v.rollNumber || null,
+        source: "MANUAL",
+        sourceNote: `Added by ${session.user?.email ?? "staff"}`,
+        pref1CommitteeId: committeeId,
+        pref1Portfolio: committeeId ? v.pref1Portfolio || null : null,
+        status: "REGISTERED",
+      },
+      select: { id: true, fullName: true },
+    })
+    await audit(session.user?.email ?? "unknown", "delegate.create", "Delegate", delegate.id, {
+      summary: `Added ${delegate.fullName} by hand.`,
+    })
+    try {
+      await sendRegistrationEmails(delegate.id)
+    } catch (err) {
+      console.error(`[addDelegate] registration emails failed for delegate ${delegate.id}:`, err)
+    }
+    revalidatePath("/admin/registrations")
+    revalidatePath("/admin/allotment")
+    return { success: true, id: delegate.id }
+  } catch (err) {
+    if (typeof err === "object" && err !== null && "code" in err && (err as { code: unknown }).code === "P2002") {
+      return { success: false, error: "Someone with this email is already registered for this event." }
+    }
+    return { success: false, error: "Could not add them. Please try again." }
   }
 }
 

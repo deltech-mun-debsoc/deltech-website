@@ -94,6 +94,23 @@ export function portfolioRank(
   return null
 }
 
+export const ORDINAL = { 1: "1st", 2: "2nd", 3: "3rd" } as const
+
+// A delegate's choices in order, each resolved to the real seat it names when
+// there is one. A choice whose committee is gone is dropped.
+export function delegateChoices<
+  C extends { id: string; name: string; portfolios: { id: string; name: string; committeeId: string }[] },
+>(d: SeatPrefDelegate, committees: C[]): { rank: 1 | 2 | 3; committee: C; seat: C["portfolios"][number] | null; typed: string | null }[] {
+  const out: { rank: 1 | 2 | 3; committee: C; seat: C["portfolios"][number] | null; typed: string | null }[] = []
+  for (const rank of [1, 2, 3] as const) {
+    const committee = committees.find((c) => c.id === d[`pref${rank}CommitteeId`])
+    if (!committee) continue
+    const seat = committee.portfolios.find((p) => portfolioRank(d, p) === rank) ?? null
+    out.push({ rank, committee, seat, typed: d[`pref${rank}Portfolio`] })
+  }
+  return out
+}
+
 function normalisePortfolioName(raw: string): string {
   return cleanPortfolioName(raw).toLowerCase()
 }

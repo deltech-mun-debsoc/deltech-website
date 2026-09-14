@@ -64,7 +64,7 @@ const read = (p: string) => readFileSync(p, "utf8")
 {
   const dialog = read("src/app/(admin)/admin/(event)/allotment/_components/allot-dialog.tsx")
   const board = read("src/app/(admin)/admin/(event)/allotment/_components/allotment-board.tsx")
-  assert.match(dialog, /releaseHold\(portfolio\.id, holdToken\)/, "the dialog must release with its hold token")
+  assert.match(dialog, /releaseHold\(seat\.id, holdToken\)/, "the dialog must release with its hold token")
   assert.match(dialog, /holdToken,\s*\}/, "allotment confirmation must prove it owns the hold")
   assert.doesNotMatch(board, /releaseHold/, "the board must not release holds it knows nothing about")
 }

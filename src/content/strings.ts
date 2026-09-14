@@ -482,9 +482,6 @@ export const STRINGS = {
       confirmAllotDescription:
         "Allot {portfolio} in {committee} to {delegate}? This cannot be undone.",
       onHoldWarning: "Portfolio is on hold by another admin.",
-      requestedThisSeat: "Asked for this seat · {rank}",
-      holdCountdown: "Held for you · {seconds}s",
-      holdLapsed: "Your hold has lapsed. Close this and reopen the seat.",
       doubleDelegationNote:
         "{committee} seats two delegates, so this also brings their co-delegate onto the same allotment.",
       doubleAllotError: "This portfolio has already been allotted.",
