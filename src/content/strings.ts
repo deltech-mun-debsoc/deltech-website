@@ -67,7 +67,7 @@ export const STRINGS = {
       capDelegation: "The Secretariat",
     },
     committeeTypes: {
-      standard: "General Assembly",
+      standard: "Committee",
       crisis: "Crisis",
       press: "International Press",
     },
@@ -112,7 +112,7 @@ export const STRINGS = {
     organiserSignIn: "Organiser sign-in",
     availabilityEyebrow: "Live allocation signal · realtime",
     availabilityTitle: "The live matrix.",
-    availabilityBody: "Every portfolio is a live signal. Allotments, pending payments, and confirmations move here as the secretariat acts.",
+    availabilityBody: "Every seat, live. Allotments and confirmations show here as the secretariat makes them.",
     availabilityCountsBody: "The secretariat is publishing live committee counts while keeping individual allotments private.",
     portfoliosStillOpen: "portfolios still open",
     committeeSignal: "Committee signal",

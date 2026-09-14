@@ -206,11 +206,14 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, 
               </span>
               {d && (
                 <span className="mt-1 flex items-center gap-1 text-[10px] opacity-70">
-                  <span className={cn("tabular-nums", oversubscribed && "font-semibold text-amber-600 dark:text-amber-400")}>
-                    P1 {p1}
+                  <span
+                    className={cn("tabular-nums", oversubscribed && "font-semibold text-amber-600 dark:text-amber-400")}
+                    title={oversubscribed ? "More first choices than seats left" : undefined}
+                  >
+                    {`1st ${p1}`}
                   </span>
-                  <span className="tabular-nums">· P2 {d.p2}</span>
-                  <span className="tabular-nums">· P3 {d.p3}</span>
+                  <span className="tabular-nums">{`· 2nd ${d.p2}`}</span>
+                  <span className="tabular-nums">{`· 3rd ${d.p3}`}</span>
                 </span>
               )}
             </button>
