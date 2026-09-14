@@ -283,7 +283,7 @@ export function StepMapping({
             onChange={(e) => setPresetName(e.target.value)}
           />
           <Input
-            placeholder="Partner (optional)"
+            placeholder="College (optional)"
             className="h-8 w-36 text-xs"
             value={presetPartner}
             onChange={(e) => setPresetPartner(e.target.value)}
