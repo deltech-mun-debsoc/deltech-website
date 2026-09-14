@@ -1,3 +1,4 @@
+import Link from "next/link"
 import { prisma } from "@/lib/prisma"
 import { getContent } from "@/lib/settings"
 import { requireStaff } from "@/lib/authz"
@@ -23,6 +24,13 @@ export default async function MoneySettingsPage() {
 
   return (
     <div className="space-y-6">
+      {!content.paymentsEnabled && (
+        <p className="rounded-md border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
+          {"This event is free, so nothing on this page is used. Allotting a seat confirms the delegate straight away. Switch on payments in "}
+          <Link href="/admin/config#event-website" className="font-medium text-foreground underline underline-offset-2">Event control</Link>
+          {" if it should charge."}
+        </p>
+      )}
       <div className="editorial-card p-7">
         <h2 className="font-heading text-2xl">Fees</h2>
         <p className="mt-2 text-base text-muted-foreground">

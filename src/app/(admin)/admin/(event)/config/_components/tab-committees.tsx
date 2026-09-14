@@ -184,7 +184,7 @@ export function TabCommittees({ committees }: Props) {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border/60">
-              {["Name", "Matrix classification", "Type", "DD", "Active", "Order", ""].map((h) => (
+              {["Name", "Seat label", "Type", "Double delegation", "Active", "Order", ""].map((h) => (
                 <th
                   key={h}
                   className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground"

@@ -110,6 +110,7 @@ const EventSettingsSchema = z.object({
   venue: z.string().trim().max(160),
   ctaLabel: z.string().trim().max(60),
   formUrl: z.string().trim().max(500),
+  closedMessage: z.string().trim().max(500),
 })
 
 export type EventSettingsInput = z.input<typeof EventSettingsSchema>
@@ -154,6 +155,7 @@ export async function saveEventSettings(input: EventSettingsInput): Promise<{ su
       conferenceDates: v.dates,
       venue: v.venue,
       registrationFormUrl: v.formUrl,
+      registrationClosedMessage: v.closedMessage || content.registrationClosedMessage,
       landingHero: { ...content.landingHero, subtitle: v.brief, ctaLabel: v.ctaLabel || content.landingHero.ctaLabel },
     })
     await audit(session.user?.email ?? "unknown", "event.settings", "Event", event.id, { before, after })

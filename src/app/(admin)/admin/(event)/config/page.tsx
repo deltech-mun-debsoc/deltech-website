@@ -38,6 +38,7 @@ export default async function EventControlPage() {
           venue: content.venue,
           ctaLabel: content.landingHero.ctaLabel,
           formUrl: content.registrationFormUrl,
+          closedMessage: content.registrationClosedMessage,
         }}
         readiness={{ committees, seats }}
         canManagePayments={isAdmin}

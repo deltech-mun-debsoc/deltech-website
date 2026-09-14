@@ -110,7 +110,7 @@ export function TabContent({ content }: Props) {
       </p>
 
       <Section title="Society">
-        <Field label="Name shown in the site header">
+        <Field label="Society name (used in emails when an event has no name)">
           <Input {...form.register("heroTitle")} />
         </Field>
         <div className="grid gap-4 sm:grid-cols-2">
