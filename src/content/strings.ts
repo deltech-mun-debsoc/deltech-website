@@ -161,7 +161,7 @@ export const STRINGS = {
     quizBody: "Six digits put you inside the session. Enter the code on the host screen and get ready to vote, answer, and climb the board.",
     registrationEyebrow: "Delegate application · secure intake",
     registrationBriefLabel: "Before you begin",
-    registrationBrief: "Keep your committee preferences, portfolio choices, contact details, and MUN experience ready. Your progress moves through five short briefs.",
+    registrationBrief: "Keep your committee preferences, contact details and MUN experience ready. It takes a few minutes.",
     allDispatches: "All dispatches",
     registrationClosedEyebrow: "Delegate intake paused",
     registrationClosedTitle: "The application desk is closed.",
@@ -224,6 +224,8 @@ export const STRINGS = {
       personal: "Personal Details",
       preferences: "Committee Preferences",
       coDelegateOrPref2: "Co-delegate / Second Preference",
+      coDelegate: "Co-delegate",
+      secondPreference: "Second Preference",
       accommodation: "Accommodation",
       undertaking: "Undertaking & Submit",
     },
@@ -281,7 +283,7 @@ export const STRINGS = {
       referenceLabel: "How did you hear about us?",
       referencePlaceholder: "Friend, Instagram, etc.",
       checkboxLabel:
-        "I confirm that all information provided is accurate and I agree to abide by the rules of the conference.",
+        "I confirm that all information provided is accurate and I agree to abide by the rules of the event.",
       submitButton: "Submit Application",
     },
     success: {

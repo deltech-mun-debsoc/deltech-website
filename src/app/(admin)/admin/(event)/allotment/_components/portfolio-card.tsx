@@ -11,6 +11,8 @@ interface Props {
   committee: SerializedCommittee
   onClick: () => void
   onRevoke: () => void
+  // Waiting delegates who asked for this exact seat, as any of their choices.
+  wantedBy?: number
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -27,7 +29,7 @@ const STATUS_VARIANT: Record<string, "default" | "secondary" | "outline" | "dest
   BLOCKED: "secondary",
 }
 
-export function PortfolioCard({ portfolio, committee, onClick, onRevoke }: Props) {
+export function PortfolioCard({ portfolio, committee, onClick, onRevoke, wantedBy = 0 }: Props) {
   const isClickable = portfolio.status === "AVAILABLE" || portfolio.status === "ON_HOLD"
   const isAllotted = portfolio.status === "ALLOTTED"
 
@@ -73,6 +75,12 @@ export function PortfolioCard({ portfolio, committee, onClick, onRevoke }: Props
                 </p>
               )}
             </div>
+          )}
+
+          {portfolio.status === "AVAILABLE" && wantedBy > 0 && (
+            <p className="mt-1 text-xs font-medium text-primary">
+              {`Asked for by ${wantedBy} waiting ${wantedBy === 1 ? "delegate" : "delegates"}`}
+            </p>
           )}
 
           {portfolio.status === "ON_HOLD" && (
