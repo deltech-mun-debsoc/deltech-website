@@ -229,6 +229,17 @@ including what is now genuinely worse.
 | TLS to the database, network isolation | Postgres listens on loopback only; nothing is exposed off the box | Better than before: there is no network path to the database at all. |
 | Storage for blog images | S3 (`posts/`, `covers/`, `team/`), public read on those prefixes only | None. Verified: zero `supabase.co` URLs remain in production data. |
 
+Found in the review of 2026-09-14, things the managed platform had been quietly
+absorbing:
+
+| Risk | State |
+| --- | --- |
+| Container logs grew without limit (Docker's default `json-file` keeps everything) | **Fixed** in `compose.yml`: 3 × 10 MB per container. The app picks it up on its next deploy; Caddy and Postgres only when recreated (`docker compose up -d caddy db`, a few seconds of downtime, so do it at a quiet hour). |
+| 1024 open files per container. Each realtime stream holds a socket in the app and two in Caddy, so a room of roughly 500 would start refusing connections | **Fixed** the same way: `nofile` 65536 for app and Caddy, applied on the same recreate. |
+| Memory limits add up to more than the box: app 700 MB + Postgres 400 MB + Caddy on 911 MB, with swap already in use at idle | **Open.** Fine at current load. A busy quiz plus a deploy is the moment it would bite. The 2 GB bundle is the fix, not smaller limits. |
+| The overview page counted revenue and seats across every event, not the running one | **Fixed**: scoped like the rest of the page. |
+| The old Supabase project still holds a copy of the delegate data from before the move | **Open, needs a person**: delete the project from the Supabase dashboard, and remove the Supabase app from the GitHub organisation. |
+
 Two things are now **better**, not just different: the database is unreachable
 from the internet, and it sits in the same place as the app (a page render went
 from about 1.0s to about 0.2s).

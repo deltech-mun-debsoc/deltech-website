@@ -2,7 +2,7 @@ import { EventEmitter } from "node:events"
 
 // The realtime bus: one process, one in-memory fan-out.
 //
-// This replaces Supabase broadcast and presence. It works because each
+// Broadcast and presence. It works because each
 // environment runs exactly ONE app container (docs/AWS.md), the same assumption
 // the quiz cache already makes. A second instance would split the fan-out, so
 // scaling out needs an external bus (Redis, AppSync) first.

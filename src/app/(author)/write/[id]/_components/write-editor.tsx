@@ -108,7 +108,6 @@ export function WriteEditor({ post }: { post: PostProps }) {
 
   // Both handlers now go through the S3 pipeline: the file is PUT straight to the
   // bucket with a presigned URL, so it never travels through a server action body.
-  // Images already stored on Supabase keep working: their URLs are untouched.
   const handleImageUpload = async (file: File) => {
     setUploading(true)
     const result = await uploadToS3(file, "POST_IMAGE", { ownerType: "Post", ownerId: post.id })

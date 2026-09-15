@@ -4,11 +4,9 @@ import { defineConfig } from "prisma/config";
 export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: { path: "prisma/migrations", seed: "tsx prisma/seed.ts" },
-  // CLI and migrations use the direct connection (no pgBouncer). For staging
-  // and production in CI this must be the Supabase SESSION pooler (port 5432
-  // on pooler.supabase.com): db.<ref>.supabase.co is IPv6-only and GitHub
-  // runners have no IPv6, while port 6543 is the transaction pooler and
-  // cannot run DDL.
+  // CLI and migrations use DIRECT_URL. Staging and production Postgres listen
+  // on each box's loopback only, so CI reaches them through an SSH tunnel
+  // (see staging-migrate.yml).
   //
   // Read through process.env rather than prisma/config's env(), which throws
   // when the variable is absent. `prisma generate` never opens a connection,

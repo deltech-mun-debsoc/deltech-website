@@ -53,8 +53,8 @@ function CountBadge({ count }: { count: number }) {
 
 export function AvailabilityBoard({ initial }: Props) {
   const router = useRouter()
-  // Counts come from the server render; a refresh replaces them. Polled rather
-  // than subscribed: postgres_changes only works on a Supabase database.
+  // Counts come from the server render; a refresh replaces them. Polled every
+  // 20s while the tab is visible.
   useVisiblePoll(20_000, router.refresh)
   const committees = initial
 

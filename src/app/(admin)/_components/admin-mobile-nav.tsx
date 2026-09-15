@@ -43,8 +43,8 @@ export function AdminMobileNav({ user }: { user: SidebarUser }) {
               const items = group.items.filter((i) => !i.adminOnly || isAdmin)
               if (items.length === 0) return null
               return (
-                <div key={group.label} className="mb-5">
-                  <p className="data-label mb-2 px-3 text-[0.9375rem] text-muted-foreground">{group.label}</p>
+                <div key={group.label ?? "home"} className="mb-5">
+                  {group.label && <p className="data-label mb-2 px-3 text-[0.9375rem] text-muted-foreground">{group.label}</p>}
                   {items.map(({ href, icon: Icon, label }) => (
                     <Link
                       key={href}

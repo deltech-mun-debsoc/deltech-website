@@ -62,8 +62,7 @@ export async function publish(channel: string, event: string, payload: unknown):
 // became ~100 EventSources, which pegged the tab's main thread hard enough that
 // clicking anything did nothing (server actions could never dispatch).
 //
-// Supabase hid this by multiplexing every channel onto a single WebSocket. The
-// bus has to do the multiplexing itself.
+// So the client multiplexes: one EventSource per channel, shared by listeners.
 export type Listener = { handlers: RealtimeHandlers<unknown> }
 
 interface Shared {

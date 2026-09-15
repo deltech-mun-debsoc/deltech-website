@@ -13,6 +13,7 @@ import {
   parseDelegateAudience,
   parseContactAudience,
   CONTACT_FREQUENCY_CAP_DAYS,
+  STAGE_SHORTCUTS,
 } from "../src/lib/mailer/audience"
 import { MAIL_PRESETS, presetFor } from "../src/lib/mailer/presets"
 
@@ -53,6 +54,22 @@ import { MAIL_PRESETS, presetFor } from "../src/lib/mailer/presets"
   // Untrusted JSON: an unknown status must not reach the query.
   assert.deepEqual(parseDelegateAudience({ statuses: ["DROP TABLE"] }), parseDelegateAudience({}), "invalid filters fall back to the safe default")
   assert.deepEqual((buildDelegateAudienceWhere(parseDelegateAudience({}), scope).AND as unknown[])[0], scope, "the event scope is always applied")
+
+  // Hand-picked from the delegate list: exactly those people, still only in this event.
+  const picked = buildDelegateAudienceWhere(parseDelegateAudience({ delegateIds: ["d1", "d2"], statuses: ["CONFIRMED"] }), scope)
+  assert.deepEqual(picked, { AND: [scope, { id: { in: ["d1", "d2"] } }] }, "hand-picked ignores filters but keeps the event scope")
+  assert.deepEqual(parseDelegateAudience({ delegateIds: Array(5001).fill("x") }).delegateIds, [], "an oversized pick falls back to the safe default")
+
+  // Stage shortcuts are ordinary filters, so they must survive parsing unchanged.
+  for (const s of STAGE_SHORTCUTS) {
+    const parsed = parseDelegateAudience(s.filters)
+    assert.deepEqual({ ...parsed, ...s.filters }, parsed, `${s.key} is a valid audience`)
+  }
+  const unpaidStage = STAGE_SHORTCUTS.find((s) => s.key === "allotted-unpaid")!
+  assert.deepEqual(
+    (buildDelegateAudienceWhere(parseDelegateAudience(unpaidStage.filters), scope).AND as unknown[]).slice(2),
+    [{ allotment: { isNot: null } }, { payment: { status: { in: ["PENDING", "SENT", "FAILED"] } } }],
+  )
 }
 
 // ── Contact audience ────────────────────────────────────────────────────────
@@ -96,7 +113,7 @@ import { MAIL_PRESETS, presetFor } from "../src/lib/mailer/presets"
 // nobody switched on, or an unsubscribe that anyone could forge.
 {
   const queue = readFileSync("src/lib/mailer/queue.ts", "utf8")
-  const actions = readFileSync("src/app/(admin)/admin/mailer/actions.ts", "utf8")
+  const actions = readFileSync("src/app/(admin)/admin/(event)/mailer/actions.ts", "utf8")
   const resend = readFileSync("src/lib/resend.ts", "utf8")
   const unsub = readFileSync("src/app/api/unsubscribe/[token]/route.ts", "utf8")
 
@@ -114,6 +131,15 @@ import { MAIL_PRESETS, presetFor } from "../src/lib/mailer/presets"
   assert.match(queue, /updateMany\(\{\s*where: \{ id: campaign\.id, state: "SCHEDULED" \}/, "a campaign must be claimed before its recipients are resolved")
   const stale = queue.slice(queue.indexOf('status: "SENDING", claimedAt: { lt:'))
   assert.match(stale.slice(0, 300), /data: \{ status: "FAILED"/, "an interrupted send must fail, never go back to PENDING and risk a second copy")
+
+  // Event mail and PR outreach share a table; neither list may show the other.
+  const list = readFileSync("src/app/(admin)/admin/(event)/mailer/_components/campaign-list.tsx", "utf8")
+  assert.match(list, /where: \{ audience, /, "a campaign list is always filtered by its audience")
+  // Drafting from the delegate list only drafts: sending stays ADMIN only.
+  const draftFn = actions.slice(actions.indexOf("export async function draftMailForDelegates"), actions.indexOf("// ---- Outreach contacts ----"))
+  assert.match(draftFn, /requireStaff\(\)/)
+  assert.match(draftFn, /eventId: event\.id/, "a drafted delegate mail belongs to the running event")
+  assert.doesNotMatch(draftFn, /processMailQueue|scheduleCampaign\(/, "drafting must never send")
 
   // Outreach mail is unsubscribable in one click.
   assert.match(resend, /"List-Unsubscribe": `<\$\{input\.unsubscribePostUrl\}>`/)

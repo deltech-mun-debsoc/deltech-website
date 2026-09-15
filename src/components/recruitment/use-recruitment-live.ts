@@ -7,8 +7,8 @@ import { publish, useRealtime } from "@/lib/realtime/client"
 // Realtime for the recruitment surfaces.
 //
 // The payload is a topic string only; the actual data is re-fetched through
-// `router.refresh()`, which goes back through the server guards. Since the move
-// off Supabase the channel itself is signed-in only (src/lib/realtime/channels.ts),
+// `router.refresh()`, which goes back through the server guards. The channel
+// itself is signed-in only (src/lib/realtime/channels.ts),
 // but the rule stands: candidate data never travels on the bus.
 //
 // A polling floor backs it up, so a dropped socket degrades to a slow update rather

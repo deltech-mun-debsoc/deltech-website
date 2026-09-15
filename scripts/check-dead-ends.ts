@@ -30,12 +30,12 @@ function sourceFiles(dir: string): string[] {
 
 // --- slow routes show something ------------------------------------------
 for (const route of [
-  "src/app/(admin)/admin/checkin",
+  "src/app/(admin)/admin/(event)/checkin",
   "src/app/(admin)/admin/users",
   "src/app/(admin)/admin/logs",
   "src/app/(admin)/admin/recruitment",
   "src/app/(admin)/admin/team",
-  "src/app/(admin)/admin/import",
+  "src/app/(admin)/admin/(event)/import",
   // revalidate = 0, joins the whole conference, and is the homepage CTA target.
   "src/app/(marketing)/availability",
 ]) {
@@ -80,10 +80,10 @@ for (const route of [
 
 // --- the import wizard's terminal screen leads somewhere ------------------
 {
-  const src = read("src/app/(admin)/admin/import/_components/import-wizard.tsx")
+  const src = read("src/app/(admin)/admin/(event)/import/_components/import-wizard.tsx")
   assert.match(src, /href="\/admin\/registrations"/, "the done screen must link to the result")
   assert.match(src, /result\.quarantined > 0/, "quarantined rows must be surfaced, not just counted")
-  assert.match(read("src/app/(admin)/admin/import/page.tsx"), /id="quarantine"/, "the anchor must exist")
+  assert.match(read("src/app/(admin)/admin/(event)/import/page.tsx"), /id="quarantine"/, "the anchor must exist")
 }
 
 // --- the audit trail is reachable past the first page ---------------------
@@ -191,9 +191,8 @@ for (const route of [
 //
 // The lobby's start button was disabled until the presence channel reported a
 // participant. Presence is 0 before it syncs, 0 when the projector is opened
-// first, and 0 permanently wherever realtime is unconfigured -- and there
-// getSupabase() returns null by design, so the quiz could never be started at
-// all. It failed as a click that did nothing: no error, no console line.
+// first, and 0 permanently wherever realtime is unavailable, so the quiz
+// could never be started at all. It failed as a click that did nothing: no error, no console line.
 {
   const src = read("src/app/(admin)/admin/quiz/[id]/present/_components/lobby-screen.tsx")
   assert.doesNotMatch(

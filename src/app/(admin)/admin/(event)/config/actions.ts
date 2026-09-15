@@ -1,0 +1,618 @@
+"use server"
+
+import { z } from "zod"
+import { prisma } from "@/lib/prisma"
+import { setContent, getContent } from "@/lib/settings"
+import { syncSheetCell } from "@/lib/sheet-sync"
+import { requireStaff, requireAdmin } from "@/lib/authz"
+import { audit } from "@/lib/audit"
+import { callAI, AIRateLimitError } from "@/lib/ai"
+import { revalidatePath } from "next/cache"
+import { pickValues, reversibleSettingsMeta } from "@/lib/audit-change"
+import { fetchSheetRows, SheetFetchError } from "@/lib/sheet-fetch"
+import { portfoliosFromSheetRows, type PortfolioEntry } from "@/lib/portfolio-sheet"
+import { deriveCsvUrl } from "@/lib/gsheet-url"
+import { closeEvent, createEvent, currentEventScope, getActiveEvent, reopenEvent, requireActiveEvent } from "@/lib/event"
+import type { EventState } from "@/generated/prisma/client"
+
+// Money/sync config only an ADMIN may touch, kept out of saveContent entirely.
+const PAYMENT_KEYS = new Set([
+  "paymentProvider", "staticPaymentLink", "upiVpa", "upiPayeeName", "paymentDeadline",
+  "paymentProofUrl", "refundPolicy", "whatsappCommunityUrl", "secretariatEmail", "sheetSyncUrl",
+])
+
+function publishContentChanges() {
+  revalidatePath("/", "layout")
+  revalidatePath("/")
+  revalidatePath("/availability")
+  revalidatePath("/register")
+  revalidatePath("/team")
+  revalidatePath("/blog")
+}
+
+// ── Content ────────────────────────────────────────────────────────────────────
+export async function saveContent(
+  partial: Record<string, unknown>,
+): Promise<{ success: boolean; error?: string }> {
+  const session = await requireStaff()
+  if (Object.keys(partial).some((k) => PAYMENT_KEYS.has(k))) {
+    return { success: false, error: "Payment settings must be saved via the payment card (admin only)." }
+  }
+  try {
+    const before = await getContent()
+    await setContent(partial)
+    const keys = Object.keys(partial)
+    await audit(
+      session.user?.email ?? "unknown",
+      "content.save",
+      "Setting",
+      "site-content",
+      reversibleSettingsMeta({
+        summary: "Updated public site content.",
+        before: pickValues(before, keys),
+        after: partial,
+      }),
+    )
+    publishContentChanges()
+    return { success: true }
+  } catch {
+    return { success: false, error: "Failed to save." }
+  }
+}
+
+// Replay every allotted cell's current state to the public Google Sheet.
+// syncSheetCell is best-effort per cell (fire-and-forget, self-heals on next
+// state change), so a mirror that's down for a while silently drifts, this
+// is the manual "reconcile now" for when it comes back.
+// ponytail: sequential to avoid hammering the single Apps Script endpoint;
+// parallelize in chunks only if a very large room makes this too slow.
+export async function resyncMatrix(): Promise<{ success: boolean; synced?: number; error?: string }> {
+  const session = await requireStaff()
+  const content = await getContent()
+  if (!content.sheetSyncUrl) {
+    return { success: false, error: "No sheet sync URL configured (set it in Setup, under Fees & payments)." }
+  }
+
+  const allotted = await prisma.portfolio.findMany({
+    where: { status: "ALLOTTED", allotment: { isNot: null }, committee: await currentEventScope() },
+    select: {
+      name: true,
+      committee: { select: { name: true } },
+      allotment: { select: { delegate: { select: { status: true } } } },
+    },
+  })
+
+  for (const p of allotted) {
+    if (!p.allotment) continue
+    await syncSheetCell({
+      committee: p.committee.name,
+      portfolio: p.name,
+      state: p.allotment.delegate.status === "CONFIRMED" ? "paid" : "allotted",
+    })
+  }
+
+  await audit(session.user?.email ?? "unknown", "matrix.resync", "Setting", undefined, {
+    synced: allotted.length,
+  })
+  return { success: true, synced: allotted.length }
+}
+
+const EventSettingsSchema = z.object({
+  name: z.string().trim().min(1, "Name the event.").max(120),
+  kind: z.enum(["CONFERENCE", "INTRA_MUN"]),
+  published: z.boolean(),
+  registrationOpen: z.boolean(),
+  paymentsEnabled: z.boolean(),
+  matrixPublic: z.boolean(),
+  label: z.string().trim().max(120),
+  brief: z.string().trim().max(300),
+  dates: z.string().trim().max(80),
+  venue: z.string().trim().max(160),
+  ctaLabel: z.string().trim().max(60),
+  formUrl: z.string().trim().max(500),
+  closedMessage: z.string().trim().max(500),
+})
+
+export type EventSettingsInput = z.input<typeof EventSettingsSchema>
+
+// The running event's settings, in one save. What the website shows follows from
+// them (src/lib/event-overlay.ts): publishing shows the event, its committees and
+// its registration link, and the matrix has its own switch. The surrounding copy
+// (label, brief, dates, venue, button text) stays in Setting rows.
+export async function saveEventSettings(input: EventSettingsInput): Promise<{ success: boolean; error?: string }> {
+  const session = await requireStaff()
+  const parsed = EventSettingsSchema.safeParse(input)
+  if (!parsed.success) {
+    return { success: false, error: parsed.error.issues[0]?.message ?? "Review the event settings and try again." }
+  }
+  const v = parsed.data
+  if (v.formUrl && !/^https:\/\/\S+$/.test(v.formUrl)) {
+    return { success: false, error: "The registration form link must start with https://. Copy it from your browser." }
+  }
+  const event = await getActiveEvent()
+  if (!event) return { success: false, error: "No event is running. Start one first." }
+
+  // Charging delegates is ADMIN only; anyone else's save keeps what is set.
+  const isAdmin = (session.user as { role?: string }).role === "ADMIN"
+  const paymentsEnabled = isAdmin ? v.paymentsEnabled : event.paymentsEnabled
+  // Publishing moves a draft to OPEN and leaves a later stage where it is.
+  const state: EventState = v.published ? (event.state === "DRAFT" ? "OPEN" : event.state) : "DRAFT"
+  const before = {
+    name: event.name,
+    kind: event.kind,
+    state: event.state,
+    registrationOpen: event.registrationOpen,
+    paymentsEnabled: event.paymentsEnabled,
+    matrixPublic: event.matrixPublic,
+  }
+  const after = { name: v.name, kind: v.kind, state, registrationOpen: v.registrationOpen, paymentsEnabled, matrixPublic: v.matrixPublic }
+
+  try {
+    const content = await getContent()
+    await prisma.event.update({ where: { id: event.id }, data: after })
+    await setContent({
+      activeEventLabel: v.label,
+      conferenceDates: v.dates,
+      venue: v.venue,
+      registrationFormUrl: v.formUrl,
+      registrationClosedMessage: v.closedMessage || content.registrationClosedMessage,
+      landingHero: { ...content.landingHero, subtitle: v.brief, ctaLabel: v.ctaLabel || content.landingHero.ctaLabel },
+    })
+    await audit(session.user?.email ?? "unknown", "event.settings", "Event", event.id, { before, after })
+    publishContentChanges()
+    return { success: true }
+  } catch {
+    return { success: false, error: "Could not save the event settings." }
+  }
+}
+
+export async function savePaymentConfig(partial: {
+  paymentsEnabled?: boolean
+  paymentProvider?: "upi_qr" | "razorpay" | "static_link"
+  staticPaymentLink?: string
+  upiVpa?: string
+  upiPayeeName?: string
+  paymentDeadline?: string
+  paymentProofUrl?: string
+  refundPolicy?: string
+  whatsappCommunityUrl?: string
+  secretariatEmail?: string
+  sheetSyncUrl?: string
+}): Promise<{ success: boolean; error?: string }> {
+  const session = await requireAdmin()
+  try {
+    const before = await getContent()
+    await setContent(partial)
+    const keys = Object.keys(partial)
+    await audit(
+      session.user?.email ?? "unknown",
+      "content.savePaymentConfig",
+      "Setting",
+      "payment-config",
+      reversibleSettingsMeta({
+        summary: "Updated payment and integration settings.",
+        before: pickValues(before, keys),
+        after: partial,
+      }),
+    )
+    publishContentChanges()
+    return { success: true }
+  } catch {
+    return { success: false, error: "Failed to save." }
+  }
+}
+
+// ── Registration toggle ────────────────────────────────────────────────────────
+export async function setRegistrationOpen(
+  open: boolean,
+): Promise<{ success: boolean }> {
+  const session = await requireStaff()
+  // The event decides whether the form takes anyone; a Setting row would be
+  // overridden by it and change nothing.
+  const event = await getActiveEvent()
+  if (!event) return { success: false }
+  await prisma.event.update({ where: { id: event.id }, data: { registrationOpen: open } })
+  await audit(
+    session.user?.email ?? "unknown",
+    open ? "registration.open" : "registration.close",
+    "Event",
+    event.id,
+    { before: event.registrationOpen, after: open },
+  )
+  publishContentChanges()
+  return { success: true }
+}
+
+// ── Committees ─────────────────────────────────────────────────────────────────
+export async function createCommittee(data: {
+  name: string
+  slug: string
+  agenda?: string
+  type: "STANDARD" | "CRISIS" | "PRESS"
+  doubleDelegation: boolean
+  sortOrder: number
+  aliases?: string[]
+  portfolioTagLabel?: string
+  matrixBrief?: string
+}): Promise<{ success: boolean; error?: string }> {
+  const session = await requireStaff()
+  try {
+    // A committee belongs to the event it is being built for. Without a running
+    // event there is nothing to attach it to, so this refuses rather than
+    // creating an orphan that no screen would ever list.
+    const event = await requireActiveEvent()
+    const committee = await prisma.committee.create({ data: { ...data, eventId: event.id } })
+    await audit(session.user?.email ?? "unknown", "committee.create", "Committee", committee.id, {
+      name: data.name,
+    })
+    return { success: true }
+  } catch {
+    return { success: false, error: "Failed. Slug may already exist." }
+  }
+}
+
+export async function updateCommittee(
+  id: string,
+  data: {
+    name: string
+    slug: string
+    agenda?: string
+    type: "STANDARD" | "CRISIS" | "PRESS"
+    doubleDelegation: boolean
+    isActive: boolean
+    sortOrder: number
+    aliases?: string[]
+    portfolioTagLabel?: string
+    matrixBrief?: string
+  },
+): Promise<{ success: boolean; error?: string }> {
+  const session = await requireStaff()
+  try {
+    await prisma.committee.update({ where: { id }, data })
+    await audit(session.user?.email ?? "unknown", "committee.update", "Committee", id)
+    return { success: true }
+  } catch {
+    return { success: false, error: "Failed to update committee." }
+  }
+}
+
+export async function deleteCommittee(
+  id: string,
+): Promise<{ success: boolean; error?: string }> {
+  const session = await requireAdmin()
+  try {
+    await prisma.committee.delete({ where: { id } })
+    await audit(session.user?.email ?? "unknown", "committee.delete", "Committee", id)
+    return { success: true }
+  } catch {
+    return { success: false, error: "Cannot delete, committee has linked data." }
+  }
+}
+
+// ── Portfolios ─────────────────────────────────────────────────────────────────
+export async function addPortfolio(
+  committeeId: string,
+  name: string,
+  tag?: string,
+): Promise<{ success: boolean; error?: string }> {
+  const session = await requireStaff()
+  const trimmed = name.trim()
+  if (!trimmed) return { success: false, error: "Name is required." }
+  try {
+    await prisma.portfolio.create({ data: { committeeId, name: trimmed, tag: tag?.trim() || null } })
+    await audit(session.user?.email ?? "unknown", "portfolio.add", "Portfolio", undefined, {
+      committeeId,
+      name: trimmed,
+    })
+    return { success: true }
+  } catch {
+    return { success: false, error: "Portfolio already exists in this committee." }
+  }
+}
+
+// Read a committee's portfolios straight from the society's matrix spreadsheet,
+// for the volunteer to review in the draft box before publishing. Read-only:
+// nothing is saved here, so the existing review-then-publish step still applies.
+export async function readPortfolioSheet(sheetUrl: string): Promise<{
+  success: boolean
+  error?: string
+  entries?: PortfolioEntry[]
+  nameColumn?: string
+  tagColumn?: string | null
+  alreadyAllotted?: number
+  duplicates?: number
+}> {
+  await requireStaff()
+  const csvUrl = deriveCsvUrl(sheetUrl)
+  if (!csvUrl) return { success: false, error: "That doesn't look like a Google Sheets link. Copy it from the browser's address bar." }
+  try {
+    const { rows } = await fetchSheetRows(csvUrl)
+    const result = portfoliosFromSheetRows(rows)
+    if (!result.nameColumn || result.entries.length === 0) {
+      return { success: false, error: "Couldn't find any portfolio names in that tab. Name its column Portfolio." }
+    }
+    return { success: true, ...result, nameColumn: result.nameColumn }
+  } catch (err) {
+    if (err instanceof SheetFetchError) return { success: false, error: err.message }
+    throw err
+  }
+}
+
+export async function bulkAddPortfolios(
+  committeeId: string,
+  entries: Array<{ name: string; tag?: string; priority?: number }>,
+): Promise<{ success: boolean; added: number; skipped: number }> {
+  const session = await requireStaff()
+  let added = 0
+  let skipped = 0
+  for (const entry of entries) {
+    const name = entry.name.trim()
+    if (!name) continue
+    try {
+      await prisma.portfolio.create({
+        data: {
+          committeeId,
+          name,
+          tag: entry.tag?.trim() || null,
+          priority: Math.max(0, Math.min(entry.priority ?? 0, 999)),
+        },
+      })
+      added++
+    } catch {
+      skipped++
+    }
+  }
+  await audit(session.user?.email ?? "unknown", "portfolio.bulkAdd", "Portfolio", undefined, {
+    committeeId,
+    added,
+    skipped,
+  })
+  return { success: true, added, skipped }
+}
+
+export async function updatePortfolio(
+  id: string,
+  data: { name: string; tag?: string; priority?: number },
+): Promise<{ success: boolean; error?: string }> {
+  const session = await requireStaff()
+  const name = data.name.trim()
+  if (!name) return { success: false, error: "Name is required." }
+  try {
+    await prisma.portfolio.update({
+      where: { id },
+      data: {
+        name,
+        tag: data.tag?.trim() || null,
+        priority: Math.max(0, Math.min(data.priority ?? 0, 999)),
+      },
+    })
+    await audit(session.user?.email ?? "unknown", "portfolio.update", "Portfolio", id)
+    return { success: true }
+  } catch {
+    return { success: false, error: "Could not update this portfolio." }
+  }
+}
+
+export async function deletePortfolio(
+  id: string,
+): Promise<{ success: boolean; error?: string }> {
+  const session = await requireAdmin()
+  try {
+    await prisma.portfolio.delete({ where: { id } })
+    await audit(session.user?.email ?? "unknown", "portfolio.delete", "Portfolio", id)
+    return { success: true }
+  } catch {
+    return { success: false, error: "Cannot delete, portfolio has an allotment." }
+  }
+}
+
+// ── AI matrix generation ───────────────────────────────────────────────────────
+// Every committee is agenda-sensitive. Even a GA matrix should be ranked by
+// relevance, not sliced alphabetically from a static country list.
+const portfolioListSchema = z.object({
+  tagLabel: z.string().max(40).optional(),
+  sourceNote: z.string().max(240).optional(),
+  portfolios: z.array(z.object({
+    name: z.string().min(2).max(100),
+    tag: z.string().max(50).optional().default(""),
+    priority: z.number().int().min(1).max(300),
+  })).min(1).max(300),
+})
+
+export async function generatePortfolios(
+  committeeId: string,
+  size: number,
+  brief?: string,
+): Promise<{
+  success: boolean
+  portfolios?: Array<{ name: string; tag: string; priority: number }>
+  tagLabel?: string
+  sourceNote?: string
+  error?: string
+  rateLimited?: boolean
+}> {
+  await requireStaff()
+  const committee = await prisma.committee.findUnique({
+    where: { id: committeeId },
+    select: { name: true, agenda: true, type: true, aliases: true, matrixBrief: true },
+  })
+  if (!committee) return { success: false, error: "Committee not found." }
+  const count = Math.min(Math.max(size, 1), 300)
+
+  const today = new Date().toISOString().slice(0, 10)
+  const normalizedName = `${committee.name} ${committee.aliases.join(" ")}`.toLowerCase()
+  const isIndianParliament = /aippm|all india political parties|lok sabha|rajya sabha|parliament/.test(normalizedName)
+  const isHrc = /unhrc|human rights council/.test(normalizedName)
+  const isSc = /unsc|security council/.test(normalizedName)
+  const explicitBrief = brief?.trim() || committee.matrixBrief?.trim() || "No additional scenario brief supplied."
+
+  const committeeRules = isIndianParliament
+    ? `This is an Indian political committee. Return CURRENT politicians or office-holders only. Never return reporters, journalists, news outlets, generic positions, or fictional people. Tag every person with their current political party (or Independent). Prioritize decision-makers and actors relevant to the agenda across government and opposition.`
+    : isHrc
+      ? `Tag every country exactly as Member, Non-member, or Observer. Prioritize current Human Rights Council members, then agenda-critical non-members and observers. Membership changes over time, so use the date and scenario brief and do not claim certainty in sourceNote.`
+      : isSc
+        ? `Tag countries as Permanent, Elected, or Invited/Observer. Include the current P5 and current elected members first, then only agenda-critical invited parties.`
+        : committee.type === "PRESS"
+          ? `This is the ONLY type where press roles are valid. Return specific roles such as Reporter · Reuters or Photojournalist · AP and tag each with Desk or Outlet.`
+          : committee.type === "CRISIS"
+            ? `Return real characters or offices that belong in this cabinet/crisis. Tag each by faction, institution, or side.`
+            : `Return countries ordered by agenda relevance and diplomatic importance, not alphabetically. Include central parties, major powers, regional stakeholders, affected states, and useful coalition voices. Tag by region or role.`
+
+  const prompt = `You are a senior MUN academic director preparing a portfolio matrix.
+
+Committee: ${committee.name}
+Type: ${committee.type}
+Agenda: ${committee.agenda ?? "(not set)"}
+Current date: ${today}
+Scenario / research brief: ${explicitBrief}
+
+Committee-specific rule: ${committeeRules}
+
+Generate exactly ${count} entries. Rank the most important/relevant first. Use real countries, people, or roles only; no duplicates; no alphabetical padding. Current facts can change, so include a short sourceNote telling the director what must be verified before publishing.
+
+Respond only with JSON: {"tagLabel":"Party, Participation, Region, Faction, or Desk","sourceNote":"...","portfolios":[{"name":"...","tag":"...","priority":1}]}. Priority 1 is most important and must increase sequentially.`
+
+  try {
+    const raw = await callAI<unknown>(prompt)
+    const parsed = portfolioListSchema.safeParse(raw)
+    if (!parsed.success) {
+      return { success: false, error: "AI returned an invalid list, try again." }
+    }
+    const seen = new Set<string>()
+    const unique = parsed.data.portfolios.filter((entry) => {
+      const key = entry.name.trim().toLowerCase()
+      if (!key || seen.has(key)) return false
+      seen.add(key)
+      return true
+    })
+    return {
+      success: true,
+      portfolios: unique.slice(0, count).map((entry, index) => ({
+        name: entry.name.trim(),
+        tag: entry.tag.trim(),
+        priority: index + 1,
+      })),
+      tagLabel: parsed.data.tagLabel,
+      sourceNote: parsed.data.sourceNote,
+    }
+  } catch (err) {
+    if (err instanceof AIRateLimitError) {
+      return { success: false, error: err.message, rateLimited: true }
+    }
+    return { success: false, error: err instanceof Error ? err.message : "AI generation failed." }
+  }
+}
+
+// ── Fees ───────────────────────────────────────────────────────────────────────
+export async function createFee(data: {
+  label: string
+  committeeType: string
+  isDtu: boolean
+  amountInr: number
+}): Promise<{ success: boolean; error?: string }> {
+  const session = await requireAdmin()
+  try {
+    const fee = await prisma.fee.create({ data })
+    await audit(session.user?.email ?? "unknown", "fee.create", "Fee", fee.id, { ...data })
+    return { success: true }
+  } catch {
+    return { success: false, error: "Failed to create fee." }
+  }
+}
+
+export async function updateFee(
+  id: string,
+  data: {
+    label: string
+    committeeType: string
+    isDtu: boolean
+    amountInr: number
+  },
+): Promise<{ success: boolean; error?: string }> {
+  const session = await requireAdmin()
+  try {
+    await prisma.fee.update({ where: { id }, data })
+    await audit(session.user?.email ?? "unknown", "fee.update", "Fee", id, { ...data })
+    return { success: true }
+  } catch {
+    return { success: false, error: "Failed to update fee." }
+  }
+}
+
+export async function deleteFee(
+  id: string,
+): Promise<{ success: boolean; error?: string }> {
+  const session = await requireAdmin()
+  try {
+    await prisma.fee.delete({ where: { id } })
+    await audit(session.user?.email ?? "unknown", "fee.delete", "Fee", id)
+    return { success: true }
+  } catch {
+    return { success: false, error: "Failed to delete fee." }
+  }
+}
+
+// Closing and starting events are ADMIN only. Closing ends registration and
+// allotment for everyone at once, and starting a new event closes the current
+// one, so neither is something a maintainer should be able to do in passing.
+// Both are reversible state changes rather than deletions: every delegate,
+// allotment and payment of a closed event stays exactly where it is.
+export async function closeCurrentEvent(): Promise<{ success: boolean; error?: string }> {
+  const session = await requireAdmin()
+  const event = await getActiveEvent()
+  if (!event) return { success: false, error: "No event is running, so there is nothing to close." }
+  try {
+    await closeEvent(event.id)
+    await audit(session.user?.email ?? "unknown", "event.close", "Event", event.id, { name: event.name })
+    publishContentChanges()
+    return { success: true }
+  } catch {
+    return { success: false, error: "Could not close the event." }
+  }
+}
+
+export async function startNewEvent(input: { name: string; kind?: string }): Promise<{ success: boolean; error?: string }> {
+  const session = await requireAdmin()
+  const name = input.name.trim()
+  if (!name) return { success: false, error: "Name the new event before starting it." }
+  const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "")
+  if (!slug) return { success: false, error: "Use letters or numbers in the event name." }
+  try {
+    // createEvent closes whatever is running in the same transaction, so the
+    // society is never left with two events open at once.
+    const kind = input.kind === "INTRA_MUN" ? "INTRA_MUN" : "CONFERENCE"
+    const event = await createEvent({ name, slug, kind })
+    // An event's copy (label, brief, dates, venue, button text, form link) lives in
+    // Setting rows, so a new event would otherwise open with the last one's details
+    // already filled in and, once published, show them to visitors.
+    const content = await getContent()
+    await setContent({
+      activeEventLabel: "",
+      conferenceDates: "",
+      venue: "",
+      registrationFormUrl: "",
+      landingHero: { ...content.landingHero, subtitle: "", ctaLabel: "Register now" },
+    })
+    await audit(session.user?.email ?? "unknown", "event.create", "Event", event.id, { name, slug, kind })
+    publishContentChanges()
+    return { success: true }
+  } catch (err) {
+    if (typeof err === "object" && err !== null && "code" in err && (err as { code: unknown }).code === "P2002") {
+      return { success: false, error: "An event with that name already exists. Choose a different name." }
+    }
+    return { success: false, error: "Could not start the new event." }
+  }
+}
+
+export async function reopenPastEvent(input: { id: string }): Promise<{ success: boolean; error?: string }> {
+  const session = await requireAdmin()
+  try {
+    const result = await reopenEvent(input.id)
+    if (!result) return { success: false, error: "That event is not closed, so there is nothing to reopen." }
+    await audit(session.user?.email ?? "unknown", "event.reopen", "Event", input.id, { closed: result.closedName })
+    publishContentChanges()
+    return { success: true }
+  } catch {
+    return { success: false, error: "Could not reopen the event." }
+  }
+}

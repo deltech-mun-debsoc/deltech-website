@@ -25,6 +25,7 @@ import {
   QuizMode,
   SlideType,
   Role,
+  ContactOutcome,
   CycleState,
   RecruitmentRole,
   CandidateStage,
@@ -45,8 +46,8 @@ import { hashPassword } from "../src/lib/password"
 // Guards. This truncates tables, so it must be impossible to point at prod.
 // ---------------------------------------------------------------------------
 
-// The production Supabase project ref. If DATABASE_URL contains this, refuse.
-const PROD_DB_REF = "hktvvxtiobeaphzfmpbf"
+// The production database name. If DATABASE_URL contains this, refuse.
+const PROD_DB_REF = "mun_prod"
 
 const url = process.env.DATABASE_URL ?? ""
 
@@ -65,7 +66,7 @@ if (!url) {
 
 if (url.includes(PROD_DB_REF)) {
   console.error(
-    `Refusing to run: DATABASE_URL points at the production project (${PROD_DB_REF}).\n` +
+    `Refusing to run: DATABASE_URL points at the production database (${PROD_DB_REF}).\n` +
       "This script is for the staging database only.",
   )
   process.exit(1)
@@ -147,11 +148,11 @@ const TEST_USERS: Array<{ email: string; name: string; role: Role }> = [
 ]
 
 const PORTFOLIOS: Record<string, string[]> = {
-  "unga-disec": ["France", "India", "Brazil", "Japan", "Kenya", "Norway", "Egypt", "Peru"],
-  unhrc: ["Germany", "Canada", "Chile", "Ghana", "Nepal", "Sweden"],
-  aippm: ["Home Minister", "Finance Minister", "Leader of Opposition", "Defence Minister"],
-  "lok-sabha": ["Speaker", "Member, Bihar", "Member, Kerala", "Member, Assam"],
-  ip: ["The Hindu", "Reuters", "Al Jazeera", "BBC"],
+  "unga-disec": ["France", "India", "Brazil", "Japan", "Kenya", "Norway", "Egypt", "Peru", "Germany", "China", "United States", "United Kingdom", "Russia", "Australia", "Mexico", "Indonesia"],
+  unhrc: ["Germany", "Canada", "Chile", "Ghana", "Nepal", "Sweden", "Argentina", "Qatar", "Fiji", "Poland"],
+  aippm: ["Home Minister", "Finance Minister", "Leader of Opposition", "Defence Minister", "External Affairs Minister", "Education Minister", "Health Minister", "Railways Minister"],
+  "lok-sabha": ["Speaker", "Member, Bihar", "Member, Kerala", "Member, Assam", "Member, Punjab", "Member, Goa", "Member, Odisha", "Member, Sikkim"],
+  ip: ["The Hindu", "Reuters", "Al Jazeera", "BBC", "The Indian Express", "Associated Press", "Deutsche Welle", "NDTV"],
 }
 
 async function main() {
@@ -165,6 +166,9 @@ async function main() {
   await prisma.quizSession.deleteMany()
   await prisma.slide.deleteMany()
   await prisma.presentation.deleteMany()
+  await prisma.mailRecipient.deleteMany()
+  await prisma.mailCampaign.deleteMany()
+  await prisma.mailContact.deleteMany()
   await prisma.emailLog.deleteMany()
   await prisma.payment.deleteMany()
   await prisma.allotment.deleteMany()
@@ -228,7 +232,7 @@ async function main() {
     },
     { key: "registrationOpen", value: true },
     { key: "registrationClosedMessage", value: "Test registration is currently closed." },
-    { key: "conferenceDates", value: "12 to 13 September 2026" },
+    { key: "conferenceDates", value: "10 to 11 October 2026" },
     { key: "venue", value: "Delhi Technological University, Rohini" },
     {
       key: "landingHero",
@@ -325,6 +329,22 @@ async function main() {
   // Delegates belong to an event. The committees seeded above already do, so take
   // the event from them rather than inventing a second one.
   const seedEventId = (await prisma.committee.findFirstOrThrow({ select: { eventId: true } })).eventId
+  // Open, so the whole event workspace has something to show. Any other event is
+  // closed first: only one may be active at a time.
+  await prisma.event.updateMany({ where: { id: { not: seedEventId } }, data: { state: "CLOSED" } })
+  await prisma.event.update({
+    where: { id: seedEventId },
+    data: {
+      name: "DelTech MUN Test Conference",
+      state: "OPEN",
+      registrationOpen: true,
+      paymentsEnabled: true,
+      matrixPublic: true,
+      startsAt: new Date("2026-10-10T09:00:00+05:30"),
+      endsAt: new Date("2026-10-11T18:00:00+05:30"),
+      closedAt: null,
+    },
+  })
 
   const fees = await prisma.fee.findMany()
   const feeFor = (committeeType: string, isDtu: boolean) =>
@@ -522,6 +542,175 @@ async function main() {
       status: PortfolioStatus.ON_HOLD,
       holdToken: "staging-fixture-hold",
       holdExpiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    },
+  })
+
+  // A fuller pool, so the delegate list, its filters, the follow-up log, stage
+  // mail and check-in all have realistic numbers to work with. Every address is on
+  // the fixture domain and staging redirects outbound mail to ADMIN_EMAIL.
+  console.log("Creating a fuller delegate pool…")
+  const FIRST = ["Aarav", "Diya", "Kabir", "Meera", "Rohan", "Ananya", "Vihaan", "Isha", "Arjun", "Saanvi", "Aditya", "Tara", "Reyansh", "Kiara", "Dev", "Nisha", "Ishaan", "Riya", "Aryan", "Zoya", "Karan", "Pooja", "Neel", "Sara", "Yash", "Anika", "Samar", "Mahi", "Veer", "Aditi", "Laksh", "Myra", "Om", "Kavya", "Rudra", "Siya", "Parth", "Navya", "Ayaan", "Ira"]
+  const LAST = ["Sharma", "Verma", "Gupta", "Mehta", "Kapoor", "Iyer", "Reddy", "Nair", "Bose", "Khan", "Singh", "Das", "Joshi", "Malhotra", "Chopra"]
+  const INSTITUTIONS = ["Delhi Technological University", "Netaji Subhas University of Technology", "IIIT Delhi", "Hansraj College", "Amity University", "Jamia Millia Islamia", "Shiv Nadar University", "Ramjas College"]
+  const DAY = 24 * 60 * 60 * 1000
+  const allPortfolios = await prisma.portfolio.findMany({ select: { id: true, name: true, committeeId: true }, orderBy: { priority: "asc" } })
+  const prefRotation = [disec, aippm, lokSabha, ip, unhrc]
+  const allotRotation = [disec, disec, aippm, lokSabha, ip]
+
+  const person = (n: number, status: AppStatus, extra: Partial<Prisma.DelegateCreateInput> = {}) => {
+    const i = n - 101
+    const pref1 = prefRotation[i % prefRotation.length]
+    const pref2 = prefRotation[(i + 1) % prefRotation.length]
+    const choices = allPortfolios.filter((p) => p.committeeId === pref1.id)
+    const wanted = choices[i % choices.length]
+    const institution = INSTITUTIONS[i % INSTITUTIONS.length]
+    return mkDelegate(n, status, {
+      fullName: `${FIRST[i % FIRST.length]} ${LAST[i % LAST.length]}`,
+      institution,
+      isDtu: institution === INSTITUTIONS[0],
+      needsAccommodation: i % 4 === 0,
+      outsideNcr: i % 4 === 0,
+      pref1CommitteeId: pref1.id,
+      pref1Portfolio: wanted?.name ?? null,
+      // Half name a seat from the published matrix, half typed it by hand.
+      ...(wanted && i % 2 === 0 ? { pref1PortfolioRef: { connect: { id: wanted.id } } } : {}),
+      pref2CommitteeId: pref2.id,
+      pref2Portfolio: null,
+      ...extra,
+    })
+  }
+
+  let allotIndex = 0
+  const allotNext = async (delegateId: string) => {
+    const committee = allotRotation[allotIndex++ % allotRotation.length]
+    const portfolio = await prisma.portfolio.findFirstOrThrow({
+      where: { committeeId: committee.id, status: PortfolioStatus.AVAILABLE },
+      orderBy: { priority: "asc" },
+    })
+    await prisma.allotment.create({
+      data: { delegateId, committeeId: committee.id, portfolioId: portfolio.id, allottedBy: OWNER_EMAIL, emailSentAt: new Date() },
+    })
+    await prisma.portfolio.update({ where: { id: portfolio.id }, data: { status: PortfolioStatus.ALLOTTED } })
+    return committee
+  }
+  const pay = (delegateId: string, committee: { id: string }, isDtu: boolean, status: PayStatus, token: string) =>
+    prisma.payment.create({
+      data: {
+        delegateId,
+        provider: status === PayStatus.OFFLINE || status === PayStatus.COMPED ? "manual" : "upi_qr",
+        amountInr: feeFor(committee.id === ip.id ? "PRESS" : "STANDARD", isDtu),
+        status,
+        method: status === PayStatus.OFFLINE ? "cash" : null,
+        paymentLink: status === PayStatus.SENT || status === PayStatus.PENDING ? `/pay/${token}` : null,
+        confirmedAt: status === PayStatus.PAID || status === PayStatus.OFFLINE || status === PayStatus.COMPED ? new Date() : null,
+      },
+    })
+  const logCalls = async (delegateId: string, entries: { outcome: ContactOutcome; daysAgo: number; note?: string; followUpInDays?: number }[]) => {
+    for (const e of entries) {
+      await prisma.delegateContact.create({
+        data: {
+          delegateId,
+          outcome: e.outcome,
+          note: e.note ?? null,
+          followUpAt: e.followUpInDays === undefined ? null : new Date(Date.now() + e.followUpInDays * DAY),
+          createdBy: OWNER_EMAIL,
+          createdAt: new Date(Date.now() - e.daysAgo * DAY),
+        },
+      })
+    }
+    const last = entries[entries.length - 1]
+    await prisma.delegate.update({
+      where: { id: delegateId },
+      data: {
+        lastContactedAt: new Date(Date.now() - last.daysAgo * DAY),
+        nextFollowUpAt: last.followUpInDays === undefined ? null : new Date(Date.now() + last.followUpInDays * DAY),
+      },
+    })
+  }
+
+  // Registered, waiting for a seat. A few left a question on the form.
+  const QUESTIONS: Record<number, string> = {
+    103: "Is accommodation provided for outstation delegates?",
+    107: "Can I change my committee preference after registering?",
+    111: "Will certificates be given to first-time delegates?",
+  }
+  for (let n = 101; n <= 112; n++) {
+    await prisma.delegate.create({ data: person(n, AppStatus.REGISTERED, QUESTIONS[n] ? { query: QUESTIONS[n] } : {}) })
+  }
+  for (let n = 113; n <= 114; n++) await prisma.delegate.create({ data: person(n, AppStatus.WAITLISTED) })
+
+  // Allotted, payment link sent: the chase list, with a mix of call history.
+  const chase: Record<number, { outcome: ContactOutcome; daysAgo: number; note?: string; followUpInDays?: number }[]> = {
+    115: [{ outcome: ContactOutcome.CALLED_NO_ANSWER, daysAgo: 3, followUpInDays: -1 }],
+    116: [{ outcome: ContactOutcome.CALLED_NO_ANSWER, daysAgo: 4 }, { outcome: ContactOutcome.CALLED_BUSY, daysAgo: 1, note: "Asked to call after 6pm", followUpInDays: 1 }],
+    117: [{ outcome: ContactOutcome.CALLED_REACHED, daysAgo: 5 }, { outcome: ContactOutcome.PROMISED_TO_PAY, daysAgo: 3, note: "Paying once parents confirm", followUpInDays: -2 }],
+    118: [{ outcome: ContactOutcome.WHATSAPP_SENT, daysAgo: 2, followUpInDays: 2 }],
+    119: [{ outcome: ContactOutcome.WRONG_NUMBER, daysAgo: 1, note: "Number on the form belongs to someone else" }],
+  }
+  for (let n = 115; n <= 124; n++) {
+    const d = await prisma.delegate.create({ data: person(n, AppStatus.PAYMENT_SENT) })
+    const committee = await allotNext(d.id)
+    await pay(d.id, committee, d.isDtu, n === 124 ? PayStatus.FAILED : PayStatus.SENT, d.publicToken)
+    if (chase[n]) await logCalls(d.id, chase[n])
+  }
+
+  // Allotted, no payment link yet.
+  for (let n = 125; n <= 127; n++) {
+    const d = await prisma.delegate.create({ data: person(n, AppStatus.ALLOTTED) })
+    const committee = await allotNext(d.id)
+    await pay(d.id, committee, d.isDtu, PayStatus.PENDING, d.publicToken)
+  }
+
+  // Confirmed: paid online, one comped, one paid at the desk. Some already checked in.
+  for (let n = 128; n <= 138; n++) {
+    const d = await prisma.delegate.create({ data: person(n, AppStatus.CONFIRMED) })
+    const committee = await allotNext(d.id)
+    await pay(d.id, committee, d.isDtu, n === 137 ? PayStatus.COMPED : n === 138 ? PayStatus.OFFLINE : PayStatus.PAID, d.publicToken)
+    if (n <= 132) {
+      await prisma.delegate.update({ where: { id: d.id }, data: { checkedInAt: new Date(Date.now() - (n - 127) * 60 * 60 * 1000), checkedInBy: OWNER_EMAIL } })
+    }
+  }
+
+  // Dropped out after a call.
+  const dropped = await prisma.delegate.create({ data: person(139, AppStatus.CANCELLED) })
+  await logCalls(dropped.id, [{ outcome: ContactOutcome.NOT_INTERESTED, daysAgo: 2, note: "Clashes with exams" }])
+
+  // Accounts: one that registered, one that signed up and never applied.
+  for (const account of [
+    { email: addr("delegate101"), name: "Aarav Sharma" },
+    { email: addr("signup-only"), name: "Signed Up, Never Applied" },
+  ]) {
+    await prisma.user.upsert({
+      where: { email: account.email },
+      update: { name: account.name, role: Role.REGISTERER, disabledAt: null },
+      create: { ...account, role: Role.REGISTERER },
+    })
+  }
+
+  console.log("Creating the outreach list and a draft mail…")
+  const CONTACT_TAGS = [["past delegates"], ["dtu"], ["school"], ["past delegates", "dtu"], ["college"]]
+  await prisma.mailContact.createMany({
+    data: Array.from({ length: 15 }, (_, i) => ({
+      email: addr(`contact${i + 1}`),
+      name: `${FIRST[(i + 20) % FIRST.length]} ${LAST[(i + 7) % LAST.length]}`,
+      institution: INSTITUTIONS[(i + 3) % INSTITUTIONS.length],
+      tags: CONTACT_TAGS[i % CONTACT_TAGS.length],
+      source: "Staging fixture sign-up",
+      unsubscribedAt: i === 13 ? new Date(Date.now() - 5 * DAY) : null,
+      bouncedAt: i === 14 ? new Date(Date.now() - 9 * DAY) : null,
+    })),
+  })
+  await prisma.mailCampaign.create({
+    data: {
+      eventId: seedEventId,
+      audience: "DELEGATES",
+      filters: { allotted: "yes", paymentStatuses: ["PENDING", "SENT", "FAILED"] },
+      preset: "payment-nudge",
+      subject: "Your seat is waiting: complete your payment",
+      body: "Hi {firstName},\n\nYou have been allotted {portfolio} in {committee}. Complete your payment to confirm the seat.\n\nSee you there,\nThe Secretariat",
+      ctaLabel: "Open my status page",
+      ctaUrl: "{statusLink}",
+      createdBy: OWNER_EMAIL,
     },
   })
 

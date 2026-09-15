@@ -54,7 +54,7 @@ export default async function RegisterPage() {
         </div>
       </aside>
       <div className="diplomatic-surface border border-border/80 p-5 sm:p-9 lg:p-12">
-        <RegistrationForm committees={committees} />
+        <RegistrationForm committees={committees} intra={state.isIntra} />
       </div>
     </div>
   )

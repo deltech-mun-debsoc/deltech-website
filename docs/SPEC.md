@@ -14,11 +14,11 @@ A single living document for building the MUN platform with Claude Code. Hand me
 |---|---|---|
 | Framework | **Next.js 16** (App Router, React 19.2, Turbopack default, `proxy` not `middleware`, async `params`) | Current stable. Server Actions kill most of your API boilerplate; RSC keeps the registration dashboard fast. |
 | Language | **TypeScript** (strict, ESM — `"type":"module"`) | Non-negotiable for a data-model-heavy app like this; Prisma 7 requires ESM. |
-| DB + Realtime + Storage | **Supabase** (managed Postgres) | Relational DB for allotments, file storage for blog images, and the realtime websocket layer for the quiz. Realtime is free with the DB. (Auth is NextAuth, not Supabase Auth.) |
+| DB + Storage | **Postgres 17** on each Lightsail box + **S3** | Relational DB for allotments; S3 for blog and team images. See docs/AWS.md. |
 | ORM | **Prisma 7** (`prisma-client` generator + `@prisma/adapter-pg` driver adapter, `prisma.config.ts`) | Type-safe schema; v7 is Rust-free/ESM with a mandatory driver adapter and config-file datasource. |
 | Auth | **NextAuth v5 (Auth.js)** magic link via Resend + Prisma adapter | Magic-link for admins + blog authors; guest registration for delegates. |
 | Rich text editor | **Tiptap** (ProseMirror-based) | The standard for Notion/Medium-style editors. Headless, slash commands, bubble menus, image upload, stores clean JSON. |
-| Realtime (quiz) | **Supabase Realtime** (Broadcast + Presence) | Already in the stack; no second vendor. If you ever outgrow it, Ably is the drop-in upgrade. |
+| Realtime (quiz) | **Server-Sent Events** from the app (`/api/realtime`) | No second vendor. Needs exactly one app container per environment; an external bus is the upgrade. |
 | Payments | **UPI-QR (default, zero fee) — Razorpay pluggable** | UPI direct collection avoids the ~2% cut; Razorpay (Orders/Links + webhooks) available behind the same interface. |
 | Email | **Resend** + **React Email** | Allotment emails as versioned React templates; great deliverability; cheap. Domain `deltechmun.in` verified. |
 | UI | **Tailwind CSS v4** + **shadcn/ui** + **Framer Motion** | shadcn gives you owned, themeable components (not a locked dependency); Framer Motion powers the quiz animations. Design tokens in `src/styles/tokens.ts`. |
@@ -26,7 +26,7 @@ A single living document for building the MUN platform with Claude Code. Hand me
 | Hosting | **AWS Lightsail** (app + Postgres) + **S3** (media/backups) | Separate production/staging boxes deployed by GitHub Actions. |
 | Validation | **Zod** | One schema validates the form, the Server Action, and the DB write. |
 
-> One mental model for the whole app: **the DB (Supabase Postgres via Prisma 7) is the source of truth, Next.js Server Actions are the only thing that writes to it, and every action re-checks role + ownership server-side.** Conference content, fees, and copy are DB-driven and editable from the dashboard — nothing hardcoded.
+> One mental model for the whole app: **the DB (Postgres via Prisma 7) is the source of truth, Next.js Server Actions are the only thing that writes to it, and every action re-checks role + ownership server-side.** Conference content, fees, and copy are DB-driven and editable from the dashboard — nothing hardcoded.
 
 ---
 
@@ -82,7 +82,7 @@ Use **Tiptap** with these extensions to reproduce the Medium experience precisel
 - **Placeholder** — "Tell your story…" ghost text.
 - **Bubble menu** — the floating toolbar that appears on text selection (bold / italic / link / H1 / H2 / quote). This is *the* Medium signature interaction.
 - **Floating "+" menu** — appears at the start of an empty line for inserting image / embed / divider.
-- **Image** with drag-drop + paste upload → Supabase Storage; show upload progress, store the returned URL.
+- **Image** with drag-drop + paste upload → S3 (presigned upload); show upload progress, store the returned URL.
 - **Link** with the inline edit popover.
 - **Typography** extension for smart quotes / em-dashes (Medium does this).
 - **CharacterCount** for the read-time estimate ("6 min read").
@@ -146,7 +146,7 @@ This is the feature that makes it more than a glorified form.
 ```
 portfolio_status: AVAILABLE | ON_HOLD | ALLOTTED | BLOCKED
 ```
-- **Public availability board** reads the matrix in realtime and shows only AVAILABLE counts/names per committee — so a delegate choosing preferences sees what's actually open, and it updates live as admins allot. (Supabase Realtime subscription on the `portfolios` table → no refresh needed.)
+- **Public availability board** reads the matrix in realtime and shows only AVAILABLE counts/names per committee — so a delegate choosing preferences sees what's actually open, and it updates live as admins allot. (Polled every 20s while the tab is visible.)
 - **Admin allotment screen:** a grid/kanban per committee. Drag a delegate onto a portfolio, or click a portfolio → pick from a ranked list of delegates whose preferences match. The engine surfaces suggestions ("3 delegates picked France as P1"), but the human always confirms.
 - **Allotment record** links delegate(s) ↔ committee ↔ portfolio. For UNHRC, the allotment links a **pair**.
 - The instant an allotment is confirmed → portfolio flips to ALLOTTED → availability board updates → allotment email queued.
@@ -242,7 +242,7 @@ Every transition is a Server Action with a permission check and an audit log ent
 2. **Participant view** (phone) — enters the room code, sees only the current question and an answer control. No account. Updates the instant the host advances.
 
 ### 4.2 Realtime architecture
-- Each session has a short **room code** (e.g. 6 digits) + a Supabase Realtime **channel**.
+- Each session has a short **room code** (e.g. 6 digits) + a realtime **channel**.
 - **Presence** tracks live participant count ("142 connected").
 - **Broadcast** pushes host events (advance question, lock, reveal) to all participants instantly.
 - Votes write to Postgres; presenter subscribes to aggregated results via Realtime → bars grow live.
@@ -339,7 +339,7 @@ You asked for "literally the best SaaS platform to exist." That comes from **res
 ---
 
 ## 6. Security & correctness (don't skip)
-- **Server-side authorization**: every Server Action re-checks the NextAuth session, role, and record ownership before reading/writing — never trust the client. (Postgres RLS optional later, but auth is via NextAuth, not Supabase Auth.)
+- **Server-side authorization**: every Server Action re-checks the NextAuth session, role, and record ownership before reading/writing — never trust the client. (Postgres RLS optional later, but auth is via NextAuth.)
 - **Server Actions** are the only write path; validate with Zod at the boundary; never trust client input.
 - **Idempotent webhooks** (Razorpay retries; the handler must be safe to run twice).
 - **Audit log** for every admin mutation (who changed what, when) — essential for a money + allotment system.
@@ -349,7 +349,7 @@ You asked for "literally the best SaaS platform to exist." That comes from **res
 ---
 
 ## 7. Build roadmap (suggested order)
-**Phase 0 — Foundation (week 1):** repo, Next 16 + TS (ESM) + Tailwind v4 + shadcn, Supabase project, Prisma 7 schema (driver adapter + prisma.config.ts), NextAuth, roles, design tokens (src/styles/tokens.ts), base layout + admin shell.
+**Phase 0 — Foundation (week 1):** repo, Next 16 + TS (ESM) + Tailwind v4 + shadcn, Postgres, Prisma 7 schema (driver adapter + prisma.config.ts), NextAuth, roles, design tokens (src/styles/tokens.ts), base layout + admin shell.
 
 **Phase 1 — Registration core (weeks 2–3):** committees/portfolios/fees config, multi-step form, Zod validation, Razorpay order + verify + webhook, payment status, registration-received email. *(This is the revenue path — ship it first.)*
 
@@ -376,4 +376,4 @@ You asked for "literally the best SaaS platform to exist." That comes from **res
 ---
 
 ### What I think, briefly
-The registration portal is the project. The blog and quiz are bounded, well-understood clones — Tiptap and Supabase Realtime do the heavy lifting, and they'll go quickly. The allotment engine + payments + cross-delegation handling is where the real design work is, and it's worth getting the data model right on day one because everything (dashboard, emails, availability board, exports) reads from it. Build the money path first, make the matrix and fees fully admin-editable so you never touch code between editions, and treat every delegate — self-registered or cross-delegation — as the same kind of record flowing through one allotment system.
+The registration portal is the project. The blog and quiz are bounded, well-understood clones — Tiptap and the SSE bus do the heavy lifting, and they'll go quickly. The allotment engine + payments + cross-delegation handling is where the real design work is, and it's worth getting the data model right on day one because everything (dashboard, emails, availability board, exports) reads from it. Build the money path first, make the matrix and fees fully admin-editable so you never touch code between editions, and treat every delegate — self-registered or cross-delegation — as the same kind of record flowing through one allotment system.

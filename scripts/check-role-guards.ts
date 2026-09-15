@@ -24,9 +24,12 @@ const ADMIN_REQUIRED = new Set([
   // destructive
   "deleteCommittee", "deletePortfolio", "deleteImportPreset", "deleteMember",
   "cancelDelegate", "revokeAllotment",
+  // A quiz's results exist nowhere else. Archiving is the reversible option and
+  // stays requireStaff.
+  "deletePresentation", "deleteQuizRun",
   // Closing an event ends registration and allotment for everyone, and starting
   // one closes the current event, so both stay out of a maintainer's reach.
-  "closeCurrentEvent", "startNewEvent",
+  "closeCurrentEvent", "startNewEvent", "reopenPastEvent",
   // A sent mail cannot be recalled, so the send and the PR switch are ADMIN only;
   // any staff member can still draft, preview and test.
   "scheduleCampaign", "cancelCampaign", "runQueueNow", "removeContact", "setPrMailEnabled",

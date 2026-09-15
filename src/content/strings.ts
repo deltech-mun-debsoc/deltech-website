@@ -67,7 +67,7 @@ export const STRINGS = {
       capDelegation: "The Secretariat",
     },
     committeeTypes: {
-      standard: "General Assembly",
+      standard: "Committee",
       crisis: "Crisis",
       press: "International Press",
     },
@@ -112,7 +112,7 @@ export const STRINGS = {
     organiserSignIn: "Organiser sign-in",
     availabilityEyebrow: "Live allocation signal · realtime",
     availabilityTitle: "The live matrix.",
-    availabilityBody: "Every portfolio is a live signal. Allotments, pending payments, and confirmations move here as the secretariat acts.",
+    availabilityBody: "Every seat, live. Allotments and confirmations show here as the secretariat makes them.",
     availabilityCountsBody: "The secretariat is publishing live committee counts while keeping individual allotments private.",
     portfoliosStillOpen: "portfolios still open",
     committeeSignal: "Committee signal",
@@ -161,7 +161,7 @@ export const STRINGS = {
     quizBody: "Six digits put you inside the session. Enter the code on the host screen and get ready to vote, answer, and climb the board.",
     registrationEyebrow: "Delegate application · secure intake",
     registrationBriefLabel: "Before you begin",
-    registrationBrief: "Keep your committee preferences, portfolio choices, contact details, and MUN experience ready. Your progress moves through five short briefs.",
+    registrationBrief: "Keep your committee preferences, contact details and MUN experience ready. It takes a few minutes.",
     allDispatches: "All dispatches",
     registrationClosedEyebrow: "Delegate intake paused",
     registrationClosedTitle: "The application desk is closed.",
@@ -224,6 +224,8 @@ export const STRINGS = {
       personal: "Personal Details",
       preferences: "Committee Preferences",
       coDelegateOrPref2: "Co-delegate / Second Preference",
+      coDelegate: "Co-delegate",
+      secondPreference: "Second Preference",
       accommodation: "Accommodation",
       undertaking: "Undertaking & Submit",
     },
@@ -242,6 +244,10 @@ export const STRINGS = {
       isDtuLabel: "I am a DTU student",
       munExperienceLabel: "MUN experience",
       munExperiencePlaceholder: "List committees you have attended (if any)",
+      rollNumberLabel: "DTU roll number",
+      rollNumberPlaceholder: "23/CO/123",
+      rollNumberNote: "The Intra MUN is for DTU students, so we use your roll number instead of a college.",
+      rollNumberRequired: "Enter your DTU roll number",
     },
     preferences: {
       pref1CommitteeLabel: "First preference committee",
@@ -277,7 +283,7 @@ export const STRINGS = {
       referenceLabel: "How did you hear about us?",
       referencePlaceholder: "Friend, Instagram, etc.",
       checkboxLabel:
-        "I confirm that all information provided is accurate and I agree to abide by the rules of the conference.",
+        "I confirm that all information provided is accurate and I agree to abide by the rules of the event.",
       submitButton: "Submit Application",
     },
     success: {
@@ -476,9 +482,6 @@ export const STRINGS = {
       confirmAllotDescription:
         "Allot {portfolio} in {committee} to {delegate}? This cannot be undone.",
       onHoldWarning: "Portfolio is on hold by another admin.",
-      requestedThisSeat: "Asked for this seat · {rank}",
-      holdCountdown: "Held for you · {seconds}s",
-      holdLapsed: "Your hold has lapsed. Close this and reopen the seat.",
       doubleDelegationNote:
         "{committee} seats two delegates, so this also brings their co-delegate onto the same allotment.",
       doubleAllotError: "This portfolio has already been allotted.",

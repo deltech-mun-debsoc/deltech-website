@@ -92,11 +92,11 @@ assert.ok(delegateModel, "could not find the Delegate model in the schema")
 // Nothing fails loudly when that happens, so it is pinned here instead.
 {
   const mustScope = [
-    "src/app/(admin)/admin/registrations/page.tsx",
-    "src/app/(admin)/admin/allotment/page.tsx",
-    "src/app/(admin)/admin/checkin/page.tsx",
-    "src/app/(admin)/admin/participants/page.tsx",
-    "src/app/(admin)/admin/page.tsx",
+    "src/app/(admin)/admin/(event)/registrations/page.tsx",
+    "src/app/(admin)/admin/(event)/allotment/page.tsx",
+    "src/app/(admin)/admin/(event)/checkin/page.tsx",
+    "src/app/(admin)/admin/(event)/participants/page.tsx",
+    "src/app/(admin)/admin/(event)/page.tsx",
     "src/app/(marketing)/availability/page.tsx",
     "src/app/(marketing)/register/page.tsx",
     "src/app/api/admin/export/route.ts",
@@ -122,17 +122,37 @@ assert.ok(delegateModel, "could not find the Delegate model in the schema")
 
 
 // ── 6. The event form follows the event ─────────────────────────────────────
-// EventControl seeds its fields from content once, on mount. Starting or closing
-// an event from the card beside it changes the event without a navigation, so
-// unless the form is keyed by the event it keeps the old name and switches, and
-// Apply writes them onto the new event. Found on staging, pinned here.
+// EventSettings seeds its fields once, on mount. Starting or closing an event
+// from the card below it changes the event without a navigation, so unless the
+// form is keyed by the event it keeps the old name and switches, and Save writes
+// them onto the new event. Found on staging, pinned here.
 {
-  const page = readFileSync("src/app/(admin)/admin/config/page.tsx", "utf8")
+  const page = readFileSync("src/app/(admin)/admin/(event)/config/page.tsx", "utf8")
   assert.match(
     page,
-    /<EventControl\s+key=\{event\?\.id \?\? "no-event"\}/,
-    "EventControl must be keyed by the active event so its form resets when the event changes",
+    /<EventSettings\s+key=\{event\.id\}/,
+    "EventSettings must be keyed by the active event so its form resets when the event changes",
   )
+}
+
+// ── 7. Building a new event never shows or uses a past event's rooms ──────────
+// Starting an event opened Committees & matrix with every past event's committees
+// and seats, and the Google Form import resolved committee names and matched
+// existing delegates across all events. Found walking a new Intra MUN on staging.
+{
+  const pins: [string, RegExp, string][] = [
+    ["src/app/(admin)/admin/(event)/config/committees/page.tsx", /where: await currentEventScope\(\)/, "the committees page lists this event's committees only"],
+    ["src/lib/intake.ts", /where: \{ isActive: true, \.\.\.\(await currentEventScope\(\)\) \},\n    select: \{ id: true, name: true, slug: true, aliases: true \}/, "import committee names resolve within this event"],
+    ["src/lib/intake.ts", /isActive: true, \.\.\.\(await currentEventScope\(\)\) \},\n      select: \{ id: true \}/, "automatic allotment on import stays within this event"],
+    ["src/app/(admin)/admin/(event)/form-responses/actions.ts", /prisma\.delegate\.findMany\(\{\n      where: scope,/, "form responses dedupe against this event's delegates only"],
+    ["src/app/(marketing)/page.tsx", /where: \{ committee: await currentEventScope\(\) \}/, "homepage seat counts are this event's"],
+  ]
+  for (const [file, pattern, message] of pins) assert.match(readFileSync(file, "utf8"), pattern, message)
+
+  // A new event starts with blank copy rather than the last event's brief and dates.
+  const actions = readFileSync("src/app/(admin)/admin/(event)/config/actions.ts", "utf8")
+  const start = actions.slice(actions.indexOf("export async function startNewEvent"))
+  assert.match(start, /createEvent\(\{ name, slug, kind \}\)[\s\S]*conferenceDates: "",[\s\S]*venue: "",/, "starting an event clears the previous event's copy")
 }
 
 console.log("event model checks passed (per-event identity, one live event, safe backfill, scoped lists)")

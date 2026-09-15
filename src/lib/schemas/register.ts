@@ -25,6 +25,8 @@ export const registerSchema = z.object({
   institution: z.string().min(2, "Institution is required"),
   isDtu: z.boolean(),
   munExperience: z.string().optional(),
+  // Intra MUN only: DTU students give a roll number instead of a college.
+  rollNumber: z.string().trim().max(40).optional(),
   // Step 2 – first preference
   pref1CommitteeId: z.string().min(1, "Select a committee"),
   pref1Portfolio: z.string().min(1, "Enter a portfolio preference"),

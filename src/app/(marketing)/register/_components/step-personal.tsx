@@ -18,9 +18,11 @@ import { cn } from "@/lib/utils"
 interface Props {
   form: UseFormReturn<RegisterFormValues>
   onDtuChange: (checked: boolean) => void
+  // An Intra MUN is for DTU students only: a roll number replaces the college.
+  intra?: boolean
 }
 
-export function StepPersonal({ form, onDtuChange }: Props) {
+export function StepPersonal({ form, onDtuChange, intra = false }: Props) {
   const isDtu = form.watch("isDtu")
 
   return (
@@ -32,7 +34,7 @@ export function StepPersonal({ form, onDtuChange }: Props) {
           <FormItem>
             <FormLabel>{t("register.personal.fullNameLabel")}</FormLabel>
             <FormControl>
-              <Input placeholder={t("register.personal.fullNamePlaceholder")} {...field} />
+              <Input placeholder={t("register.personal.fullNamePlaceholder")} autoComplete="name" {...field} />
             </FormControl>
             <FormMessage />
           </FormItem>
@@ -48,6 +50,7 @@ export function StepPersonal({ form, onDtuChange }: Props) {
             <FormControl>
               <Input
                 type="email"
+                autoComplete="email"
                 placeholder={t("register.personal.emailPlaceholder")}
                 {...field}
               />
@@ -57,7 +60,7 @@ export function StepPersonal({ form, onDtuChange }: Props) {
         )}
       />
 
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid gap-4 sm:grid-cols-2">
         <FormField
           control={form.control}
           name="whatsapp"
@@ -65,7 +68,7 @@ export function StepPersonal({ form, onDtuChange }: Props) {
             <FormItem>
               <FormLabel>{t("register.personal.whatsappLabel")}</FormLabel>
               <FormControl>
-                <Input placeholder={t("register.personal.whatsappPlaceholder")} {...field} />
+                <Input type="tel" autoComplete="tel" placeholder={t("register.personal.whatsappPlaceholder")} {...field} />
               </FormControl>
               <FormMessage />
             </FormItem>
@@ -85,6 +88,7 @@ export function StepPersonal({ form, onDtuChange }: Props) {
               </FormLabel>
               <FormControl>
                 <Input
+                  type="tel"
                   placeholder={t("register.personal.altPhonePlaceholder")}
                   {...field}
                   value={field.value ?? ""}
@@ -96,49 +100,68 @@ export function StepPersonal({ form, onDtuChange }: Props) {
         />
       </div>
 
-      <FormField
-        control={form.control}
-        name="isDtu"
-        render={({ field }) => (
-          <FormItem>
-            <div className="flex items-center gap-2">
+      {intra ? (
+        <FormField
+          control={form.control}
+          name="rollNumber"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel>{t("register.personal.rollNumberLabel")}</FormLabel>
               <FormControl>
-                <Checkbox
-                  checked={field.value}
-                  onCheckedChange={(checked) => onDtuChange(Boolean(checked))}
-                />
+                <Input placeholder={t("register.personal.rollNumberPlaceholder")} {...field} value={field.value ?? ""} />
               </FormControl>
-              <Label className="cursor-pointer text-sm font-medium leading-none">
-                {t("register.personal.isDtuLabel")}
-              </Label>
-            </div>
-            <FormMessage />
-          </FormItem>
-        )}
-      />
-
-      <FormField
-        control={form.control}
-        name="institution"
-        render={({ field }) => (
-          <FormItem>
-            <FormLabel>{t("register.personal.institutionLabel")}</FormLabel>
-            <FormControl>
-              <Input
-                placeholder={t("register.personal.institutionPlaceholder")}
-                {...field}
-                readOnly={isDtu}
-                aria-readonly={isDtu || undefined}
-                className={cn(isDtu && "cursor-not-allowed bg-muted text-muted-foreground")}
-              />
-            </FormControl>
-            {isDtu && (
-              <FormDescription>{t("register.personal.institutionLockedNote")}</FormDescription>
+              <FormDescription>{t("register.personal.rollNumberNote")}</FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
+      ) : (
+        <>
+          <FormField
+            control={form.control}
+            name="isDtu"
+            render={({ field }) => (
+              <FormItem>
+                <div className="flex items-center gap-2">
+                  <FormControl>
+                    <Checkbox
+                      checked={field.value}
+                      onCheckedChange={(checked) => onDtuChange(Boolean(checked))}
+                    />
+                  </FormControl>
+                  <Label className="cursor-pointer text-sm font-medium leading-none">
+                    {t("register.personal.isDtuLabel")}
+                  </Label>
+                </div>
+                <FormMessage />
+              </FormItem>
             )}
-            <FormMessage />
-          </FormItem>
-        )}
-      />
+          />
+
+          <FormField
+            control={form.control}
+            name="institution"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>{t("register.personal.institutionLabel")}</FormLabel>
+                <FormControl>
+                  <Input
+                    placeholder={t("register.personal.institutionPlaceholder")}
+                    {...field}
+                    readOnly={isDtu}
+                    aria-readonly={isDtu || undefined}
+                    className={cn(isDtu && "cursor-not-allowed bg-muted text-muted-foreground")}
+                  />
+                </FormControl>
+                {isDtu && (
+                  <FormDescription>{t("register.personal.institutionLockedNote")}</FormDescription>
+                )}
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+        </>
+      )}
 
       <FormField
         control={form.control}

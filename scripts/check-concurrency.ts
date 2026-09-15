@@ -42,7 +42,7 @@ const read = (p: string) => readFileSync(p, "utf8")
 // always true, `onHoldByOther` always false, and the soft-lock warning could
 // never render.
 {
-  const src = read("src/app/(admin)/admin/allotment/actions.ts")
+  const src = read("src/app/(admin)/admin/(event)/allotment/actions.ts")
   assert.match(src, /holdToken = randomUUID\(\)/, "every hold needs an unguessable owner token")
   assert.match(src, /holdExpiresAt/, "holds need an expiry so an abandoned dialog self-heals")
   assert.match(src, /where: \{ id: portfolioId, status: "ON_HOLD", holdToken \}/, "only a hold owner may release it")
@@ -62,16 +62,16 @@ const read = (p: string) => readFileSync(p, "utf8")
 // release it. The board used to branch on the server-rendered status, which
 // never matched our own hold and did match someone else's.
 {
-  const dialog = read("src/app/(admin)/admin/allotment/_components/allot-dialog.tsx")
-  const board = read("src/app/(admin)/admin/allotment/_components/allotment-board.tsx")
-  assert.match(dialog, /releaseHold\(portfolio\.id, holdToken\)/, "the dialog must release with its hold token")
+  const dialog = read("src/app/(admin)/admin/(event)/allotment/_components/allot-dialog.tsx")
+  const board = read("src/app/(admin)/admin/(event)/allotment/_components/allotment-board.tsx")
+  assert.match(dialog, /releaseHold\(seat\.id, holdToken\)/, "the dialog must release with its hold token")
   assert.match(dialog, /holdToken,\s*\}/, "allotment confirmation must prove it owns the hold")
   assert.doesNotMatch(board, /releaseHold/, "the board must not release holds it knows nothing about")
 }
 
 // --- a paid allotment cannot commit without a fee -------------------------
 {
-  const src = read("src/app/(admin)/admin/allotment/actions.ts")
+  const src = read("src/app/(admin)/admin/(event)/allotment/actions.ts")
   assert.match(src, /if \(paymentsEnabled && !fee\)/, "a paid allotment must stop when its fee is missing")
   assert.ok(
     src.indexOf("if (paymentsEnabled && !fee)") < src.indexOf("await tx.allotment.create"),

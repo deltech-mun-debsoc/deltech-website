@@ -9,8 +9,6 @@
 // every stream reconnected in a loop (207 connections in 15 minutes, each
 // lasting ~10ms), the renderer froze, and clicking "Move to FINALISATION" did
 // nothing at all, because a frozen page cannot dispatch a server action.
-//
-// Supabase multiplexed every channel onto one WebSocket and hid the problem.
 import assert from "node:assert"
 
 // Minimal EventSource stand-in: records what was opened and closed, and lets the

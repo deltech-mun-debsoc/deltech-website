@@ -1,8 +1,7 @@
 #!/bin/sh
 # Daily health check for one box, emailed only when something is wrong.
 #
-# Supabase watched the database for us: disk, uptime, backup success. Nobody
-# watches it now, and the failure mode of a self-hosted database is silent --
+# Nothing else watches the database: disk, uptime, backup success. The failure mode of a self-hosted database is silent --
 # the backup cron stops working, or the disk fills, and you find out when you
 # need the backup. This is the smallest thing that would have caught either.
 #

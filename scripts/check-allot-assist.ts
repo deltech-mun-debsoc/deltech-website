@@ -1,6 +1,6 @@
 // Runnable check for the allotment balance helpers: npx tsx scripts/check-allot-assist.ts
 import assert from "node:assert"
-import { committeeDemand, preferenceRank, portfolioRank } from "../src/app/(admin)/admin/allotment/_lib/balance"
+import { committeeDemand, preferenceRank, portfolioRank, delegateChoices } from "../src/app/(admin)/admin/(event)/allotment/_lib/balance"
 
 const D = (p1: string | null, p2: string | null = null, p3: string | null = null) => ({
   pref1CommitteeId: p1,
@@ -102,6 +102,20 @@ assert.equal(preferenceRank(D(null, null, null), "A"), null)
     ),
     2,
   )
+
+  // ── delegateChoices: what the allotment page lists per delegate ─────────────
+  const unsc = { id: "unsc", name: "UNSC", portfolios: [seat, { id: "p_fr", name: "France", committeeId: "unsc" }] }
+  const aippm = { id: "aippm", name: "AIPPM", portfolios: [] }
+  const choices = delegateChoices(
+    { ...base, pref1CommitteeId: "unsc", pref1Portfolio: "india", pref2CommitteeId: "aippm", pref2Portfolio: "PM", pref3CommitteeId: "gone" },
+    [unsc, aippm],
+  )
+  assert.deepEqual(
+    choices.map((c) => [c.rank, c.committee.id, c.seat?.id ?? null, c.typed]),
+    [[1, "unsc", "p_india_unsc", "india"], [2, "aippm", null, "PM"]],
+    "choices resolve to real seats in order, and a removed committee is dropped",
+  )
+  assert.deepEqual(delegateChoices(base, [unsc]), [])
 }
 
 console.log("allot assist checks passed (committee demand, preference rank, seat-level requests)")

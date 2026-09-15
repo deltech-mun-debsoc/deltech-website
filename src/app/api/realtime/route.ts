@@ -4,7 +4,7 @@ import { STAFF_ROLES } from "@/lib/authz"
 import { bus, type PresenceMeta } from "@/lib/realtime/bus"
 import { canPublish, canSubscribe, channelName, parseChannel, type Viewer } from "@/lib/realtime/channels"
 
-// Server-Sent Events in place of Supabase realtime.
+// Realtime over Server-Sent Events.
 //
 // GET  opens the stream for one channel; POST publishes to it (staff only).
 // A heartbeat every 25s keeps proxies and phone radios from dropping an idle
@@ -80,7 +80,7 @@ export async function POST(request: NextRequest) {
 
   const ref = parseChannel(body.channel ?? "")
   if (!ref || !body.event) return NextResponse.json({ error: "Unknown channel." }, { status: 400 })
-  // Publishing is staff-only: on Supabase any participant holding the room code
+  // Publishing is staff-only: otherwise any participant holding the room code
   // could push a fake leaderboard to the projector.
   if (!canPublish(ref, await viewer())) {
     return NextResponse.json({ error: "Not allowed to publish." }, { status: 403 })

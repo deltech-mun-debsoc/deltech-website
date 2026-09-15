@@ -43,7 +43,7 @@ const read = (p: string) => readFileSync(p, "utf8")
 // ebMembers JSON and matrixBrief into the client payload, for a mapper that
 // reads only committee.name.
 {
-  const src = read("src/app/(admin)/admin/checkin/page.tsx")
+  const src = read("src/app/(admin)/admin/(event)/checkin/page.tsx")
   assert.match(src, /take: ROW_CAP/, "the check-in query must be bounded")
   assert.doesNotMatch(src, /^\s*include: \{ committee: true \}/m, "only committee.name is rendered")
   assert.match(src, /committee: \{ select: \{ name: true \} \}/, "select the one field used")
@@ -51,11 +51,11 @@ const read = (p: string) => readFileSync(p, "utf8")
 
 // --- the registrations table does not join every email ever sent ----------
 {
-  const types = read("src/app/(admin)/admin/registrations/_lib/types.ts")
+  const types = read("src/app/(admin)/admin/(event)/registrations/_lib/types.ts")
   const include = types.slice(types.indexOf("export const delegateInclude"), types.indexOf("} as const"))
   assert.doesNotMatch(include, /emailLogs/, "emailLogs must not ride along with the table query")
 
-  const actions = read("src/app/(admin)/admin/registrations/actions.ts")
+  const actions = read("src/app/(admin)/admin/(event)/registrations/actions.ts")
   assert.match(actions, /export async function getDelegateEmailLogs/, "the drawer needs its own fetch")
   assert.match(actions, /take: 50/, "and it must be bounded")
 }
@@ -70,7 +70,7 @@ const read = (p: string) => readFileSync(p, "utf8")
 }
 
 // --- portfolio rows are not fetched purely to be counted ------------------
-for (const p of ["src/app/(admin)/admin/page.tsx", "src/app/(marketing)/page.tsx"]) {
+for (const p of ["src/app/(admin)/admin/(event)/page.tsx", "src/app/(marketing)/page.tsx"]) {
   const src = read(p)
   assert.doesNotMatch(
     src,
@@ -105,8 +105,9 @@ for (const p of ["src/app/(admin)/admin/page.tsx", "src/app/(marketing)/page.tsx
 
 // --- recharts is split out of the admin landing page ----------------------
 {
-  const src = read("src/app/(admin)/admin/page.tsx")
-  assert.match(src, /dynamic\(\s*\(\) => import\("\.\/_components\/status-bar-chart"\)/, "charts must be split")
+  const src = read("src/app/(admin)/admin/(event)/page.tsx")
+  assert.match(src, /dynamic\(\s*\(\) => import\("\.\/_components\/source-pie-chart"\)/, "charts must be split")
+  assert.doesNotMatch(src, /^import .* from "recharts"/m, "the landing page must not import recharts directly")
 }
 
 console.log("✅ check-perf passed")

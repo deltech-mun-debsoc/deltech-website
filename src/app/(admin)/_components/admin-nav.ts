@@ -1,48 +1,53 @@
-import { FileSpreadsheet,
-  LayoutDashboard,
-  Users,
-  Kanban,
-  Upload,
+import {
+  CalendarDays,
+  Megaphone,
   UserPlus,
   FileText,
   Presentation,
-  Settings2,
   Contact,
   ScrollText,
   ShieldCheck,
   BookOpenText,
-  UserCheck,
-  Mail,
+  Globe,
   type LucideIcon,
 } from "lucide-react"
 
-export interface NavItem {
+export interface Matchable {
   href: string
+  // Other paths that belong to this item, e.g. every page of the event workspace.
+  match?: string[]
+}
+
+export interface NavItem extends Matchable {
   icon: LucideIcon
   label: string
   adminOnly?: boolean
 }
 
 export interface NavGroup {
-  label: string
+  label?: string
   items: NavItem[]
 }
 
-// Shared by the desktop sidebar and the mobile drawer.
+// Every page of the event workspace. They live under src/app/(admin)/admin/(event)
+// and share one tab bar there, so the sidebar needs only one entry for all of them.
+export const EVENT_PATHS = [
+  "/admin/config",
+  "/admin/registrations",
+  "/admin/form-responses",
+  "/admin/import",
+  "/admin/participants",
+  "/admin/allotment",
+  "/admin/mailer",
+  "/admin/checkin",
+]
+
+// Shared by the desktop sidebar and the mobile drawer. The event is one place,
+// run the same way for the main conference and an Intra MUN; what differs
+// between them is switched in Setup, not spread across the sidebar.
 export const NAV_GROUPS: NavGroup[] = [
   {
-    label: "Run event",
-    items: [
-      { href: "/admin", icon: LayoutDashboard, label: "Overview" },
-      { href: "/admin/config", icon: Settings2, label: "Event control" },
-      { href: "/admin/registrations", icon: Users, label: "Registrations" },
-      { href: "/admin/mailer", icon: Mail, label: "Mailer" },
-      { href: "/admin/form-responses", icon: FileSpreadsheet, label: "Google Form responses" },
-      { href: "/admin/checkin", icon: UserCheck, label: "Check-in" },
-      { href: "/admin/allotment", icon: Kanban, label: "Allotments" },
-      { href: "/admin/config/committees", icon: Contact, label: "Matrix & committees" },
-      { href: "/admin/import", icon: Upload, label: "Imports" },
-    ],
+    items: [{ href: "/admin", icon: CalendarDays, label: "Event", match: EVENT_PATHS }],
   },
   {
     label: "Society",
@@ -53,6 +58,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/admin/recruitment", icon: UserPlus, label: "Recruitment control" },
       { href: "/admin/blog", icon: FileText, label: "Dispatch" },
       { href: "/admin/quiz", icon: Presentation, label: "Quiz" },
+      { href: "/admin/outreach", icon: Megaphone, label: "PR outreach" },
       { href: "/admin/team", icon: Contact, label: "Team" },
     ],
   },
@@ -61,12 +67,29 @@ export const NAV_GROUPS: NavGroup[] = [
     items: [
       { href: "/admin/guide", icon: BookOpenText, label: "Operator guide" },
       { href: "/admin/logs", icon: ScrollText, label: "Logs" },
-      { href: "/admin/participants", icon: Users, label: "Participants" },
+      { href: "/admin/site", icon: Globe, label: "Website" },
       { href: "/admin/users", icon: ShieldCheck, label: "Staff & roles", adminOnly: true },
     ],
   },
 ]
 
+// The item owning the deepest path that contains the current one. Plain prefix
+// matching lit up two items at once (Event control and Committees & matrix both
+// match /admin/config/committees). "/admin" only ever matches itself, or it
+// would contain every page.
+export function activeHref(pathname: string, items: Matchable[]): string | undefined {
+  let best: { href: string; length: number } | undefined
+  for (const item of items) {
+    for (const path of [item.href, ...(item.match ?? [])]) {
+      const hit = pathname === path || (path !== "/admin" && pathname.startsWith(path + "/"))
+      if (hit && (!best || path.length > best.length)) best = { href: item.href, length: path.length }
+    }
+  }
+  return best?.href
+}
+
+const NAV_ITEMS = NAV_GROUPS.flatMap((g) => g.items)
+
 export function isNavActive(pathname: string, href: string): boolean {
-  return href === "/admin" ? pathname === href : pathname.startsWith(href)
+  return activeHref(pathname, NAV_ITEMS) === href
 }
