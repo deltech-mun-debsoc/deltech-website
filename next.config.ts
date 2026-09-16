@@ -59,6 +59,16 @@ const NOT_RESERVED = "/:path((?!docs|_next|api|favicon\\.ico|icon).*)";
 const nextConfig: NextConfig = {
   // A self-contained server for the AWS Docker image (see Dockerfile).
   output: "standalone",
+  // Version skew. A tab left open across a deploy posts a Server Action id that
+  // the new build does not have, and the user gets "Something went wrong" while
+  // their credentials are perfectly correct (seen on staging, 16 Sept).
+  //
+  // With a deployment id set, Next stamps assets with ?dpl=, puts the id on the
+  // <html> element and compares it on navigation, reloading rather than failing.
+  // APP_VERSION is the commit SHA, set as a build arg and a runtime env in the
+  // Dockerfile, so every image has exactly one. Undefined in local dev, where
+  // there is no deploy to skew against.
+  deploymentId: process.env.APP_VERSION,
   pageExtensions: ["ts", "tsx", "md", "mdx"],
   serverExternalPackages: ["@prisma/client", "@prisma/adapter-pg", "xlsx"],
   async rewrites() {
