@@ -43,7 +43,7 @@ function isSnsUrl(raw: string): boolean {
 interface SesEvent {
   eventType?: string
   notificationType?: string
-  mail?: { destination?: string[] }
+  mail?: { destination?: string[]; messageId?: string }
   bounce?: {
     bounceType?: string
     bouncedRecipients?: { emailAddress?: string; diagnosticCode?: string }[]
@@ -56,10 +56,30 @@ interface SesEvent {
 
 // One row per address, so a bounce is visible in the delegate drawer's email
 // history rather than only in the contacts list.
-async function logAgainstAddress(email: string, status: string, error: string): Promise<void> {
+//
+// SNS delivers at least once, and one configuration set can feed more than one
+// destination, so the same bounce arrives more than once in practice (seen on
+// production: one send, two identical rows). The originating message id is
+// carried in the row and checked first, so a repeat is dropped rather than
+// shown to staff as a second failure. Suppression itself was always idempotent.
+async function logAgainstAddress(email: string, status: string, error: string, messageId?: string): Promise<void> {
+  const tag = messageId ? ` [ses:${messageId}]` : ""
+  if (messageId) {
+    const already = await prisma.emailLog.findFirst({
+      where: { toEmail: email, status, error: { contains: `[ses:${messageId}]` } },
+      select: { id: true },
+    })
+    if (already) return
+  }
   const delegate = await prisma.delegate.findFirst({ where: { email }, select: { id: true }, orderBy: { createdAt: "desc" } })
   await prisma.emailLog.create({
-    data: { delegateId: delegate?.id ?? null, template: "ses-event", toEmail: email, status, error: error.slice(0, 500) },
+    data: {
+      delegateId: delegate?.id ?? null,
+      template: "ses-event",
+      toEmail: email,
+      status,
+      error: `${error.slice(0, 500 - tag.length)}${tag}`,
+    },
   })
 }
 
@@ -93,6 +113,7 @@ export async function POST(req: NextRequest) {
   }
 
   const kind = event.eventType ?? event.notificationType ?? ""
+  const messageId = event.mail?.messageId
   const now = new Date()
 
   if (kind === "Bounce") {
@@ -110,6 +131,7 @@ export async function POST(req: NextRequest) {
         email,
         permanent ? "BOUNCED" : "DEFERRED",
         r.diagnosticCode ?? `${event.bounce?.bounceType ?? "Bounce"}`,
+        messageId,
       )
     }
     return NextResponse.json({ ok: true, handled: recipients.length })
@@ -126,7 +148,7 @@ export async function POST(req: NextRequest) {
         where: { email, unsubscribedAt: null },
         data: { unsubscribedAt: now },
       })
-      await logAgainstAddress(email, "COMPLAINED", event.complaint?.complaintFeedbackType ?? "complaint")
+      await logAgainstAddress(email, "COMPLAINED", event.complaint?.complaintFeedbackType ?? "complaint", messageId)
     }
     return NextResponse.json({ ok: true, handled: recipients.length })
   }
