@@ -13,6 +13,34 @@ export function CampaignActions({ id, state, isAdmin, base }: { id: string; stat
   const [cancelOpen, setCancelOpen] = useState(false)
   const active = state === "DRAFT" || state === "SCHEDULED" || state === "SENDING"
 
+  // A draft has never been sent to anyone, so offering to "cancel" it, and warning
+  // that "anyone it has already reached keeps their copy", described something
+  // that had not happened. Each state gets the words that are true of it.
+  const stop =
+    state === "DRAFT"
+      ? {
+          button: "Discard draft",
+          title: "Discard this draft?",
+          body: "Nothing was ever sent. The draft leaves your list, and you can still duplicate it from there if you want it back.",
+          confirm: "Discard draft",
+          done: "Draft discarded.",
+        }
+      : state === "SCHEDULED"
+        ? {
+            button: "Cancel send",
+            title: "Cancel this scheduled mail?",
+            body: "It will not go out at its scheduled time. Nobody has received it yet.",
+            confirm: "Cancel send",
+            done: "Send cancelled.",
+          }
+        : {
+            button: "Stop sending",
+            title: "Stop sending this mail?",
+            body: "Nobody else gets it. Anyone it has already reached keeps their copy.",
+            confirm: "Stop sending",
+            done: "Stopped. Nobody else will get it.",
+          }
+
   return (
     <div className="flex flex-wrap gap-2">
       <Button
@@ -48,22 +76,22 @@ export function CampaignActions({ id, state, isAdmin, base }: { id: string; stat
       )}
       {isAdmin && active && (
         <Button variant="outline" size="sm" className="text-destructive" disabled={pending} onClick={() => setCancelOpen(true)}>
-          Cancel mail
+          {stop.button}
         </Button>
       )}
       <ConfirmDialog
         open={cancelOpen}
         onOpenChange={(o) => !pending && setCancelOpen(o)}
-        title={"Cancel this mail?"}
-        description={"Nobody else gets it. Anyone it has already reached keeps their copy."}
-        confirmLabel={"Cancel mail"}
+        title={stop.title}
+        description={stop.body}
+        confirmLabel={stop.confirm}
         destructive
         pending={pending}
         onConfirm={() =>
           startTransition(async () => {
             const r = await cancelCampaign(id)
             setCancelOpen(false)
-            if (r.success) toast.success("Cancelled.")
+            if (r.success) toast.success(stop.done)
             else toast.error(r.error)
             router.refresh()
           })
