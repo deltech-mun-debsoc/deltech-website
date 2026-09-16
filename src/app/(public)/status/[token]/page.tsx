@@ -104,8 +104,8 @@ export default async function StatusPage(props: {
               Allotment
             </p>
             <p className="mt-2 text-sm text-muted-foreground">
-              Not yet allotted. You&apos;ll receive your committee and portfolio once the admin
-              reviews your application.
+              Not yet allotted. The secretariat will email your committee and portfolio once
+              they have gone through the applications.
             </p>
           </div>
         )}

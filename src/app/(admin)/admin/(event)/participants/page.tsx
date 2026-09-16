@@ -92,7 +92,7 @@ export default async function ParticipantsPage({
           href="/admin/registrations"
           className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
         >
-          Open registrations
+          All delegates
         </Link>
       </PageHeader>
 
