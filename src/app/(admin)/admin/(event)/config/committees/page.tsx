@@ -43,7 +43,7 @@ export default async function CommitteesSettingsPage() {
         <p className="eyebrow">01 / Structure</p>
         <h2 className="mt-3 font-heading text-3xl">Committees</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          The rooms of this event, with the other names partner sheets use for them.
+          The rooms of this event, with the other names cross delegations use for them.
         </p>
         <div className="rule my-6" />
         <TabCommittees committees={serialized} />

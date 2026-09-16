@@ -11,18 +11,19 @@ import { requireStaff } from "@/lib/authz"
 import { PageHeader } from "../../_components/page-header"
 
 const LAUNCH_SEQUENCE = [
-  { title: "Publish the conference brief", body: "Set dates, venue, hero copy, contacts, awards, and the public matrix visibility.", href: "/admin/config/conference", label: "Conference settings" },
+  { title: "Set up the event", body: "Name it, set its dates and venue, choose Intra MUN or conference, then publish it. Publishing is what puts it on the website.", href: "/admin/config", label: "Event control" },
   { title: "Build committees and portfolios", body: "Create each committee, write the agenda, set delegation type, then generate or paste the portfolio roster.", href: "/admin/config/committees", label: "Committees and matrix" },
   { title: "Set fees and payment routing", body: "Confirm every fee tier. Payment provider and reconciliation settings require an admin.", href: "/admin/config/money", label: "Money settings" },
+  { title: "Write the society copy", body: "Who the society is, the awards it gives, and the people who sign delegate emails. Separate from the event, and it outlives it.", href: "/admin/site", label: "Website" },
   { title: "Quality-check the public experience", body: "Review the homepage, live matrix, team roster, dispatch, and the full registration form on mobile.", href: "/", label: "Open public site" },
-  { title: "Open delegate intake", body: "Only open registration after the public copy, committees, portfolios, fees, and payment path are ready.", href: "/admin/config/registration", label: "Registration control" },
+  { title: "Open delegate intake", body: "Only accept registrations once the committees, the matrix and, for a paid event, the fees and payment path are ready.", href: "/admin/config", label: "Event control" },
   { title: "Watch the first submissions", body: "Verify delegate records, source attribution, confirmation email delivery, and any quarantined imports.", href: "/admin/registrations", label: "Registration desk" },
 ]
 
 const DAILY_WORK = [
   { title: "Registration desk", body: "Search and correct delegate details. Use filters before exports or bulk review.", href: "/admin/registrations" },
   { title: "Allotment floor", body: "Match delegates deliberately. Holds are temporary; confirmed allotments trigger the payment brief.", href: "/admin/allotment" },
-  { title: "Cross-delegation imports", body: "Map columns, inspect the preview, commit clean rows, then resolve the quarantine queue.", href: "/admin/import" },
+  { title: "Cross delegations", body: "Map columns, inspect the preview, commit clean rows, then resolve the quarantine queue.", href: "/admin/import" },
   { title: "Publishing desk", body: "Moderate dispatches, build live quizzes, and keep the public team roster current.", href: "/admin/blog" },
 ]
 

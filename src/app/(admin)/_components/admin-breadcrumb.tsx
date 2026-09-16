@@ -22,7 +22,7 @@ const LABELS: Record<string, string> = {
   logs: "Logs",
   config: "Event control",
   users: "Staff & roles",
-  participants: "Participant accounts",
+  participants: "Accounts",
   guide: "Operator guide",
   site: "Website",
   conference: "Public identity",
