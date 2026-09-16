@@ -46,9 +46,13 @@ The `Dockerfile` sets these; do not put them in `app.env`.
 
 | Variable | What it is |
 | --- | --- |
-| `EMAIL_TRANSPORT` | `resend` (default) or `ses`. Production stays on Resend until SES production access is granted. |
-| `AUTH_RESEND_KEY` | Resend API key. |
+| `EMAIL_TRANSPORT` | `resend` (default in code) or `ses`. Both boxes run `ses`; set it back to `resend` and restart to fall back. |
+| `AUTH_RESEND_KEY` | Resend API key, kept for that fallback. |
 | `SES_REGION` | Defaults to `ap-south-1`. |
+| `SES_CONFIGURATION_SET` | `mun-default`. Tags every send, which is what turns on the suppression list and publishes bounce and complaint events. |
+| `SES_WEBHOOK_SECRET` | Shared secret in the SNS subscription URL for `/api/webhooks/ses`. Without it the endpoint refuses everything. |
+| `MAIL_DAILY_CAP` | Overrides the campaign cap. Unset means 45,000 on SES (under the 50,000 quota) or 90 on Resend. |
+| `MAIL_MAX_PER_SECOND` | Overrides the send rate. Unset means 14 on SES (the account's limit) or 2 on Resend. |
 | `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY` | Read by the SES client. On the boxes, the same per-environment IAM key as S3. |
 | `EMAIL_FROM` | Sender. Defaults to `noreply@deltechmun.in`. |
 | `EMAIL_REDIRECT_TO` | **Staging only.** Sends every message to one inbox, real recipient in the subject. If it is ever unset, staging mails real people. |

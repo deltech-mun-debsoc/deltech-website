@@ -1,9 +1,10 @@
 # Hosting on AWS
 
 Production and staging each run on their own Lightsail box behind Caddy. Each
-box also runs its own private Postgres container. Media is S3, email currently
-uses Resend while SES production access is pending, and realtime is our own
-in-process SSE bus.
+box also runs its own private Postgres container. Media is S3, email is SES
+(production access granted 15 September 2026: 50,000 messages a day, 14 a
+second, Mumbai), and realtime is our own in-process SSE bus. Resend stays
+installed as a one-variable fallback.
 
 ```text
 Registrar DNS ──┬─► mun-prod    box (Sydney, 1 GB, $7/mo)  Caddy → app
@@ -79,6 +80,7 @@ Runtime secrets live only on the box, mode 600, one per line `KEY=value`:
 - `/srv/mun/app.env` on each box: `APP_ENV`, `DATABASE_URL`, `DIRECT_URL`,
   `DATABASE_POOL_MAX=5`, `AUTH_SECRET` (different per environment),
   `EMAIL_TRANSPORT`, `AUTH_RESEND_KEY`, `EMAIL_FROM`, `SES_REGION`,
+  `SES_CONFIGURATION_SET`, `SES_WEBHOOK_SECRET`,
   `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `S3_BUCKET`, `S3_REGION`,
   `S3_ACCESS_KEY_ID`, `S3_SECRET_ACCESS_KEY`, `RAZORPAY_*`, `ADMIN_EMAIL`,
   `CRON_SECRET`, `GFORM_SHARED_SECRET`, `SHEET_SYNC_SECRET`, `GROQ_API_KEY`,
@@ -178,7 +180,22 @@ Staging's bucket uses `https://test.deltechmun.in` and its own name.
 Verified identities → create → domain `deltechmun.in`, Easy DKIM (RSA 2048),
 custom MAIL FROM `mail.deltechmun.in`. Add the three DKIM CNAMEs, the MAIL FROM
 MX and TXT, and a DMARC TXT (`_dmarc`, `v=DMARC1; p=none; rua=mailto:<society email>`)
-at the registrar. Keep the Resend records until SES is proven.
+at the registrar. Keep the Resend records: `EMAIL_TRANSPORT=resend` is still the
+one-variable way back.
+
+Production access was granted on 15 September 2026 (50,000 messages a day, 14 a
+second). Two things must exist for the account to stay healthy:
+
+- **Configuration set** `mun-default` (the name in `SES_CONFIGURATION_SET`), with
+  the account-level **suppression list** enabled for bounces and complaints.
+- **An SNS event destination** on that configuration set for **Bounce** and
+  **Complaint**, subscribed to
+  `https://www.deltechmun.in/api/webhooks/ses?key=<SES_WEBHOOK_SECRET>`
+  (staging: `https://test.deltechmun.in/...`, its own secret). The endpoint
+  confirms the subscription itself, marks a permanently bounced address
+  `bouncedAt` and a complaint `unsubscribedAt`, and writes an EmailLog row so the
+  delegate drawer shows it. Without it, a dead address is mailed on every
+  campaign, which is what costs an account its production access.
 
 ### 5. IAM (one user per environment)
 
@@ -194,7 +211,10 @@ staging). Put the key in both the `AWS_*` and `S3_*` variables of that env file.
       "Resource": "arn:aws:s3:::deltechmun-media-prod/*" },
     { "Effect": "Allow",
       "Action": "ses:SendEmail",
-      "Resource": "arn:aws:ses:ap-south-1:<account-id>:identity/deltechmun.in" }
+      "Resource": [
+        "arn:aws:ses:ap-south-1:<account-id>:identity/deltechmun.in",
+        "arn:aws:ses:ap-south-1:<account-id>:configuration-set/mun-default"
+      ] }
   ]
 }
 ```
@@ -207,9 +227,9 @@ delete the old key.
 
 Both DNS records now point at their dedicated Lightsail static IPs, Caddy is
 serving valid certificates, GitHub Actions is the only deployment system, and
-hourly database backups are present in both S3 buckets. Keep
-`EMAIL_TRANSPORT=resend` until the SES identity is verified and production
-access is granted. Enable `CRON_ENABLED` only after confirming the previous
+hourly database backups are present in both S3 buckets. Email runs on SES
+(`EMAIL_TRANSPORT=ses`) since production access was granted; set it back to
+`resend` and restart to fall back. Enable `CRON_ENABLED` only after confirming the previous
 scheduler is no longer calling the production routes.
 
 ## What Supabase used to do, and who does it now
