@@ -206,7 +206,9 @@ export function StepMapping({
             {aiSuggesting ? "Detecting…" : "Auto-detect columns"}
           </Button>
         </div>
-        <div className="overflow-hidden rounded-lg border border-border">
+        {/* x-auto, not hidden: on a narrow screen a clipped mapping table hides the
+            column being matched, with no way to reach it. */}
+        <div className="overflow-x-auto rounded-lg border border-border">
           <table className="w-full text-sm">
             <thead className="bg-muted/50">
               <tr>

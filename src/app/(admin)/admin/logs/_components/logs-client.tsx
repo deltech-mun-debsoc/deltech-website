@@ -104,11 +104,14 @@ export function LogsClient({
                 </td>
                 <td className="max-w-44 truncate px-4 py-3 text-xs">{log.actorEmail}</td>
                 <td className="px-4 py-3">
+                  {/* The raw code is what the filter above matches, so it stays on
+                      hover; the table itself reads as English. */}
                   <Badge
                     variant={/delete|cancel|revoke|reject/.test(log.action) ? "destructive" : "secondary"}
-                    className="font-mono text-xs"
+                    className="text-xs"
+                    title={log.action}
                   >
-                    {log.action}
+                    {actionLabel(log.action)}
                   </Badge>
                 </td>
                 <td className="px-4 py-3 text-xs text-muted-foreground">
