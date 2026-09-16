@@ -171,6 +171,14 @@ import { MAIL_PRESETS, presetFor } from "../src/lib/mailer/presets"
     /sns\\\.\[a-z0-9-\]\+\\\.amazonaws\\\.com/,
     "only a real SNS host may be fetched for subscription confirmation",
   )
+  // SNS delivers at least once, so the same bounce arrives twice in practice.
+  // Suppression is idempotent; the log row has to be made so deliberately.
+  assert.match(ses, /contains: `\[ses:\$\{messageId\}\]`/, "a repeated SES event must not be logged twice")
+  assert.ok(
+    ses.indexOf("if (already) return") < ses.indexOf("prisma.emailLog.create"),
+    "the duplicate check must run before the row is written",
+  )
+
   // A transient bounce is a full mailbox, not a dead address. Suppressing on one
   // would quietly drop a delegate who is still reachable tomorrow.
   assert.ok(
