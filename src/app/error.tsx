@@ -14,8 +14,22 @@ import { Button } from "@/components/ui/button"
 //
 // Reloads at most once per stale build: the id we reloaded for is remembered, and
 // after the reload the page carries a new one, so this cannot loop.
+// Which build served this page.
+//
+// Next puts the deployment id on <html data-dpl-id> and on every asset URL as
+// ?dpl=. The attribute is in the HTML but does not survive hydration in the
+// browser (checked on staging: present over curl, absent in the live DOM), so
+// the script tags are the source that actually works, with the attribute kept
+// as a cheap first try.
+function loadedBuild(): string | null {
+  const stamped = document.documentElement.dataset.dplId
+  if (stamped) return stamped
+  const script = document.querySelector<HTMLScriptElement>('script[src*="dpl="]')
+  return script?.src.match(/[?&]dpl=([A-Za-z0-9]+)/)?.[1] ?? null
+}
+
 function reloadIfStale(): void {
-  const loaded = document.documentElement.dataset.dplId
+  const loaded = loadedBuild()
   if (!loaded) return
   let alreadyTried: string | null = null
   try {
