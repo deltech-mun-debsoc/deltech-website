@@ -156,4 +156,39 @@ import { MAIL_PRESETS, presetFor } from "../src/lib/mailer/presets"
   assert.doesNotMatch(unsub, /new URL\([^)]*req\.url/, "unsubscribe redirects must be built from APP_URL, never req.url")
 }
 
+// ── SES bounces and complaints ──────────────────────────────────────────────
+//
+// AWS requires a process for these, and the audience filters have always assumed
+// one: MailContact.bouncedAt excludes an address from every send, and nothing
+// wrote it until the SES webhook existed.
+{
+  const ses = readFileSync("src/app/api/webhooks/ses/route.ts", "utf8")
+  assert.match(ses, /timingSafeEqual/, "the SES webhook must compare its secret in constant time")
+  assert.match(ses, /bouncedAt: now/, "a permanent bounce must suppress the address")
+  assert.match(ses, /unsubscribedAt: now/, "a spam complaint must stop further mail to that address")
+  assert.match(
+    ses,
+    /sns\\\.\[a-z0-9-\]\+\\\.amazonaws\\\.com/,
+    "only a real SNS host may be fetched for subscription confirmation",
+  )
+  // A transient bounce is a full mailbox, not a dead address. Suppressing on one
+  // would quietly drop a delegate who is still reachable tomorrow.
+  assert.ok(
+    ses.indexOf("if (permanent) {") < ses.indexOf("mailContact.updateMany"),
+    "only a permanent bounce may suppress an address",
+  )
+}
+
+// ── Provider limits ─────────────────────────────────────────────────────────
+//
+// SES throws rather than queues when either limit is exceeded, and a throw in the
+// queue marks that recipient FAILED without a retry, so both ceilings are pinned.
+{
+  const queue = readFileSync("src/lib/mailer/queue.ts", "utf8")
+  assert.match(queue, /function maxPerSecond/, "the queue must pace itself against the provider's rate limit")
+  assert.match(queue, /=== "ses" \? 14 : 2/, "SES allows 14 messages a second on this account")
+  assert.match(queue, /=== "ses" \? 45_000 : 90/, "the daily cap must leave headroom under the 50,000 quota")
+  assert.match(queue, /minBatchMs - elapsed/, "batches must wait out the remainder of their rate window")
+}
+
 console.log("mailer checks passed (merge fields, unsubscribe tokens, audiences, frequency cap, presets, PR gate, claims, one-click unsubscribe)")

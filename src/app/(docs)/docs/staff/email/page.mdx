@@ -44,6 +44,23 @@ which.
 
 A typo is fixable: correct the address on the delegate record, then resend.
 
+## Bounces and spam complaints
+
+Some failures arrive after we thought the message had gone. The mail provider accepts
+it, tries to deliver, and tells us minutes later that the address does not exist, or
+that the person pressed "this is spam". Both land back in the platform automatically.
+
+- **Hard bounce** (no such address): the address is marked bounced. Outreach never
+  mails it again. The delegate's email history shows *bounced, address suppressed*.
+- **Spam complaint**: that contact is unsubscribed immediately and never mailed again.
+- **Delayed** (a full mailbox or a busy server): recorded, nothing suppressed. The
+  provider keeps trying.
+
+This is not optional housekeeping. Repeatedly mailing dead addresses is what gets a
+sending account throttled or suspended, taking allotment and payment mail down with it.
+If a delegate says they never got their mail and their history shows a bounce, correct
+the address on their record and resend: fixing the address clears the way again.
+
 ## Staging
 
 On a preview deployment every outgoing message is redirected to a single address and its

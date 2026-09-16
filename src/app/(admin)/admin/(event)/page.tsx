@@ -90,10 +90,11 @@ export default async function AdminOverviewPage() {
     prisma.member.count({ where: { isActive: true } }),
     prisma.post.count({ where: { status: "PUBLISHED" } }),
     // This event's delegates only: a failure from a closed event is not
-    // something anyone running this one can act on.
-    prisma.emailLog.count({ where: { status: "FAILED", delegate: { is: scope } } }),
+    // something anyone running this one can act on. Anything that is not SENT
+    // counts, so an SES bounce or spam complaint surfaces here too.
+    prisma.emailLog.count({ where: { status: { not: "SENT" }, delegate: { is: scope } } }),
     prisma.emailLog.findMany({
-      where: { status: "FAILED", delegate: { is: scope } },
+      where: { status: { not: "SENT" }, delegate: { is: scope } },
       orderBy: { sentAt: "desc" },
       take: 8,
       select: { id: true, template: true, toEmail: true, error: true, sentAt: true, delegateId: true },
