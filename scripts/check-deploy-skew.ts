@@ -34,6 +34,10 @@ const read = (p: string) => readFileSync(p, "utf8")
 {
   const boundary = read("src/app/error.tsx")
   assert.match(boundary, /dataset\.dplId/, "the error boundary must read the build the page was served from")
+  // data-dpl-id is in the served HTML but gone after hydration, so the asset
+  // stamp is the source that actually works in a browser. Without this fallback
+  // the check silently never fires.
+  assert.match(boundary, /script\[src\*="dpl="\]/, "it must fall back to the build stamped on the assets")
   assert.match(boundary, /\/api\/health/, "it must ask the server which build is running now")
   assert.match(boundary, /location\.reload\(\)/, "a stale build must reload rather than strand the user")
   // Reloading on every error, or on a build that already reloaded, is a loop that
