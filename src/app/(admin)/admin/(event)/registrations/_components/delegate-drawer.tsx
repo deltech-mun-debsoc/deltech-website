@@ -193,7 +193,8 @@ export function DelegateDrawer({ delegate, committees, intra = false, onClose, o
 
   const d = delegate
   const meta = d ? statusMeta(d.status) : null
-  const failedEmails = emailLogs?.filter((l) => l.status === "FAILED").length ?? 0
+  // Bounces and spam complaints are failures too: they are why an address stops working.
+  const failedEmails = emailLogs?.filter((l) => l.status !== "SENT").length ?? 0
   const followUpDue = !!d?.nextFollowUpAt && new Date(d.nextFollowUpAt) <= new Date()
   const seat = d?.allotment ? `${committeeName(d.allotment.committeeId)} · ${d.allotment.portfolio.name}` : null
   const unpaid = d?.payment && ["PENDING", "SENT", "FAILED"].includes(d.payment.status)
@@ -492,12 +493,22 @@ export function DelegateDrawer({ delegate, committees, intra = false, onClose, o
                         <ul className="space-y-1">
                           {emailLogs.map((log) => (
                             <li key={log.id} className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-muted/40">
-                              <span className={cn("size-2 shrink-0 rounded-full", log.status === "FAILED" ? "bg-red-500" : "bg-emerald-500")} />
+                              <span className={cn("size-2 shrink-0 rounded-full", log.status === "SENT" ? "bg-emerald-500" : "bg-red-500")} />
                               <div className="min-w-0 flex-1">
                                 <p className="truncate">{EMAIL_LABEL[log.template] ?? log.template}</p>
                                 <p className="text-xs text-muted-foreground">
                                   {formatDate(log.sentAt)}
-                                  {log.status === "FAILED" && <span className="text-destructive"> · did not send</span>}
+                                  {log.status !== "SENT" && (
+                                    <span className="text-destructive">
+                                      {log.status === "BOUNCED"
+                                        ? " · bounced, address suppressed"
+                                        : log.status === "COMPLAINED"
+                                          ? " · marked as spam"
+                                          : log.status === "DEFERRED"
+                                            ? " · delayed by their mail server"
+                                            : " · did not send"}
+                                    </span>
+                                  )}
                                 </p>
                               </div>
                               {/* Confirmed in place: a dialog opened from inside this

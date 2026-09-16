@@ -25,6 +25,17 @@ const CONCURRENCY = 8
 const PER_RUN = 60
 const STALE_CLAIM_MS = 15 * 60 * 1000
 
+// SES accepts at most 14 messages a second on this account (AWS raised it with
+// production access). Going over does not queue, it throws, and a throw here
+// marks that recipient FAILED and never retries it -- so exceeding the rate
+// silently costs real mail. CONCURRENCY sends have no pacing of their own, so
+// each batch is held to at least batch-size / this many seconds.
+function maxPerSecond(): number {
+  const fromEnv = Number(process.env.MAIL_MAX_PER_SECOND)
+  if (Number.isFinite(fromEnv) && fromEnv > 0) return fromEnv
+  return EMAIL_TRANSPORT_NAME === "ses" ? 14 : 2
+}
+
 // How many mailer emails may go out in any 24 hours.
 //
 // Resend's free plan allows 100 a day across everything the site sends, sign-in
@@ -34,7 +45,10 @@ const STALE_CLAIM_MS = 15 * 60 * 1000
 export function dailyCap(): number {
   const fromEnv = Number(process.env.MAIL_DAILY_CAP)
   if (Number.isFinite(fromEnv) && fromEnv > 0) return Math.floor(fromEnv)
-  return EMAIL_TRANSPORT_NAME === "ses" ? 2000 : 90
+  // SES allows 50,000 a day since production access was granted. Ten percent is
+  // left for everything that is not a campaign -- sign-in links, allotment and
+  // payment mail -- the same headroom rule the Resend number uses.
+  return EMAIL_TRANSPORT_NAME === "ses" ? 45_000 : 90
 }
 
 // PR mail to the outreach list stays off until an admin switches it on. The
@@ -197,7 +211,9 @@ async function sendPending(budget: number, now: Date, prOn: boolean): Promise<{ 
 
   let sent = 0
   let failed = 0
+  const minBatchMs = Math.ceil((CONCURRENCY / maxPerSecond()) * 1000)
   for (let i = 0; i < pending.length; i += CONCURRENCY) {
+    const batchStartedAt = Date.now()
     const batch = pending.slice(i, i + CONCURRENCY)
     await Promise.all(
       batch.map(async (r) => {
@@ -255,6 +271,12 @@ async function sendPending(budget: number, now: Date, prOn: boolean): Promise<{ 
         }
       }),
     )
+    // Hold the rate under the provider's ceiling. Only between batches: the last
+    // one has nothing to pace against, and the tick should not idle for it.
+    const elapsed = Date.now() - batchStartedAt
+    if (elapsed < minBatchMs && i + CONCURRENCY < pending.length) {
+      await new Promise((resolve) => setTimeout(resolve, minBatchMs - elapsed))
+    }
   }
   return { sent, failed }
 }
