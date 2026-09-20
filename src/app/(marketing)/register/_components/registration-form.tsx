@@ -30,7 +30,7 @@ interface Props {
   intra?: boolean
 }
 
-type StepKey = "personal" | "preferences" | "coDelegateOrPref2" | "accommodation" | "undertaking"
+type StepKey = "personal" | "preferences" | "coDelegateOrPref2" | "accommodation" | "undertaking" | "choices"
 
 const STEP_LABEL: Record<StepKey, string> = {
   personal: t("register.steps.personal"),
@@ -38,11 +38,12 @@ const STEP_LABEL: Record<StepKey, string> = {
   coDelegateOrPref2: t("register.steps.coDelegateOrPref2"),
   accommodation: t("register.steps.accommodation"),
   undertaking: t("register.steps.undertaking"),
+  choices: t("register.steps.choices"),
 }
 
 export function RegistrationForm({ committees, intra = false }: Props) {
   const stepKeys: StepKey[] = intra
-    ? ["personal", "preferences", "coDelegateOrPref2", "undertaking"]
+    ? ["personal", "choices"]
     : ["personal", "preferences", "coDelegateOrPref2", "accommodation", "undertaking"]
 
   const [step, setStep] = useState(0)
@@ -130,7 +131,11 @@ export function RegistrationForm({ committees, intra = false }: Props) {
     }
 
     const fields: (keyof RegisterFormValues)[] =
-      current === "preferences" ? ["pref1CommitteeId", "pref1Portfolio"] : current === "undertaking" ? ["undertaking"] : []
+      current === "preferences" || current === "choices"
+        ? ["pref1CommitteeId", "pref1Portfolio"]
+        : current === "undertaking"
+          ? ["undertaking"]
+          : []
     const valid = await form.trigger(fields)
     if (valid) setStep((s) => s + 1)
   }
@@ -174,6 +179,13 @@ export function RegistrationForm({ committees, intra = false }: Props) {
               committees={committees}
               isDoubleDelegation={isDoubleDelegation}
             />
+          )}
+          {current === "choices" && (
+            <div className="space-y-8">
+              <StepPref1 form={form} committees={committees} />
+              <StepPref2OrCoDelegate form={form} committees={committees} isDoubleDelegation={isDoubleDelegation} />
+              <StepUndertaking form={form} isSubmitting={isSubmitting} showReference={false} />
+            </div>
           )}
           {current === "accommodation" && <StepAccommodation form={form} />}
           {current === "undertaking" && <StepUndertaking form={form} isSubmitting={isSubmitting} />}

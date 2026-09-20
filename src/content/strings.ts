@@ -197,7 +197,7 @@ export const STRINGS = {
     saving: "Saving…",
     sending: "Sending…",
     required: "Required",
-    optional: "Optional",
+    optional: "optional",
     notAvailable: "N/A",
     toggleTheme: "Toggle colour theme",
   },
@@ -218,16 +218,17 @@ export const STRINGS = {
   },
 
   register: {
-    pageTitle: "Delegate Registration",
+    pageTitle: "Delegate registration",
     pageSubtitle: "Complete all steps to submit your application.",
     steps: {
-      personal: "Personal Details",
-      preferences: "Committee Preferences",
-      coDelegateOrPref2: "Co-delegate / Second Preference",
+      personal: "Your details",
+      preferences: "Committee preferences",
+      coDelegateOrPref2: "Second choice",
       coDelegate: "Co-delegate",
-      secondPreference: "Second Preference",
+      secondPreference: "Second choice",
       accommodation: "Accommodation",
-      undertaking: "Undertaking & Submit",
+      undertaking: "Confirm and submit",
+      choices: "Committees",
     },
     personal: {
       fullNameLabel: "Full name",
@@ -240,13 +241,12 @@ export const STRINGS = {
       altPhonePlaceholder: "+91 9876543210",
       institutionLabel: "Institution",
       institutionPlaceholder: "Your college or university",
-      institutionLockedNote: "Filled automatically because you selected “I am a DTU student”. Untick to edit.",
+      institutionLockedNote: "Untick DTU to edit.",
       isDtuLabel: "I am a DTU student",
       munExperienceLabel: "MUN experience",
       munExperiencePlaceholder: "List committees you have attended (if any)",
       rollNumberLabel: "DTU roll number",
       rollNumberPlaceholder: "23/CO/123",
-      rollNumberNote: "The Intra MUN is for DTU students, so we use your roll number instead of a college.",
       rollNumberRequired: "Enter your DTU roll number",
     },
     preferences: {
@@ -259,13 +259,11 @@ export const STRINGS = {
       pref2PortfolioPlaceholder: "Country / role you would like",
       // Named by the committee it applies to, rather than baked in. Any committee
       // can be double delegation, and which one it is changes every event.
-      doubleDelegationOnlyNote:
-        "{committee} is a double-delegation committee. It will be your only preference.",
+      doubleDelegationOnlyNote: "{committee} is double delegation, so it is your only choice.",
     },
     coDelegate: {
       sectionTitle: "Co-delegate details",
-      sectionNote:
-        "{committee} requires two delegates per portfolio. Please provide your co-delegate's information.",
+      sectionNote: "{committee} seats two delegates. Add yours.",
       fullNameLabel: "Co-delegate full name",
       emailLabel: "Co-delegate email",
       emailPlaceholder: "co@example.com",
@@ -284,7 +282,7 @@ export const STRINGS = {
       referencePlaceholder: "Friend, Instagram, etc.",
       checkboxLabel:
         "I confirm that all information provided is accurate and I agree to abide by the rules of the event.",
-      submitButton: "Submit Application",
+      submitButton: "Submit application",
     },
     success: {
       title: "Application received!",
