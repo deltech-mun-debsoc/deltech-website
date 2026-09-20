@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { ArrowUpRight, TriangleAlert } from "lucide-react"
+import { ArrowUpRight } from "lucide-react"
 import { requireStaff } from "@/lib/authz"
 import { prisma } from "@/lib/prisma"
 import { getCycleMonitorCounts, getMonitorSessions } from "@/lib/recruitment/monitor"
@@ -12,6 +12,16 @@ import { t, type StringKey } from "@/content/strings"
 import { PageHeader } from "@/app/(admin)/_components/page-header"
 import { LiveRefresh } from "@/components/recruitment/live-refresh"
 import { CreateCycleDialog } from "./_components/create-cycle-dialog"
+
+const CYCLE_STATE: Record<string, string> = {
+  DRAFT: "Draft",
+  OPEN: "Open",
+  IN_PROGRESS: "In progress",
+  PAUSED: "Paused",
+  FINALISATION: "Finalising",
+  COMPLETED: "Completed",
+  ABORTED: "Stopped",
+}
 
 // The admin dashboard's recruitment surface: control and monitoring only. The
 // operational GD/PI consoles deliberately live at /recruitment, so a recruitment
@@ -41,6 +51,28 @@ export default async function AdminRecruitmentPage() {
   const [counts, sessions] = focus
     ? await Promise.all([getCycleMonitorCounts(focus.id), getMonitorSessions(focus.id, 20)])
     : [null, []]
+
+  const inSessionNow = counts ? counts.gdActive + counts.piActive : 0
+  const journey = counts
+    ? [
+        { label: "Waiting for a GD", count: counts.unassignedGd + counts.gdPending, tone: "bg-amber-500" },
+        { label: "Through the GD", count: counts.gdComplete + counts.gdBypassed, tone: "bg-sky-500" },
+        { label: "Interviewed", count: counts.piComplete, tone: "bg-violet-500" },
+        { label: "Decided", count: counts.selected + counts.rejected + counts.withdrawn, tone: "bg-emerald-500" },
+      ].filter((stage) => stage.count > 0)
+    : []
+  // Only what someone has to act on. A zero is not news.
+  const needsYou = counts
+    ? [
+        { label: "Not in a GD group yet", count: counts.unassignedGd, warn: false },
+        { label: "Not in an interview group yet", count: counts.unassignedPi, warn: false },
+        { label: "Evaluations still owed", count: counts.evaluationPending, warn: false },
+        { label: "Sessions running with nobody in them", count: counts.staleSessions, warn: true },
+        { label: "Rows that failed to import", count: counts.importErrors, warn: true },
+        { label: "Selected, not yet added to the society", count: counts.awaitingRecruitment, warn: false },
+        { label: "On hold", count: counts.onHold, warn: false },
+      ].filter((item) => item.count > 0)
+    : []
 
   return (
     <div className="space-y-6">
@@ -77,7 +109,7 @@ export default async function AdminRecruitmentPage() {
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="truncate font-medium">{c.name}</p>
                       <Badge className="bg-secondary font-normal text-secondary-foreground">
-                        {c.state}
+                        {CYCLE_STATE[c.state] ?? c.state}
                       </Badge>
                       {focus?.id === c.id && (
                         <Badge className="bg-[var(--teal-100)] font-normal text-[var(--teal-700)]">
@@ -119,49 +151,63 @@ export default async function AdminRecruitmentPage() {
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-              <Stat label="recruitment.monitor.total" value={counts.total} />
-              <Stat label="recruitment.monitor.unassignedGd" value={counts.unassignedGd} />
-              <Stat label="recruitment.monitor.gdPending" value={counts.gdPending} />
-              <Stat label="recruitment.monitor.gdActive" value={counts.gdActive} emphasis />
-              <Stat label="recruitment.monitor.gdComplete" value={counts.gdComplete} />
-              <Stat label="recruitment.monitor.gdBypassed" value={counts.gdBypassed} />
-              <Stat label="recruitment.monitor.unassignedPi" value={counts.unassignedPi} />
-              <Stat label="recruitment.monitor.piPending" value={counts.piPending} />
-              <Stat label="recruitment.monitor.piActive" value={counts.piActive} emphasis />
-              <Stat label="recruitment.monitor.piComplete" value={counts.piComplete} />
-              <Stat label="recruitment.monitor.evaluationPending" value={counts.evaluationPending} />
-              <Stat label="recruitment.monitor.onHold" value={counts.onHold} />
-              <Stat label="recruitment.monitor.selected" value={counts.selected} />
-              <Stat label="recruitment.monitor.rejected" value={counts.rejected} />
-              <Stat label="recruitment.monitor.withdrawn" value={counts.withdrawn} />
-              <Stat
-                label="recruitment.monitor.staleSessions"
-                value={counts.staleSessions}
-                warn={counts.staleSessions > 0}
-              />
-              <Stat
-                label="recruitment.monitor.importErrors"
-                value={counts.importErrors}
-                warn={counts.importErrors > 0}
-              />
-              <Stat label="recruitment.control.awaitingRecruitment" value={counts.awaitingRecruitment} />
+            <div className="editorial-card p-5">
+              <div className="flex flex-wrap items-baseline justify-between gap-3">
+                <p className="text-sm text-muted-foreground">
+                  <span className="font-heading text-3xl tabular-nums text-foreground">{counts.total}</span>
+                  {counts.total === 1 ? " candidate" : " candidates"}
+                </p>
+                {inSessionNow > 0 && (
+                  <p className="text-sm font-medium text-[var(--teal-700)]">
+                    {`${inSessionNow} in a session right now`}
+                  </p>
+                )}
+              </div>
+              {journey.length > 0 && (
+                <>
+                  <div className="mt-5 flex h-3 overflow-hidden rounded-full bg-muted">
+                    {journey.map((stage) => (
+                      <div
+                        key={stage.label}
+                        className={cn(stage.tone, "h-full")}
+                        style={{ width: `${(stage.count / Math.max(counts.total, 1)) * 100}%` }}
+                      />
+                    ))}
+                  </div>
+                  <ul className="mt-5 grid gap-x-6 gap-y-3 sm:grid-cols-2">
+                    {journey.map((stage) => (
+                      <li key={stage.label} className="flex items-center gap-2.5 text-sm">
+                        <span className={cn("size-2.5 rounded-full", stage.tone)} />
+                        <span className="text-muted-foreground">{stage.label}</span>
+                        <span className="ml-auto font-medium tabular-nums">{stage.count}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              {counts.selected + counts.rejected > 0 && (
+                <p className="mt-5 border-t border-border/60 pt-4 text-sm text-muted-foreground">
+                  {`${counts.selected} selected · ${counts.rejected} not selected`}
+                </p>
+              )}
             </div>
+
+            {needsYou.length > 0 && (
+              <div className="editorial-card p-5">
+                <h3 className="font-heading text-lg">Needs you</h3>
+                <ul className="mt-3 divide-y divide-border/60">
+                  {needsYou.map((item) => (
+                    <li key={item.label} className="flex items-center gap-3 py-2.5 text-sm">
+                      <span className={cn("size-2 rounded-full", item.warn ? "bg-red-500" : "bg-amber-500")} />
+                      <span className="flex-1">{item.label}</span>
+                      <span className="font-medium tabular-nums">{item.count}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
           </section>
 
-          {counts.staleSessions > 0 && (
-            <Card className="flex items-start gap-3 bg-[var(--signal-soft)] p-4 text-[var(--ink-soft)]">
-              <TriangleAlert className="mt-0.5 size-4 shrink-0" />
-              <div>
-                <p className="text-sm font-medium">
-                  {t("recruitment.control.staleSessionsTitle")}
-                </p>
-                <p className="text-sm">
-                  {t("recruitment.control.staleSessionsBody", { count: counts.staleSessions })}
-                </p>
-              </div>
-            </Card>
-          )}
 
           {/* ---- Live session table ---- */}
           {sessions.length > 0 && (
@@ -261,30 +307,5 @@ export default async function AdminRecruitmentPage() {
         </>
       )}
     </div>
-  )
-}
-
-function Stat({
-  label,
-  value,
-  emphasis,
-  warn,
-}: {
-  label: StringKey
-  value: number
-  emphasis?: boolean
-  warn?: boolean
-}) {
-  return (
-    <Card
-      className={cn(
-        "p-3",
-        warn && value > 0 && "bg-[var(--signal-soft)] text-[var(--ink-soft)]",
-        emphasis && value > 0 && "bg-[var(--teal-100)] text-[var(--teal-700)]",
-      )}
-    >
-      <p className="data-label opacity-70">{t(label)}</p>
-      <p className="mt-0.5 font-mono text-2xl tabular-nums">{value}</p>
-    </Card>
   )
 }
