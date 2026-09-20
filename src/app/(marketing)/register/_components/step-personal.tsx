@@ -60,7 +60,7 @@ export function StepPersonal({ form, onDtuChange, intra = false }: Props) {
         )}
       />
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className={intra ? "" : "grid gap-4 sm:grid-cols-2"}>
         <FormField
           control={form.control}
           name="whatsapp"
@@ -75,7 +75,7 @@ export function StepPersonal({ form, onDtuChange, intra = false }: Props) {
           )}
         />
 
-        <FormField
+        {!intra && <FormField
           control={form.control}
           name="altPhone"
           render={({ field }) => (
@@ -97,7 +97,7 @@ export function StepPersonal({ form, onDtuChange, intra = false }: Props) {
               <FormMessage />
             </FormItem>
           )}
-        />
+        />}
       </div>
 
       {intra ? (
@@ -110,7 +110,6 @@ export function StepPersonal({ form, onDtuChange, intra = false }: Props) {
               <FormControl>
                 <Input placeholder={t("register.personal.rollNumberPlaceholder")} {...field} value={field.value ?? ""} />
               </FormControl>
-              <FormDescription>{t("register.personal.rollNumberNote")}</FormDescription>
               <FormMessage />
             </FormItem>
           )}

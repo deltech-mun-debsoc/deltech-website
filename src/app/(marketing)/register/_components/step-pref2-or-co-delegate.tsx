@@ -150,10 +150,6 @@ export function StepPref2OrCoDelegate({ form, committees, isDoubleDelegation }: 
 
   return (
     <div className="space-y-5">
-      <p className="text-sm text-muted-foreground">
-        Both fields are optional. You can skip this step or leave it blank.
-      </p>
-
       <FormField
         control={form.control}
         name="pref2CommitteeId"
