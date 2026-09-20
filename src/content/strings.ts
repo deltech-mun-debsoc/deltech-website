@@ -197,7 +197,7 @@ export const STRINGS = {
     saving: "Saving…",
     sending: "Sending…",
     required: "Required",
-    optional: "Optional",
+    optional: "optional",
     notAvailable: "N/A",
     toggleTheme: "Toggle colour theme",
   },
@@ -282,7 +282,7 @@ export const STRINGS = {
       referencePlaceholder: "Friend, Instagram, etc.",
       checkboxLabel:
         "I confirm that all information provided is accurate and I agree to abide by the rules of the event.",
-      submitButton: "Submit Application",
+      submitButton: "Submit application",
     },
     success: {
       title: "Application received!",
