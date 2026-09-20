@@ -9,12 +9,14 @@ import { t } from "@/content/strings"
 interface Props {
   form: UseFormReturn<RegisterFormValues>
   isSubmitting: boolean
+  // The Intra form is two steps and does not ask where they heard about us.
+  showReference?: boolean
 }
 
-export function StepUndertaking({ form, isSubmitting }: Props) {
+export function StepUndertaking({ form, isSubmitting, showReference = true }: Props) {
   return (
     <div className="space-y-6">
-      <FormField
+      {showReference && <FormField
         control={form.control}
         name="reference"
         render={({ field }) => (
@@ -34,7 +36,7 @@ export function StepUndertaking({ form, isSubmitting }: Props) {
             <FormMessage />
           </FormItem>
         )}
-      />
+      />}
 
       <FormField
         control={form.control}

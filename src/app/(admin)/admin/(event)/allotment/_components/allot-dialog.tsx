@@ -37,8 +37,16 @@ export function AllotDialog({ delegate, committees, fees, paymentsRequired, onCl
   const [chosen, setChosen] = useState<SerializedPortfolio | null>(
     () => choices.find((c) => c.seat?.status === "AVAILABLE")?.seat ?? null,
   )
-  const [browseId, setBrowseId] = useState(choices[0]?.committee.id ?? committees[0]?.id ?? "")
+  const [browseId, setBrowseId] = useState(
+    () =>
+      choices.find((c) => c.committee.portfolios.some((p) => p.status === "AVAILABLE"))?.committee.id ??
+      choices[0]?.committee.id ??
+      committees[0]?.id ??
+      "",
+  )
   const [isPending, startTransition] = useTransition()
+  // Kept out of the way while one of their own choices is free to take.
+  const [showOthers, setShowOthers] = useState(() => !choices.some((c) => c.seat?.status === "AVAILABLE"))
 
   const browse = committees.find((c) => c.id === browseId)
   const openSeats = browse?.portfolios.filter((p) => p.status === "AVAILABLE") ?? []
@@ -90,24 +98,51 @@ export function AllotDialog({ delegate, committees, fees, paymentsRequired, onCl
     })
   }
 
-  const seatButton = (seat: SerializedPortfolio, label: React.ReactNode, note: string | null, full: boolean) => {
+  // A seat they asked for that is gone is not a dead end: pressing it moves the
+  // picker to that committee, which is where you were going to look next anyway.
+  const seatButton = (
+    seat: SerializedPortfolio,
+    label: React.ReactNode,
+    note: string | null,
+    full: boolean,
+    jumpTo?: string,
+  ) => {
     const available = seat.status === "AVAILABLE"
     const picked = chosen?.id === seat.id
+    const openElsewhere =
+      !available && jumpTo
+        ? committees.find((c) => c.id === jumpTo)?.portfolios.filter((p) => p.status === "AVAILABLE").length ?? 0
+        : 0
     return (
       <button
         key={seat.id}
         type="button"
-        disabled={!available}
-        onClick={() => setChosen(seat)}
+        disabled={!available && openElsewhere === 0}
+        onClick={() => {
+          if (available) setChosen(seat)
+          else if (jumpTo) {
+            setBrowseId(jumpTo)
+            setShowOthers(true)
+          }
+        }}
         className={cn(
           "flex items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-colors",
           full && "w-full",
-          available ? "border-border/60 hover:border-primary/50 hover:bg-primary/5" : "cursor-not-allowed border-border/40 opacity-60",
+          available
+            ? "border-border/60 hover:border-primary/50 hover:bg-primary/5"
+            : openElsewhere > 0
+              ? "border-border/40 text-muted-foreground hover:border-primary/40 hover:bg-primary/5"
+              : "cursor-not-allowed border-border/40 opacity-60",
           picked && "border-primary bg-primary/10",
         )}
       >
         <span className="min-w-0 flex-1">{label}</span>
-        {note && <span className="shrink-0 text-xs text-muted-foreground">{note}</span>}
+        {note && (
+          <span className="shrink-0 text-xs text-muted-foreground">
+            {note}
+            {openElsewhere > 0 && ` · ${openElsewhere} other open here`}
+          </span>
+        )}
         {picked && <CheckCircle2 className="size-4 shrink-0 text-primary" />}
       </button>
     )
@@ -139,6 +174,7 @@ export function AllotDialog({ delegate, committees, fees, paymentsRequired, onCl
                   </>,
                   ch.seat.status === "AVAILABLE" ? "Open" : ch.seat.status === "ON_HOLD" ? "Being given out" : "Taken",
                   true,
+                  ch.committee.id,
                 )
               ) : (
                 <div key={ch.rank} className="flex items-center gap-2 rounded-lg border border-dashed border-border/60 px-3 py-2 text-sm">
@@ -157,7 +193,7 @@ export function AllotDialog({ delegate, committees, fees, paymentsRequired, onCl
         </section>
 
         <section className="space-y-2">
-          <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className={cn("flex flex-wrap items-center justify-between gap-2", !showOthers && "hidden")}>
             <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Or any open seat in</h3>
             <Select items={committeeItems} value={browseId} onValueChange={(v) => v && setBrowseId(v)}>
               <SelectTrigger className="h-8 w-56 text-sm">
@@ -170,7 +206,15 @@ export function AllotDialog({ delegate, committees, fees, paymentsRequired, onCl
               </SelectContent>
             </Select>
           </div>
-          {openSeats.length === 0 ? (
+          {!showOthers ? (
+            <button
+              type="button"
+              onClick={() => setShowOthers(true)}
+              className="text-sm text-muted-foreground underline underline-offset-4 hover:text-foreground"
+            >
+              Give them a different seat
+            </button>
+          ) : openSeats.length === 0 ? (
             <p className="text-sm text-muted-foreground">{`No open seats in ${browse?.name ?? "this committee"}.`}</p>
           ) : (
             <div className="grid max-h-48 grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3">

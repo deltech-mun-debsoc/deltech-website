@@ -456,7 +456,7 @@ export async function generatePortfolios(
           ? `This is the ONLY type where press roles are valid. Return specific roles such as Reporter · Reuters or Photojournalist · AP and tag each with Desk or Outlet.`
           : committee.type === "CRISIS"
             ? `Return real characters or offices that belong in this cabinet/crisis. Tag each by faction, institution, or side.`
-            : `Return countries ordered by agenda relevance and diplomatic importance, not alphabetically. Include central parties, major powers, regional stakeholders, affected states, and useful coalition voices. Tag by region or role.`
+            : `Return countries ordered by agenda relevance and diplomatic importance, not alphabetically. Include central parties, major powers, regional stakeholders, affected states, and useful coalition voices. Tag each country only by its standing in this body: Member, Non-member, or Observer. Never tag by the agenda itself (no nuclear or non-nuclear, no blocs, alignments, income levels or regions) -- the matrix says who is in the room, not what they think.`
 
   const prompt = `You are a senior MUN academic director preparing a portfolio matrix.
 
@@ -470,7 +470,7 @@ Committee-specific rule: ${committeeRules}
 
 Generate exactly ${count} entries. Rank the most important/relevant first. Use real countries, people, or roles only; no duplicates; no alphabetical padding. Current facts can change, so include a short sourceNote telling the director what must be verified before publishing.
 
-Respond only with JSON: {"tagLabel":"Party, Participation, Region, Faction, or Desk","sourceNote":"...","portfolios":[{"name":"...","tag":"...","priority":1}]}. Priority 1 is most important and must increase sequentially.`
+Respond only with JSON: {"tagLabel":"Participation, Party, Faction, or Desk","sourceNote":"...","portfolios":[{"name":"...","tag":"...","priority":1}]}. Priority 1 is most important and must increase sequentially.`
 
   try {
     const raw = await callAI<unknown>(prompt)
