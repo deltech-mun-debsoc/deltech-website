@@ -46,6 +46,27 @@ assert.equal(canPublish(recruitment, member), true, "any recruiter may nudge the
   assert.equal(canPublish(board, staff), true, "an organiser's allotment nudges the other boards")
 }
 
+// ── Online committees ───────────────────────────────────────────────────────
+// A committee channel is its own delegates and the dais, and nobody drives it
+// from a browser: server actions publish after they have authorised and written.
+{
+  const room = parseChannel("committee:cm_unsc01")!
+  assert.deepEqual(room, { kind: "committee", id: "cm_unsc01" })
+  assert.equal(parseChannel("committee:cm;drop"), null, "punctuation must not slip into a committee channel")
+  assert.equal(parseChannel("committee:"), null, "a committee channel names its committee")
+  const seated = { staff: false, authenticated: true, committeeIds: new Set(["cm_unsc01"]) }
+  const elsewhere = { staff: false, authenticated: true, committeeIds: new Set(["cm_disec02"]) }
+  assert.equal(canSubscribe(room, anon), false, "a stranger must never listen to a committee")
+  assert.equal(canSubscribe(room, member), false, "being signed in is not a seat")
+  assert.equal(canSubscribe(room, elsewhere), false, "a seat in another committee is not a seat in this one")
+  assert.equal(canSubscribe(room, seated), true, "a seated delegate listens to their committee")
+  assert.equal(canSubscribe(room, staff), true, "the dais listens to every committee")
+  assert.equal(canPublish(room, seated), false, "a delegate must not publish to the committee")
+  assert.equal(canPublish(room, staff), false, "not even staff publish from a browser")
+  // Seats must not leak into other kinds of channel.
+  assert.equal(canSubscribe(parseChannel("allotment:evt_abc123")!, seated), false)
+}
+
 // ── Fan-out and presence ────────────────────────────────────────────────────
 {
   const seen: unknown[] = []
@@ -90,4 +111,4 @@ assert.equal(canPublish(recruitment, member), true, "any recruiter may nudge the
   assert.equal(bus.count("quiz:ZZ99"), 1, "the dead socket is dropped")
 }
 
-console.log("realtime bus checks passed (channel parsing, listen/publish rules, fan-out, presence, dead sockets)")
+console.log("realtime bus checks passed (channel parsing, listen/publish rules, committees, fan-out, presence, dead sockets)")

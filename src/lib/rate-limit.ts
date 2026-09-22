@@ -36,6 +36,12 @@ export const RATE_LIMITS = {
   // Per participant, not per venue IP. A college quiz commonly has everyone
   // behind one NAT address; sharing this bucket made the 61st phone an abuser.
   quizAnswer: { name: "quizanswer", limit: 8, windowMs: 60_000 },
+  // Per account. A delegate flooding a 45-seat committee's chat drowns the floor
+  // for everyone; 20 a minute is well above anyone actually typing.
+  committeeMessage: { name: "committeemsg", limit: 20, windowMs: 60_000 },
+  // Requests to speak, motions and ballots. Generous for real use, tight enough
+  // that a toggling script cannot churn the speakers list for everyone.
+  committeeFloor: { name: "committeefloor", limit: 30, windowMs: 60_000 },
 } as const satisfies Record<string, RateLimitRule>
 
 export interface RateLimitResult {

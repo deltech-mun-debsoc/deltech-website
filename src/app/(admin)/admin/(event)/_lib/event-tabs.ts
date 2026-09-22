@@ -12,6 +12,7 @@ export const EVENT_TABS: Tab[] = [
   { href: "/admin/allotment", label: "Allotment" },
   { href: "/admin/mailer", label: "Mail" },
   { href: "/admin/checkin", label: "Check-in" },
+  { href: "/admin/roll-call", label: "Roll call" },
 ]
 
 // Everything about the event's delegates: the list, and the ways people get onto it.
