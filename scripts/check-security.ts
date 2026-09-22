@@ -61,6 +61,7 @@ const read = (p: string) => readFileSync(p, "utf8")
     ["src/app/api/quiz/sessions/route.ts", "RATE_LIMITS.quizLookup"],
     ["src/app/api/quiz/responses/route.ts", "RATE_LIMITS.quizAnswer"],
     ["src/lib/committee/messages.ts", "RATE_LIMITS.committeeMessage"],
+    ["src/lib/committee/floor-server.ts", "RATE_LIMITS.committeeFloor"],
   ]
   for (const [file, rule] of applied) {
     assert.match(read(file), new RegExp(rule.replace(".", "\\.")), `${file} must apply ${rule}`)

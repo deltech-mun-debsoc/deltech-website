@@ -5,6 +5,8 @@ import { PageHeader } from "@/app/(admin)/_components/page-header"
 import { RollCallClient, type RollCallSeat } from "./_components/roll-call-client"
 import { CommitteeChat } from "@/components/committee/committee-chat"
 import { daisSendMessage, moderateMessage, setHoldDirectMessages } from "./chat-actions"
+import { CommitteeFloor } from "@/components/committee/committee-floor"
+import { floorDaisAction } from "./floor-actions"
 
 // Roll call only applies where the committee actually meets online. An in-person
 // committee takes attendance at the door (admin/checkin), not here.
@@ -81,6 +83,15 @@ export default async function RollCallPage(props: {
         session={session}
         seats={seats}
       />
+      {committee && (
+        <CommitteeFloor
+          key={`floor-${committee.id}`}
+          committeeId={committee.id}
+          mode="dais"
+          seats={seats.filter((s) => s.delegateName).map((s) => ({ id: s.portfolioId, name: s.portfolioName }))}
+          daisAction={floorDaisAction}
+        />
+      )}
       {committee && (
         <CommitteeChat
           key={committee.id}
