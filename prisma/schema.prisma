@@ -166,6 +166,12 @@ model Committee {
   // needs the roster directly.
   allotments Allotment[]
   sessions   CommitteeSession[]
+  messages   CommitteeMessage[]
+
+  // When on, a delegate-to-delegate message waits for the dais to approve it
+  // before the recipient sees it. Off by default: the dais can always read every
+  // DM in its committee either way, so this is about timing, not visibility.
+  holdDirectMessages Boolean @default(false)
 
   @@unique([eventId, slug])
   @@index([eventId])
@@ -202,7 +208,9 @@ model Portfolio {
   pref2Delegates Delegate[] @relation("Pref2Portfolio")
   pref3Delegates Delegate[] @relation("Pref3Portfolio")
 
-  attendance SessionAttendance[]
+  attendance       SessionAttendance[]
+  messagesSent     CommitteeMessage[]  @relation("MessageFrom")
+  messagesReceived CommitteeMessage[]  @relation("MessageTo")
 
   @@unique([committeeId, name])
   @@index([status])
@@ -1421,4 +1429,71 @@ enum CommitteeAttendance {
   PRESENT_AND_VOTING
   ABSENT
   LATE
+}
+
+// ---- Online committees (chat) ----
+//
+// One table for every conversation in a committee, told apart by scope:
+//   FLOOR  the whole committee, delegates and dais
+//   DM     one delegation to another; the dais can read all of them
+//   EB     a delegation and the dais, in either direction
+//
+// There are no private conversations the dais cannot see. At a school
+// conference that is a safeguarding requirement, and it is also how note-passing
+// has always worked in MUN.
+//
+// The realtime bus carries a bare "something changed" nudge, never a body:
+// every subscriber on a committee channel would otherwise receive other
+// delegations' DMs. Clients refetch through an endpoint that filters per
+// viewer. See src/lib/committee/chat.ts.
+
+model CommitteeMessage {
+  // An integer id doubles as the catch-up cursor. Clients re-read a small
+  // overlap behind it, because a lower id can commit after a higher one.
+  id Int @id @default(autoincrement())
+
+  committeeId String
+  committee   Committee @relation(fields: [committeeId], references: [id], onDelete: Cascade)
+
+  scope CommitteeMessageScope
+  state CommitteeMessageState @default(SENT)
+
+  // Null on the from side means the dais wrote it. SetNull because republishing
+  // the matrix deletes portfolios; the labels below keep the record readable.
+  fromPortfolioId String?
+  fromPortfolio   Portfolio? @relation("MessageFrom", fields: [fromPortfolioId], references: [id], onDelete: SetNull)
+  toPortfolioId   String?
+  toPortfolio     Portfolio? @relation("MessageTo", fields: [toPortfolioId], references: [id], onDelete: SetNull)
+  fromLabel       String
+  toLabel         String?
+
+  // The account that actually typed it. A delegation can be two people, and
+  // when something goes wrong the dais needs to know which one. Never shown to
+  // delegates. A snapshot rather than a relation, so deleting a user account
+  // neither fails on nor erases the record.
+  authorId    String
+  authorEmail String
+
+  body String
+
+  moderatedById String?
+  moderatedAt   DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([committeeId, id])
+}
+
+enum CommitteeMessageScope {
+  FLOOR
+  DM
+  EB
+}
+
+enum CommitteeMessageState {
+  SENT
+  // Waiting for the dais. Only the sender and the dais can see it.
+  HELD
+  // Removed by the dais. Only the dais can see it.
+  BLOCKED
 }

@@ -3,6 +3,8 @@ import { currentEventScope } from "@/lib/event"
 import { t } from "@/content/strings"
 import { PageHeader } from "@/app/(admin)/_components/page-header"
 import { RollCallClient, type RollCallSeat } from "./_components/roll-call-client"
+import { CommitteeChat } from "@/components/committee/committee-chat"
+import { daisSendMessage, moderateMessage, setHoldDirectMessages } from "./chat-actions"
 
 // Roll call only applies where the committee actually meets online. An in-person
 // committee takes attendance at the door (admin/checkin), not here.
@@ -20,7 +22,7 @@ export default async function RollCallPage(props: {
   const committees = await prisma.committee.findMany({
     where: { ...scope, isActive: true, format: { in: [...ONLINE_FORMATS] } },
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
-    select: { id: true, name: true, format: true },
+    select: { id: true, name: true, format: true, holdDirectMessages: true },
   })
 
   const committee = committees.find((c) => c.id === selectedId) ?? committees[0] ?? null
@@ -79,6 +81,18 @@ export default async function RollCallPage(props: {
         session={session}
         seats={seats}
       />
+      {committee && (
+        <CommitteeChat
+          key={committee.id}
+          committeeId={committee.id}
+          mode="dais"
+          seats={seats.filter((s) => s.delegateName).map((s) => ({ id: s.portfolioId, name: s.portfolioName }))}
+          holdDirectMessages={committee.holdDirectMessages}
+          send={daisSendMessage}
+          moderate={moderateMessage}
+          setHold={setHoldDirectMessages}
+        />
+      )}
     </div>
   )
 }
