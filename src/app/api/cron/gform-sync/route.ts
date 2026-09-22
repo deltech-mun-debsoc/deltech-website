@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { read, utils } from "xlsx"
+import { fetchSheetRows } from "@/lib/sheet-fetch"
 import { prisma } from "@/lib/prisma"
 import { getContent } from "@/lib/settings"
 import { automaticIntakeAllowed } from "@/lib/event-state"
@@ -44,15 +44,7 @@ export async function GET(req: NextRequest) {
         continue
       }
 
-      const res = await fetch(src.csvUrl, { signal: AbortSignal.timeout(15000) })
-      if (!res.ok) {
-        stats.error = `fetch ${res.status}`
-        continue
-      }
-      const csv = await res.text()
-      const wb = read(csv, { type: "string" })
-      const sheet = wb.Sheets[wb.SheetNames[0]]
-      const rows = utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "", raw: false })
+      const { rows } = await fetchSheetRows(src.csvUrl)
 
       for (const raw of rows) {
         const stringRow = Object.fromEntries(

@@ -6,6 +6,8 @@ import { prisma } from "@/lib/prisma";
 import { authConfig } from "@/lib/auth.config";
 import { verifyPassword } from "@/lib/password";
 import { sessionNeedsRefresh } from "@/lib/user-admin";
+import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
+import { AuthRateLimitError } from "@/lib/auth-errors";
 import { MAGIC_LINK_MAX_AGE_S } from "@/lib/magic-link";
 
 // SUB_MAINTAINER is the Junior Council tier: it reaches /recruitment only and
@@ -71,12 +73,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     Credentials({
       credentials: { email: {}, password: {} },
       async authorize(credentials) {
-        const email = (credentials?.email as string | undefined)?.trim().toLowerCase();
-        const password = credentials?.password as string | undefined;
-        if (!email || !password) return null;
+        const email = typeof credentials?.email === "string" ? credentials.email.trim().toLowerCase() : "";
+        const password = typeof credentials?.password === "string" ? credentials.password : "";
+        if (!email || !password || email.length > 254 || password.length > 256) return null;
+        const limit = await rateLimit(RATE_LIMITS.signIn, email);
+        if (!limit.ok) throw new AuthRateLimitError();
 
         const user = await prisma.user.findUnique({ where: { email } });
-        if (!user?.passwordHash || user.disabledAt) return null;
+        if (!user?.passwordHash || !user.emailVerified || user.disabledAt) return null;
 
         const valid = await verifyPassword(password, user.passwordHash);
         if (!valid) return null;
@@ -95,8 +99,22 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     // it fires twice, once when the link is requested and once when it is
     // clicked, so an unknown or disabled address never receives a link and
     // never gets an account created for it.
-    async signIn({ user }) {
-      return mayStartSession(user?.email);
+    async signIn({ user, email, account }) {
+      // Enforce at the provider boundary: native /api/auth requests bypass our forms.
+      // Only requests consume quota; redeeming a link must remain possible.
+      if (email?.verificationRequest && user.email) {
+        const limit = await rateLimit(RATE_LIMITS.magicLink, user.email);
+        if (!limit.ok) throw new AuthRateLimitError();
+      }
+      if (!(await mayStartSession(user?.email))) return false;
+      if (account?.provider === "resend" && !email?.verificationRequest && user.email) {
+        // Discard passwords claimed before mailbox ownership was established.
+        await prisma.user.updateMany({
+          where: { email: user.email.trim().toLowerCase(), emailVerified: null },
+          data: { passwordHash: null },
+        });
+      }
+      return true;
     },
 
     async jwt({ token, user }) {
@@ -104,19 +122,22 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (user && "role" in user) {
         token.role = (user as { role: AppRole }).role;
         token.checkedAt = Date.now();
+        token.verifiedIdentity = true;
         return token;
       }
 
       // Otherwise re-read the row once the cached copy goes stale, so role
       // changes, disables and deletions take effect on live sessions.
-      if (!token.sub || !sessionNeedsRefresh(token.checkedAt, Date.now())) return token;
+      if (!token.sub) return null;
+      if (token.verifiedIdentity === true && !sessionNeedsRefresh(token.checkedAt, Date.now())) return token;
 
       const dbUser = await prisma.user.findUnique({
         where: { id: token.sub },
-        select: { role: true, disabledAt: true },
+        select: { role: true, disabledAt: true, emailVerified: true },
       });
       // Deleted or disabled: returning null invalidates the session.
-      if (!dbUser || dbUser.disabledAt) return null;
+      if (!dbUser || dbUser.disabledAt || !dbUser.emailVerified) return null;
+      token.verifiedIdentity = true;
 
       token.role = dbUser.role;
       token.checkedAt = Date.now();

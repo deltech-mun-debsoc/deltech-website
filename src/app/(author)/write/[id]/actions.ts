@@ -1,13 +1,12 @@
 "use server"
 
-import { redirect } from "next/navigation"
-import { auth } from "@/lib/auth"
+import { requireAuthor as requireAuthorRole } from "@/lib/authz"
 import { prisma } from "@/lib/prisma"
 import type { Prisma } from "@/generated/prisma/client"
 
 async function requireAuthor(postId: string) {
-  const session = await auth()
-  if (!session?.user?.id) redirect("/signin")
+  // Ownership survives a role change; authoring permission does not.
+  const session = await requireAuthorRole()
   const post = await prisma.post.findUnique({
     where:  { id: postId },
     select: { authorId: true, slug: true, status: true },

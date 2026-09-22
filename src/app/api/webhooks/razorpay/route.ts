@@ -9,6 +9,7 @@ import { syncSheetForDelegate } from "@/lib/sheet-sync"
 // ---------------------------------------------------------------------------
 
 function verifySignature(rawBody: string, signature: string, secret: string): boolean {
+  if (!secret || !/^[a-fA-F0-9]{64}$/.test(signature)) return false
   const expected = createHmac("sha256", secret).update(rawBody).digest("hex")
   try {
     // timingSafeEqual requires equal-length buffers
@@ -44,6 +45,9 @@ function extractRazorpayPaymentId(payload: Record<string, unknown>): string | nu
 // ---------------------------------------------------------------------------
 
 export async function POST(req: NextRequest) {
+  if (!process.env.RAZORPAY_WEBHOOK_SECRET) {
+    return NextResponse.json({ error: "Payment webhook is not configured" }, { status: 503 })
+  }
   const rawBody = await req.text()
   const signature = req.headers.get("x-razorpay-signature") ?? ""
   const secret = process.env.RAZORPAY_WEBHOOK_SECRET ?? ""

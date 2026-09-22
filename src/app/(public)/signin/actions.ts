@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 import { signIn } from "@/lib/auth";
 import { AuthError } from "next-auth";
-import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
+import { isAuthRateLimitError } from "@/lib/auth-errors";
 
 // Everything lands on /go, the role-aware dispatch route. It resolves the final
 // destination from the intended callbackUrl (sanitized) + the user's role.
@@ -49,16 +49,13 @@ export async function requestMagicLink(
   const email = (formData.get("email") as string)?.trim().toLowerCase();
   if (!email) return { error: "errorDefault" };
 
-  // Otherwise anyone can mail-bomb an address and burn the Resend quota.
-  const limit = await rateLimit(RATE_LIMITS.magicLink, email);
-  if (!limit.ok) return { error: "tooManyRequests" };
-
   try {
     await signIn("resend", { email, redirectTo: dispatchTarget(formData) });
     return {};
   } catch (err) {
     if ((err as { digest?: string }).digest?.startsWith("NEXT_REDIRECT")) throw err;
 
+    if (isAuthRateLimitError(err)) return { error: "tooManyRequests" };
     const underlying = underlyingError(err);
     if (underlying) {
       // Logged because this path wrote no trace anywhere: it fails before the
@@ -91,12 +88,6 @@ export async function signInWithPassword(
   const password = formData.get("password") as string;
   if (!email) return { error: "invalidCredentials" };
 
-  // Credential stuffing against an 8-character-minimum password with no
-  // lockout. Keyed on the email, so one account under attack cannot lock
-  // anyone else out.
-  const limit = await rateLimit(RATE_LIMITS.signIn, email);
-  if (!limit.ok) return { error: "tooManyRequests" };
-
   try {
     await signIn("credentials", { email, password, redirectTo: dispatchTarget(formData) });
     return {};
@@ -106,6 +97,7 @@ export async function signInWithPassword(
     // Same blindness as the magic link had: authorize() reads the user row, so a
     // database fault was reported as "Invalid email or password" -- telling
     // someone their correct password is wrong.
+    if (isAuthRateLimitError(err)) return { error: "tooManyRequests" };
     const underlying = underlyingError(err);
     if (underlying) {
       console.error("[signin] password sign-in failed for an infrastructure reason:", underlying);

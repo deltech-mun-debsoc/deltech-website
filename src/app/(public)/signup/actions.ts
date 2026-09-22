@@ -1,11 +1,9 @@
 "use server";
 
-import { redirect } from "next/navigation";
 import { signIn } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { hashPassword } from "@/lib/password";
-import { validatePassword } from "@/lib/schemas/password";
 import { AuthError } from "next-auth";
+import { isAuthRateLimitError } from "@/lib/auth-errors";
 import { rateLimit, RATE_LIMITS } from "@/lib/rate-limit";
 
 function isUniqueViolation(err: unknown): boolean {
@@ -15,48 +13,6 @@ function isUniqueViolation(err: unknown): boolean {
   );
 }
 
-export async function signupWithPassword(
-  _prev: { error?: string } | null,
-  formData: FormData,
-): Promise<{ error?: string }> {
-  const email = (formData.get("email") as string)?.trim().toLowerCase();
-  const password = formData.get("password") as string;
-  const confirm = formData.get("confirmPassword") as string;
-
-  // A missing email used to report "passwordTooShort", so the user was told
-  // to fix their password when the actual problem was a blank email field.
-  if (!email) return { error: "emailRequired" };
-  const invalid = validatePassword(password, confirm);
-  if (invalid) return { error: invalid };
-
-  const limit = await rateLimit(RATE_LIMITS.signup, email);
-  if (!limit.ok) return { error: "tooManyRequests" };
-
-  const existing = await prisma.user.findUnique({ where: { email } });
-  if (existing) {
-    if (existing.role !== "REGISTERER") return { error: "nonDelegateAccount" };
-    return { error: "accountExists" };
-  }
-
-  const passwordHash = await hashPassword(password);
-  try {
-    await prisma.user.create({
-      data: { email, role: "REGISTERER", passwordHash },
-    });
-  } catch (err) {
-    // The findUnique above is only for the friendly message; hashing takes
-    // ~100ms, which is a wide enough window for a double submit to slip two
-    // creates past it. The unique constraint is the real guard.
-    if (isUniqueViolation(err)) return { error: "accountExists" };
-    throw err;
-  }
-
-  // Redirect to sign-in with a success flag so the user can sign in with
-  // their new credentials. (Auto-signin via credentials inside a server action
-  // is unreliable in NextAuth v5 beta.)
-  redirect("/signin?created=1");
-}
-
 export async function signupWithMagicLink(
   _prev: { error?: string } | null,
   formData: FormData,
@@ -64,7 +20,7 @@ export async function signupWithMagicLink(
   const email = (formData.get("email") as string)?.trim().toLowerCase();
   if (!email) return { error: "errorDefault" };
 
-  const limit = await rateLimit(RATE_LIMITS.magicLink, email);
+  const limit = await rateLimit(RATE_LIMITS.signup, email);
   if (!limit.ok) return { error: "tooManyRequests" };
 
   const existing = await prisma.user.findUnique({ where: { email } });
@@ -87,6 +43,7 @@ export async function signupWithMagicLink(
     return {};
   } catch (err) {
     if ((err as { digest?: string }).digest?.startsWith("NEXT_REDIRECT")) throw err;
+    if (isAuthRateLimitError(err)) return { error: "tooManyRequests" };
     if (err instanceof AuthError) return { error: "errorDefault" };
     return { error: "errorDefault" };
   }

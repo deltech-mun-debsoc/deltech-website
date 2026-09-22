@@ -82,13 +82,13 @@ export function StepUpload({ onParsed }: Props) {
           <p className="mt-1 text-xs text-muted-foreground">
             {file
               ? `${(file.size / 1024).toFixed(1)} KB, click to change`
-              : ".xlsx, .xls, or .csv, any column order, any formatting"}
+              : ".xlsx or .csv, any column order, any formatting"}
           </p>
         </div>
         <input
           ref={inputRef}
           type="file"
-          accept=".xlsx,.xls,.csv"
+          accept=".xlsx,.csv"
           className="sr-only"
           onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f) }}
         />
