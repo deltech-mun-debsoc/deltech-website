@@ -153,10 +153,28 @@ model Committee {
   sortOrder         Int           @default(0)
   portfolioTagLabel String?
   matrixBrief       String?
-  portfolios        Portfolio[]
+
+  // How the committee meets. `type` above is the committee's character; this is
+  // its delivery format. Nothing in the schema carried an online/offline
+  // distinction before online committees, and `type` must not be overloaded
+  // with one: a crisis committee can run either way.
+  format CommitteeFormat @default(IN_PERSON)
+
+  portfolios Portfolio[]
+  // Allotment.committeeId was a bare string with no relation, so a committee's
+  // roster could only be reached by walking Portfolio. Every session feature
+  // needs the roster directly.
+  allotments Allotment[]
+  sessions   CommitteeSession[]
 
   @@unique([eventId, slug])
   @@index([eventId])
+}
+
+enum CommitteeFormat {
+  IN_PERSON
+  ONLINE
+  HYBRID
 }
 
 enum CommitteeType {
@@ -183,6 +201,8 @@ model Portfolio {
   pref1Delegates Delegate[] @relation("Pref1Portfolio")
   pref2Delegates Delegate[] @relation("Pref2Portfolio")
   pref3Delegates Delegate[] @relation("Pref3Portfolio")
+
+  attendance SessionAttendance[]
 
   @@unique([committeeId, name])
   @@index([status])
@@ -281,6 +301,12 @@ model Delegate {
   @@index([status])
   @@index([createdAt])
   @@index([status, checkedInAt])
+  // Declared here only so Prisma stops proposing to DROP them. They were created
+  // by hand in 20260913120000_portfolio_preferences and the names match Prisma's
+  // own convention, so schema and database already agree.
+  @@index([pref1PortfolioId])
+  @@index([pref2PortfolioId])
+  @@index([pref3PortfolioId])
 }
 
 // ---- Follow-up log ----
@@ -347,6 +373,7 @@ model Allotment {
   delegateId  String    @unique
   delegate    Delegate  @relation(fields: [delegateId], references: [id])
   committeeId String
+  committee   Committee @relation(fields: [committeeId], references: [id])
   portfolioId String    @unique
   portfolio   Portfolio @relation(fields: [portfolioId], references: [id])
   allottedAt  DateTime  @default(now())
@@ -1287,4 +1314,111 @@ enum RecipientStatus {
   SENT
   FAILED
   SKIPPED
+}
+
+// ---- Online committees (session floor) ----
+//
+// Modelled on RecruitmentSession, which already solved the hard parts of a
+// live, staff-driven session: an optimistic lock so two chairs cannot both
+// advance the state, a controller lease so a disconnected chair can be taken
+// over, and elapsed time derived on the server rather than from a browser
+// clock. Online committee is the same shape with MUN's vocabulary.
+//
+// SessionState is deliberately NOT reused: that enum belongs to the
+// recruitment module, and a value added there should not silently become
+// legal for a committee.
+
+model CommitteeSession {
+  id          String    @id @default(cuid())
+  committeeId String
+  committee   Committee @relation(fields: [committeeId], references: [id], onDelete: Cascade)
+  // Bumped when a closed session is reopened, so history is kept rather than
+  // overwritten. Same role as RecruitmentSession.attempt.
+  attempt     Int       @default(1)
+
+  state   CommitteeSessionState @default(NOT_STARTED)
+  // Optimistic lock. Every transition is a conditional update on
+  // { id, state, version }.
+  version Int                   @default(0)
+
+  // The LiveKit room backing the floor. Null for an in-person committee.
+  roomName String?
+
+  // Who is driving. Deliberately NOT a lease: recruitment shipped control as a
+  // lease that refused everyone else until it lapsed, and backed it out because
+  // it locked out the very person trying to finish (see the note in
+  // src/lib/recruitment/session.ts). That failure is worse in a live committee,
+  // where a chair dropping mid-vote must not freeze the floor. Concurrent
+  // drivers are made safe by `version`, not by refusing them.
+  controllerId String?
+
+  scheduledAt    DateTime?
+  startedAt      DateTime?
+  pausedAt       DateTime?
+  resumedAt      DateTime?
+  endedAt        DateTime?
+  // Accumulated paused milliseconds, so
+  // elapsed = (endedAt ?? now) - startedAt - pausedMs.
+  pausedMs       Int       @default(0)
+  lastActivityAt DateTime?
+  plannedSeconds Int?
+
+  startedById String?
+  endedById   String?
+  abortedById String?
+  abortReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  attendance SessionAttendance[]
+
+  @@unique([committeeId, attempt])
+  @@index([committeeId, state])
+}
+
+enum CommitteeSessionState {
+  NOT_STARTED
+  ACTIVE
+  PAUSED
+  COMPLETED
+  ABORTED
+}
+
+// Roll call, one row per seat per session. Keyed on Portfolio rather than
+// Delegate because the thing that is present and votes is the delegation: a
+// double-delegated seat has two people and one vote.
+//
+// Rows are seeded for every portfolio when the session starts, so the roll-call
+// screen is a plain query and quorum has a denominator.
+model SessionAttendance {
+  id        String           @id @default(cuid())
+  sessionId String
+  session   CommitteeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  portfolioId String
+  portfolio   Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+
+  status CommitteeAttendance @default(EXPECTED)
+
+  markedAt   DateTime?
+  markedById String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([sessionId, portfolioId])
+  @@index([sessionId, status])
+}
+
+// PRESENT and PRESENT_AND_VOTING are a real MUN distinction, not a nicety: a
+// delegation that is present and voting gives up the right to abstain on a
+// substantive vote. The recruitment Attendance enum has no such concept and
+// must not be bent to fit.
+enum CommitteeAttendance {
+  EXPECTED
+  PRESENT
+  PRESENT_AND_VOTING
+  ABSENT
+  LATE
 }

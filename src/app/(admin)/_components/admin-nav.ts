@@ -40,6 +40,7 @@ export const EVENT_PATHS = [
   "/admin/allotment",
   "/admin/mailer",
   "/admin/checkin",
+  "/admin/roll-call",
 ]
 
 // Shared by the desktop sidebar and the mobile drawer. The event is one place,
