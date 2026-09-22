@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { STAFF_ROLES } from "@/lib/authz"
 import { bus, type PresenceMeta } from "@/lib/realtime/bus"
-import { canPublish, canSubscribe, channelName, parseChannel, type Viewer } from "@/lib/realtime/channels"
+import { canPublish, canSubscribe, channelName, parseChannel, type ChannelRef, type Viewer } from "@/lib/realtime/channels"
+import { committeeAccess } from "@/lib/committee/viewer"
 
 // Realtime over Server-Sent Events.
 //
@@ -12,7 +13,13 @@ import { canPublish, canSubscribe, channelName, parseChannel, type Viewer } from
 
 const HEARTBEAT_MS = 25_000
 
-async function viewer(): Promise<Viewer> {
+async function viewer(ref: ChannelRef): Promise<Viewer> {
+  // Committee access is a verified-account and seat lookup; only pay for it on
+  // committee channels, not on every quiz phone.
+  if (ref.kind === "committee") {
+    const { staff, committeeIds } = await committeeAccess()
+    return { staff, authenticated: staff || committeeIds.size > 0, committeeIds }
+  }
   const session = await auth()
   const role = (session?.user as { role?: string } | undefined)?.role
   return { staff: !!role && STAFF_ROLES.has(role), authenticated: !!role }
@@ -21,15 +28,20 @@ async function viewer(): Promise<Viewer> {
 export async function GET(request: NextRequest) {
   const ref = parseChannel(request.nextUrl.searchParams.get("channel") ?? "")
   if (!ref) return NextResponse.json({ error: "Unknown channel." }, { status: 400 })
-  if (!canSubscribe(ref, await viewer())) {
+  if (!canSubscribe(ref, await viewer(ref))) {
     return NextResponse.json({ error: "Not allowed on this channel." }, { status: 403 })
   }
 
   const params = request.nextUrl.searchParams
   const nickname = params.get("nickname")?.slice(0, 40)
   const userId = params.get("userId")?.slice(0, 64)
+  // Presence here is whatever the client claims, which is fine for a quiz
+  // nickname and not for a committee, where the dais must be able to trust who is
+  // in the room. Committee presence, when it exists, comes from the server.
   const presence: PresenceMeta | null =
-    nickname && userId ? { nickname, avatar: params.get("avatar")?.slice(0, 40) ?? "", userId } : null
+    ref.kind !== "committee" && nickname && userId
+      ? { nickname, avatar: params.get("avatar")?.slice(0, 40) ?? "", userId }
+      : null
 
   const channel = channelName(ref)
   const encoder = new TextEncoder()
@@ -82,7 +94,7 @@ export async function POST(request: NextRequest) {
   if (!ref || !body.event) return NextResponse.json({ error: "Unknown channel." }, { status: 400 })
   // Publishing is staff-only: otherwise any participant holding the room code
   // could push a fake leaderboard to the projector.
-  if (!canPublish(ref, await viewer())) {
+  if (!canPublish(ref, await viewer(ref))) {
     return NextResponse.json({ error: "Not allowed to publish." }, { status: 403 })
   }
 

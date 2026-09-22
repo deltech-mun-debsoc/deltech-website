@@ -13,6 +13,7 @@ import { getContent } from "@/lib/settings";
 import { STATUS_LABEL, STATUS_VARIANT, PAY_STATUS_LABEL } from "@/lib/status-labels";
 import { deriveEventState } from "@/lib/event-state";
 import { publicPaymentLink } from "@/lib/payments/public-link";
+import { mySeats } from "@/lib/committee/viewer";
 
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -48,6 +49,8 @@ export default async function DashboardPage() {
   const paymentsRequired = deriveEventState(content).paymentsRequired;
 
   const { payment, allotment } = delegate ?? {};
+  // Only an online seat has a chat to open, and only a verified account gets one.
+  const onlineSeats = await mySeats();
   const needsPayment =
     paymentsRequired &&
     payment &&
@@ -117,6 +120,13 @@ export default async function DashboardPage() {
                   {allotment.portfolio.committee.agenda && (
                     <div className="col-span-2">
                       <Field label="Agenda" value={allotment.portfolio.committee.agenda} />
+                    </div>
+                  )}
+                  {onlineSeats.length > 0 && (
+                    <div className="col-span-2">
+                      <Link href="/dashboard/committee" className={cn(buttonVariants({ size: "sm" }))}>
+                        {t("committeeChat.openCommittee")}
+                      </Link>
                     </div>
                   )}
                 </div>
