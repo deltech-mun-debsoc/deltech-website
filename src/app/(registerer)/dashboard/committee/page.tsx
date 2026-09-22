@@ -5,6 +5,7 @@ import { mySeats, resolveCommitteeViewer } from "@/lib/committee/viewer"
 import { CommitteeChat } from "@/components/committee/committee-chat"
 import { delegateSendMessage } from "./actions"
 import { CommitteeFloor } from "@/components/committee/committee-floor"
+import { CommitteeVideo } from "@/components/committee/committee-video"
 import { floorDelegateAction } from "./floor-actions"
 
 export default async function CommitteePage(props: {
@@ -63,6 +64,8 @@ export default async function CommitteePage(props: {
           ))}
         </nav>
       )}
+
+      <CommitteeVideo key={`video-${seat.committeeId}`} committeeId={seat.committeeId} mode="delegate" />
 
       <CommitteeFloor
         key={`floor-${seat.committeeId}`}
