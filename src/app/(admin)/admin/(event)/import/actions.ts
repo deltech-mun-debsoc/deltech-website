@@ -1,6 +1,6 @@
 "use server"
 
-import { read, utils } from "xlsx"
+import ExcelJS from "exceljs"
 import { prisma } from "@/lib/prisma"
 import { requireStaff, requireAdmin } from "@/lib/authz"
 import { audit } from "@/lib/audit"
@@ -8,6 +8,7 @@ import { createDelegateFromRow } from "@/lib/intake"
 import { getContent } from "@/lib/settings"
 import { automaticIntakeAllowed } from "@/lib/event-state"
 import type { ColumnMapping, MappedRow } from "@/lib/schemas/import"
+import { MAX_TABULAR_COLUMNS, MAX_TABULAR_ROWS, parseCsvRows } from "@/lib/tabular"
 
 // ---------------------------------------------------------------------------
 // Parse uploaded file
@@ -28,19 +29,32 @@ export async function parseUpload(formData: FormData): Promise<ParseResult> {
     if (!file) return { success: false, error: "No file provided." }
 
     const ext = file.name.split(".").pop()?.toLowerCase()
-    if (!["xlsx", "xls", "csv"].includes(ext ?? "")) {
-      return { success: false, error: "Only .xlsx, .xls, or .csv files are accepted." }
+    if (!["xlsx", "csv"].includes(ext ?? "")) {
+      return { success: false, error: "Only .xlsx or .csv files are accepted." }
     }
+    if (file.size > 10 * 1024 * 1024) return { success: false, error: "Keep import files under 10 MB." }
 
     const buffer = Buffer.from(await file.arrayBuffer())
-    const wb = read(buffer, { type: "buffer", cellDates: true })
-    const sheet = wb.Sheets[wb.SheetNames[0]]
-    if (!sheet) return { success: false, error: "No sheets found in the file." }
-
-    const rows = utils.sheet_to_json<Record<string, unknown>>(sheet, {
-      defval: "",
-      raw: false,
-    })
+    let rows: Record<string, unknown>[]
+    let headers: string[]
+    if (ext === "csv") {
+      ;({ rows, headers } = parseCsvRows(buffer.toString("utf8")))
+    } else {
+      const workbook = new ExcelJS.Workbook()
+      await workbook.xlsx.load(buffer as unknown as ExcelJS.Buffer)
+      const sheet = workbook.worksheets[0]
+      if (!sheet) return { success: false, error: "No sheets found in the file." }
+      if (sheet.rowCount - 1 > MAX_TABULAR_ROWS || sheet.columnCount > MAX_TABULAR_COLUMNS) {
+        return { success: false, error: `Imports are limited to ${MAX_TABULAR_ROWS} rows and ${MAX_TABULAR_COLUMNS} columns.` }
+      }
+      headers = (sheet.getRow(1).values as ExcelJS.CellValue[]).slice(1).map((value) => String(value ?? "").trim())
+      rows = []
+      sheet.eachRow((row, rowNumber) => {
+        if (rowNumber === 1) return
+        const record = Object.fromEntries(headers.map((header, index) => [header, row.getCell(index + 1).text.trim()]))
+        if (Object.values(record).some(Boolean)) rows.push(record)
+      })
+    }
 
     if (rows.length === 0) return { success: false, error: "The file has no data rows." }
 
@@ -48,7 +62,6 @@ export async function parseUpload(formData: FormData): Promise<ParseResult> {
       Object.fromEntries(Object.entries(r).map(([k, v]) => [k, String(v ?? "").trim()])),
     ) as Record<string, string>[]
 
-    const headers = Object.keys(stringRows[0])
     return { success: true, headers, rows: stringRows, rowCount: stringRows.length }
   } catch {
     return { success: false, error: "Failed to parse file. Make sure it is a valid Excel or CSV file." }

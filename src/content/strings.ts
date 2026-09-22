@@ -1299,6 +1299,8 @@ saving: "Saving…",
     confirmPasswordPlaceholder: "Repeat your password",
     createAccountButton: "Create account",
     sendMagicLinkButton: "Send sign-in link",
+    signUpVerificationNote:
+      "We will email a sign-in link to verify that this address belongs to you. You can set a password after signing in.",
     passwordMismatch: "Passwords do not match.",
     passwordTooShort: "Password must be at least 8 characters.",
     accountExists: "An account with this email already exists. Sign in instead.",

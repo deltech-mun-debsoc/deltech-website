@@ -1,4 +1,5 @@
-import { read, utils } from "xlsx"
+import { deriveCsvUrl } from "./gsheet-url"
+import { parseCsvRows } from "./tabular"
 
 // Reading a Google Sheet's CSV export, with the failure modes explained in words a
 // volunteer can act on. Thrown as SheetFetchError so callers can show the message
@@ -7,31 +8,82 @@ export class SheetFetchError extends Error {}
 
 const SHARE_HINT = 'In Google Sheets press Share and set it to "Anyone with the link, Viewer".'
 
-export async function fetchSheetRows(
-  csvUrl: string,
-): Promise<{ rows: Record<string, unknown>[]; headers: string[] }> {
-  let response: Response
+// Google sends export redirects to its dedicated spreadsheet download hosts.
+function allowedDownload(url: URL): boolean {
+  return url.protocol === "https:" && !url.port && !url.username && !url.password && (
+    (url.hostname === "docs.google.com" && deriveCsvUrl(url.href) !== null) ||
+    /^[a-z0-9-]+-sheets\.googleusercontent\.com$/.test(url.hostname) ||
+    url.hostname === "docs.googleusercontent.com"
+  )
+}
+
+export const MAX_SHEET_BYTES = 10 * 1024 * 1024
+
+export async function fetchSheetText(input: string): Promise<string> {
+  const canonical = deriveCsvUrl(input)
+  if (!canonical) throw new SheetFetchError("Use a Google Sheets share or published link.")
+  let url = new URL(canonical)
+  const signal = AbortSignal.timeout(15000)
   try {
-    response = await fetch(csvUrl, { signal: AbortSignal.timeout(15000), cache: "no-store" })
+    for (let redirects = 0; redirects <= 5; redirects++) {
+      if (!allowedDownload(url)) throw new SheetFetchError("Google Sheets redirected to an unsupported address.")
+      const response = await fetch(url.href, { signal, cache: "no-store", redirect: "manual" })
+      if ([301, 302, 303, 307, 308].includes(response.status)) {
+        await response.body?.cancel()
+        const location = response.headers.get("location")
+        if (!location || redirects === 5) throw new SheetFetchError("Google Sheets redirected too many times.")
+        url = new URL(location, url)
+        continue
+      }
+      if (!response.ok) {
+        await response.body?.cancel()
+        throw new SheetFetchError(`Google refused the sheet. ${SHARE_HINT}`)
+      }
+      if (response.headers.get("content-type")?.includes("text/html")) {
+        await response.body?.cancel()
+        throw new SheetFetchError(`That sheet isn't shared. ${SHARE_HINT}`)
+      }
+      if (Number(response.headers.get("content-length")) > MAX_SHEET_BYTES) {
+        await response.body?.cancel()
+        throw new SheetFetchError("The sheet is too large. Keep CSV exports under 10 MB.")
+      }
+      const reader = response.body?.getReader()
+      if (!reader) return ""
+      const chunks: Uint8Array[] = []
+      let size = 0
+      try {
+        while (true) {
+          const { done, value } = await reader.read()
+          if (done) break
+          size += value.byteLength
+          if (size > MAX_SHEET_BYTES) throw new SheetFetchError("The sheet is too large. Keep CSV exports under 10 MB.")
+          chunks.push(value)
+        }
+      } finally {
+        await reader.cancel()
+        reader.releaseLock()
+      }
+      const bytes = new Uint8Array(size)
+      let offset = 0
+      for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength }
+      return new TextDecoder().decode(bytes)
+    }
   } catch (err) {
     if (err instanceof Error && err.name === "TimeoutError") {
       throw new SheetFetchError("Google Sheets took too long to respond. Try again in a moment.")
     }
     throw err
   }
-  if (!response.ok) throw new SheetFetchError(`Google refused the sheet. ${SHARE_HINT}`)
+  throw new SheetFetchError("Google Sheets redirected too many times.")
+}
 
-  // A sheet that isn't shared does NOT fail: Google answers 200 with its sign-in
-  // page, which the spreadsheet parser would happily read as one row of HTML --
-  // surfacing as a baffling "missing email" on every row.
-  const type = response.headers.get("content-type") ?? ""
-  if (type.includes("text/html")) throw new SheetFetchError(`That sheet isn't shared. ${SHARE_HINT}`)
-
-  const workbook = read(await response.text(), { type: "string" })
-  const sheet = workbook.Sheets[workbook.SheetNames[0]]
-  if (!sheet) throw new SheetFetchError("The sheet has no readable tab.")
-
-  const rows = utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "", raw: false })
-  const headers = rows.length > 0 ? Object.keys(rows[0]).map((h) => h.trim()) : []
-  return { rows, headers }
+export async function fetchSheetRows(
+  csvUrl: string,
+): Promise<{ rows: Record<string, unknown>[]; headers: string[] }> {
+  try {
+    return parseCsvRows(await fetchSheetText(csvUrl))
+  } catch (error) {
+    if (error instanceof SheetFetchError) throw error
+    throw new SheetFetchError(error instanceof Error ? error.message : "The sheet could not be parsed.")
+  }
 }

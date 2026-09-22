@@ -10,7 +10,7 @@ import { validatePassword } from "@/lib/schemas/password"
 //
 // When the account already has a password, the current one is required, so a
 // borrowed session cannot silently lock the owner out. When it does not (every
-// admin-invited staffer, since passwordHash is only ever written at /signup),
+// admin-invited staffer, since a password is only written after verification),
 // the authenticated session is itself the proof of identity: they got here by
 // clicking a single-use link sent to their own inbox.
 export async function setOwnPassword(

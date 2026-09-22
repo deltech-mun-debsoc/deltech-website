@@ -55,7 +55,7 @@ assert.equal(setPasswordSchema.safeParse({ password: "x", confirmPassword: "x" }
 // --- the rule is not restated anywhere --------------------------------------
 //
 // The original bug: two places independently hardcoded "8".
-for (const file of ["src/app/(public)/signup/actions.ts", "scripts/set-password.ts"]) {
+for (const file of ["scripts/set-password.ts"]) {
   const src = readFileSync(file, "utf8")
   assert.match(
     src,
@@ -68,10 +68,5 @@ for (const file of ["src/app/(public)/signup/actions.ts", "scripts/set-password.
     `${file} still hardcodes a length check; use validatePassword`,
   )
 }
-
-// A missing email must not be reported as a password problem, which is what
-// signupWithPassword did before ("if (!email || !password) passwordTooShort").
-const signup = readFileSync("src/app/(public)/signup/actions.ts", "utf8")
-assert.match(signup, /if \(!email\) return \{ error: "emailRequired" \}/, "blank email needs its own error")
 
 console.log("✅ check-password passed")

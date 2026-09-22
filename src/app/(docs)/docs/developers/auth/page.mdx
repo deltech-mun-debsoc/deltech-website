@@ -23,7 +23,12 @@ reason there are two files.
 through the app's own mailer and is written to `EmailLog` like every other message.
 
 **Credentials**, for email and password. Verifies against `passwordHash` using scrypt from
-`src/lib/password.ts`, and refuses accounts with `disabledAt` set.
+`src/lib/password.ts`, and refuses accounts with `disabledAt` set or without a verified email.
+
+Public signup creates the user, then sends a magic link. It never stores a password before
+mailbox ownership has been proved. A user can set one from `/account` after following the link.
+Redeeming a link also clears any password left on a legacy unverified account, closing the
+pre-registration account-capture path.
 
 ## Accounts are never auto-provisioned
 
@@ -37,8 +42,8 @@ first sign-ins does not turn into a refusal.
 ## Sessions revalidate
 
 The `jwt` callback re-reads the user row when `sessionNeedsRefresh(token.checkedAt)` is true,
-and returns `null` to invalidate. So a role change, a disable or a delete propagates to live
-sessions instead of waiting for expiry.
+and returns `null` to invalidate. So a role change, a disable, a delete, or an unverified legacy
+identity propagates to live sessions instead of waiting for expiry.
 
 ## The proxy
 
@@ -82,6 +87,8 @@ outage reports "try again" instead of silently pretending to have sent mail.
 
 Database-backed, in `src/lib/rate-limit.ts`, and **fail-open**: if the limiter itself errors,
 the request proceeds. Availability is preferred to a hard lockout.
+Authentication limits run inside the providers, so direct calls to `/api/auth` cannot bypass
+the server-action forms.
 
 | Action | Limit |
 |---|---|
@@ -94,5 +101,5 @@ the request proceeds. Availability is preferred to a hard lockout.
 
 ## Checks
 
-`check-auth-errors.ts`, `check-auth-page-guards.ts`, `check-password.ts`,
+`check-auth-boundary.ts`, `check-auth-errors.ts`, `check-auth-page-guards.ts`, `check-password.ts`,
 `check-user-admin.ts`.
