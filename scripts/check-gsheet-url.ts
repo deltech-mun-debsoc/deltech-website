@@ -31,5 +31,12 @@ assert.equal(deriveCsvUrl(exp), exp)
 // junk
 assert.equal(deriveCsvUrl("https://example.com/nope"), null)
 assert.equal(deriveCsvUrl("  "), null)
+// A former passthrough accepted any URL with this query and fed it to server fetch.
+assert.equal(deriveCsvUrl("http://169.254.169.254/latest/meta-data?format=csv"), null)
+assert.equal(deriveCsvUrl("https://evil.example/?output=csv"), null)
+assert.equal(deriveCsvUrl("https://docs.google.com.evil.example/spreadsheets/d/x/edit"), null)
+assert.equal(deriveCsvUrl("https://user@docs.google.com/spreadsheets/d/x/edit"), null)
+assert.equal(deriveCsvUrl("https://docs.google.com:444/spreadsheets/d/x/edit"), null)
+assert.equal(deriveCsvUrl("https://docs.google.com/spreadsheets/d/x/edit?gid=not-a-number"), null)
 
 console.log("gsheet-url checks passed")

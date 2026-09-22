@@ -33,8 +33,11 @@ async function main() {
   const passwordHash = await hashPassword(password);
   const user = await prisma.user.upsert({
     where: { email },
-    update: { passwordHash, ...(role ? { role } : {}) },
-    create: { email, passwordHash, role: role ?? Role.AUTHOR },
+    // This is an operator-only recovery/provisioning command. Marking the
+    // mailbox verified is explicit here so the credential provider does not
+    // create an unusable password account.
+    update: { passwordHash, emailVerified: new Date(), ...(role ? { role } : {}) },
+    create: { email, passwordHash, emailVerified: new Date(), role: role ?? Role.AUTHOR },
     select: { id: true, email: true, role: true },
   });
 

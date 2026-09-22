@@ -2,7 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
 import { currentEventScope } from "@/lib/event"
-import * as XLSX from "xlsx"
+import ExcelJS from "exceljs"
+import { safeSpreadsheetCell, stringifyRows } from "@/lib/tabular"
 import { buildDelegateWhere } from "@/app/(admin)/admin/(event)/registrations/_lib/build-where"
 import { resolveCycleContext } from "@/lib/recruitment/authz"
 import { can } from "@/lib/recruitment/permissions"
@@ -11,9 +12,9 @@ import { can } from "@/lib/recruitment/permissions"
 // characters and may not contain : \ / ? * [ ]. `name` here has always been
 // built as `${prefix}-${cycle.slug}`, and slugs run up to 60 chars (see
 // cycleSlugSchema) -- so a real cycle sails past the limit and XLSX.write
-// throws, while the CSV branch below never touches a sheet name at all. That
+// used to throw, while the CSV branch below never touched a sheet name at all. That
 // asymmetry is what let this ship invisibly: CSV always worked, so nobody
-// caught XLSX being the one broken format. Slugs are validated to
+// caught XLSX being the broken format. Slugs are validated to
 // lowercase/digits/hyphens only, so length is the only real threat here, but
 // the forbidden characters are stripped too rather than assumed away.
 export function safeSheetName(name: string): string {
@@ -21,15 +22,13 @@ export function safeSheetName(name: string): string {
   return stripped || "sheet"
 }
 
-function sheetResponse(
+async function sheetResponse(
   rows: Record<string, string | number>[],
   format: "csv" | "xlsx",
   name: string,
 ) {
-  const ws = XLSX.utils.json_to_sheet(rows)
-
   if (format === "csv") {
-    const csv = XLSX.utils.sheet_to_csv(ws)
+    const csv = stringifyRows(rows)
     return new NextResponse(csv, {
       headers: {
         "Content-Type": "text/csv; charset=utf-8",
@@ -38,12 +37,14 @@ function sheetResponse(
     })
   }
 
-  const wb = XLSX.utils.book_new()
+  const wb = new ExcelJS.Workbook()
   // The download filename keeps the full descriptive name -- only the sheet
   // tab is constrained.
-  XLSX.utils.book_append_sheet(wb, ws, safeSheetName(name))
-  const buf = XLSX.write(wb, { type: "base64", bookType: "xlsx" }) as string
-  const binary = Buffer.from(buf, "base64")
+  const ws = wb.addWorksheet(safeSheetName(name))
+  const headers = [...new Set(rows.flatMap((row) => Object.keys(row)))]
+  ws.addRow(headers)
+  for (const row of rows) ws.addRow(headers.map((header) => safeSpreadsheetCell(row[header] ?? "")))
+  const binary = Buffer.from(await wb.xlsx.writeBuffer() as ArrayBuffer)
   return new NextResponse(binary.buffer.slice(binary.byteOffset, binary.byteOffset + binary.byteLength) as ArrayBuffer, {
     headers: {
       "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -274,27 +275,5 @@ export async function GET(request: NextRequest) {
     "Co-delegate Phone": d.coDelegate?.phone ?? "",
   }))
 
-  const ws = XLSX.utils.json_to_sheet(rows)
-
-  if (format === "csv") {
-    const csv = XLSX.utils.sheet_to_csv(ws)
-    return new NextResponse(csv, {
-      headers: {
-        "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": 'attachment; filename="delegates.csv"',
-      },
-    })
-  }
-
-  const wb = XLSX.utils.book_new()
-  XLSX.utils.book_append_sheet(wb, ws, "Delegates")
-  const buf = XLSX.write(wb, { type: "base64", bookType: "xlsx" }) as string
-  const binary = Buffer.from(buf, "base64")
-
-  return new NextResponse(binary.buffer.slice(binary.byteOffset, binary.byteOffset + binary.byteLength) as ArrayBuffer, {
-    headers: {
-      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-      "Content-Disposition": 'attachment; filename="delegates.xlsx"',
-    },
-  })
+  return sheetResponse(rows, format, "delegates")
 }

@@ -52,8 +52,10 @@ const read = (p: string) => readFileSync(p, "utf8")
   assert.ok(RATE_LIMITS.magicLink.limit <= 10, "magic-link sending must be tightly limited")
 
   const applied: [string, string][] = [
-    ["src/app/(public)/signin/actions.ts", "RATE_LIMITS.signIn"],
-    ["src/app/(public)/signin/actions.ts", "RATE_LIMITS.magicLink"],
+    // These live at the providers, because /api/auth can be called directly
+    // without passing through either server-action form.
+    ["src/lib/auth.ts", "RATE_LIMITS.signIn"],
+    ["src/lib/auth.ts", "RATE_LIMITS.magicLink"],
     ["src/app/(public)/signup/actions.ts", "RATE_LIMITS.signup"],
     ["src/app/(marketing)/register/actions.ts", "RATE_LIMITS.register"],
     ["src/app/api/quiz/sessions/route.ts", "RATE_LIMITS.quizLookup"],
@@ -67,6 +69,21 @@ const read = (p: string) => readFileSync(p, "utf8")
   // A limiter that takes sign-in down with it is worse than none.
   const lib = read("src/lib/rate-limit.ts")
   assert.match(lib, /} catch \{\s*return \{ ok: true, retryAfter: 0 \}/, "the limiter must fail open")
+
+  const signin = read("src/app/(public)/signin/actions.ts")
+  assert.doesNotMatch(signin, /await rateLimit\(/, "forms must not double-debit provider-level auth limits")
+}
+
+// --- email ownership is established before credentials can be used --------
+{
+  const auth = read("src/lib/auth.ts")
+  assert.match(auth, /!user\.emailVerified/, "credential sign-in must require a verified mailbox")
+  assert.match(auth, /emailVerified: null[\s\S]{0,120}passwordHash: null/, "a magic-link redemption must erase a pre-verification password")
+  assert.match(auth, /!dbUser\.emailVerified/, "legacy unverified sessions must be invalidated")
+
+  const signup = read("src/app/(public)/signup/actions.ts")
+  assert.doesNotMatch(signup, /passwordHash/, "signup must not persist credentials before mailbox verification")
+  assert.match(signup, /signIn\("resend"/, "signup must prove mailbox ownership with a sign-in link")
 }
 
 // --- uploads are allowlisted ----------------------------------------------
@@ -197,6 +214,7 @@ const read = (p: string) => readFileSync(p, "utf8")
   // Webhooks verify signatures timing-safely and fail closed on a missing secret.
   const razorpay = read("src/app/api/webhooks/razorpay/route.ts")
   assert.match(razorpay, /timingSafeEqual/, "razorpay signature check must be timing-safe")
+  assert.match(razorpay, /if \(!process\.env\.RAZORPAY_WEBHOOK_SECRET\)/, "razorpay must fail closed when its secret is missing")
   const gform = read("src/app/api/webhooks/gform/route.ts")
   assert.match(gform, /if \(!secret \|\| !header\) return false/, "gform webhook must fail closed")
 

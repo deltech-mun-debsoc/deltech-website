@@ -1,7 +1,7 @@
 "use server"
 
 import { revalidatePath } from "next/cache"
-import { read, utils } from "xlsx"
+import { fetchSheetRows, SheetFetchError } from "@/lib/sheet-fetch"
 import { prisma } from "@/lib/prisma"
 import { RecruitmentDenied, requireRecruitmentAction } from "@/lib/recruitment/authz"
 import { auditRecruitmentTx, auditRecruitment, newRequestId } from "@/lib/recruitment/audit"
@@ -159,17 +159,7 @@ export async function saveSheetSource(input: {
 // ---------------------------------------------------------------------------
 
 async function fetchRows(csvUrl: string): Promise<{ rows: Record<string, unknown>[]; headers: string[] }> {
-  const response = await fetch(csvUrl, { signal: AbortSignal.timeout(15000), cache: "no-store" })
-  if (!response.ok) {
-    throw new ImportError('Google refused the sheet. Set sharing to "Anyone with the link can view".')
-  }
-  const workbook = read(await response.text(), { type: "string" })
-  const sheet = workbook.Sheets[workbook.SheetNames[0]]
-  if (!sheet) throw new ImportError("The sheet has no readable tab.")
-
-  const rows = utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "", raw: false })
-  const headers = rows.length > 0 ? Object.keys(rows[0]).map((h) => h.trim()) : []
-  return { rows, headers }
+  return fetchSheetRows(csvUrl)
 }
 
 async function existingCandidates(cycleId: string): Promise<ExistingCandidate[]> {
@@ -252,7 +242,7 @@ export async function previewImport(input: {
       duplicateGroups: plan.duplicateGroups,
     }
   } catch (err) {
-    if (err instanceof ImportError) return { ok: false, error: err.message }
+    if (err instanceof SheetFetchError) return { ok: false, error: err.message }
     if (err instanceof Error && err.name === "TimeoutError") {
       return { ok: false, error: "Google Sheets took too long to respond." }
     }
@@ -461,7 +451,7 @@ export async function applyImport(input: {
         }
       }
     }
-    if (err instanceof ImportError) return { ok: false, error: err.message }
+    if (err instanceof SheetFetchError) return { ok: false, error: err.message }
     if (err instanceof Error && err.name === "TimeoutError") {
       return { ok: false, error: "Google Sheets took too long to respond." }
     }
@@ -475,8 +465,6 @@ export async function applyImport(input: {
     return denied(err)
   }
 }
-
-class ImportError extends Error {}
 
 function isUniqueViolation(err: unknown): boolean {
   return (

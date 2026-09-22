@@ -189,6 +189,7 @@ export async function finalizeUpload(assetId: string): Promise<FinalizeResult> {
       publicUrl: true,
       kind: true,
       bucket: true,
+      ownerId: true,
     },
   })
   if (!asset) return { ok: false, error: "Upload not found." }
@@ -196,6 +197,11 @@ export async function finalizeUpload(assetId: string): Promise<FinalizeResult> {
   const isStaff = user.role === "ADMIN" || user.role === "MAINTAINER"
   if (asset.uploaderId !== user.id && !isStaff) {
     return { ok: false, error: "That upload belongs to someone else." }
+  }
+  // A pending upload must not outlive the permission that created it. This is
+  // especially important for candidate documents when a recruiter is revoked.
+  if (!(await authorize(asset.kind as MediaKindName, asset.ownerId ?? undefined))) {
+    return { ok: false, error: "You are no longer permitted to complete that upload." }
   }
 
   // Idempotent: finalising twice returns the same URL.

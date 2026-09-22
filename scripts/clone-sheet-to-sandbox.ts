@@ -23,8 +23,9 @@
 // silently destroy the most interesting test cases.
 import { createHash } from "node:crypto"
 import { writeFileSync } from "node:fs"
-import { read, utils } from "xlsx"
 import { deriveCsvUrl } from "../src/lib/gsheet-url"
+import { fetchSheetRows } from "../src/lib/sheet-fetch"
+import { stringifyRows } from "../src/lib/tabular"
 
 type Row = Record<string, string>
 
@@ -120,18 +121,9 @@ async function main() {
   }
 
   console.log(`Fetching ${csvUrl.slice(0, 60)}…`)
-  const res = await fetch(csvUrl, { signal: AbortSignal.timeout(30000) })
-  if (!res.ok) {
-    console.error(
-      `Fetch failed: ${res.status}. The sheet must be readable by anyone with the link.`,
-    )
-    process.exit(1)
-  }
-
   // Same parse path the importer itself uses, so what we emit is what it reads.
-  const wb = read(await res.text(), { type: "string" })
-  const sheet = wb.Sheets[wb.SheetNames[0]]
-  const rows = utils.sheet_to_json<Row>(sheet, { defval: "", raw: false })
+  const { rows: parsedRows } = await fetchSheetRows(csvUrl)
+  const rows = parsedRows as Row[]
 
   if (rows.length === 0) {
     console.error("Sheet has no data rows.")
@@ -159,8 +151,7 @@ async function main() {
   // Explicit header union: json_to_sheet derives columns from the FIRST row, so
   // a ragged sheet would silently lose every column that only appears later --
   // exactly the rows worth testing against.
-  const allKeys = [...new Set(outRows.flatMap((r) => Object.keys(r)))]
-  writeFileSync(out, utils.sheet_to_csv(utils.json_to_sheet(outRows, { header: allKeys })))
+  writeFileSync(out, stringifyRows(outRows))
 
   console.log(`\nWrote ${out}`)
   console.log(`  rows:    ${outRows.length} (unchanged)`)
