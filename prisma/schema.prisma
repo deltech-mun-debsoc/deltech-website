@@ -209,6 +209,8 @@ model Portfolio {
   pref3Delegates Delegate[] @relation("Pref3Portfolio")
 
   attendance       SessionAttendance[]
+  speakerEntries   SpeakerEntry[]
+  ballots          VoteBallot[]
   messagesSent     CommitteeMessage[]  @relation("MessageFrom")
   messagesReceived CommitteeMessage[]  @relation("MessageTo")
 
@@ -1379,7 +1381,13 @@ model CommitteeSession {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // Default speaking time on the General Speakers' List.
+  gslSpeakingSeconds Int @default(90)
+
   attendance SessionAttendance[]
+  speakers   SpeakerEntry[]
+  motions    Motion[]
+  votes      Vote[]
 
   @@unique([committeeId, attempt])
   @@index([committeeId, state])
@@ -1496,4 +1504,169 @@ enum CommitteeMessageState {
   HELD
   // Removed by the dais. Only the dais can see it.
   BLOCKED
+}
+
+// ---- Online committees (the floor) ----
+//
+// Two kinds of writer, two kinds of safety. The dais changes shared floor state
+// (who speaks next, which motion is live, which vote is open), and every such
+// change is a transaction conditional on CommitteeSession.version, so a chair
+// acting on a stale screen is refused rather than overwriting a colleague.
+// Delegates only add their own rows (a request to speak, a motion, a ballot),
+// and duplicates are refused by the database itself, never by a read-then-write.
+
+// One place on a speakers list. motionId null is the General Speakers' List; a
+// moderated caucus keeps its own list under its motion.
+model SpeakerEntry {
+  id        String           @id @default(cuid())
+  sessionId String
+  session   CommitteeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  motionId  String?
+  motion    Motion?          @relation(fields: [motionId], references: [id], onDelete: Cascade)
+
+  portfolioId   String
+  portfolio     Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  portfolioName String
+
+  // Set while the entry is QUEUED or SPEAKING, null once it is done. Postgres
+  // allows many nulls under a unique index, so this is "one live place per
+  // delegation per list" without a partial index Prisma cannot express.
+  liveKey String? @unique
+
+  position Int
+  state    SpeakerState @default(QUEUED)
+
+  allottedSeconds Int
+  startedAt       DateTime?
+  pausedAt        DateTime?
+  pausedMs        Int       @default(0)
+  endedAt         DateTime?
+
+  addedById String
+  createdAt DateTime @default(now())
+
+  @@index([sessionId, motionId, state, position])
+}
+
+enum SpeakerState {
+  QUEUED
+  SPEAKING
+  SPOKEN
+  REMOVED
+}
+
+model Motion {
+  id        String           @id @default(cuid())
+  sessionId String
+  session   CommitteeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  kind  MotionKind
+  state MotionState @default(PROPOSED)
+
+  // Null when the dais raises it itself.
+  proposedByPortfolioId String?
+  proposerLabel         String
+  topic                 String?
+  totalSeconds          Int?
+  speakingSeconds       Int?
+
+  // The caucus clock, once a passed motion is under way.
+  startedAt DateTime?
+  pausedAt  DateTime?
+  pausedMs  Int       @default(0)
+  endedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  speakers SpeakerEntry[]
+  vote     Vote?
+
+  @@index([sessionId, state])
+}
+
+enum MotionKind {
+  MODERATED_CAUCUS
+  UNMODERATED_CAUCUS
+  EXTEND
+  CLOSE_DEBATE
+  OTHER
+}
+
+enum MotionState {
+  PROPOSED
+  VOTING
+  PASSED
+  FAILED
+  WITHDRAWN
+  RULED_OUT
+  IN_PROGRESS
+  ENDED
+}
+
+model Vote {
+  id        String           @id @default(cuid())
+  sessionId String
+  session   CommitteeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  // A procedural vote on a motion; null for a substantive vote on a draft.
+  motionId  String?          @unique
+  motion    Motion?          @relation(fields: [motionId], references: [id], onDelete: Cascade)
+
+  subject  String
+  kind     VoteKind
+  majority VoteMajority @default(SIMPLE)
+  state    VoteState    @default(OPEN)
+
+  // Delegations present when the vote opened: the denominator the dais reads.
+  eligible Int
+  yes      Int      @default(0)
+  no       Int      @default(0)
+  abstain  Int      @default(0)
+  passed   Boolean?
+
+  openedById String
+  openedAt   DateTime  @default(now())
+  closedById String?
+  closedAt   DateTime?
+
+  ballots VoteBallot[]
+
+  @@index([sessionId, state])
+}
+
+enum VoteKind {
+  PROCEDURAL
+  SUBSTANTIVE
+}
+
+enum VoteMajority {
+  SIMPLE
+  TWO_THIRDS
+}
+
+enum VoteState {
+  OPEN
+  CLOSED
+}
+
+// One per delegation per vote, enforced by the unique index: a double click, a
+// retry, or two co-delegates voting at once cannot count twice.
+model VoteBallot {
+  id          String       @id @default(cuid())
+  voteId      String
+  vote        Vote         @relation(fields: [voteId], references: [id], onDelete: Cascade)
+  portfolioId String
+  portfolio   Portfolio    @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
+  choice      BallotChoice
+  castById    String
+  castByEmail String
+  castAt      DateTime     @default(now())
+
+  @@unique([voteId, portfolioId])
+}
+
+enum BallotChoice {
+  YES
+  NO
+  ABSTAIN
 }

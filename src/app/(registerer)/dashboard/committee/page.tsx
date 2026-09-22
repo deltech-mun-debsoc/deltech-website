@@ -4,6 +4,8 @@ import { t } from "@/content/strings"
 import { mySeats, resolveCommitteeViewer } from "@/lib/committee/viewer"
 import { CommitteeChat } from "@/components/committee/committee-chat"
 import { delegateSendMessage } from "./actions"
+import { CommitteeFloor } from "@/components/committee/committee-floor"
+import { floorDelegateAction } from "./floor-actions"
 
 export default async function CommitteePage(props: {
   searchParams: Promise<Record<string, string | string[] | undefined>>
@@ -61,6 +63,14 @@ export default async function CommitteePage(props: {
           ))}
         </nav>
       )}
+
+      <CommitteeFloor
+        key={`floor-${seat.committeeId}`}
+        committeeId={seat.committeeId}
+        mode="delegate"
+        seats={committee.portfolios}
+        delegateAction={floorDelegateAction}
+      />
 
       <CommitteeChat
         committeeId={seat.committeeId}
