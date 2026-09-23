@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache"
 import { prisma } from "@/lib/prisma"
 import { requireStaff } from "@/lib/authz"
 import { audit } from "@/lib/audit"
+import { floorNudge } from "@/lib/committee/floor-server"
 import type { CommitteeAttendance } from "@/generated/prisma/client"
 
 const PATH = "/admin/roll-call"
@@ -43,6 +44,7 @@ export async function openSession(committeeId: string): Promise<SessionResult> {
   if (live) {
     await seedAttendance(live.id, committeeId)
     revalidatePath(PATH)
+    floorNudge(committeeId)
     return { success: true, sessionId: live.id }
   }
 
@@ -85,6 +87,9 @@ export async function openSession(committeeId: string): Promise<SessionResult> {
     attempt,
   })
   revalidatePath(PATH)
+  // Screens opened before roll call show "the floor opens with roll call" and
+  // hide video; this tells them the session now exists.
+  floorNudge(committeeId)
   return { success: true, sessionId }
 }
 
@@ -145,6 +150,7 @@ export async function closeSession(
   const session = await requireStaff()
   const actorEmail = session.user?.email ?? "admin"
 
+  const closing = await prisma.committeeSession.findUnique({ where: { id: sessionId }, select: { committeeId: true } })
   const result = await prisma.committeeSession.updateMany({
     where: { id: sessionId, version: expectedVersion, state: { in: ["ACTIVE", "PAUSED"] } },
     data: {
@@ -160,5 +166,6 @@ export async function closeSession(
 
   await audit(actorEmail, "committee_session_close", "CommitteeSession", sessionId, {})
   revalidatePath(PATH)
+  if (closing) floorNudge(closing.committeeId)
   return { success: true, sessionId }
 }
