@@ -113,6 +113,13 @@ export async function syncFloorRoom(committeeId: string): Promise<void> {
   }
 }
 
+async function stillChairs(committeeId: string, userId: string): Promise<boolean> {
+  const n = await prisma.committeeChair.count({
+    where: { committeeId, userId, user: { role: "CHAIR", disabledAt: null } },
+  })
+  return n > 0
+}
+
 /**
  * Correct one participant as they join. Their token carried the floor as it was
  * when minted, which may be stale by the time they connect.
@@ -123,10 +130,15 @@ export async function syncJoiningParticipant(room: string, identity: string): Pr
   try {
     const parsed = parseRoomName(room)
     if (!parsed) return
-    const session = await prisma.committeeSession.findUnique({ where: { id: parsed.sessionId }, select: { id: true, state: true } })
-    // A participant this app did not mint, or a room for a session that is not
-    // live, is removed rather than corrected.
-    if (!session || session.state !== "ACTIVE" || !parseIdentity(identity)) {
+    const session = await prisma.committeeSession.findUnique({
+      where: { id: parsed.sessionId },
+      select: { id: true, state: true, committeeId: true },
+    })
+    const who = parseIdentity(identity)
+    // A participant this app did not mint, a room for a session that is not
+    // live, or a chair the secretariat has since removed (their token is still
+    // good for hours) is removed rather than corrected.
+    if (!session || session.state !== "ACTIVE" || !who || (who.kind === "dais" && !(await stillChairs(session.committeeId, who.userId)))) {
       await rooms.removeParticipant(room, identity).catch(() => {})
       return
     }
