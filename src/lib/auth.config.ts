@@ -44,6 +44,14 @@ export const authConfig = {
         return !!role;
       }
 
+      // Which committee a chair runs is the (chair) layout's call; the edge only
+      // keeps every other role out.
+      if (pathname.startsWith("/chair")) {
+        if (role === "CHAIR") return true;
+        if (role) return Response.redirect(new URL(roleHome(role), request.nextUrl));
+        return false;
+      }
+
       if (pathname.startsWith("/dashboard")) {
         if (role === "REGISTERER") return true;
         // Any other authenticated role (staff, author) belongs elsewhere.

@@ -29,6 +29,7 @@ model User {
   // authority is per-cycle and lives on RecruitmentMember — the two are resolved
   // independently (see src/lib/recruitment/authz.ts).
   recruitmentMemberships RecruitmentMember[]
+  chairOf                CommitteeChair[]
   recruitedFrom          RecruitmentCandidate? @relation("recruitedUser")
   mediaAssets            MediaAsset[]
 }
@@ -42,6 +43,10 @@ enum Role {
   AUTHOR
   REGISTERER
   SUB_MAINTAINER
+  // A committee's dais. Usually someone from outside the secretariat, so the
+  // role reaches /chair and nothing else; which committee comes from
+  // CommitteeChair, not from the role.
+  CHAIR
 }
 
 model Account {
@@ -167,6 +172,7 @@ model Committee {
   allotments Allotment[]
   sessions   CommitteeSession[]
   messages   CommitteeMessage[]
+  chairs     CommitteeChair[]
 
   // When on, a delegate-to-delegate message waits for the dais to approve it
   // before the recipient sees it. Off by default: the dais can always read every
@@ -1669,4 +1675,46 @@ enum BallotChoice {
   YES
   NO
   ABSTAIN
+}
+
+// ---- Online committees (voice channels) ----
+//
+// The lobbying channels themselves are not stored: every committee session has
+// the same fixed set, named in code (src/lib/livekit/voice.ts), with room names
+// derived from the session. Only who was in which channel, and when, is kept:
+// the after-the-fact record the dais needs when a dispute about a bloc comes up.
+// Written from LiveKit's webhooks, keyed on LiveKit's participant sid so a
+// retried or out-of-order webhook cannot double a visit.
+model VoiceChannelVisit {
+  id             String    @id @default(cuid())
+  committeeId    String
+  sessionId      String
+  room           String
+  slot           Int
+  // Null for the dais; otherwise the seat the participant spoke for.
+  portfolioId    String?
+  identity       String
+  // LiveKit's id for this one connection. A reconnect is a new visit.
+  participantSid String    @unique
+  joinedAt       DateTime?
+  leftAt         DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([committeeId, sessionId, joinedAt])
+}
+
+// Who sits on a committee's dais. Assigned by the secretariat; the chair's
+// account role (CHAIR) only lets them reach /chair, and this row decides which
+// committee they run once there.
+model CommitteeChair {
+  id           String    @id @default(cuid())
+  committeeId  String
+  committee    Committee @relation(fields: [committeeId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignedById String
+  createdAt    DateTime  @default(now())
+
+  @@unique([committeeId, userId])
+  @@index([userId])
 }

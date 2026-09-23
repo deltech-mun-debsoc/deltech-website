@@ -2,6 +2,8 @@ import { AccessToken, RoomServiceClient } from "livekit-server-sdk"
 import { prisma } from "@/lib/prisma"
 import { t } from "@/content/strings"
 import type { ChatViewer } from "@/lib/committee/chat"
+import { bus } from "@/lib/realtime/bus"
+import { LOBBY_SLOTS, lobbyGrants, lobbyRoomName, occupancy, parseRoomName, type LobbySlot, type Occupant, type VisitChange } from "./voice"
 import { liveKitConfig } from "./config"
 import {
   TOKEN_TTL_SECONDS,
@@ -111,6 +113,13 @@ export async function syncFloorRoom(committeeId: string): Promise<void> {
   }
 }
 
+async function stillChairs(committeeId: string, userId: string): Promise<boolean> {
+  const n = await prisma.committeeChair.count({
+    where: { committeeId, userId, user: { role: "CHAIR", disabledAt: null } },
+  })
+  return n > 0
+}
+
 /**
  * Correct one participant as they join. Their token carried the floor as it was
  * when minted, which may be stale by the time they connect.
@@ -119,15 +128,23 @@ export async function syncJoiningParticipant(room: string, identity: string): Pr
   const rooms = client()
   if (!rooms) return
   try {
-    const match = /^floor_([A-Za-z0-9_-]{1,40})$/.exec(room)
-    if (!match) return
-    const session = await prisma.committeeSession.findUnique({ where: { id: match[1] }, select: { id: true, state: true } })
-    // A participant this app did not mint, or a room for a session that is not
-    // live, is removed rather than corrected.
-    if (!session || session.state !== "ACTIVE" || !parseIdentity(identity)) {
+    const parsed = parseRoomName(room)
+    if (!parsed) return
+    const session = await prisma.committeeSession.findUnique({
+      where: { id: parsed.sessionId },
+      select: { id: true, state: true, committeeId: true },
+    })
+    const who = parseIdentity(identity)
+    // A participant this app did not mint, a room for a session that is not
+    // live, or a chair the secretariat has since removed (their token is still
+    // good for hours) is removed rather than corrected.
+    if (!session || session.state !== "ACTIVE" || !who || (who.kind === "dais" && !(await stillChairs(session.committeeId, who.userId)))) {
       await rooms.removeParticipant(room, identity).catch(() => {})
       return
     }
+    // A lobby token already fixes what can be published (the microphone), so
+    // there is nothing to restate there; only the floor follows the speakers list.
+    if (parsed.kind === "lobby") return
     // Always state the permission on join rather than diffing: what the token
     // granted is only knowable by trusting the client.
     await rooms.updateParticipant(room, identity, {
@@ -141,4 +158,135 @@ export async function syncJoiningParticipant(room: string, identity: string): Pr
   } catch (err) {
     console.error("[livekit] join sync failed", room, identity, err)
   }
+}
+
+// ---------------------------------------------------------------------------
+// Lobbying voice channels
+// ---------------------------------------------------------------------------
+
+export interface VoiceTokens {
+  url: string
+  floor: { room: string; token: string }
+  lobbies: { slot: LobbySlot; name: string; room: string; token: string }[]
+}
+
+/**
+ * Every token this viewer needs for the committee, minted at once. Switching
+ * channel then costs no round trip to this server: the browser already holds the
+ * token for wherever it is going. Only this committee's channels are included, so
+ * the tokens themselves are the boundary.
+ */
+export async function mintVoiceTokens(viewer: ChatViewer, committeeId: string): Promise<VoiceTokens | null> {
+  const floor = await mintFloorToken(viewer, committeeId)
+  const config = liveKitConfig()
+  if (!floor || !config) return null
+  const session = await liveSession(committeeId)
+  if (!session) return null
+
+  const identity = participantIdentity(
+    viewer.kind === "dais"
+      ? { kind: "dais", userId: viewer.userId }
+      : { kind: "delegate", userId: viewer.userId, portfolioId: viewer.portfolioId },
+  )
+  const name = viewer.kind === "dais" ? t("committeeChat.daisLabel") : viewer.portfolioName
+  const lobbies = await Promise.all(
+    LOBBY_SLOTS.map(async (slot) => {
+      const room = lobbyRoomName(session.id, slot)
+      const at = new AccessToken(config.apiKey, config.apiSecret, { identity, name, ttl: TOKEN_TTL_SECONDS })
+      at.addGrant(lobbyGrants(room))
+      return { slot, name: t("voice.lobby", { n: slot }), room, token: await at.toJwt() }
+    }),
+  )
+  return { url: config.url, floor: { room: floor.room, token: floor.token }, lobbies }
+}
+
+// Occupancy is read from LiveKit, not from the visit table, so a lost webhook
+// can never leave a ghost in a channel. Cached briefly per committee, and
+// concurrent readers share one fetch: 45 screens refreshing on the same nudge
+// cost six LiveKit calls, not 270. One app container per environment, so a
+// process-local cache is the whole cache.
+const OCCUPANCY_TTL_MS = 1500
+const occupancyCache = new Map<string, { at: number; value: Promise<Record<number, Occupant[]>> }>()
+
+export async function lobbyOccupancy(committeeId: string): Promise<Record<number, Occupant[]> | null> {
+  const rooms = client()
+  if (!rooms) return null
+  const hit = occupancyCache.get(committeeId)
+  if (hit && Date.now() - hit.at < OCCUPANCY_TTL_MS) return hit.value
+
+  const value = (async () => {
+    const session = await liveSession(committeeId)
+    if (!session) return occupancy([])
+    const lists = await Promise.all(
+      LOBBY_SLOTS.map(async (slot) => ({
+        slot,
+        // A room nobody has joined does not exist yet; that is an empty channel.
+        participants: await rooms.listParticipants(lobbyRoomName(session.id, slot)).catch(() => []),
+      })),
+    )
+    return occupancy(lists)
+  })()
+  occupancyCache.set(committeeId, { at: Date.now(), value })
+  // A failed read must not be cached for the next reader.
+  value.catch(() => occupancyCache.delete(committeeId))
+  return value
+}
+
+/**
+ * Record a lobby join or leave, and tell the committee's screens to refresh the
+ * channel list. Keyed on LiveKit's participant sid: a retried webhook rewrites the
+ * same row, and a leave that arrives before its join still lands on one row.
+ */
+export async function recordVisit(change: VisitChange): Promise<void> {
+  const session = await prisma.committeeSession.findUnique({
+    where: { id: change.sessionId },
+    select: { committeeId: true },
+  })
+  if (!session) return
+  const base = {
+    committeeId: session.committeeId,
+    sessionId: change.sessionId,
+    room: change.room,
+    slot: change.slot,
+    portfolioId: change.portfolioId,
+    identity: change.identity,
+    participantSid: change.participantSid,
+  }
+  const stamp = change.kind === "join" ? { joinedAt: change.at } : { leftAt: change.at }
+  await prisma.voiceChannelVisit.upsert({
+    where: { participantSid: change.participantSid },
+    create: { ...base, ...stamp },
+    update: stamp,
+  })
+  occupancyCache.delete(session.committeeId)
+  bus.publish(`committee:${session.committeeId}`, "voice", null)
+}
+
+function sessionRooms(sessionId: string): string[] {
+  return [floorRoomName(sessionId), ...LOBBY_SLOTS.map((slot) => lobbyRoomName(sessionId, slot))]
+}
+
+/**
+ * End a closed session's rooms, disconnecting everyone in them. Tokens outlive
+ * the session, so without this a delegate already connected stays in a room the
+ * secretariat has closed.
+ */
+export async function closeSessionRooms(sessionId: string): Promise<void> {
+  const rooms = client()
+  if (!rooms) return
+  await Promise.all(sessionRooms(sessionId).map((room) => rooms.deleteRoom(room).catch(() => {})))
+}
+
+/**
+ * Take one person out of a committee's live rooms, e.g. a chair the secretariat
+ * has just removed. Their pre-minted tokens stay valid until they expire, so
+ * declining to mint more is not enough; syncJoiningParticipant does not help
+ * either, because it checks the session, not the person.
+ */
+export async function removeFromCommitteeRooms(committeeId: string, identity: string): Promise<void> {
+  const rooms = client()
+  if (!rooms) return
+  const session = await liveSession(committeeId)
+  if (!session) return
+  await Promise.all(sessionRooms(session.id).map((room) => rooms.removeParticipant(room, identity).catch(() => {})))
 }
