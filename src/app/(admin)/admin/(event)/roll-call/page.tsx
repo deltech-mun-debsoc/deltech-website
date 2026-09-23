@@ -6,6 +6,7 @@ import { RollCallClient, type RollCallSeat } from "./_components/roll-call-clien
 import { CommitteeChat } from "@/components/committee/committee-chat"
 import { daisSendMessage, moderateMessage, setHoldDirectMessages } from "./chat-actions"
 import { CommitteeFloor } from "@/components/committee/committee-floor"
+import { CommitteeVideo } from "@/components/committee/committee-video"
 import { floorDaisAction } from "./floor-actions"
 
 // Roll call only applies where the committee actually meets online. An in-person
@@ -83,6 +84,7 @@ export default async function RollCallPage(props: {
         session={session}
         seats={seats}
       />
+      {committee && <CommitteeVideo key={`video-${committee.id}`} committeeId={committee.id} mode="dais" />}
       {committee && (
         <CommitteeFloor
           key={`floor-${committee.id}`}
