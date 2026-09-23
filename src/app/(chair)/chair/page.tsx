@@ -22,6 +22,7 @@ export default async function ChairPage(props: {
   if (!committee) {
     return (
       <main className="mx-auto max-w-lg space-y-3 px-6 py-20 text-center">
+        <SessionWatch committeeId={null} />
         <h1 className="display text-3xl">{t("chair.unassignedTitle")}</h1>
         <p className="text-sm text-muted-foreground">{t("chair.unassignedBody")}</p>
       </main>

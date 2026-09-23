@@ -43,7 +43,7 @@ export async function markAttendance(
   if (result.count === 0) return { success: false, error: t("floor.errorSeat") }
 
   await prisma.committeeSession.update({ where: { id: sid }, data: { lastActivityAt: now } })
-  await audit(viewer.email, "committee_attendance_mark", "CommitteeSession", sid, { portfolioId: pid, status })
+  await audit(viewer.email, "committee_attendance_mark", "CommitteeSession", sid, { portfolioId: pid, status: status as CommitteeAttendance })
   revalidatePath("/chair")
   return { success: true }
 }
