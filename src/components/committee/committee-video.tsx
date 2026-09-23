@@ -216,6 +216,21 @@ export function CommitteeVideo({ committeeId, mode }: { committeeId: string; mod
     }
   }, [connectFloor])
 
+  // Loaded before roll call opened, video is off: there was no session to mint
+  // for. Opening roll call nudges the floor, and that is the moment to try again.
+  // Guarded so a live panel is never reconnected and attempts never overlap.
+  const retrying = useRef(false)
+  useRealtime<null>(`committee:${committeeId}`, {
+    event: "floor",
+    onEvent: () => {
+      if (tokens.current || retrying.current) return
+      retrying.current = true
+      void connectFloor().finally(() => {
+        retrying.current = false
+      })
+    },
+  })
+
   useRealtime<null>(`committee:${committeeId}`, {
     event: "voice",
     onEvent: () => void refreshOccupancy(),
