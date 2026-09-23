@@ -1,5 +1,7 @@
-// A local online-committee to try the committee features by hand: a chair, four
-// delegates, one online committee, all allotted. See dev/README.md.
+// A local online-committee to try the committee features by hand: a secretariat
+// account, a chair account, four delegates, one online committee, all allotted.
+// The chair is deliberately NOT put on the committee: assigning them is the
+// secretariat's first step in the walkthrough. See dev/README.md.
 //
 //   DEMO_PASSWORD=... DATABASE_URL=postgresql://...@localhost:5433/mun_local \
 //     npx tsx scripts/seed-committee-demo.ts
@@ -30,6 +32,7 @@ if (weak) refuse(`DEMO_PASSWORD is not acceptable: ${weak}`)
 const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString: url }) })
 
 const SLUG = "committee-demo"
+const SECRETARIAT = { email: "secretariat@demo.local", name: "Demo Secretariat" }
 const CHAIR = { email: "chair@demo.local", name: "Demo Chair" }
 // Japan is left unallotted on purpose: an empty seat still counts toward quorum.
 const SEATS = [
@@ -60,7 +63,8 @@ async function main() {
       create: { email, name, role, passwordHash, emailVerified: verified },
     })
 
-  await account(CHAIR.email, CHAIR.name, Role.MAINTAINER)
+  await account(SECRETARIAT.email, SECRETARIAT.name, Role.MAINTAINER)
+  await account(CHAIR.email, CHAIR.name, Role.CHAIR)
   for (const s of SEATS) if (s.email) await account(s.email, `${s.portfolio} Delegate`, Role.REGISTERER)
 
   const event = await prisma.event.upsert({
@@ -102,7 +106,8 @@ async function main() {
   }
 
   console.log(`Seeded "${committee.name}" (online) in ${db}. Sign in with any of:`)
-  console.log(`  ${CHAIR.email}  (chair / dais)`)
+  console.log(`  ${SECRETARIAT.email}  (secretariat: opens sessions, assigns the chair)`)
+  console.log(`  ${CHAIR.email}  (chair, not yet assigned to the committee)`)
   for (const s of SEATS) if (s.email) console.log(`  ${s.email}  (${s.portfolio})`)
   console.log("All use the DEMO_PASSWORD you set.")
 }
