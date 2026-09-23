@@ -56,7 +56,7 @@ async function main() {
   assert.ok(!/^mun_(prod|staging)$/.test(db), `refusing to write test data into ${db}`)
 
   const { RoomServiceClient, AccessToken } = await import("livekit-server-sdk")
-  const { mintFloorToken, syncFloorRoom, syncJoiningParticipant, lobbyOccupancy, recordVisit, mintVoiceTokens } = await import("../src/lib/livekit/server")
+  const { mintFloorToken, syncFloorRoom, syncJoiningParticipant, lobbyOccupancy, recordVisit, mintVoiceTokens, removeFromCommitteeRooms, closeSessionRooms } = await import("../src/lib/livekit/server")
   const { visitFromWebhook, lobbyRoomName } = await import("../src/lib/livekit/voice")
   const { verifyWebhook } = await import("../src/lib/livekit/webhook")
   const { runDaisOp } = await import("../src/lib/committee/floor-server")
@@ -244,7 +244,34 @@ async function main() {
     assert.equal(await prisma.voiceChannelVisit.count({ where: { identity: inIdentity } }), 1, "replayed webhooks do not double a visit")
     console.log("  5. lobby tokens are microphone-only; a real join and leave were recorded once each; occupancy followed LiveKit")
 
-    console.log("livekit live checks passed (revocation unpublishes, floor grants and revokes live, rogue removal, real webhook signatures, lobby visits and occupancy)")
+    // ── 6. Chairs: only an assigned one stays, and removal is immediate ─────
+    // A removed chair's tokens are good for hours, so removal has to disconnect
+    // them and the join check has to refuse them if they come back.
+    const chairUser = await prisma.user.create({ data: { email: `chair.${tag}@x.io`, role: "CHAIR" } })
+    await prisma.committeeChair.create({ data: { committeeId: committee.id, userId: chairUser.id, assignedById: "check" } })
+    const chairIdentity = participantIdentity({ kind: "dais", userId: chairUser.id })
+    await join(`${tag}-chair`, chairIdentity, false)
+    await until("the chair to be in the room", () => find(chairIdentity))
+    await syncJoiningParticipant(room, chairIdentity)
+    await sleep(1500)
+    assert.ok(await find(chairIdentity), "an assigned chair is kept on join")
+
+    await prisma.committeeChair.deleteMany({ where: { userId: chairUser.id } })
+    await removeFromCommitteeRooms(committee.id, chairIdentity)
+    await until("the removed chair to be disconnected", async () => !(await find(chairIdentity)))
+    await run("docker", ["rm", "-f", `${tag}-chair`]).catch(() => {})
+    await join(`${tag}-chair2`, chairIdentity, false)
+    await until("the removed chair to rejoin", () => find(chairIdentity))
+    await syncJoiningParticipant(room, chairIdentity)
+    await until("the rejoining removed chair to be refused", async () => !(await find(chairIdentity)))
+
+    // Closing the session ends its rooms, sending everyone still there home.
+    assert.ok(await find(frIdentity), "France is still on the floor before close")
+    await closeSessionRooms(session.id)
+    await until("the closed session's floor room to be gone", async () => !(await rooms.listRooms([room])).length)
+    console.log("  6. an assigned chair stays; a removed one is disconnected and refused on rejoin; closing ends the rooms")
+
+    console.log("livekit live checks passed (revocation unpublishes, floor grants and revokes live, rogue removal, real webhook signatures, lobby visits and occupancy, chair removal, session close)")
   } finally {
     for (const c of containers) await run("docker", ["rm", "-f", c]).catch(() => {})
     hookServer.close()
@@ -256,6 +283,7 @@ async function main() {
     await prisma.delegate.deleteMany({ where: { eventId: event.id } })
     await prisma.committee.deleteMany({ where: { eventId: event.id } })
     await prisma.event.delete({ where: { id: event.id } })
+    await prisma.user.deleteMany({ where: { email: `chair.${tag}@x.io` } })
   }
   process.exit(0)
 }
