@@ -249,3 +249,32 @@ export async function recordVisit(change: VisitChange): Promise<void> {
   occupancyCache.delete(session.committeeId)
   bus.publish(`committee:${session.committeeId}`, "voice", null)
 }
+
+function sessionRooms(sessionId: string): string[] {
+  return [floorRoomName(sessionId), ...LOBBY_SLOTS.map((slot) => lobbyRoomName(sessionId, slot))]
+}
+
+/**
+ * End a closed session's rooms, disconnecting everyone in them. Tokens outlive
+ * the session, so without this a delegate already connected stays in a room the
+ * secretariat has closed.
+ */
+export async function closeSessionRooms(sessionId: string): Promise<void> {
+  const rooms = client()
+  if (!rooms) return
+  await Promise.all(sessionRooms(sessionId).map((room) => rooms.deleteRoom(room).catch(() => {})))
+}
+
+/**
+ * Take one person out of a committee's live rooms, e.g. a chair the secretariat
+ * has just removed. Their pre-minted tokens stay valid until they expire, so
+ * declining to mint more is not enough; syncJoiningParticipant does not help
+ * either, because it checks the session, not the person.
+ */
+export async function removeFromCommitteeRooms(committeeId: string, identity: string): Promise<void> {
+  const rooms = client()
+  if (!rooms) return
+  const session = await liveSession(committeeId)
+  if (!session) return
+  await Promise.all(sessionRooms(session.id).map((room) => rooms.removeParticipant(room, identity).catch(() => {})))
+}
