@@ -1670,3 +1670,29 @@ enum BallotChoice {
   NO
   ABSTAIN
 }
+
+// ---- Online committees (voice channels) ----
+//
+// The lobbying channels themselves are not stored: every committee session has
+// the same fixed set, named in code (src/lib/livekit/voice.ts), with room names
+// derived from the session. Only who was in which channel, and when, is kept:
+// the after-the-fact record the dais needs when a dispute about a bloc comes up.
+// Written from LiveKit's webhooks, keyed on LiveKit's participant sid so a
+// retried or out-of-order webhook cannot double a visit.
+model VoiceChannelVisit {
+  id             String    @id @default(cuid())
+  committeeId    String
+  sessionId      String
+  room           String
+  slot           Int
+  // Null for the dais; otherwise the seat the participant spoke for.
+  portfolioId    String?
+  identity       String
+  // LiveKit's id for this one connection. A reconnect is a new visit.
+  participantSid String    @unique
+  joinedAt       DateTime?
+  leftAt         DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([committeeId, sessionId, joinedAt])
+}
