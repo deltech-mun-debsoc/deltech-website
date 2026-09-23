@@ -1578,6 +1578,20 @@ saving: "Saving…",
 
   voice: {
     lobby: "Lobby {n}",
+    channels: "Channels",
+    floor: "Floor",
+    audioOnly: "Lobbies are voice only.",
+    daisSees: "The dais can see who is in each channel and can join any of them.",
+    here: "You",
+    empty: "Empty",
+    dais: "Dais",
+    backToFloor: "Back to the floor",
+    mute: "Mute",
+    unmute: "Unmute",
+    joining: "Joining",
+    errorMic: "Your browser did not allow the microphone. Check its permissions for this site, then try the channel again.",
+    errorJoin: "Could not join that channel. Try again.",
+    speakingNote: "You hold the floor. Finish speaking before joining a lobby.",
   },
 } as const;
 
