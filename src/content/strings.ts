@@ -1575,6 +1575,10 @@ saving: "Saving…",
     errorConnect: "Could not connect to video. The floor and chat still work.",
     errorDevices: "Your browser did not allow the camera or microphone. Check its permissions for this site.",
   },
+
+  voice: {
+    lobby: "Lobby {n}",
+  },
 } as const;
 
 export type Strings = typeof STRINGS;
