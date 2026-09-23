@@ -9,7 +9,7 @@ import type { Prisma, Role } from "@/generated/prisma/client"
 import { detailedChangeMeta } from "@/lib/audit-change"
 import { derivedRecruitmentRole } from "@/lib/recruitment/permissions"
 
-const ASSIGNABLE: Role[] = ["ADMIN", "MAINTAINER", "AUTHOR", "REGISTERER", "SUB_MAINTAINER"]
+const ASSIGNABLE: Role[] = ["ADMIN", "MAINTAINER", "AUTHOR", "REGISTERER", "SUB_MAINTAINER", "CHAIR"]
 
 // `warning` is for "the thing you asked for happened, but something after it
 // did not". The caller should still treat it as success and refresh.
