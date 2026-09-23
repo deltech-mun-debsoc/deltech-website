@@ -29,6 +29,7 @@ model User {
   // authority is per-cycle and lives on RecruitmentMember — the two are resolved
   // independently (see src/lib/recruitment/authz.ts).
   recruitmentMemberships RecruitmentMember[]
+  chairOf                CommitteeChair[]
   recruitedFrom          RecruitmentCandidate? @relation("recruitedUser")
   mediaAssets            MediaAsset[]
 }
@@ -42,6 +43,10 @@ enum Role {
   AUTHOR
   REGISTERER
   SUB_MAINTAINER
+  // A committee's dais. Usually someone from outside the secretariat, so the
+  // role reaches /chair and nothing else; which committee comes from
+  // CommitteeChair, not from the role.
+  CHAIR
 }
 
 model Account {
@@ -167,6 +172,7 @@ model Committee {
   allotments Allotment[]
   sessions   CommitteeSession[]
   messages   CommitteeMessage[]
+  chairs     CommitteeChair[]
 
   // When on, a delegate-to-delegate message waits for the dais to approve it
   // before the recipient sees it. Off by default: the dais can always read every
@@ -1695,4 +1701,20 @@ model VoiceChannelVisit {
   createdAt      DateTime  @default(now())
 
   @@index([committeeId, sessionId, joinedAt])
+}
+
+// Who sits on a committee's dais. Assigned by the secretariat; the chair's
+// account role (CHAIR) only lets them reach /chair, and this row decides which
+// committee they run once there.
+model CommitteeChair {
+  id           String    @id @default(cuid())
+  committeeId  String
+  committee    Committee @relation(fields: [committeeId], references: [id], onDelete: Cascade)
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignedById String
+  createdAt    DateTime  @default(now())
+
+  @@unique([committeeId, userId])
+  @@index([userId])
 }
