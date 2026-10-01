@@ -146,13 +146,16 @@ note the step number.
 
 10. **France:** in Committee chat, choose **Direct**, pick India, and send a
     message.
-    → India sees it. The chair sees it under **All direct messages**. A Kenya
-    session, if you open one, would not.
+    → India's **Direct** tab shows a **1**, and France has a **1** next to it
+    in India's delegation picker. Opening the conversation clears both. The
+    chair sees it under **All direct messages**. A Kenya session, if you open
+    one, would not.
 11. **Chair:** press **Remove** on that message.
     → It disappears from France's and India's screens.
 12. **Chair:** turn on **Hold direct messages**, then have France send India
     another direct message.
-    → France sees it marked *Waiting for the dais*, and India does not see it.
+    → France sees it marked *Waiting for the dais*, India does not see it, and
+    the chair's **Waiting for approval** tab shows a **1**.
     Then **Chair:** press **Approve** on it.
     → India now sees it.
 
