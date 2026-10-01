@@ -12,7 +12,7 @@ import { MAGIC_LINK_MAX_AGE_S } from "@/lib/magic-link";
 
 // SUB_MAINTAINER is the Junior Council tier: it reaches /recruitment only and
 // is structurally locked out of /admin (see roleCanAccess in src/lib/nav.ts).
-type AppRole = "ADMIN" | "MAINTAINER" | "MEMBER" | "AUTHOR" | "REGISTERER" | "SUB_MAINTAINER";
+type AppRole = "ADMIN" | "MAINTAINER" | "MEMBER" | "AUTHOR" | "REGISTERER" | "SUB_MAINTAINER" | "CHAIR";
 
 declare module "next-auth" {
   interface Session {

@@ -14,6 +14,9 @@ import {
   decideModeration,
   decideSend,
   mergeMessages,
+  newestPerKey,
+  unreadCounts,
+  unreadKey,
   moderationSince,
   normalizeBody,
   parseDraft,
@@ -229,6 +232,25 @@ assert.deepEqual(mergeMessages(held, [v(2, "edited")]).find((x) => x.id === 2)?.
 assert.deepEqual(mergeMessages(held, [], [99]).map((x) => x.id), [1, 2, 3], "removing an unknown id is harmless")
 const once = mergeMessages(held, [v(4)], [1])
 assert.deepEqual(mergeMessages(once, [v(4)], [1]), once, "replaying the same fetch changes nothing")
+
+// ── Unread counters ─────────────────────────────────────────────────────────
+{
+  const m = (id: number, over: Partial<MessageView>): MessageView => ({ ...v(id), ...over })
+  const fromIndia = m(5, { scope: "DM", fromPortfolioId: "india", toPortfolioId: "france" })
+  const mineDm = m(6, { scope: "DM", fromPortfolioId: "france", toPortfolioId: "india", mine: true })
+  const daisNote = m(7, { scope: "EB", fromPortfolioId: null, toPortfolioId: "france" })
+  const floorMsg = m(8, {})
+  assert.equal(unreadKey(fromIndia, "delegate"), "direct:india")
+  assert.equal(unreadKey(mineDm, "delegate"), null, "your own messages are never unread")
+  assert.equal(unreadKey(daisNote, "delegate"), "dais")
+  assert.equal(unreadKey(floorMsg, "delegate"), "floor")
+  assert.equal(unreadKey(fromIndia, "dais"), null, "DMs the dais oversees do not nag the chair")
+  assert.equal(unreadKey(m(9, { scope: "EB", fromPortfolioId: "india" }), "dais"), "thread:india")
+  const all = [fromIndia, mineDm, daisNote, floorMsg]
+  assert.deepEqual(unreadCounts(all, "delegate", {}), { "direct:india": 1, dais: 1, floor: 1 })
+  assert.deepEqual(unreadCounts(all, "delegate", newestPerKey(all, "delegate")), {}, "a first visit starts with nothing unread")
+  assert.deepEqual(unreadCounts(all, "delegate", { "direct:india": 5, dais: 7, floor: 0 }), { floor: 1 }, "seen up to an id clears it")
+}
 
 // ── Input from server actions ───────────────────────────────────────────────
 assert.deepEqual(parseDraft({ scope: "DM", toPortfolioId: "cm_abc", body: "hi" }), { scope: "DM", toPortfolioId: "cm_abc", body: "hi" })

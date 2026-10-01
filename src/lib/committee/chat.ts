@@ -243,6 +243,45 @@ export function moderationSince(cursor: string | null): Date {
 }
 
 /**
+ * Which unread counter a message bumps for this viewer, or null for none. Your
+ * own messages never count, and neither do DMs the dais only oversees: the
+ * chair reads those by choice, nobody is waiting on them.
+ */
+export function unreadKey(m: MessageView, mode: "delegate" | "dais"): string | null {
+  if (m.mine) return null
+  if (m.scope === "FLOOR") return "floor"
+  if (mode === "delegate") {
+    if (m.scope === "EB") return "dais"
+    return m.fromPortfolioId ? `direct:${m.fromPortfolioId}` : null
+  }
+  return m.scope === "EB" && m.fromPortfolioId ? `thread:${m.fromPortfolioId}` : null
+}
+
+/** Unread messages per counter: those newer than the highest id seen there. */
+export function unreadCounts(
+  messages: readonly MessageView[],
+  mode: "delegate" | "dais",
+  seen: Readonly<Record<string, number>>,
+): Record<string, number> {
+  const out: Record<string, number> = {}
+  for (const m of messages) {
+    const key = unreadKey(m, mode)
+    if (key && m.id > (seen[key] ?? 0)) out[key] = (out[key] ?? 0) + 1
+  }
+  return out
+}
+
+/** The highest id per counter, used as the baseline on a first visit. */
+export function newestPerKey(messages: readonly MessageView[], mode: "delegate" | "dais"): Record<string, number> {
+  const out: Record<string, number> = {}
+  for (const m of messages) {
+    const key = unreadKey(m, mode)
+    if (key && m.id > (out[key] ?? 0)) out[key] = m.id
+  }
+  return out
+}
+
+/**
  * Merge a fetch into what a client already holds. `page` carries new and
  * re-surfaced messages in their current state; `removed` names ids moderation
  * has taken away from this viewer. Idempotent, so an overlapping refetch is harmless.

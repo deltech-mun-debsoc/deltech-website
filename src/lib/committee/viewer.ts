@@ -1,5 +1,4 @@
 import { auth } from "@/lib/auth"
-import { STAFF_ROLES } from "@/lib/authz"
 import { getActiveEvent } from "@/lib/event"
 import { prisma } from "@/lib/prisma"
 import type { ChatViewer } from "./chat"
@@ -25,22 +24,26 @@ export interface CommitteeSeat {
 
 /**
  * Whether an account may reach committees at all. Pure, so
- * scripts/check-committee-chat.ts pins it. Staff reach committees by role, not by
- * an address match, so verification is the delegate path's concern.
+ * scripts/check-committee-viewer.ts pins it. A chair reaches a committee through
+ * a CommitteeChair row keyed on their user id, not an address match, so
+ * verification is the delegate path's concern.
  */
 export function mayEnterCommittees(u: {
-  staff: boolean
+  chair: boolean
   emailVerified: Date | null
   disabledAt: Date | null
 }): boolean {
   if (u.disabledAt) return false
-  return u.staff || u.emailVerified !== null
+  return u.chair || u.emailVerified !== null
 }
 
 interface Identity {
   userId: string
   email: string
-  staff: boolean
+  // The secretariat is not the dais: staff open and close sessions from /admin
+  // and see nothing inside a committee. Only a CHAIR account on a committee's
+  // CommitteeChair list sits on its dais.
+  chair: boolean
 }
 
 async function identity(): Promise<Identity | null> {
@@ -54,9 +57,9 @@ async function identity(): Promise<Identity | null> {
     select: { email: true, emailVerified: true, disabledAt: true },
   })
   if (!user?.email) return null
-  const staff = STAFF_ROLES.has(role)
-  if (!mayEnterCommittees({ staff, emailVerified: user.emailVerified, disabledAt: user.disabledAt })) return null
-  return { userId, email: user.email.trim().toLowerCase(), staff }
+  const chair = role === "CHAIR"
+  if (!mayEnterCommittees({ chair, emailVerified: user.emailVerified, disabledAt: user.disabledAt })) return null
+  return { userId, email: user.email.trim().toLowerCase(), chair }
 }
 
 /**
@@ -85,37 +88,63 @@ async function seatsFor(email: string): Promise<CommitteeSeat[]> {
   }))
 }
 
+export interface ChairedCommittee {
+  id: string
+  name: string
+  holdDirectMessages: boolean
+}
+
+/** The online committees in the running event this chair is assigned to. */
+async function chairedBy(userId: string): Promise<ChairedCommittee[]> {
+  const event = await getActiveEvent()
+  if (!event) return []
+  return prisma.committee.findMany({
+    where: {
+      eventId: event.id,
+      isActive: true,
+      format: { in: [...ONLINE_FORMATS] },
+      chairs: { some: { userId } },
+    },
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    select: { id: true, name: true, holdDirectMessages: true },
+  })
+}
+
 /** Committee ids this session may subscribe to, for the realtime route. */
 export async function committeeAccess(): Promise<{ staff: boolean; committeeIds: Set<string> }> {
   const who = await identity()
   if (!who) return { staff: false, committeeIds: new Set() }
-  if (who.staff) return { staff: true, committeeIds: new Set() }
-  return { staff: false, committeeIds: new Set((await seatsFor(who.email)).map((s) => s.committeeId)) }
+  const ids = who.chair
+    ? (await chairedBy(who.userId)).map((c) => c.id)
+    : (await seatsFor(who.email)).map((s) => s.committeeId)
+  return { staff: false, committeeIds: new Set(ids) }
 }
 
 /** The delegate's seats, for pages that list the committees they can enter. */
 export async function mySeats(): Promise<CommitteeSeat[]> {
   const who = await identity()
-  if (!who || who.staff) return []
+  if (!who || who.chair) return []
   return seatsFor(who.email)
+}
+
+/** The committees this chair runs; empty for anyone who is not a chair. */
+export async function myChairedCommittees(): Promise<ChairedCommittee[]> {
+  const who = await identity()
+  if (!who?.chair) return []
+  return chairedBy(who.userId)
 }
 
 /**
  * The viewer of one committee, or null if this session has no business there.
- * Staff are the dais of every online committee in the running event.
+ * The dais is the committee's assigned chairs, and nobody else.
  */
 export async function resolveCommitteeViewer(committeeId: string): Promise<ChatViewer | null> {
   const who = await identity()
   if (!who) return null
 
-  if (who.staff) {
-    const event = await getActiveEvent()
-    if (!event) return null
-    const committee = await prisma.committee.findFirst({
-      where: { id: committeeId, eventId: event.id, isActive: true, format: { in: [...ONLINE_FORMATS] } },
-      select: { id: true },
-    })
-    return committee ? { kind: "dais", userId: who.userId, email: who.email } : null
+  if (who.chair) {
+    const chaired = (await chairedBy(who.userId)).some((c) => c.id === committeeId)
+    return chaired ? { kind: "dais", userId: who.userId, email: who.email } : null
   }
 
   const seat = (await seatsFor(who.email)).find((s) => s.committeeId === committeeId)

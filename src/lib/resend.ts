@@ -17,6 +17,7 @@ import { BlogApprovedEmail } from "@/emails/blog-approved"
 import { BlogChangesRequestedEmail } from "@/emails/blog-changes-requested"
 import { BlogRejectedEmail } from "@/emails/blog-rejected"
 import { StaffInviteEmail } from "@/emails/staff-invite"
+import { ChairInviteEmail } from "@/emails/chair-invite"
 import { MagicLinkEmail } from "@/emails/magic-link"
 import { RecruitmentSelectedEmail } from "@/emails/recruitment-selected"
 import { MailerEmail } from "@/emails/mailer"
@@ -574,6 +575,15 @@ export async function sendStaffInvite(email: string, role: string): Promise<void
     toEmail: email,
     subject: "You've been added to the DelTech MUN secretariat",
     reactElement: StaffInviteEmail({ role, signInUrl: `${APP_URL}/signin/staff` }),
+  })
+}
+
+export async function sendChairInvite(email: string, committeeName: string): Promise<void> {
+  await loggedSend({
+    template: "chair-invite",
+    toEmail: email,
+    subject: `You are chairing ${committeeName} at DelTech MUN`,
+    reactElement: ChairInviteEmail({ committeeName, signInUrl: `${APP_URL}/signin/staff` }),
   })
 }
 

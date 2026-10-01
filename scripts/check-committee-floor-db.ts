@@ -4,7 +4,7 @@
 // check-committee-floor.ts proves the rules. This proves the database enforces
 // what the floor code assumes it will: a ballot racing a close is either counted
 // or refused, never stored and uncounted; a delegation votes once; a chair on a
-// stale screen changes nothing; a delegation holds one place per list.
+// stale screen changes nothing; the mic only goes to a seat someone holds.
 //
 // Opt-in, and refuses to run against production or staging.
 import assert from "node:assert"
@@ -28,24 +28,18 @@ async function main() {
     const committee = await prisma.committee.create({ data: { eventId: event.id, name: tag, slug: tag, format: "ONLINE" } })
     const N = 30
     const seats: { id: string; name: string }[] = []
+    // Seats 28 and 29 are left empty: they count for nothing.
     for (let i = 0; i < N; i++) {
       const p = await prisma.portfolio.create({ data: { committeeId: committee.id, name: `Seat ${i}` } })
+      seats.push({ id: p.id, name: p.name })
+      if (i >= 28) continue
       const d = await prisma.delegate.create({
         data: { eventId: event.id, fullName: `D${i}`, email: `d${i}.${tag}@x.io`, whatsapp: "1", institution: "X" },
       })
       await prisma.allotment.create({ data: { delegateId: d.id, committeeId: committee.id, portfolioId: p.id, allottedBy: "check" } })
-      seats.push({ id: p.id, name: p.name })
     }
     const session = await prisma.committeeSession.create({
       data: { committeeId: committee.id, state: "ACTIVE", startedAt: new Date() },
-    })
-    // Seats 0-9 PRESENT (may abstain), 10-24 PRESENT_AND_VOTING, 25-29 ABSENT.
-    await prisma.sessionAttendance.createMany({
-      data: seats.map((s, i) => ({
-        sessionId: session.id,
-        portfolioId: s.id,
-        status: i < 10 ? ("PRESENT" as const) : i < 25 ? ("PRESENT_AND_VOTING" as const) : ("ABSENT" as const),
-      })),
     })
 
     const dais: ChatViewer = { kind: "dais", userId: `${tag}-dais`, email: "chair@x.io" }
@@ -58,49 +52,43 @@ async function main() {
       assert.ok(r.success, `${op.op}: ${r.success ? "" : r.error}`)
     }
 
+    const micOf = async () => (await prisma.committeeSession.findUniqueOrThrow({ where: { id: session.id } })).micPortfolioId
+
     // ── A stale chair screen changes nothing ────────────────────────────────
     const v0 = await version()
-    await daisOk({ op: "setGslTime", seconds: 60 })
-    const stale = await runDaisOp(dais, committee.id, v0, { op: "setGslTime", seconds: 120 })
+    await daisOk({ op: "giveMic", portfolioId: seats[0].id })
+    const stale = await runDaisOp(dais, committee.id, v0, { op: "giveMic", portfolioId: seats[1].id })
     assert.ok(!stale.success && stale.stale, "a stale version is refused")
-    assert.equal((await prisma.committeeSession.findUniqueOrThrow({ where: { id: session.id } })).gslSpeakingSeconds, 60)
+    assert.equal(await micOf(), seats[0].id)
     // Two chairs acting at once from the same screen: exactly one applies.
     const vNow = await version()
     const both = await Promise.all([
-      runDaisOp(dais, committee.id, vNow, { op: "setGslTime", seconds: 45 }),
-      runDaisOp(dais, committee.id, vNow, { op: "setGslTime", seconds: 75 }),
+      runDaisOp(dais, committee.id, vNow, { op: "giveMic", portfolioId: seats[2].id }),
+      runDaisOp(dais, committee.id, vNow, { op: "giveMic", portfolioId: seats[3].id }),
     ])
     assert.equal(both.filter((r) => r.success).length, 1, "concurrent chairs: one wins, one is told it is stale")
     assert.equal(await version(), vNow + 1)
     // A refused operation must not consume the version (it rolls back with the transaction).
     const vBefore = await version()
-    assert.equal((await runDaisOp(dais, committee.id, vBefore, { op: "removeSpeaker", entryId: "nope" })).success, false)
+    assert.equal((await runDaisOp(dais, committee.id, vBefore, { op: "giveMic", portfolioId: seats[29].id })).success, false,
+      "the mic never goes to an empty seat")
     assert.equal(await version(), vBefore, "a failed dais operation rolls back its version bump")
+    assert.equal((await runDaisOp(dais, committee.id, vBefore, { op: "giveMic", portfolioId: "not-a-seat" })).success, false)
 
-    // ── One live place per delegation per list, even when racing ────────────
-    const dup = await Promise.all([1, 2, 3, 4].map(() => runDelegateOp(del(0), committee.id, { op: "requestToSpeak", motionId: null })))
-    assert.equal(dup.filter((r) => r.success).length, 1, "four simultaneous requests queue once")
-    assert.equal((await runDelegateOp(del(26), committee.id, { op: "requestToSpeak", motionId: null })).success, false,
-      "an absent delegation cannot join the list")
-    await daisOk({ op: "addSpeaker", portfolioId: seats[1].id, motionId: null })
-    await daisOk({ op: "nextSpeaker", motionId: null })
-    let floor = await readFloor(dais, committee.id)
-    assert.equal(floor.gsl.find((s) => s.state === "SPEAKING")?.portfolioId, seats[0].id, "first in, first to speak")
-    assert.equal(floor.gsl.find((s) => s.state === "SPEAKING")?.clock.allottedSeconds, 45, "time fixed when they start")
-    await daisOk({ op: "nextSpeaker", motionId: null })
-    // Having spoken, seat 0 may queue again: the live key was released.
-    assert.ok((await runDelegateOp(del(0), committee.id, { op: "requestToSpeak", motionId: null })).success)
+    // ── The mic is one seat, seen by everyone ───────────────────────────────
+    await daisOk({ op: "giveMic", portfolioId: seats[4].id })
+    assert.deepEqual((await readFloor(del(7), committee.id)).mic, { portfolioId: seats[4].id, name: seats[4].name })
+    await daisOk({ op: "takeMic" })
+    assert.equal((await readFloor(del(7), committee.id)).mic, null)
+    assert.equal((await runDelegateOp(del(5), committee.id, { op: "castBallot", voteId: "nope", choice: "YES" })).success, false,
+      "a ballot for a vote that does not exist is refused")
 
-    // ── Motion to a caucus, through a procedural vote ───────────────────────
-    const proposed = await runDelegateOp(del(2), committee.id, {
-      op: "proposeMotion",
-      draft: { kind: "MODERATED_CAUCUS", topic: "Finance", totalSeconds: 600, speakingSeconds: 60 },
-    })
-    assert.ok(proposed.success)
-    const motion = await prisma.motion.findFirstOrThrow({ where: { sessionId: session.id, proposedByPortfolioId: seats[2].id } })
-    await daisOk({ op: "putToVote", motionId: motion.id })
-    const proc = await prisma.vote.findFirstOrThrow({ where: { motionId: motion.id } })
-    assert.equal(proc.eligible, 25, "the denominator is the present delegations")
+    // ── A procedural vote: no abstaining, one ballot each, hidden count ─────
+    await daisOk({ op: "openVote", subject: "Motion for a moderated caucus", kind: "PROCEDURAL", majority: "SIMPLE" })
+    const proc = await prisma.vote.findFirstOrThrow({ where: { sessionId: session.id, state: "OPEN" } })
+    assert.equal(proc.eligible, 28, "the denominator is the seated delegations")
+    assert.equal((await runDaisOp(dais, committee.id, await version(), { op: "openVote", subject: "x", kind: "PROCEDURAL", majority: "SIMPLE" })).success,
+      false, "one open vote at a time")
     assert.equal((await runDelegateOp(del(3), committee.id, { op: "castBallot", voteId: proc.id, choice: "ABSTAIN" })).success, false,
       "no abstaining on a procedural vote")
     for (let i = 0; i < 14; i++) assert.ok((await runDelegateOp(del(i), committee.id, { op: "castBallot", voteId: proc.id, choice: "YES" })).success)
@@ -111,39 +99,38 @@ async function main() {
     assert.equal(delegateView.vote?.yes, null, "a delegate does not see the running count")
     assert.equal(delegateView.vote?.myChoice, "YES", "but does see its own ballot")
     assert.equal(delegateView.vote?.ballots, null, "nor anyone else's")
+    assert.equal((await readFloor(dais, committee.id)).vote?.yes, 14, "the dais sees the count as it runs")
     await daisOk({ op: "closeVote", voteId: proc.id })
-    assert.equal((await prisma.motion.findUniqueOrThrow({ where: { id: motion.id } })).state, "PASSED", "14-6 passes")
-    await daisOk({ op: "startCaucus", motionId: motion.id })
-    assert.ok((await runDelegateOp(del(4), committee.id, { op: "requestToSpeak", motionId: motion.id })).success,
-      "the caucus has its own list")
-    await daisOk({ op: "endCaucus", motionId: motion.id })
-    assert.equal(await prisma.speakerEntry.count({ where: { motionId: motion.id, state: "QUEUED" } }), 0, "ending a caucus clears its queue")
+    assert.equal((await prisma.vote.findUniqueOrThrow({ where: { id: proc.id } })).passed, true, "14-6 passes")
 
-    // ── Abstention follows attendance on a substantive vote ────────────────
-    await daisOk({ op: "openVote", subject: "DR 1.1", majority: "TWO_THIRDS" })
+    // ── A substantive vote: anyone may abstain ──────────────────────────────
+    await daisOk({ op: "openVote", subject: "DR 1.1", kind: "SUBSTANTIVE", majority: "TWO_THIRDS" })
     const sub = await prisma.vote.findFirstOrThrow({ where: { sessionId: session.id, state: "OPEN" } })
-    assert.ok((await runDelegateOp(del(1), committee.id, { op: "castBallot", voteId: sub.id, choice: "ABSTAIN" })).success, "present may abstain")
-    assert.equal((await runDelegateOp(del(12), committee.id, { op: "castBallot", voteId: sub.id, choice: "ABSTAIN" })).success, false,
-      "present and voting may not")
-    assert.equal((await runDelegateOp(del(27), committee.id, { op: "castBallot", voteId: sub.id, choice: "YES" })).success, false,
-      "absent may not vote at all")
+    assert.ok((await runDelegateOp(del(1), committee.id, { op: "castBallot", voteId: sub.id, choice: "ABSTAIN" })).success)
+    assert.ok((await runDelegateOp(del(12), committee.id, { op: "castBallot", voteId: sub.id, choice: "ABSTAIN" })).success)
     await daisOk({ op: "closeVote", voteId: sub.id })
+    assert.equal((await prisma.vote.findUniqueOrThrow({ where: { id: sub.id } })).passed, false, "abstentions alone do not pass anything")
 
     // ── The race: ballots against a closing vote ────────────────────────────
-    // Every round, 25 present delegations vote at once while the chair closes
+    // Every round, 25 delegations vote at once while the chair closes
     // partway through. Whatever interleaving happens, the ballots stored must be
     // exactly the ballots counted.
     let refusedAfterClose = 0
     const ROUNDS = 20
     for (let round = 0; round < ROUNDS; round++) {
-      await daisOk({ op: "openVote", subject: `Race ${round}`, majority: "SIMPLE" })
+      await daisOk({ op: "openVote", subject: `Race ${round}`, kind: "SUBSTANTIVE", majority: "SIMPLE" })
       const vote = await prisma.vote.findFirstOrThrow({ where: { sessionId: session.id, state: "OPEN" } })
+      // Odd rounds start the close before any ballot, even rounds after them, so
+      // both orders of arrival are exercised rather than whichever one is faster.
+      const v = await version()
+      const startClose = () => runDaisOp(dais, committee.id, v, { op: "closeVote", voteId: vote.id })
+      const early = round % 2 === 1 ? startClose() : null
       const ballots = Array.from({ length: 25 }, (_, i) =>
         runDelegateOp(del(i), committee.id, { op: "castBallot", voteId: vote.id, choice: i % 3 === 0 ? "NO" : "YES" }),
       )
-      const close = (async () => {
+      const close = early ?? (async () => {
         await new Promise((r) => setTimeout(r, round % 5))
-        return runDaisOp(dais, committee.id, await version(), { op: "closeVote", voteId: vote.id })
+        return startClose()
       })()
       const [results, closed] = await Promise.all([Promise.all(ballots), close])
       assert.ok(closed.success, `round ${round}: close failed: ${closed.success ? "" : closed.error}`)
@@ -156,7 +143,7 @@ async function main() {
     }
 
     console.log(
-      `committee floor DB checks passed (stale and concurrent chairs, rollback, list races, motion to caucus, abstention, ` +
+      `committee floor DB checks passed (stale and concurrent chairs, rollback, the mic, procedural and substantive votes, ` +
         `${ROUNDS} ballot-vs-close races with ${refusedAfterClose} ballots correctly refused after close)`,
     )
   } finally {

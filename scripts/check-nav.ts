@@ -105,4 +105,18 @@ for (const role of ["ADMIN", "MAINTAINER", "MEMBER", "AUTHOR", "REGISTERER", "SU
 assert.equal(safeLanding("/recruitment", null), "/")
 assert.equal(safeLanding("/recruitment", undefined), "/")
 
+// ── Committee chairs ────────────────────────────────────────────────────────
+// A chair is usually from outside the secretariat: /chair is their only surface.
+assert.equal(roleHome("CHAIR"), "/chair")
+assert.equal(safeLanding(null, "CHAIR"), "/chair")
+assert.equal(safeLanding("/chair?committee=x", "CHAIR"), "/chair?committee=x")
+for (const path of ["/admin", "/admin/sessions", "/dashboard", "/dashboard/committee", "/write"]) {
+  assert.equal(safeLanding(path, "CHAIR"), "/chair", `a chair must never land on ${path}`)
+}
+// ...and nobody else lands on /chair, staff included: the secretariat opens and
+// closes sessions from /admin, it does not sit on the dais.
+for (const role of ["ADMIN", "MAINTAINER", "MEMBER", "AUTHOR", "REGISTERER", "SUB_MAINTAINER"]) {
+  assert.equal(safeLanding("/chair", role), roleHome(role), `${role} must not land on /chair`)
+}
+
 console.log("nav checks passed")

@@ -44,7 +44,7 @@ export default async function CommitteePage(props: {
   if (!committee) return null
 
   return (
-    <main className="mx-auto max-w-3xl space-y-6 px-4 py-10">
+    <main className="mx-auto max-w-6xl space-y-6 px-4 py-8">
       <div className="space-y-1">
         <p className="eyebrow">{seat.portfolioName}</p>
         <h1 className="display text-3xl">{committee.name}</h1>
@@ -67,21 +67,22 @@ export default async function CommitteePage(props: {
 
       <CommitteeVideo key={`video-${seat.committeeId}`} committeeId={seat.committeeId} mode="delegate" />
 
-      <CommitteeFloor
-        key={`floor-${seat.committeeId}`}
-        committeeId={seat.committeeId}
-        mode="delegate"
-        seats={committee.portfolios}
-        delegateAction={floorDelegateAction}
-      />
-
-      <CommitteeChat
-        committeeId={seat.committeeId}
-        mode="delegate"
-        seats={committee.portfolios}
-        holdDirectMessages={committee.holdDirectMessages}
-        send={delegateSendMessage}
-      />
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+        <CommitteeChat
+          committeeId={seat.committeeId}
+          mode="delegate"
+          seats={committee.portfolios}
+          holdDirectMessages={committee.holdDirectMessages}
+          send={delegateSendMessage}
+        />
+        <CommitteeFloor
+          key={`floor-${seat.committeeId}`}
+          committeeId={seat.committeeId}
+          mode="delegate"
+          seats={committee.portfolios}
+          delegateAction={floorDelegateAction}
+        />
+      </div>
     </main>
   )
 }
