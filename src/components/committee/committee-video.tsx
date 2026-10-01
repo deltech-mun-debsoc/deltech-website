@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import {
   ConnectionState,
+  DisconnectReason,
   Room,
   RoomEvent,
   Track,
@@ -155,15 +156,25 @@ export function CommitteeVideo({ committeeId, mode }: { committeeId: string; mod
     void refreshOccupancy()
   }, [refreshOccupancy, refreshTiles, setFloorSubscribed])
 
+  // Every attempt takes a number; a newer attempt, or unmounting, makes the older
+  // one stale, and a stale attempt backs out without touching state. Without
+  // this, two overlapping attempts (a remount, or the session-open retry racing
+  // the first load) each opened a connection, and the loser's error stayed on
+  // screen over a panel that was in fact connected.
+  const attempt = useRef(0)
+
   const connectFloor = useCallback(async () => {
+    const mine = ++attempt.current
+    const stale = () => attempt.current !== mine
     setError(null)
     let ok: boolean
     try {
       ok = await loadTokens()
     } catch {
-      setError(t("video.errorConnect"))
+      if (!stale()) setError(t("video.errorConnect"))
       return
     }
+    if (stale()) return
     setEnabled(ok)
     if (!ok || !tokens.current) return
 
@@ -171,6 +182,24 @@ export function CommitteeVideo({ committeeId, mode }: { committeeId: string; mod
     floorRef.current = room
     room
       .on(RoomEvent.ConnectionStateChanged, setFloorState)
+      .on(RoomEvent.Disconnected, (reason?: DisconnectReason) => {
+        if (reason === DisconnectReason.CLIENT_INITIATED || floorRef.current !== room) return
+        // The server ended it: the session closed, or this person was removed.
+        // Forget the tokens so the next floor nudge (a reopened session, or
+        // being added back) connects afresh instead of being skipped.
+        tokens.current = null
+        floorRef.current = null
+        void lobbyRef.current?.disconnect()
+        lobbyRef.current = null
+        lobbyAudio.current?.replaceChildren()
+        floorAudio.current?.replaceChildren()
+        away.current = false
+        setWhere("floor")
+        setTiles([])
+        setLive(false)
+        setCanPublish(false)
+        setEnabled(false)
+      })
       .on(RoomEvent.TrackPublished, (pub: RemoteTrackPublication) => {
         // Published while we are in a lobby: do not start receiving it.
         if (away.current) pub.setSubscribed(false)
@@ -195,11 +224,15 @@ export function CommitteeVideo({ committeeId, mode }: { committeeId: string; mod
       })
     try {
       await room.connect(tokens.current.url, tokens.current.floor.token, { autoSubscribe: true })
+      if (stale()) {
+        await room.disconnect()
+        return
+      }
       setCanPublish(!!room.localParticipant.permissions?.canPublish)
       setNeedsAudio(!room.canPlaybackAudio)
       refreshTiles(room)
     } catch {
-      setError(t("video.errorConnect"))
+      if (!stale()) setError(t("video.errorConnect"))
     }
     void refreshOccupancy()
   }, [backToFloor, loadTokens, mode, refreshOccupancy, refreshTiles, stopFloorPublishing])
@@ -207,6 +240,7 @@ export function CommitteeVideo({ committeeId, mode }: { committeeId: string; mod
   useEffect(() => {
     void connectFloor()
     return () => {
+      attempt.current++
       void lobbyRef.current?.disconnect()
       void floorRef.current?.disconnect()
       micRef.current?.stop()
