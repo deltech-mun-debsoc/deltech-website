@@ -91,9 +91,6 @@ async function main() {
     const france = await seat("France")
     const india = await seat("India")
     const session = await prisma.committeeSession.create({ data: { committeeId: committee.id, state: "ACTIVE", startedAt: new Date() } })
-    await prisma.sessionAttendance.createMany({
-      data: [france, india].map((p) => ({ sessionId: session.id, portfolioId: p.id, status: "PRESENT" as const })),
-    })
     const room = floorRoomName(session.id)
 
     const dais = { kind: "dais" as const, userId: `${tag}-dais`, email: "chair@x.io" }
@@ -149,14 +146,12 @@ async function main() {
       const r = await runDaisOp(dais, committee.id, await version(), op)
       assert.ok(r.success, `${op.op}: ${r.success ? "" : r.error}`)
     }
-    await daisOk({ op: "addSpeaker", portfolioId: france.id, motionId: null })
-    await daisOk({ op: "nextSpeaker", motionId: null })
-    await until("France to be granted on becoming the speaker", async () => (await find(frIdentity))?.permission?.canPublish === true)
-    console.log("  2a. calling France to speak granted publish on the live connection")
-    const speaking = await prisma.speakerEntry.findFirstOrThrow({ where: { sessionId: session.id, state: "SPEAKING" } })
-    await daisOk({ op: "endSpeaker", entryId: speaking.id })
-    await until("France to lose publish when the speech ends", async () => (await find(frIdentity))?.permission?.canPublish === false)
-    console.log("  2b. ending the speech revoked it again")
+    await daisOk({ op: "giveMic", portfolioId: france.id })
+    await until("France to be granted on getting the mic", async () => (await find(frIdentity))?.permission?.canPublish === true)
+    console.log("  2a. giving France the mic granted publish on the live connection")
+    await daisOk({ op: "takeMic" })
+    await until("France to lose publish when the mic is taken back", async () => (await find(frIdentity))?.permission?.canPublish === false)
+    console.log("  2b. taking the mic back revoked it again")
 
     // ── 3. An identity this app did not mint is removed ─────────────────────
     await until("the rogue participant to be in the room", () => find("rogue-not-minted-here"))
