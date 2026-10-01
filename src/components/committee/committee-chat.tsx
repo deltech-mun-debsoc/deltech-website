@@ -20,6 +20,8 @@ import { useVisiblePoll } from "@/lib/use-visible-poll"
 import {
   MAX_BODY,
   mergeMessages,
+  newestPerKey,
+  unreadCounts,
   type Draft,
   type MessageView,
   type ModerationAction,
@@ -78,6 +80,25 @@ function inView(m: MessageView, view: View): boolean {
   }
 }
 
+// The unread counter a view clears by being open; see unreadKey.
+function viewKey(view: View): string | null {
+  switch (view.kind) {
+    case "floor":
+      return "floor"
+    case "dais":
+      return "dais"
+    case "direct":
+      return view.with ? `direct:${view.with}` : null
+    case "thread":
+      return view.with ? `thread:${view.with}` : null
+    default:
+      return null
+  }
+}
+
+const sumPrefix = (counts: Record<string, number>, prefix: string) =>
+  Object.entries(counts).reduce((n, [k, v]) => (k.startsWith(prefix) ? n + v : n), 0)
+
 function draftFor(view: View): Omit<Draft, "body"> | null {
   switch (view.kind) {
     case "floor":
@@ -102,6 +123,14 @@ export function CommitteeChat({ committeeId, mode, seats, holdDirectMessages, se
   const [pending, startTransition] = useTransition()
   const bottom = useRef<HTMLDivElement>(null)
 
+  // Unread counts. What this browser has seen is kept in localStorage, so a
+  // message that arrived while the tab was closed still shows as new. On a first
+  // visit everything already there counts as read, rather than greeting a
+  // delegate with a wall of badges.
+  const seenStore = `committee-chat-seen:${mode}:${committeeId}`
+  const [seen, setSeen] = useState<Record<string, number>>({})
+  const seenReady = useRef<"load" | "baseline" | "ready">("load")
+
   // Fetch state lives in a ref: it must survive renders without causing them, and
   // the single-flight guard has to see the latest value synchronously.
   const sync = useRef({ cursor: null as number | null, mod: null as string | null, busy: false, again: false, last: 0 })
@@ -113,6 +142,12 @@ export function CommitteeChat({ committeeId, mode, seats, holdDirectMessages, se
       return
     }
     s.busy = true
+    // A first visit takes its baseline from what the first successful load
+    // returns, read straight from the response rather than from state, so no
+    // render or effect ordering can hand it an empty list.
+    const baseline = seenReady.current === "baseline"
+    const loadedNow: MessageView[] = []
+    let ok = false
     try {
       do {
         s.again = false
@@ -126,6 +161,8 @@ export function CommitteeChat({ committeeId, mode, seats, holdDirectMessages, se
         if (!res.ok) break
         const page = (await res.json()) as MessagesPage
         setMessages((prev) => mergeMessages(prev, page.messages, page.removed))
+        loadedNow.push(...page.messages)
+        ok = true
         s.cursor = page.cursor
         s.mod = page.modCursor
         if (page.more) s.again = true
@@ -134,14 +171,38 @@ export function CommitteeChat({ committeeId, mode, seats, holdDirectMessages, se
       // Offline or mid-deploy. The next nudge, reconnect or poll tries again.
     } finally {
       s.busy = false
+      // Only a load that worked sets the baseline; a failed one leaves it for the
+      // next attempt instead of marking nothing as seen.
+      if (baseline && ok && seenReady.current === "baseline") {
+        seenReady.current = "ready"
+        setSeen((prev) => ({ ...newestPerKey(loadedNow, mode), ...prev }))
+      }
     }
-  }, [committeeId])
+  }, [committeeId, mode])
 
   useEffect(() => {
+    let stored: Record<string, number> | null = null
+    try {
+      const raw = localStorage.getItem(seenStore)
+      if (raw) stored = JSON.parse(raw) as Record<string, number>
+    } catch {
+      // Private mode or blocked storage: counts still work for this visit.
+    }
+    setSeen(stored ?? {})
+    seenReady.current = stored ? "ready" : "baseline"
     sync.current = { cursor: null, mod: null, busy: false, again: false, last: 0 }
     setMessages([])
     void refresh()
-  }, [refresh])
+  }, [refresh, seenStore])
+
+  useEffect(() => {
+    if (seenReady.current !== "ready") return
+    try {
+      localStorage.setItem(seenStore, JSON.stringify(seen))
+    } catch {
+      // Not persisted; harmless.
+    }
+  }, [seen, seenStore])
 
   useRealtime<null>(`committee:${committeeId}`, {
     event: "chat",
@@ -152,6 +213,16 @@ export function CommitteeChat({ committeeId, mode, seats, holdDirectMessages, se
   useVisiblePoll(POLL_MS, () => void refresh())
 
   const shown = useMemo(() => messages.filter((m) => inView(m, view)), [messages, view])
+  const unread = useMemo(() => unreadCounts(messages, mode, seen), [messages, mode, seen])
+  const heldCount = useMemo(() => messages.filter((m) => m.state === "HELD").length, [messages])
+
+  // Whatever is on screen has been seen.
+  useEffect(() => {
+    const key = viewKey(view)
+    if (!key || shown.length === 0) return
+    const newest = shown[shown.length - 1].id
+    setSeen((prev) => ((prev[key] ?? 0) >= newest ? prev : { ...prev, [key]: newest }))
+  }, [shown, view])
   const target = draftFor(view)
   const seatName = (id: string | null) => seats.find((s) => s.id === id)?.name ?? ""
 
@@ -215,24 +286,25 @@ export function CommitteeChat({ committeeId, mode, seats, holdDirectMessages, se
         {seats.map((s) => (
           <SelectItem key={s.id} value={s.id}>
             {s.name}
+            <UnreadBadge n={unread[`${kind}:${s.id}`] ?? 0} />
           </SelectItem>
         ))}
       </SelectContent>
     </Select>
   )
 
-  const tabs: { label: string; view: View; active: boolean }[] =
+  const tabs: { label: string; view: View; active: boolean; count: number }[] =
     mode === "delegate"
       ? [
-          { label: t("committeeChat.viewFloor"), view: { kind: "floor" }, active: view.kind === "floor" },
-          { label: t("committeeChat.viewDais"), view: { kind: "dais" }, active: view.kind === "dais" },
-          { label: t("committeeChat.viewDirect"), view: { kind: "direct", with: null }, active: view.kind === "direct" },
+          { label: t("committeeChat.viewFloor"), view: { kind: "floor" }, active: view.kind === "floor", count: unread.floor ?? 0 },
+          { label: t("committeeChat.viewDais"), view: { kind: "dais" }, active: view.kind === "dais", count: unread.dais ?? 0 },
+          { label: t("committeeChat.viewDirect"), view: { kind: "direct", with: null }, active: view.kind === "direct", count: sumPrefix(unread, "direct:") },
         ]
       : [
-          { label: t("committeeChat.viewFloor"), view: { kind: "floor" }, active: view.kind === "floor" },
-          { label: t("committeeChat.viewThreads"), view: { kind: "thread", with: null }, active: view.kind === "thread" },
-          { label: t("committeeChat.viewAllDirect"), view: { kind: "allDirect" }, active: view.kind === "allDirect" },
-          { label: t("committeeChat.viewHeld"), view: { kind: "held" }, active: view.kind === "held" },
+          { label: t("committeeChat.viewFloor"), view: { kind: "floor" }, active: view.kind === "floor", count: unread.floor ?? 0 },
+          { label: t("committeeChat.viewThreads"), view: { kind: "thread", with: null }, active: view.kind === "thread", count: sumPrefix(unread, "thread:") },
+          { label: t("committeeChat.viewAllDirect"), view: { kind: "allDirect" }, active: view.kind === "allDirect", count: 0 },
+          { label: t("committeeChat.viewHeld"), view: { kind: "held" }, active: view.kind === "held", count: heldCount },
         ]
 
   const placeholder =
@@ -274,6 +346,7 @@ export function CommitteeChat({ committeeId, mode, seats, holdDirectMessages, se
             onClick={() => setView(tab.view)}
           >
             {tab.label}
+            <UnreadBadge n={tab.count} />
           </Button>
         ))}
         {view.kind === "direct" && picker(view.with, "direct")}
@@ -360,5 +433,14 @@ export function CommitteeChat({ committeeId, mode, seats, holdDirectMessages, se
         ) : null
       )}
     </section>
+  )
+}
+
+function UnreadBadge({ n }: { n: number }) {
+  if (n <= 0) return null
+  return (
+    <Badge variant="secondary" className="ml-1.5 tabular-nums" aria-label={t("committeeChat.unread", { n })}>
+      {n}
+    </Badge>
   )
 }
