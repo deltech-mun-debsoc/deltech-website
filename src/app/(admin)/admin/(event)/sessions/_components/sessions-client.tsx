@@ -132,7 +132,9 @@ function CommitteeCard({
       <div className="space-y-2">
         <p className="data-label text-muted-foreground">{t("sessions.chairs")}</p>
         {chairs.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t("sessions.noChairs")}</p>
+          <p className={session ? "text-sm text-destructive" : "text-sm text-muted-foreground"}>
+            {t(session ? "sessions.noChairsInSession" : "sessions.noChairs")}
+          </p>
         ) : (
           <ul className="divide-y divide-border/70 rounded-md border border-border/70">
             {chairs.map((ch) => (
