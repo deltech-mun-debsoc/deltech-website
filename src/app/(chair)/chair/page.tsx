@@ -7,7 +7,6 @@ import { CommitteeFloor } from "@/components/committee/committee-floor"
 import { CommitteeVideo } from "@/components/committee/committee-video"
 import { daisSendMessage, moderateMessage, setHoldDirectMessages } from "./chat-actions"
 import { floorDaisAction } from "./floor-actions"
-import { RollCall, type RollCallSeat } from "./_components/roll-call"
 import { SessionWatch } from "./_components/session-watch"
 
 export default async function ChairPage(props: {
@@ -65,60 +64,41 @@ export default async function ChairPage(props: {
     )
   }
 
-  // Seats come from Portfolio so an unallotted seat still appears and still
-  // counts toward the quorum denominator.
-  const seats: RollCallSeat[] = (
-    await prisma.portfolio.findMany({
-      where: { committeeId: committee.id },
-      orderBy: [{ priority: "desc" }, { name: "asc" }],
-      select: {
-        id: true,
-        name: true,
-        allotment: { select: { delegate: { select: { fullName: true } } } },
-        attendance: {
-          where: { sessionId: session.id },
-          select: { status: true, markedAt: true, markedById: true },
-          take: 1,
-        },
-      },
-    })
-  ).map((p) => ({
-    portfolioId: p.id,
-    portfolioName: p.name,
-    delegateName: p.allotment?.delegate?.fullName ?? null,
-    status: p.attendance[0]?.status ?? "EXPECTED",
-    markedAt: p.attendance[0]?.markedAt?.toISOString() ?? null,
-    markedById: p.attendance[0]?.markedById ?? null,
-  }))
-  const allotted = seats.filter((s) => s.delegateName).map((s) => ({ id: s.portfolioId, name: s.portfolioName }))
+  // Only seated delegations: an empty seat has nobody to message, hear or count.
+  const seats = await prisma.portfolio.findMany({
+    where: { committeeId: committee.id, allotment: { isNot: null } },
+    orderBy: { name: "asc" },
+    select: { id: true, name: true },
+  })
 
   return (
-    <main className="mx-auto max-w-4xl space-y-8 px-4 py-10">
+    <main className="mx-auto max-w-6xl space-y-6 px-4 py-8">
       <SessionWatch committeeId={committee.id} />
       <div className="space-y-1">
         <h1 className="display text-3xl">{committee.name}</h1>
         <p className="text-sm text-muted-foreground">{t("chair.pageDescription")}</p>
       </div>
       {switcher}
-      <RollCall sessionId={session.id} seats={seats} />
       <CommitteeVideo key={`video-${committee.id}`} committeeId={committee.id} mode="dais" />
-      <CommitteeFloor
-        key={`floor-${committee.id}`}
-        committeeId={committee.id}
-        mode="dais"
-        seats={allotted}
-        daisAction={floorDaisAction}
-      />
-      <CommitteeChat
-        key={committee.id}
-        committeeId={committee.id}
-        mode="dais"
-        seats={allotted}
-        holdDirectMessages={committee.holdDirectMessages}
-        send={daisSendMessage}
-        moderate={moderateMessage}
-        setHold={setHoldDirectMessages}
-      />
+      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+        <CommitteeChat
+          key={committee.id}
+          committeeId={committee.id}
+          mode="dais"
+          seats={seats}
+          holdDirectMessages={committee.holdDirectMessages}
+          send={daisSendMessage}
+          moderate={moderateMessage}
+          setHold={setHoldDirectMessages}
+        />
+        <CommitteeFloor
+          key={`floor-${committee.id}`}
+          committeeId={committee.id}
+          mode="dais"
+          seats={seats}
+          daisAction={floorDaisAction}
+        />
+      </div>
     </main>
   )
 }
