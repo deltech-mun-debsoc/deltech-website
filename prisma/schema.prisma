@@ -214,8 +214,6 @@ model Portfolio {
   pref2Delegates Delegate[] @relation("Pref2Portfolio")
   pref3Delegates Delegate[] @relation("Pref3Portfolio")
 
-  attendance       SessionAttendance[]
-  speakerEntries   SpeakerEntry[]
   ballots          VoteBallot[]
   messagesSent     CommitteeMessage[]  @relation("MessageFrom")
   messagesReceived CommitteeMessage[]  @relation("MessageTo")
@@ -1387,13 +1385,11 @@ model CommitteeSession {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Default speaking time on the General Speakers' List.
-  gslSpeakingSeconds Int @default(90)
+  // The delegation holding the mic: the only seat that may be seen and heard on
+  // the floor besides the dais. One at a time, set and cleared by the chair.
+  micPortfolioId String?
 
-  attendance SessionAttendance[]
-  speakers   SpeakerEntry[]
-  motions    Motion[]
-  votes      Vote[]
+  votes Vote[]
 
   @@unique([committeeId, attempt])
   @@index([committeeId, state])
@@ -1407,43 +1403,6 @@ enum CommitteeSessionState {
   ABORTED
 }
 
-// Roll call, one row per seat per session. Keyed on Portfolio rather than
-// Delegate because the thing that is present and votes is the delegation: a
-// double-delegated seat has two people and one vote.
-//
-// Rows are seeded for every portfolio when the session starts, so the roll-call
-// screen is a plain query and quorum has a denominator.
-model SessionAttendance {
-  id        String           @id @default(cuid())
-  sessionId String
-  session   CommitteeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-
-  portfolioId String
-  portfolio   Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
-
-  status CommitteeAttendance @default(EXPECTED)
-
-  markedAt   DateTime?
-  markedById String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([sessionId, portfolioId])
-  @@index([sessionId, status])
-}
-
-// PRESENT and PRESENT_AND_VOTING are a real MUN distinction, not a nicety: a
-// delegation that is present and voting gives up the right to abstain on a
-// substantive vote. The recruitment Attendance enum has no such concept and
-// must not be bent to fit.
-enum CommitteeAttendance {
-  EXPECTED
-  PRESENT
-  PRESENT_AND_VOTING
-  ABSENT
-  LATE
-}
 
 // ---- Online committees (chat) ----
 //
@@ -1515,115 +1474,26 @@ enum CommitteeMessageState {
 // ---- Online committees (the floor) ----
 //
 // Two kinds of writer, two kinds of safety. The dais changes shared floor state
-// (who speaks next, which motion is live, which vote is open), and every such
-// change is a transaction conditional on CommitteeSession.version, so a chair
-// acting on a stale screen is refused rather than overwriting a colleague.
-// Delegates only add their own rows (a request to speak, a motion, a ballot),
-// and duplicates are refused by the database itself, never by a read-then-write.
+// (who holds the mic, which vote is open), and every such change is a
+// transaction conditional on CommitteeSession.version, so a chair acting on a
+// stale screen is refused rather than overwriting a colleague. Delegates only
+// add their own ballots, and a second ballot is refused by the database itself.
+//
+// Attendance, speakers lists and motions are not modelled: chairs keep those on
+// their own sheets.
 
-// One place on a speakers list. motionId null is the General Speakers' List; a
-// moderated caucus keeps its own list under its motion.
-model SpeakerEntry {
-  id        String           @id @default(cuid())
-  sessionId String
-  session   CommitteeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  motionId  String?
-  motion    Motion?          @relation(fields: [motionId], references: [id], onDelete: Cascade)
-
-  portfolioId   String
-  portfolio     Portfolio @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
-  portfolioName String
-
-  // Set while the entry is QUEUED or SPEAKING, null once it is done. Postgres
-  // allows many nulls under a unique index, so this is "one live place per
-  // delegation per list" without a partial index Prisma cannot express.
-  liveKey String? @unique
-
-  position Int
-  state    SpeakerState @default(QUEUED)
-
-  allottedSeconds Int
-  startedAt       DateTime?
-  pausedAt        DateTime?
-  pausedMs        Int       @default(0)
-  endedAt         DateTime?
-
-  addedById String
-  createdAt DateTime @default(now())
-
-  @@index([sessionId, motionId, state, position])
-}
-
-enum SpeakerState {
-  QUEUED
-  SPEAKING
-  SPOKEN
-  REMOVED
-}
-
-model Motion {
-  id        String           @id @default(cuid())
-  sessionId String
-  session   CommitteeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-
-  kind  MotionKind
-  state MotionState @default(PROPOSED)
-
-  // Null when the dais raises it itself.
-  proposedByPortfolioId String?
-  proposerLabel         String
-  topic                 String?
-  totalSeconds          Int?
-  speakingSeconds       Int?
-
-  // The caucus clock, once a passed motion is under way.
-  startedAt DateTime?
-  pausedAt  DateTime?
-  pausedMs  Int       @default(0)
-  endedAt   DateTime?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  speakers SpeakerEntry[]
-  vote     Vote?
-
-  @@index([sessionId, state])
-}
-
-enum MotionKind {
-  MODERATED_CAUCUS
-  UNMODERATED_CAUCUS
-  EXTEND
-  CLOSE_DEBATE
-  OTHER
-}
-
-enum MotionState {
-  PROPOSED
-  VOTING
-  PASSED
-  FAILED
-  WITHDRAWN
-  RULED_OUT
-  IN_PROGRESS
-  ENDED
-}
 
 model Vote {
   id        String           @id @default(cuid())
   sessionId String
   session   CommitteeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  // A procedural vote on a motion; null for a substantive vote on a draft.
-  motionId  String?          @unique
-  motion    Motion?          @relation(fields: [motionId], references: [id], onDelete: Cascade)
 
   subject  String
   kind     VoteKind
   majority VoteMajority @default(SIMPLE)
   state    VoteState    @default(OPEN)
 
-  // Delegations present when the vote opened: the denominator the dais reads.
+  // Seated delegations when the vote opened: the denominator the dais reads.
   eligible Int
   yes      Int      @default(0)
   no       Int      @default(0)
