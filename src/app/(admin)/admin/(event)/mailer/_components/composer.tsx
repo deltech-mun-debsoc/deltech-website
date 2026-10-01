@@ -11,10 +11,19 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { MERGE_FIELDS } from "@/lib/mailer/merge"
 import { MAIL_PRESETS } from "@/lib/mailer/presets"
 import { STAGE_SHORTCUTS } from "@/lib/mailer/audience"
+import { statusMeta } from "../../registrations/_lib/status"
 import { presetDraft, previewMail, saveCampaign, scheduleCampaign, sendTestMail, type CampaignInput } from "../actions"
 
 const STATUSES = ["REGISTERED", "ALLOTTED", "PAYMENT_SENT", "CONFIRMED", "WAITLISTED", "CANCELLED"] as const
 const PAYMENTS = ["PENDING", "SENT", "PAID", "FAILED", "COMPED", "OFFLINE"] as const
+const PAYMENT_LABEL: Record<(typeof PAYMENTS)[number], string> = {
+  PENDING: "Not sent yet",
+  SENT: "Link sent",
+  PAID: "Paid online",
+  FAILED: "Payment failed",
+  COMPED: "Free seat",
+  OFFLINE: "Paid offline",
+}
 type Tri = "any" | "yes" | "no"
 type Audience = "DELEGATES" | "CONTACTS"
 
@@ -94,6 +103,7 @@ export function Composer({
   const [delegateFilters, setDelegateFilters] = useState<DelegateFilters>(
     audience === "DELEGATES" && campaign ? { ...EMPTY_DELEGATE, ...(campaign.filters as Partial<DelegateFilters>) } : EMPTY_DELEGATE,
   )
+  const [moreFilters, setMoreFilters] = useState(false)
   const [contactTags, setContactTags] = useState<string[]>(
     audience === "CONTACTS" && campaign ? ((campaign.filters as { tags?: string[] })?.tags ?? []) : [],
   )
@@ -185,6 +195,18 @@ export function Composer({
   const presets = MAIL_PRESETS.filter((p) => p.audience === "ANY" || p.audience === audience)
   const shortcutOn = (filters: Partial<DelegateFilters>) =>
     JSON.stringify({ ...EMPTY_DELEGATE, ...filters }) === JSON.stringify(delegateFilters)
+  // The finer filters overlap the stages, so they stay folded away unless one is
+  // set by hand: an active filter is never hidden.
+  const stageOn = STAGE_SHORTCUTS.some((s) => shortcutOn(s.filters as Partial<DelegateFilters>))
+  const finerSet =
+    !stageOn &&
+    (delegateFilters.statuses.length > 0 ||
+      delegateFilters.paymentStatuses.length > 0 ||
+      delegateFilters.allotted !== "any" ||
+      delegateFilters.isDtu !== "any" ||
+      delegateFilters.needsAccommodation !== "any" ||
+      delegateFilters.checkedIn !== "any")
+  const showFiner = moreFilters || finerSet
 
   return (
     <div className="grid gap-8 xl:grid-cols-[1fr_1fr]">
@@ -211,15 +233,6 @@ export function Composer({
                 ))}
               </div>
               <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                <span className="w-28 text-muted-foreground">Status</span>
-                {STATUSES.map((s) => (
-                  <Chip key={s} on={delegateFilters.statuses.includes(s)} onClick={() => setDelegateFilters({ ...delegateFilters, statuses: toggle(delegateFilters.statuses, s) })}>
-                    {s.toLowerCase().replace("_", " ")}
-                  </Chip>
-                ))}
-              </div>
-              <p className="text-[11px] text-muted-foreground">No status chosen means everyone except cancelled delegates. To mail particular people, tick them on the delegate list.</p>
-              <div className="flex flex-wrap items-center gap-1.5 text-xs">
                 <span className="w-28 text-muted-foreground">Committee</span>
                 {committees.map((c) => (
                   <Chip key={c.id} on={delegateFilters.committeeIds.includes(c.id)} onClick={() => setDelegateFilters({ ...delegateFilters, committeeIds: toggle(delegateFilters.committeeIds, c.id) })}>
@@ -227,11 +240,30 @@ export function Composer({
                   </Chip>
                 ))}
               </div>
+              <p className="text-[11px] text-muted-foreground">Nothing chosen means everyone except removed delegates. To mail particular people, tick them on the delegate list.</p>
+              {!showFiner ? (
+                <button
+                  type="button"
+                  onClick={() => setMoreFilters(true)}
+                  className="text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                >
+                  More filters
+                </button>
+              ) : (
+              <>
+              <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                <span className="w-28 text-muted-foreground">Status</span>
+                {STATUSES.map((s) => (
+                  <Chip key={s} on={delegateFilters.statuses.includes(s)} onClick={() => setDelegateFilters({ ...delegateFilters, statuses: toggle(delegateFilters.statuses, s) })}>
+                    {statusMeta(s).label}
+                  </Chip>
+                ))}
+              </div>
               <div className="flex flex-wrap items-center gap-1.5 text-xs">
                 <span className="w-28 text-muted-foreground">Payment</span>
                 {PAYMENTS.map((s) => (
                   <Chip key={s} on={delegateFilters.paymentStatuses.includes(s)} onClick={() => setDelegateFilters({ ...delegateFilters, paymentStatuses: toggle(delegateFilters.paymentStatuses, s) })}>
-                    {s.toLowerCase()}
+                    {PAYMENT_LABEL[s]}
                   </Chip>
                 ))}
               </div>
@@ -239,6 +271,8 @@ export function Composer({
               <TriPick label="DTU" value={delegateFilters.isDtu} onChange={(v) => setDelegateFilters({ ...delegateFilters, isDtu: v })} />
               <TriPick label="Accommodation" value={delegateFilters.needsAccommodation} onChange={(v) => setDelegateFilters({ ...delegateFilters, needsAccommodation: v })} />
               <TriPick label="Checked in" value={delegateFilters.checkedIn} onChange={(v) => setDelegateFilters({ ...delegateFilters, checkedIn: v })} />
+              </>
+              )}
             </div>
           ) : (
             <div className="space-y-3 rounded-lg border border-border p-4">
