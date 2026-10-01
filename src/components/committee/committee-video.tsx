@@ -97,6 +97,19 @@ export function CommitteeVideo({ committeeId, mode }: { committeeId: string; mod
   const away = useRef(false)
   const floorAudio = useRef<HTMLDivElement>(null)
   const lobbyAudio = useRef<HTMLDivElement>(null)
+  // The <audio> element each remote track was given. livekit-client detaches a
+  // track before it reports the unsubscribe, so asking the track for its
+  // elements then finds none, and one dead element was left behind per speech.
+  const audioEls = useRef(new WeakMap<RemoteTrack, HTMLMediaElement>())
+  const playAudio = useCallback((track: RemoteTrack, into: HTMLDivElement | null) => {
+    const el = track.attach()
+    audioEls.current.set(track, el)
+    into?.append(el)
+  }, [])
+  const dropAudio = useCallback((track: RemoteTrack) => {
+    audioEls.current.get(track)?.remove()
+    audioEls.current.delete(track)
+  }, [])
 
   // `gone` is the track being unsubscribed: livekit-client fires that event
   // before it clears the publication's track, so without excluding it here a
@@ -208,13 +221,13 @@ export function CommitteeVideo({ committeeId, mode }: { committeeId: string; mod
         if (away.current) pub.setSubscribed(false)
       })
       .on(RoomEvent.TrackSubscribed, (track: RemoteTrack) => {
-        if (track.kind === Track.Kind.Audio) floorAudio.current?.append(track.attach())
+        if (track.kind === Track.Kind.Audio) playAudio(track, floorAudio.current)
         refreshTiles(room)
       })
       .on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
         // Only audio elements are ours to remove; a video element belongs to its
         // VideoTile, which detaches it when the tile unmounts.
-        if (track.kind === Track.Kind.Audio) track.detach().forEach((el) => el.remove())
+        if (track.kind === Track.Kind.Audio) dropAudio(track)
         refreshTiles(room, track)
       })
       .on(RoomEvent.ParticipantDisconnected, () => refreshTiles(room))
@@ -240,7 +253,7 @@ export function CommitteeVideo({ committeeId, mode }: { committeeId: string; mod
       if (!stale()) setError(t("video.errorConnect"))
     }
     void refreshOccupancy()
-  }, [backToFloor, loadTokens, mode, refreshOccupancy, refreshTiles, stopFloorPublishing])
+  }, [backToFloor, dropAudio, loadTokens, mode, playAudio, refreshOccupancy, refreshTiles, stopFloorPublishing])
 
   useEffect(() => {
     void connectFloor()
@@ -285,11 +298,9 @@ export function CommitteeVideo({ committeeId, mode }: { committeeId: string; mod
     const room = new Room({ adaptiveStream: true, dynacast: true })
     room
       .on(RoomEvent.TrackSubscribed, (track: RemoteTrack) => {
-        if (track.kind === Track.Kind.Audio) lobbyAudio.current?.append(track.attach())
+        if (track.kind === Track.Kind.Audio) playAudio(track, lobbyAudio.current)
       })
-      .on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
-        track.detach().forEach((el) => el.remove())
-      })
+      .on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => dropAudio(track))
     try {
       await room.connect(set.url, target.token, { autoSubscribe: true })
       await room.localParticipant.publishTrack(mic, { source: Track.Source.Microphone, stopMicTrackOnMute: false })
