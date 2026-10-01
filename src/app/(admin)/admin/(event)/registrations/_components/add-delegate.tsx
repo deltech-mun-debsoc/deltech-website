@@ -47,7 +47,8 @@ export function AddDelegate({ committees, intra }: Props) {
         toast.error(r.error)
         return
       }
-      toast.success(`${form.fullName} added and emailed their application link.`)
+      if (r.emailed) toast.success(`${form.fullName} added and emailed their application link.`)
+      else toast.warning(`${form.fullName} added, but the email did not send. Open them and resend it under Emails.`, { duration: 10000 })
       setForm(EMPTY)
       setOpen(false)
       if (thenSeat) router.push(`/admin/allotment?delegate=${r.id}`)

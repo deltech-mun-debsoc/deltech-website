@@ -143,7 +143,7 @@ const AddDelegateSchema = z.object({
 // registration switch says, because the switch is about the website.
 export async function addDelegate(
   input: z.input<typeof AddDelegateSchema>,
-): Promise<{ success: true; id: string } | { success: false; error: string }> {
+): Promise<{ success: true; id: string; emailed: boolean } | { success: false; error: string }> {
   const session = await requireStaff()
   const parsed = AddDelegateSchema.safeParse(input)
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Check the details." }
@@ -193,14 +193,16 @@ export async function addDelegate(
     await audit(session.user?.email ?? "unknown", "delegate.create", "Delegate", delegate.id, {
       summary: `Added ${delegate.fullName} by hand.`,
     })
+    let emailed = true
     try {
       await sendRegistrationEmails(delegate.id)
     } catch (err) {
+      emailed = false
       console.error(`[addDelegate] registration emails failed for delegate ${delegate.id}:`, err)
     }
     revalidatePath("/admin/registrations")
     revalidatePath("/admin/allotment")
-    return { success: true, id: delegate.id }
+    return { success: true, id: delegate.id, emailed }
   } catch (err) {
     if (typeof err === "object" && err !== null && "code" in err && (err as { code: unknown }).code === "P2002") {
       return { success: false, error: "Someone with this email is already registered for this event." }
