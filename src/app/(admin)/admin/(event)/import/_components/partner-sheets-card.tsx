@@ -131,12 +131,12 @@ export function PartnerSheetsCard({ sources, presetNames }: Props) {
           </div>
           <div className="space-y-1.5">
             <Label className="text-xs">Source</Label>
-            <Select value={srcType} onValueChange={(v) => setSrcType(v as "SELF" | "CROSS_DEL")}>
+            <Select items={[{ value: "CROSS_DEL", label: "Cross delegation" }, { value: "SELF", label: "Self" }]} value={srcType} onValueChange={(v) => setSrcType(v as "SELF" | "CROSS_DEL")}>
               <SelectTrigger className="w-36">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="CROSS_DEL">Cross-del</SelectItem>
+                <SelectItem value="CROSS_DEL">Cross delegation</SelectItem>
                 <SelectItem value="SELF">Self</SelectItem>
               </SelectContent>
             </Select>
