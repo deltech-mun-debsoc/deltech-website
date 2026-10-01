@@ -43,18 +43,9 @@ export function parseIdentity(identity: string): ParsedIdentity | null {
   return null
 }
 
-export interface FloorSpeakers {
-  /** Portfolio currently speaking on the GSL, if any. */
-  gsl: string | null
-  /** Portfolio currently speaking in the moderated caucus under way, if any. */
-  caucus: string | null
-}
-
-export function publishersFor(f: FloorSpeakers): ReadonlySet<string> {
-  const s = new Set<string>()
-  if (f.gsl) s.add(f.gsl)
-  if (f.caucus) s.add(f.caucus)
-  return s
+/** The seats that may publish besides the dais: whoever holds the mic. */
+export function publishersFor(micPortfolioId: string | null): ReadonlySet<string> {
+  return new Set(micPortfolioId ? [micPortfolioId] : [])
 }
 
 /** Unknown identities never publish: a participant this app did not mint is refused. */

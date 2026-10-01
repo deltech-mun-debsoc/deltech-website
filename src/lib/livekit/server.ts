@@ -14,7 +14,6 @@ import {
   participantIdentity,
   permissionChanges,
   publishersFor,
-  type FloorSpeakers,
 } from "./video"
 
 // The server half of committee video. The database is the truth about who holds
@@ -31,16 +30,10 @@ async function liveSession(committeeId: string) {
   })
 }
 
-/** Who holds the floor right now, read from the speakers lists. */
-export async function floorSpeakers(sessionId: string): Promise<FloorSpeakers> {
-  const speaking = await prisma.speakerEntry.findMany({
-    where: { sessionId, state: "SPEAKING" },
-    select: { portfolioId: true, motionId: true, motion: { select: { state: true, kind: true } } },
-  })
-  const gsl = speaking.find((s) => s.motionId === null)?.portfolioId ?? null
-  const caucus =
-    speaking.find((s) => s.motion?.state === "IN_PROGRESS" && s.motion.kind === "MODERATED_CAUCUS")?.portfolioId ?? null
-  return { gsl, caucus }
+/** Who holds the mic right now. */
+export async function micHolder(sessionId: string): Promise<string | null> {
+  const s = await prisma.committeeSession.findUnique({ where: { id: sessionId }, select: { micPortfolioId: true } })
+  return s?.micPortfolioId ?? null
 }
 
 export interface FloorToken {
@@ -68,7 +61,7 @@ export async function mintFloorToken(viewer: ChatViewer, committeeId: string): P
     name: viewer.kind === "dais" ? t("committeeChat.daisLabel") : viewer.portfolioName,
     ttl: TOKEN_TTL_SECONDS,
   })
-  at.addGrant(grantsFor(video, room, publishersFor(await floorSpeakers(session.id))))
+  at.addGrant(grantsFor(video, room, publishersFor(await micHolder(session.id))))
   return { url: config.url, token: await at.toJwt(), room }
 }
 
@@ -97,7 +90,7 @@ export async function syncFloorRoom(committeeId: string): Promise<void> {
     }
     const changes = permissionChanges(
       participants.map((p) => ({ identity: p.identity, canPublish: !!p.permission?.canPublish })),
-      publishersFor(await floorSpeakers(session.id)),
+      publishersFor(await micHolder(session.id)),
     )
     await Promise.all(
       changes.map((c) =>
@@ -149,7 +142,7 @@ export async function syncJoiningParticipant(room: string, identity: string): Pr
     // granted is only knowable by trusting the client.
     await rooms.updateParticipant(room, identity, {
       permission: {
-        canPublish: mayPublish(identity, publishersFor(await floorSpeakers(session.id))),
+        canPublish: mayPublish(identity, publishersFor(await micHolder(session.id))),
         canSubscribe: true,
         canPublishData: false,
         canUpdateMetadata: false,
