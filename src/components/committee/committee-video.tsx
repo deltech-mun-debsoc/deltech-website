@@ -415,7 +415,6 @@ export function CommitteeVideo({ committeeId, mode }: { committeeId: string; mod
                   {people.map((o) => (
                     <li key={o.identity}>
                       {o.name}
-                      {o.dais && <span className="ml-1">({t("voice.dais")})</span>}
                     </li>
                   ))}
                 </ul>
