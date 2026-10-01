@@ -64,7 +64,9 @@ function SelectContent({
   sideOffset = 4,
   align = "center",
   alignOffset = 0,
-  alignItemWithTrigger = true,
+  // Off: aligned to the trigger, a popup inside a dialog with nothing selected
+  // opened (aria-expanded=true) but was never drawn, so the select looked dead.
+  alignItemWithTrigger = false,
   ...props
 }: SelectPrimitive.Popup.Props &
   Pick<
