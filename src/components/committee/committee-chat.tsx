@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { toSelectItems } from "@/lib/utils"
 import { t } from "@/content/strings"
 import { formatTime } from "@/lib/datetime"
 import { useRealtime } from "@/lib/realtime/client"
@@ -201,7 +202,8 @@ export function CommitteeChat({ committeeId, mode, seats, holdDirectMessages, se
 
   const picker = (current: string | null, kind: "direct" | "thread") => (
     <Select
-      value={current ?? undefined}
+      items={toSelectItems(seats, (s) => s.id, (s) => s.name)}
+      value={current}
       onValueChange={(v: string | null) => {
         if (v) setView({ kind, with: v })
       }}

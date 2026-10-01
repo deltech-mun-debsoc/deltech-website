@@ -12,6 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { toSelectItems } from "@/lib/utils"
 import { t } from "@/content/strings"
 import { useRealtime } from "@/lib/realtime/client"
 import { useVisiblePoll } from "@/lib/use-visible-poll"
@@ -50,6 +51,12 @@ const KIND_LABEL: Record<MotionKindName, string> = {
   CLOSE_DEBATE: t("floor.closeDebate"),
   OTHER: t("floor.other"),
 }
+// Select shows the raw value unless it is told the labels.
+const KIND_ITEMS = Object.entries(KIND_LABEL).map(([value, label]) => ({ value, label }))
+const MAJORITY_ITEMS = [
+  { value: "SIMPLE", label: t("floor.majoritySimple") },
+  { value: "TWO_THIRDS", label: t("floor.majorityTwoThirds") },
+]
 const STATE_LABEL: Record<string, string> = {
   PROPOSED: t("floor.stateProposed"),
   VOTING: t("floor.stateVoting"),
@@ -228,7 +235,7 @@ export function CommitteeFloor({ committeeId, mode, seats, daisAction, delegateA
             <Button size="sm" disabled={pending} onClick={() => dais({ op: "nextSpeaker", motionId })}>
               {t("floor.next")}
             </Button>
-            <Select value="" onValueChange={(v: string | null) => v && dais({ op: "addSpeaker", portfolioId: v, motionId })}>
+            <Select items={toSelectItems(seats, (s) => s.id, (s) => s.name)} value={null} onValueChange={(v: string | null) => v && dais({ op: "addSpeaker", portfolioId: v, motionId })}>
               <SelectTrigger className="w-56">
                 <SelectValue placeholder={t("floor.addSpeaker")} />
               </SelectTrigger>
@@ -395,7 +402,7 @@ function MotionForm({ label, disabled, onSubmit }: {
     >
       <label className="space-y-1 text-xs">
         <span className="text-muted-foreground">{t("floor.motionKind")}</span>
-        <Select value={kind} onValueChange={(v: string | null) => v && setKind(v as MotionKindName)}>
+        <Select items={KIND_ITEMS} value={kind} onValueChange={(v: string | null) => v && setKind(v as MotionKindName)}>
           <SelectTrigger className="w-52"><SelectValue /></SelectTrigger>
           <SelectContent>
             {(Object.keys(KIND_LABEL) as MotionKindName[]).map((k) => (
@@ -510,7 +517,7 @@ function VotePanel({ floor, mode, pending, dais, delegate }: {
             <span className="text-muted-foreground">{t("floor.subject")}</span>
             <Input className="w-64" value={subject} maxLength={200} onChange={(e) => setSubject(e.target.value)} />
           </label>
-          <Select value={majority} onValueChange={(v: string | null) => v && setMajority(v as "SIMPLE" | "TWO_THIRDS")}>
+          <Select items={MAJORITY_ITEMS} value={majority} onValueChange={(v: string | null) => v && setMajority(v as "SIMPLE" | "TWO_THIRDS")}>
             <SelectTrigger className="w-48"><SelectValue /></SelectTrigger>
             <SelectContent>
               <SelectItem value="SIMPLE">{t("floor.majoritySimple")}</SelectItem>
