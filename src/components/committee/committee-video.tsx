@@ -98,11 +98,14 @@ export function CommitteeVideo({ committeeId, mode }: { committeeId: string; mod
   const floorAudio = useRef<HTMLDivElement>(null)
   const lobbyAudio = useRef<HTMLDivElement>(null)
 
-  const refreshTiles = useCallback((room: Room) => {
+  // `gone` is the track being unsubscribed: livekit-client fires that event
+  // before it clears the publication's track, so without excluding it here a
+  // speaker whose time is up stayed on screen as a frozen, empty tile.
+  const refreshTiles = useCallback((room: Room, gone?: RemoteTrack) => {
     const next: Tile[] = []
     room.remoteParticipants.forEach((p) => {
       p.videoTrackPublications.forEach((pub) => {
-        if (pub.track && pub.isSubscribed) next.push({ key: `${p.identity}:${pub.trackSid}`, name: p.name || p.identity, track: pub.track })
+        if (pub.track && pub.track !== gone && pub.isSubscribed) next.push({ key: `${p.identity}:${pub.trackSid}`, name: p.name || p.identity, track: pub.track })
       })
     })
     setTiles(next)
@@ -209,8 +212,10 @@ export function CommitteeVideo({ committeeId, mode }: { committeeId: string; mod
         refreshTiles(room)
       })
       .on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
-        track.detach().forEach((el) => el.remove())
-        refreshTiles(room)
+        // Only audio elements are ours to remove; a video element belongs to its
+        // VideoTile, which detaches it when the tile unmounts.
+        if (track.kind === Track.Kind.Audio) track.detach().forEach((el) => el.remove())
+        refreshTiles(room, track)
       })
       .on(RoomEvent.ParticipantDisconnected, () => refreshTiles(room))
       .on(RoomEvent.AudioPlaybackStatusChanged, () => setNeedsAudio(!room.canPlaybackAudio))
