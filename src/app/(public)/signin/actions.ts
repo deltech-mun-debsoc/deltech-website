@@ -42,7 +42,7 @@ function underlyingError(err: unknown): Error | null {
 export async function requestMagicLink(
   _prev: { error?: string } | null,
   formData: FormData,
-): Promise<{ error?: string }> {
+): Promise<{ error?: string; email?: string }> {
   // Lowercased like every other auth path. Without this, a link requested for
   // "Foo@Bar.com" mints a VerificationToken whose identifier never matches the
   // stored (lowercased) User.email, so the link resolves to nothing.
@@ -55,14 +55,14 @@ export async function requestMagicLink(
   } catch (err) {
     if ((err as { digest?: string }).digest?.startsWith("NEXT_REDIRECT")) throw err;
 
-    if (isAuthRateLimitError(err)) return { error: "tooManyRequests" };
+    if (isAuthRateLimitError(err)) return { error: "tooManyRequests", email };
     const underlying = underlyingError(err);
     if (underlying) {
       // Logged because this path wrote no trace anywhere: it fails before the
       // send, so there is no EmailLog row either, and the audit that went
       // looking for it could only reason about it from the Auth.js source.
       console.error("[signin] magic link failed for an infrastructure reason:", underlying);
-      return { error: "errorRetry" };
+      return { error: "errorRetry", email };
     }
 
     // A real refusal: no account for this address, or the account is disabled.
@@ -76,35 +76,39 @@ export async function requestMagicLink(
     // noPasswordYetHint is worded the way it is. /signin/sent says outright
     // that nothing arrives if the address has no account.
     if (err instanceof AuthError) redirect("/signin/sent");
-    return { error: "errorDefault" };
+    return { error: "errorDefault", email };
   }
 }
 
 export async function signInWithPassword(
   _prev: { error?: string } | null,
   formData: FormData,
-): Promise<{ error?: string }> {
+): Promise<{ error?: string; redirectTo?: string; email?: string }> {
   const email = (formData.get("email") as string)?.trim().toLowerCase();
   const password = formData.get("password") as string;
   if (!email) return { error: "invalidCredentials" };
 
+  // The browser loads /go itself. A server-action redirect soft-navigates to it,
+  // and because /go is a route handler that redirects again, the address bar
+  // stayed on /go: the next server action on that page POSTed to /go and got 405.
   try {
-    await signIn("credentials", { email, password, redirectTo: dispatchTarget(formData) });
-    return {};
+    const target = dispatchTarget(formData);
+    await signIn("credentials", { email, password, redirect: false, redirectTo: target });
+    return { redirectTo: target };
   } catch (err) {
     if ((err as { digest?: string }).digest?.startsWith("NEXT_REDIRECT")) throw err;
 
     // Same blindness as the magic link had: authorize() reads the user row, so a
     // database fault was reported as "Invalid email or password" -- telling
     // someone their correct password is wrong.
-    if (isAuthRateLimitError(err)) return { error: "tooManyRequests" };
+    if (isAuthRateLimitError(err)) return { error: "tooManyRequests", email };
     const underlying = underlyingError(err);
     if (underlying) {
       console.error("[signin] password sign-in failed for an infrastructure reason:", underlying);
-      return { error: "errorRetry" };
+      return { error: "errorRetry", email };
     }
 
-    if (err instanceof AuthError) return { error: "invalidCredentials" };
-    return { error: "errorDefault" };
+    if (err instanceof AuthError) return { error: "invalidCredentials", email };
+    return { error: "errorDefault", email };
   }
 }
