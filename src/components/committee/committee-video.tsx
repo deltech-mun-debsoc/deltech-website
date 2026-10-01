@@ -389,6 +389,7 @@ export function CommitteeVideo({ committeeId, mode }: { committeeId: string; mod
           type="button"
           onClick={() => void backToFloor()}
           disabled={!inLobby || joining !== null}
+          aria-current={here("floor") ? "true" : undefined}
           className={`w-full rounded-md px-2 py-1.5 text-left text-sm ${here("floor") ? "bg-primary/10 font-medium" : "hover:bg-muted"}`}
         >
           {t("voice.floor")}
@@ -403,9 +404,11 @@ export function CommitteeVideo({ committeeId, mode }: { committeeId: string; mod
                   type="button"
                   onClick={() => void joinLobby(l.slot)}
                   disabled={joining !== null || here(l.slot)}
+                  aria-current={here(l.slot) ? "true" : undefined}
                   className={`w-full rounded-md px-2 py-1.5 text-left text-sm ${here(l.slot) ? "bg-primary/10 font-medium" : "hover:bg-muted"}`}
                 >
                   {l.name}
+                  {here(l.slot) && <Badge variant="outline" className="ml-2">{t("voice.here")}</Badge>}
                   {joining === l.slot && <span className="ml-2 text-xs text-muted-foreground">{t("voice.joining")}</span>}
                 </button>
                 <ul className="ml-3 text-xs text-muted-foreground">
