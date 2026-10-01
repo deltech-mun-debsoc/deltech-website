@@ -136,6 +136,7 @@ const AddDelegateSchema = z.object({
   isDtu: z.boolean(),
   pref1CommitteeId: z.string().optional(),
   pref1Portfolio: z.string().trim().max(120).optional(),
+  pref1PortfolioId: z.string().optional(),
 })
 
 // On-the-spot registration at the desk. Staff add the person whatever the public
@@ -157,9 +158,17 @@ export async function addDelegate(
   if (!institution || institution.length < 2) return { success: false, error: "Enter their college." }
 
   const committeeId = v.pref1CommitteeId || null
+  let seat: { id: string; name: string } | null = null
   if (committeeId) {
     const ok = await prisma.committee.findFirst({ where: { id: committeeId, eventId: event.id }, select: { id: true } })
     if (!ok) return { success: false, error: "That committee is not part of this event." }
+    if (v.pref1PortfolioId) {
+      seat = await prisma.portfolio.findFirst({
+        where: { id: v.pref1PortfolioId, committeeId, status: "AVAILABLE" },
+        select: { id: true, name: true },
+      })
+      if (!seat) return { success: false, error: "That seat was just taken. Pick another." }
+    }
   }
 
   try {
@@ -175,7 +184,8 @@ export async function addDelegate(
         source: "MANUAL",
         sourceNote: `Added by ${session.user?.email ?? "staff"}`,
         pref1CommitteeId: committeeId,
-        pref1Portfolio: committeeId ? v.pref1Portfolio || null : null,
+        pref1Portfolio: seat?.name ?? (committeeId ? v.pref1Portfolio || null : null),
+        pref1PortfolioId: seat?.id ?? null,
         status: "REGISTERED",
       },
       select: { id: true, fullName: true },

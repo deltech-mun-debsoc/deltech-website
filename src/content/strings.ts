@@ -422,7 +422,7 @@ export const STRINGS = {
       markAnswered: "Mark answered",
       answered: "Marked answered.",
       navLink: "Google Form responses",
-      rollPlaceholder: "e.g. 2K23/CO/123",
+      rollPlaceholder: "e.g. 25/CO/123",
     },
     users: {
       inviteEmailPlaceholder: "person@deltech.edu",
