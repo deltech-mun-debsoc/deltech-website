@@ -6,6 +6,7 @@ import { toast } from "sonner"
 import { AlertTriangle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { resendEmail } from "../registrations/actions"
+import { EMAIL_LABEL } from "../registrations/_lib/status"
 
 interface FailedLog {
   id: string
@@ -48,15 +49,15 @@ export function FailedEmailsCard({ count, logs }: { count: number; logs: FailedL
         </h2>
       </div>
       <p className="mt-1 text-sm text-muted-foreground">
-        These sends failed. Resend the delegate-linked ones here; others need re-triggering from
-        their own flow.
+        These emails did not reach the person. Press Resend to try again. Ones without a Resend
+        button have to be sent again from the page that sends them.
       </p>
       <div className="mt-4 divide-y divide-border/60">
         {logs.map((log) => (
           <div key={log.id} className="flex flex-wrap items-center justify-between gap-3 py-2.5">
             <div className="min-w-0">
               <p className="truncate text-sm">
-                <span className="font-mono text-xs text-muted-foreground">{log.template}</span>
+                <span className="font-medium">{EMAIL_LABEL[log.template] ?? log.template}</span>
                 {" · "}
                 {log.toEmail}
               </p>
@@ -75,7 +76,7 @@ export function FailedEmailsCard({ count, logs }: { count: number; logs: FailedL
                 {pendingId === log.id ? "Resending…" : "Resend"}
               </Button>
             ) : (
-              <span className="shrink-0 text-xs text-muted-foreground">not resendable here</span>
+              <span className="shrink-0 text-xs text-muted-foreground">Resend from its own page</span>
             )}
           </div>
         ))}
