@@ -5,14 +5,6 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
-import { toSelectItems } from "@/lib/utils"
 import { t } from "@/content/strings"
 import { formatTime } from "@/lib/datetime"
 import { useRealtime } from "@/lib/realtime/client"
@@ -271,41 +263,43 @@ export function CommitteeChat({ committeeId, mode, seats, holdDirectMessages, se
     })
   }
 
-  const picker = (current: string | null, kind: "direct" | "thread") => (
-    <Select
-      items={toSelectItems(seats, (s) => s.id, (s) => s.name)}
-      value={current}
-      onValueChange={(v: string | null) => {
-        if (v) setView({ kind, with: v })
-      }}
-    >
-      <SelectTrigger className="w-60">
-        <SelectValue placeholder={t("committeeChat.pickDelegation")} />
-      </SelectTrigger>
-      <SelectContent>
-        {seats.map((s) => (
-          <SelectItem key={s.id} value={s.id}>
-            {s.name}
-            <UnreadBadge n={unread[`${kind}:${s.id}`] ?? 0} />
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  )
-
-  const tabs: { label: string; view: View; active: boolean; count: number }[] =
+  // The sidebar, Slack-style: every conversation is one row with its own unread
+  // count, so nobody has to open a picker to find out who wrote to them.
+  type Row = { key: string; label: string; view: View; count: number; channel?: boolean }
+  const seatRow = (kind: "direct" | "thread", s: Seat): Row => ({
+    key: `${kind}:${s.id}`,
+    label: s.name,
+    view: { kind, with: s.id },
+    count: unread[`${kind}:${s.id}`] ?? 0,
+  })
+  const sections: { title: string; rows: Row[] }[] =
     mode === "delegate"
       ? [
-          { label: t("committeeChat.viewFloor"), view: { kind: "floor" }, active: view.kind === "floor", count: unread.floor ?? 0 },
-          { label: t("committeeChat.viewDais"), view: { kind: "dais" }, active: view.kind === "dais", count: unread.dais ?? 0 },
-          { label: t("committeeChat.viewDirect"), view: { kind: "direct", with: null }, active: view.kind === "direct", count: sumPrefix(unread, "direct:") },
+          {
+            title: t("committeeChat.channels"),
+            rows: [
+              { key: "floor", label: t("committeeChat.viewFloor"), view: { kind: "floor" }, count: unread.floor ?? 0, channel: true },
+              { key: "dais", label: t("committeeChat.viewDais"), view: { kind: "dais" }, count: unread.dais ?? 0, channel: true },
+            ],
+          },
+          { title: t("committeeChat.directMessages"), rows: seats.map((s) => seatRow("direct", s)) },
         ]
       : [
-          { label: t("committeeChat.viewFloor"), view: { kind: "floor" }, active: view.kind === "floor", count: unread.floor ?? 0 },
-          { label: t("committeeChat.viewThreads"), view: { kind: "thread", with: null }, active: view.kind === "thread", count: sumPrefix(unread, "thread:") },
-          { label: t("committeeChat.viewAllDirect"), view: { kind: "allDirect" }, active: view.kind === "allDirect", count: 0 },
-          { label: t("committeeChat.viewHeld"), view: { kind: "held" }, active: view.kind === "held", count: heldCount },
+          {
+            title: t("committeeChat.channels"),
+            rows: [{ key: "floor", label: t("committeeChat.viewFloor"), view: { kind: "floor" }, count: unread.floor ?? 0, channel: true }],
+          },
+          { title: t("committeeChat.viewThreads"), rows: seats.map((s) => seatRow("thread", s)) },
+          {
+            title: t("committeeChat.oversight"),
+            rows: [
+              { key: "allDirect", label: t("committeeChat.viewAllDirect"), view: { kind: "allDirect" }, count: 0 },
+              { key: "held", label: t("committeeChat.viewHeld"), view: { kind: "held" }, count: heldCount },
+            ],
+          },
         ]
+  const currentKey = viewKey(view) ?? view.kind
+  const current = sections.flatMap((x) => x.rows).find((r) => r.key === currentKey)
 
   const placeholder =
     view.kind === "floor"
@@ -317,121 +311,128 @@ export function CommitteeChat({ committeeId, mode, seats, holdDirectMessages, se
           : t("committeeChat.placeholderReply", { name: seatName(view.kind === "thread" ? view.with : null) })
 
   return (
-    <section className="space-y-4 rounded-lg border border-border/70 p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold">{t("committeeChat.title")}</h2>
-        {mode === "dais" && setHold && (
-          <label className="flex items-center gap-2 text-sm">
-            <Switch checked={hold} onCheckedChange={(v: boolean) => toggleHold(v)} disabled={pending} />
-            {t("committeeChat.holdLabel")}
-          </label>
-        )}
-      </div>
-
-      <p className="text-xs text-muted-foreground">
-        {mode === "delegate"
-          ? t("committeeChat.daisSeesAll")
-          : hold
-            ? t("committeeChat.holdOn")
-            : t("committeeChat.holdOff")}
-        {mode === "delegate" && holdDirectMessages ? ` ${t("committeeChat.delegateHoldOn")}` : ""}
-      </p>
-
-      <div className="flex flex-wrap items-center gap-2">
-        {tabs.map((tab) => (
-          <Button
-            key={tab.label}
-            size="sm"
-            variant={tab.active ? "default" : "outline"}
-            onClick={() => setView(tab.view)}
-          >
-            {tab.label}
-            <UnreadBadge n={tab.count} />
-          </Button>
-        ))}
-        {view.kind === "direct" && picker(view.with, "direct")}
-        {view.kind === "thread" && picker(view.with, "thread")}
-      </div>
-
-      <div className="max-h-[28rem] min-h-40 space-y-3 overflow-y-auto rounded-md bg-muted/30 p-3">
-        {(view.kind === "direct" || view.kind === "thread") && !view.with ? (
-          <p className="text-sm text-muted-foreground">{t("committeeChat.pickFirst")}</p>
-        ) : shown.length === 0 ? (
-          <p className="text-sm text-muted-foreground">{t("committeeChat.empty")}</p>
-        ) : (
-          shown.map((m) => (
-            <article key={m.id} className={m.mine ? "ml-8 space-y-1" : "mr-8 space-y-1"}>
-              <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                <span className="font-medium text-foreground">{m.fromLabel}</span>
-                {m.scope !== "FLOOR" && m.toLabel && <span>{t("committeeChat.to", { name: m.toLabel })}</span>}
-                <span>{formatTime(m.createdAt)}</span>
-                {m.state === "HELD" && <Badge variant="outline">{t("committeeChat.held")}</Badge>}
-                {m.state === "BLOCKED" && <Badge variant="destructive">{t("committeeChat.blocked")}</Badge>}
-              </p>
-              <p className="whitespace-pre-wrap break-words rounded-md bg-background px-3 py-2 text-sm">{m.body}</p>
-              {mode === "dais" && (
-                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                  {m.authorEmail && <span>{t("committeeChat.typedBy", { email: m.authorEmail })}</span>}
-                  {m.state === "HELD" && (
-                    <Button size="sm" variant="outline" disabled={pending} onClick={() => act(m.id, "approve")}>
-                      {t("committeeChat.approve")}
-                    </Button>
-                  )}
-                  {m.state !== "BLOCKED" ? (
-                    <Button size="sm" variant="ghost" disabled={pending} onClick={() => act(m.id, "block")}>
-                      {t("committeeChat.block")}
-                    </Button>
-                  ) : (
-                    <Button size="sm" variant="ghost" disabled={pending} onClick={() => act(m.id, "restore")}>
-                      {t("committeeChat.restore")}
-                    </Button>
-                  )}
-                </div>
-              )}
-            </article>
-          ))
-        )}
-        <div ref={bottom} />
-      </div>
-
-      {error && <p className="text-sm text-destructive">{error}</p>}
-
-      {target ? (
-        <form
-          className="space-y-2"
-          onSubmit={(e) => {
-            e.preventDefault()
-            submit()
-          }}
-        >
-          <Textarea
-            value={body}
-            maxLength={MAX_BODY}
-            rows={2}
-            placeholder={placeholder}
-            onChange={(e) => setBody(e.target.value)}
-            onKeyDown={(e) => {
-              // Enter sends, Shift+Enter is a new line, as in every chat app.
-              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-                e.preventDefault()
-                submit()
-              }
-            }}
-          />
-          <div className="flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">
-              {t("committeeChat.counter", { n: body.length, max: MAX_BODY })}
-            </span>
-            <Button type="submit" disabled={pending || !body.trim()}>
-              {pending ? t("committeeChat.sending") : t("committeeChat.send")}
-            </Button>
+    <section className="grid overflow-hidden rounded-lg border border-border/70 md:grid-cols-[13rem_minmax(0,1fr)]">
+      <nav aria-label={t("committeeChat.title")} className="space-y-4 border-b border-border/70 bg-muted/30 p-3 md:border-b-0 md:border-r">
+        {sections.map((section) => (
+          <div key={section.title} className="space-y-1">
+            <p className="px-2 text-xs font-semibold uppercase tracking-wider text-muted-foreground">{section.title}</p>
+            <ul className="space-y-0.5">
+              {section.rows.map((row) => (
+                <li key={row.key}>
+                  <button
+                    type="button"
+                    onClick={() => setView(row.view)}
+                    aria-current={row.key === currentKey ? "true" : undefined}
+                    className={`flex w-full items-center justify-between rounded-md px-2 py-1 text-left text-sm ${row.key === currentKey ? "bg-primary/10 font-medium" : row.count > 0 ? "font-semibold hover:bg-muted" : "text-muted-foreground hover:bg-muted"}`}
+                  >
+                    <span className="truncate">{row.channel ? `# ${row.label}` : row.label}</span>
+                    <UnreadBadge n={row.count} />
+                  </button>
+                </li>
+              ))}
+            </ul>
           </div>
-        </form>
-      ) : (
-        view.kind === "allDirect" || view.kind === "held" ? (
-          <p className="text-xs text-muted-foreground">{t("committeeChat.readOnly")}</p>
-        ) : null
-      )}
+        ))}
+      </nav>
+
+      <div className="flex min-w-0 flex-col gap-3 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-lg font-semibold">{current ? (current.channel ? `# ${current.label}` : current.label) : t("committeeChat.title")}</h2>
+          {mode === "dais" && setHold && (
+            <label className="flex items-center gap-2 text-sm">
+              <Switch checked={hold} onCheckedChange={(v: boolean) => toggleHold(v)} disabled={pending} />
+              {t("committeeChat.holdLabel")}
+            </label>
+          )}
+        </div>
+
+        <p className="text-xs text-muted-foreground">
+          {mode === "delegate"
+            ? t("committeeChat.daisSeesAll")
+            : hold
+              ? t("committeeChat.holdOn")
+              : t("committeeChat.holdOff")}
+          {mode === "delegate" && holdDirectMessages ? ` ${t("committeeChat.delegateHoldOn")}` : ""}
+        </p>
+
+        <div className="h-[24rem] space-y-3 overflow-y-auto rounded-md bg-muted/30 p-3">
+          {shown.length === 0 ? (
+            <p className="text-sm text-muted-foreground">{t("committeeChat.empty")}</p>
+          ) : (
+            shown.map((m) => (
+              <article key={m.id} className={m.mine ? "ml-8 space-y-1" : "mr-8 space-y-1"}>
+                <p className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <span className="font-medium text-foreground">{m.fromLabel}</span>
+                  {m.scope !== "FLOOR" && m.toLabel && <span>{t("committeeChat.to", { name: m.toLabel })}</span>}
+                  <span>{formatTime(m.createdAt)}</span>
+                  {m.state === "HELD" && <Badge variant="outline">{t("committeeChat.held")}</Badge>}
+                  {m.state === "BLOCKED" && <Badge variant="destructive">{t("committeeChat.blocked")}</Badge>}
+                </p>
+                <p className="whitespace-pre-wrap break-words rounded-md bg-background px-3 py-2 text-sm">{m.body}</p>
+                {mode === "dais" && (
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    {m.authorEmail && <span>{t("committeeChat.typedBy", { email: m.authorEmail })}</span>}
+                    {m.state === "HELD" && (
+                      <Button size="sm" variant="outline" disabled={pending} onClick={() => act(m.id, "approve")}>
+                        {t("committeeChat.approve")}
+                      </Button>
+                    )}
+                    {m.state !== "BLOCKED" ? (
+                      <Button size="sm" variant="ghost" disabled={pending} onClick={() => act(m.id, "block")}>
+                        {t("committeeChat.block")}
+                      </Button>
+                    ) : (
+                      <Button size="sm" variant="ghost" disabled={pending} onClick={() => act(m.id, "restore")}>
+                        {t("committeeChat.restore")}
+                      </Button>
+                    )}
+                  </div>
+                )}
+              </article>
+            ))
+          )}
+          <div ref={bottom} />
+        </div>
+
+        {error && <p className="text-sm text-destructive">{error}</p>}
+
+        {target ? (
+          <form
+            className="space-y-2"
+            onSubmit={(e) => {
+              e.preventDefault()
+              submit()
+            }}
+          >
+            <Textarea
+              value={body}
+              maxLength={MAX_BODY}
+              rows={2}
+              placeholder={placeholder}
+              onChange={(e) => setBody(e.target.value)}
+              onKeyDown={(e) => {
+                // Enter sends, Shift+Enter is a new line, as in every chat app.
+                if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                  e.preventDefault()
+                  submit()
+                }
+              }}
+            />
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-muted-foreground">
+                {t("committeeChat.counter", { n: body.length, max: MAX_BODY })}
+              </span>
+              <Button type="submit" disabled={pending || !body.trim()}>
+                {pending ? t("committeeChat.sending") : t("committeeChat.send")}
+              </Button>
+            </div>
+          </form>
+        ) : (
+          view.kind === "allDirect" || view.kind === "held" ? (
+            <p className="text-xs text-muted-foreground">{t("committeeChat.readOnly")}</p>
+          ) : null
+        )}
+      </div>
     </section>
   )
 }
