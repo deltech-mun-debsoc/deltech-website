@@ -35,14 +35,9 @@ export interface SessionResult {
 }
 
 // ── openSession ───────────────────────────────────────────────────────────────
-// Opens a session for a committee and seeds one attendance row per seat, so the
-// chair's roll call is a plain query and quorum has a denominator at once.
-//
-// Race-safe on two axes. `@@unique([committeeId, attempt])` means two chairs
-// pressing Open at once cannot create two sessions for the same attempt: the
-// loser gets P2002 and adopts the winner's session rather than erroring. The
-// seed uses skipDuplicates against `@@unique([sessionId, portfolioId])`, so it
-// is idempotent and safe to re-run against a session that already has rows.
+// Opens a session for a committee. Race-safe: `@@unique([committeeId, attempt])`
+// means two people pressing Open at once cannot create two sessions for the same
+// attempt; the loser gets P2002 and adopts the winner's session.
 export async function openSession(rawCommitteeId: unknown): Promise<SessionResult> {
   const session = await requireStaff()
   const actorEmail = session.user?.email ?? "admin"
@@ -56,14 +51,13 @@ export async function openSession(rawCommitteeId: unknown): Promise<SessionResul
   }
 
   // An already-live session is adopted rather than replaced: pressing Open twice
-  // must not discard marks a chair has already taken.
+  // must not discard a vote under way.
   const live = await prisma.committeeSession.findFirst({
     where: { committeeId, state: { in: ["NOT_STARTED", "ACTIVE", "PAUSED"] } },
     select: { id: true },
     orderBy: { attempt: "desc" },
   })
   if (live) {
-    await seedAttendance(live.id, committeeId)
     revalidatePath(PATH)
     floorNudge(committeeId)
     return { success: true, sessionId: live.id }
@@ -102,7 +96,6 @@ export async function openSession(rawCommitteeId: unknown): Promise<SessionResul
     sessionId = winner.id
   }
 
-  await seedAttendance(sessionId, committeeId)
   await audit(actorEmail, "committee_session_open", "CommitteeSession", sessionId, {
     committee: committee.name,
     attempt,
@@ -112,18 +105,6 @@ export async function openSession(rawCommitteeId: unknown): Promise<SessionResul
   // than on their next poll.
   floorNudge(committeeId)
   return { success: true, sessionId }
-}
-
-async function seedAttendance(sessionId: string, committeeId: string): Promise<void> {
-  const portfolios = await prisma.portfolio.findMany({
-    where: { committeeId },
-    select: { id: true },
-  })
-  if (portfolios.length === 0) return
-  await prisma.sessionAttendance.createMany({
-    data: portfolios.map((p) => ({ sessionId, portfolioId: p.id })),
-    skipDuplicates: true,
-  })
 }
 
 // ── closeSession ──────────────────────────────────────────────────────────────

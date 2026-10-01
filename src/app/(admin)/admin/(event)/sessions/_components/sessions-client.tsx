@@ -15,7 +15,7 @@ export interface SessionRow {
   id: string
   name: string
   chairs: { userId: string; email: string; name: string | null }[]
-  session: { id: string; version: number; startedAt: string | null; inRoom: number; total: number } | null
+  session: { id: string; version: number; startedAt: string | null } | null
 }
 
 type Pending = { kind: "close"; committee: SessionRow } | { kind: "remove"; committee: SessionRow; userId: string; email: string }
@@ -110,9 +110,6 @@ function CommitteeCard({
               <Badge>
                 {session.startedAt ? t("sessions.inSession", { time: formatTime(session.startedAt) }) : t("sessions.open")}
               </Badge>
-              <span className="text-xs text-muted-foreground">
-                {t("sessions.present", { inRoom: session.inRoom, total: session.total })}
-              </span>
             </div>
           ) : (
             <Badge variant="outline">{t("sessions.notInSession")}</Badge>

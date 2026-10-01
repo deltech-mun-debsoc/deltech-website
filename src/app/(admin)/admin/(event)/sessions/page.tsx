@@ -1,7 +1,6 @@
 import { prisma } from "@/lib/prisma"
 import { currentEventScope } from "@/lib/event"
 import { t } from "@/content/strings"
-import { tally } from "@/lib/committee/roll-call"
 import { PageHeader } from "@/app/(admin)/_components/page-header"
 import { SessionsClient, type SessionRow } from "./_components/sessions-client"
 
@@ -26,14 +25,13 @@ export default async function SessionsPage() {
         where: { state: "ACTIVE" },
         orderBy: { attempt: "desc" },
         take: 1,
-        select: { id: true, version: true, startedAt: true, attendance: { select: { status: true } } },
+        select: { id: true, version: true, startedAt: true },
       },
     },
   })
 
   const rows: SessionRow[] = committees.map((c) => {
     const live = c.sessions[0]
-    const counts = live ? tally(live.attendance.map((a) => a.status)) : null
     return {
       id: c.id,
       name: c.name,
@@ -43,8 +41,6 @@ export default async function SessionsPage() {
             id: live.id,
             version: live.version,
             startedAt: live.startedAt?.toISOString() ?? null,
-            inRoom: counts!.inRoom,
-            total: counts!.total,
           }
         : null,
     }
