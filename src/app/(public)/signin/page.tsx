@@ -1,7 +1,6 @@
 import Link from "next/link"
 import { redirect } from "next/navigation"
-import { auth } from "@/lib/auth"
-import { safeLanding } from "@/lib/nav"
+import { landingFor } from "@/lib/landing"
 import { t } from "@/content/strings"
 import { SignInForm } from "./_components/sign-in-form"
 import { AuthStage } from "./_components/auth-stage"
@@ -17,10 +16,8 @@ export default async function SignInPage(props: {
   // and the only way forward is to authenticate a second time. Dispatch the
   // same way /go does, so an intended callbackUrl is still honoured and a role
   // that cannot reach it is downgraded to its own home rather than bounced.
-  const session = await auth()
-  if (session) {
-    redirect(safeLanding(callbackUrl, (session.user as { role?: string } | undefined)?.role))
-  }
+  const target = await landingFor(callbackUrl)
+  if (target) redirect(target)
 
   return (
     <AuthStage kind="delegate">

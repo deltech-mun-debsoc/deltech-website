@@ -7,43 +7,36 @@
 // /dashboard -- the REGISTERER home -- so a signed-in admin was sent to a page
 // their role has no business on and bounced again.
 //
-// Both failures are the same shape: a destination decided locally instead of by
-// roleHome/safeLanding, which is what /go already routes every sign-in through.
-// This pins the guard AND the fact that it dispatches by role.
+// Both failures are the same shape: a destination decided locally. All doors now
+// share landingFor (src/lib/landing.ts), which /go uses too.
 import assert from "node:assert"
-import { readFileSync } from "node:fs"
+import { existsSync, readFileSync } from "node:fs"
 import { join } from "node:path"
 
 const APP = join(__dirname, "..", "src", "app", "(public)")
 
-const PAGES = [
-  { file: "signin/page.tsx", dispatcher: "safeLanding" },
-  { file: "signin/staff/page.tsx", dispatcher: "safeLanding" },
-  // No callbackUrl to honour here, so the role's home is the whole answer.
-  { file: "signup/page.tsx", dispatcher: "roleHome" },
-]
+// /go is the dispatcher itself; the three doors must use the same one.
+const PAGES = ["go/page.tsx", "signin/page.tsx", "signin/staff/page.tsx", "signup/page.tsx"]
 
-for (const { file, dispatcher } of PAGES) {
+for (const file of PAGES) {
   const src = readFileSync(join(APP, file), "utf8")
 
+  // landingFor resolves the session, confirms the account still exists, and
+  // dispatches through safeLanding. Calling auth() directly here is how /signin
+  // bounced a cookie for a deleted account into a guard that bounced it back.
   assert.ok(
-    /await auth\(\)/.test(src),
-    `${file}: must call auth() -- a signed-in visitor should never be shown a sign-in form`,
+    /await landingFor\(/.test(src),
+    `${file}: must dispatch a signed-in visitor through landingFor from @/lib/landing`,
   )
-  assert.ok(
-    /if \(session\)/.test(src),
-    `${file}: must redirect when a session exists`,
-  )
-  assert.ok(
-    src.includes(dispatcher),
-    `${file}: must dispatch through ${dispatcher} from @/lib/nav, not a hardcoded path`,
-  )
-  // The specific regression: /signup used to send everyone to the REGISTERER
-  // home regardless of role.
+  assert.ok(!/await auth\(\)/.test(src), `${file}: must not read the session itself -- use landingFor`)
   assert.ok(
     !/redirect\("\/(dashboard|admin|write|account|recruitment)"\)/.test(src),
-    `${file}: redirects to a hardcoded role home -- use ${dispatcher} so every role lands somewhere it can actually reach`,
+    `${file}: redirects to a hardcoded role home -- landingFor picks one every role can reach`,
   )
 }
 
-console.log(`auth page guard checks passed (${PAGES.length} doors dispatch by role)`)
+// /go must be a page. A route handler's redirect is followed inside the client
+// router's fetch on a soft navigation, leaving the address bar on /go.
+assert.ok(!existsSync(join(APP, "go", "route.ts")), "go/route.ts is back: /go must be a page.tsx")
+
+console.log(`auth page guard checks passed (${PAGES.length} doors dispatch through landingFor)`)

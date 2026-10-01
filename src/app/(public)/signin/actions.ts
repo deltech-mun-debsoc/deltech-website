@@ -88,9 +88,9 @@ export async function signInWithPassword(
   const password = formData.get("password") as string;
   if (!email) return { error: "invalidCredentials" };
 
-  // The browser loads /go itself. A server-action redirect soft-navigates to it,
-  // and because /go is a route handler that redirects again, the address bar
-  // stayed on /go: the next server action on that page POSTed to /go and got 405.
+  // The browser loads /go itself (a full page load) rather than the action
+  // redirecting. Crossing the sign-in boundary should drop everything the client
+  // router cached while signed out; a soft navigation would keep it.
   try {
     const target = dispatchTarget(formData);
     await signIn("credentials", { email, password, redirect: false, redirectTo: target });
