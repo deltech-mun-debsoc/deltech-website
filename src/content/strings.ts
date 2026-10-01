@@ -1541,7 +1541,7 @@ saving: "Saving…",
 
   voice: {
     lobby: "Lobby {n}",
-    channels: "Channels",
+    channels: "Voice channels",
     floor: "Floor",
     audioOnly: "Lobbies are voice only.",
     daisSees: "The dais can see who is in each channel and can join any of them.",
