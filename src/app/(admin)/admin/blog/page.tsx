@@ -41,7 +41,7 @@ export default async function AdminBlogPage() {
 
   return (
     <div className="space-y-8">
-      <PageHeader eyebrow="Content" title="Blog" description="Review and moderate submitted posts" />
+      <PageHeader eyebrow="Content" title="Dispatch" description="Review and publish submitted posts." />
 
       {/* Needs review */}
       <section className="space-y-3">

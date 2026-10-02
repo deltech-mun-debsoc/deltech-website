@@ -41,6 +41,7 @@ function TimerField({
       <Timer className="size-3.5 shrink-0 text-muted-foreground" />
       <Label className="text-xs text-muted-foreground flex-1">{t("quiz.builder.timer")}</Label>
       <Select
+        items={[{ value: "none", label: t("quiz.builder.noTimer") }, ...TIMER_OPTIONS.filter((o) => o !== null).map((s) => ({ value: String(s), label: `${s}s` }))]}
         value={value === null ? "none" : String(value)}
         onValueChange={(v) => {
           if (v !== null) onChange(v === "none" ? null : Number(v))
@@ -177,6 +178,7 @@ function MCQConfigPanel({
       {/* Result layout */}
       <FieldRow label={t("quiz.builder.resultLayout")}>
         <Select
+          items={(["BARS", "DONUT", "PIE", "DOTS"] as MCQLayout[]).map((l) => ({ value: l, label: t(`quiz.builder.layouts.${l}` as Parameters<typeof t>[0]) }))}
           value={cfg.layout}
           onValueChange={(v) => { if (v !== null) onChange({ config: { ...cfg, layout: v as MCQLayout } }) }}
         >
@@ -640,6 +642,7 @@ function OpenTextConfigPanel({
 
       <FieldRow label={t("quiz.builder.responseLayout")}>
         <Select
+          items={(["SPEECH_BUBBLES", "FLOWING_GRID"] as OpenTextLayout[]).map((l) => ({ value: l, label: t(`quiz.builder.layouts.${l}` as Parameters<typeof t>[0]) }))}
           value={cfg.layout}
           onValueChange={(v) => { if (v !== null) onChange({ config: { ...cfg, layout: v as OpenTextLayout } }) }}
         >

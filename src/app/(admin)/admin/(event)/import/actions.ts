@@ -7,7 +7,7 @@ import { audit } from "@/lib/audit"
 import { createDelegateFromRow } from "@/lib/intake"
 import { getContent } from "@/lib/settings"
 import { automaticIntakeAllowed } from "@/lib/event-state"
-import type { ColumnMapping, MappedRow } from "@/lib/schemas/import"
+import { readableRowError, type ColumnMapping, type MappedRow } from "@/lib/schemas/import"
 import { MAX_TABULAR_COLUMNS, MAX_TABULAR_ROWS, parseCsvRows } from "@/lib/tabular"
 
 // ---------------------------------------------------------------------------
@@ -198,7 +198,7 @@ export async function commitImport(params: {
         errors.push({
           row: i,
           email: row.email,
-          reason: `Quarantined for review: ${result.errors.join("; ")}`,
+          reason: `Needs fixing: ${result.errors.map(readableRowError).join(" · ")}`,
         })
       }
     } catch (err) {
@@ -260,7 +260,7 @@ export async function retryQuarantined(
   if (!result.ok) {
     return {
       success: false,
-      error: result.reason === "duplicate" ? "Email already registered." : result.errors.join("; "),
+      error: result.reason === "duplicate" ? "Email already registered." : result.errors.map(readableRowError).join(" · "),
     }
   }
   await prisma.quarantinedRow.update({ where: { id }, data: { resolvedAt: new Date() } })

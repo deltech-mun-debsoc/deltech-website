@@ -57,7 +57,12 @@ export default async function RegistrationsPage(props: {
     prisma.committee.findMany({
       where: { isActive: true, ...scope },
       orderBy: { sortOrder: "asc" },
-      select: { id: true, name: true, slug: true },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        portfolios: { where: { status: "AVAILABLE" }, orderBy: [{ priority: "asc" }, { name: "asc" }], select: { id: true, name: true } },
+      },
     }),
   ])
 

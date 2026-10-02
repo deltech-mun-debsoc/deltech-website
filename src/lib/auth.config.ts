@@ -1,8 +1,10 @@
 import type { NextAuthConfig } from "next-auth";
-import { roleHome } from "@/lib/nav";
+import { roleCanAccess, roleHome } from "@/lib/nav";
 
-// Edge-safe config: no providers, no Prisma. Imported by both auth.ts and proxy.ts.
-// Providers and the JWT callback (which needs Prisma) live in auth.ts only.
+// The provider-free half of the auth config: pages, session strategy and the
+// session/authorized callbacks. auth.ts spreads it and adds providers and the
+// jwt callback, which needs Prisma. Kept free of Prisma so nav-level code can
+// import it without pulling in the database client.
 export const authConfig = {
   providers: [],
   pages: {
@@ -22,37 +24,18 @@ export const authConfig = {
       }
       return session;
     },
+    // One rule, shared with safeLanding: roleCanAccess in src/lib/nav.ts.
+    //
+    // A signed-in visitor who may not be here goes to their own home, never to
+    // /signin. The sign-in page sends a signed-in visitor straight back on, so
+    // routing them through it made every disagreement about their role a
+    // redirect loop. roleHome(role) always passes roleCanAccess for that role
+    // (pinned in scripts/check-nav.ts), so this redirect cannot bounce again.
     authorized({ auth, request }) {
-      const { pathname } = request.nextUrl;
       const role = (auth?.user as { role?: string } | undefined)?.role;
-
-      if (pathname.startsWith("/admin")) {
-        return role === "ADMIN" || role === "MAINTAINER";
-      }
-
-      if (pathname.startsWith("/write")) {
-        return role === "AUTHOR" || role === "ADMIN" || role === "MAINTAINER";
-      }
-
-      // Any signed-in role may manage their own account.
-      if (pathname.startsWith("/account")) return !!role
-
-      // Coarse gate only: any authenticated role may hold a per-cycle recruitment
-      // assignment, and the edge cannot query RecruitmentMember. The authoritative
-      // check is requireRecruitmentAccess() in the (recruitment) layout.
-      if (pathname.startsWith("/recruitment")) {
-        return !!role;
-      }
-
-      if (pathname.startsWith("/dashboard")) {
-        if (role === "REGISTERER") return true;
-        // Any other authenticated role (staff, author) belongs elsewhere.
-        // send them to their own home instead of a dead-end bounce to /signin.
-        if (role) return Response.redirect(new URL(roleHome(role), request.nextUrl));
-        return false; // unauthenticated → /signin
-      }
-
-      return true;
+      if (roleCanAccess(request.nextUrl.pathname, role)) return true;
+      if (role) return Response.redirect(new URL(roleHome(role), request.nextUrl));
+      return false; // signed out: /signin?callbackUrl=...
     },
   },
 } satisfies NextAuthConfig;

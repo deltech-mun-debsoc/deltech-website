@@ -44,6 +44,16 @@ const ROLE_VARIANT: Record<string, "default" | "secondary" | "destructive" | "ou
   REGISTERER: "secondary",
 }
 
+const ROLE_LABEL: Record<string, string> = {
+  ADMIN: "Admin",
+  MAINTAINER: "Maintainer",
+  AUTHOR: "Author",
+  SUB_MAINTAINER: "Junior Council",
+  MEMBER: "Member",
+  REGISTERER: "Delegate",
+}
+const ROLE_ITEMS = Object.entries(ROLE_LABEL).map(([value, label]) => ({ value, label }))
+
 export function UsersTable({ users, selfEmail }: { users: UserRow[]; selfEmail: string }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -100,7 +110,7 @@ export function UsersTable({ users, selfEmail }: { users: UserRow[]; selfEmail: 
                     {u.name && <p className="text-xs text-muted-foreground">{u.email}</p>}
                   </td>
                   <td className="px-4 py-3">
-                    <Badge variant={ROLE_VARIANT[u.role] ?? "secondary"}>{u.role}</Badge>
+                    <Badge variant={ROLE_VARIANT[u.role] ?? "secondary"}>{ROLE_LABEL[u.role] ?? u.role}</Badge>
                     {disabled && (
                       <Badge variant="destructive" className="ml-2">
                         Disabled
@@ -111,6 +121,7 @@ export function UsersTable({ users, selfEmail }: { users: UserRow[]; selfEmail: 
                   <td className="px-4 py-3">
                     <div className="flex justify-end">
                       <Select
+                        items={ROLE_ITEMS}
                         value={u.role}
                         onValueChange={(v) => v && v !== u.role && changeRole(u.id, v)}
                         disabled={isSelf || disabled || isPending}

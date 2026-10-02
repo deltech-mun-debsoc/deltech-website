@@ -214,7 +214,11 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, 
               {waiting.map((d) => {
                 const choices = delegateChoices(d, committees)
                 return (
-                  <li key={d.id} className="flex items-center gap-3 px-4 py-3">
+                  <li
+                    key={d.id}
+                    onClick={() => setSeating(d)}
+                    className="flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/40"
+                  >
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-medium">{d.fullName}</p>
                       <p className="truncate text-xs text-muted-foreground">
@@ -245,8 +249,8 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, 
                         )}
                       </div>
                     </div>
-                    <Button size="sm" onClick={() => setSeating(d)}>
-                      Give a seat
+                    <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); setSeating(d) }}>
+                      Seat
                     </Button>
                   </li>
                 )

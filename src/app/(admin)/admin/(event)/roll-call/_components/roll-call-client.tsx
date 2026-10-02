@@ -139,7 +139,7 @@ export function RollCallClient({
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-3">
-        <Select value={selectedCommitteeId ?? undefined} onValueChange={onPickCommittee}>
+        <Select items={committees.map((c) => ({ value: c.id, label: c.name }))} value={selectedCommitteeId ?? undefined} onValueChange={onPickCommittee}>
           <SelectTrigger className="w-72">
             <SelectValue placeholder={t("rollCall.pickCommittee")} />
           </SelectTrigger>

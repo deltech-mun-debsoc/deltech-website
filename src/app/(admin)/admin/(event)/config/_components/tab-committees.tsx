@@ -30,6 +30,12 @@ import {
 import { createCommittee, updateCommittee, deleteCommittee } from "../actions"
 import type { ClientCommittee } from "../_lib/types"
 
+const MATRIX_TYPE_ITEMS = [
+  { value: "STANDARD", label: "Country matrix" },
+  { value: "CRISIS", label: "People / specialized" },
+  { value: "PRESS", label: "Press corps" },
+]
+
 const schema = z.object({
   name: z.string().min(2, "Required"),
   slug: z
@@ -208,7 +214,7 @@ export function TabCommittees({ committees }: Props) {
                   <td className="px-4 py-3 text-sm text-muted-foreground">{c.portfolioTagLabel || "Not set"}</td>
                   <td className="px-4 py-3">
                     <Badge variant="secondary" className="text-xs">
-                      {c.type}
+                      {MATRIX_TYPE_ITEMS.find((i) => i.value === c.type)?.label ?? c.type}
                     </Badge>
                   </td>
                   <td className="px-4 py-3 text-center text-xs">
@@ -315,7 +321,7 @@ export function TabCommittees({ committees }: Props) {
                   control={form.control}
                   name="type"
                   render={({ field }) => (
-                    <Select value={field.value} onValueChange={(v) => field.onChange(v)}>
+                    <Select items={MATRIX_TYPE_ITEMS} value={field.value} onValueChange={(v) => field.onChange(v)}>
                       <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                       <SelectContent>
                         <SelectItem value="STANDARD">Country matrix</SelectItem>

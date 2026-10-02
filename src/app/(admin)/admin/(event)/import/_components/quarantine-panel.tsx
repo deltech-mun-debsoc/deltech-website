@@ -9,7 +9,15 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
 import { retryQuarantined, dismissQuarantined, type QuarantineRecord } from "../actions"
-import type { MappedRow } from "@/lib/schemas/import"
+import { readableRowError, type MappedRow } from "@/lib/schemas/import"
+
+const SOURCE_LABEL: Record<string, string> = {
+  CROSS_DEL: "Cross delegation",
+  SELF: "Website",
+  SPONSORED: "Sponsored",
+  INTERNAL: "Internal",
+  MANUAL: "Added by hand",
+}
 
 interface Props {
   rows: QuarantineRecord[]
@@ -51,10 +59,10 @@ export function QuarantinePanel({ rows }: Props) {
   return (
     <div className="space-y-3 rounded-xl border border-amber-300/60 bg-amber-50/50 p-4 dark:border-amber-800 dark:bg-amber-950/20">
       <div className="flex items-center gap-2">
-        <p className="text-sm font-semibold">Quarantine</p>
+        <p className="text-sm font-semibold">Rows that need fixing</p>
         <Badge variant="secondary" className="text-xs">{rows.length}</Badge>
         <p className="text-xs text-muted-foreground">
-          Rows that failed validation, fix and retry, or dismiss.
+          Fix and retry, or dismiss.
         </p>
       </div>
 
@@ -62,9 +70,9 @@ export function QuarantinePanel({ rows }: Props) {
         {rows.map((r) => (
           <div key={r.id} className="rounded-lg border border-border bg-card p-3">
             <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              <Badge variant="outline" className="text-[10px]">{r.source}</Badge>
+              <Badge variant="outline" className="text-[10px]">{SOURCE_LABEL[r.source] ?? r.source}</Badge>
               <span>{formatDateTime(r.createdAt)}</span>
-              <span className="text-destructive">{r.errors.join("; ")}</span>
+              <span className="text-destructive">{r.errors.map(readableRowError).join(" · ")}</span>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Input

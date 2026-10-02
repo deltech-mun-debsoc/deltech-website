@@ -158,7 +158,7 @@ export default async function AdminRecruitmentPage() {
                   {counts.total === 1 ? " candidate" : " candidates"}
                 </p>
                 {inSessionNow > 0 && (
-                  <p className="text-sm font-medium text-[var(--teal-700)]">
+                  <p className="text-sm font-medium text-primary">
                     {`${inSessionNow} in a session right now`}
                   </p>
                 )}

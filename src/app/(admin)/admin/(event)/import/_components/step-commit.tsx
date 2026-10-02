@@ -57,7 +57,7 @@ export function StepCommit({ validated, skipped, onBack, onDone }: Props) {
           </div>
           <div className="rounded-lg bg-amber-50 border border-amber-200 p-4 text-center dark:bg-amber-950/30 dark:border-amber-800">
             <p className="text-2xl font-bold text-amber-700 dark:text-amber-400">{result.quarantined}</p>
-            <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">Quarantined</p>
+            <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">Need fixing</p>
           </div>
         </div>
 
