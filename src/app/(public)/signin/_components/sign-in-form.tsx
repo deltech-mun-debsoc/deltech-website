@@ -4,6 +4,7 @@ import { useActionState, useEffect, useState } from "react";
 import { t } from "@/content/strings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { requestMagicLink, signInWithPassword } from "../actions";
@@ -106,10 +107,9 @@ export function SignInForm({
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="pw-password">{t("auth.passwordLabel")}</Label>
-            <Input
+            <PasswordInput
               id="pw-password"
               name="password"
-              type="password"
               autoComplete="current-password"
               required
               placeholder={t("auth.passwordPlaceholder")}
