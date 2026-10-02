@@ -422,7 +422,7 @@ export const STRINGS = {
       markAnswered: "Mark answered",
       answered: "Marked answered.",
       navLink: "Google Form responses",
-      rollPlaceholder: "e.g. 2K23/CO/123",
+      rollPlaceholder: "e.g. 25/CO/123",
     },
     users: {
       inviteEmailPlaceholder: "person@deltech.edu",
@@ -1559,6 +1559,21 @@ saving: "Saving…",
     errorNoAbstainVoting: "Present and voting delegations cannot abstain.",
     errorOneMotion: "Your delegation already has a motion waiting. Withdraw it first.",
     errorNetwork: "Could not reach the server. Nothing was changed.",
+  },
+
+  video: {
+    title: "Floor video",
+    connected: "Connected",
+    reconnecting: "Reconnecting",
+    disconnected: "Not connected",
+    nobodyLive: "Nobody is on camera. The current speaker and the dais appear here.",
+    goLive: "Go live",
+    stop: "Turn off camera and microphone",
+    enableSound: "Turn on sound",
+    reconnect: "Reconnect",
+    delegateNote: "Your camera and microphone can go live when the dais gives you the floor.",
+    errorConnect: "Could not connect to video. The floor and chat still work.",
+    errorDevices: "Your browser did not allow the camera or microphone. Check its permissions for this site.",
   },
 } as const;
 

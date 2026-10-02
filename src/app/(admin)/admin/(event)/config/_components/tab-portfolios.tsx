@@ -130,7 +130,7 @@ export function TabPortfolios({ committees }: { committees: ClientCommittee[] })
 
       {selected && <div className="grid gap-8 xl:grid-cols-[0.8fr_1.2fr]">
         <section className="space-y-5 bg-muted/40 p-6">
-          <div><p className="eyebrow">Research brief</p><h3 className="mt-2 font-heading text-2xl">Tell it what matters now</h3></div>
+          <h3 className="text-sm font-semibold">Brief</h3>
           <Textarea value={brief} onChange={(e) => setBrief(e.target.value)} rows={7} placeholder={selected.matrixBrief || "State the current scenario, actors, blocs, and exclusions. Example: prioritize sitting HRC members and agenda-affected states."} />
           <div className="flex items-end gap-3">
             <div className="space-y-2"><Label htmlFor="matrix-size">Seats</Label><Input id="matrix-size" type="number" min={1} max={300} value={genSize} onChange={(e) => setGenSize(Number(e.target.value) || 36)} className="h-11 w-24" /></div>
@@ -143,20 +143,20 @@ export function TabPortfolios({ committees }: { committees: ClientCommittee[] })
               <Button variant="outline" onClick={handleLoadSheet} disabled={isPending || !sheetUrl.trim()} className="h-11"><SheetIcon />{isPending ? "Reading…" : "Load"}</Button>
             </div>
           </div>
-          <p className="text-sm leading-relaxed text-muted-foreground">Seats are ranked by relevance to the agenda, never padded out alphabetically. Crisis committees take no reporters, and the tag column follows whatever this committee calls its classification.</p>
+          <p className="text-xs text-muted-foreground">Ranked by relevance to the agenda. Crisis committees get no reporters.</p>
         </section>
 
         <section className="space-y-4">
-          <div className="flex items-end justify-between gap-4"><div><p className="eyebrow">Review queue</p><h3 className="mt-2 font-heading text-2xl">Correct before publishing</h3></div><Badge variant="outline">Name | {tagLabel} | Rank</Badge></div>
+          <div className="flex items-end justify-between gap-4"><h3 className="text-sm font-semibold">Draft</h3><Badge variant="outline">Name | {tagLabel} | Rank</Badge></div>
           <Textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={14} className="font-mono text-sm leading-7" placeholder={`India | Member | 1\nUnited States | Non-member | 2`} />
           {sourceNote && <p className="border-l-2 border-gold-500 pl-4 text-sm leading-relaxed text-muted-foreground"><strong className="text-foreground">Verification note:</strong> {sourceNote}</p>}
           <div className="flex justify-end"><Button onClick={handlePublish} disabled={isPending || !draft.trim()}><Plus /> Publish reviewed draft</Button></div>
         </section>
       </div>}
 
-      {selected && <section className="border-t-4 border-foreground pt-6">
+      {selected && <section className="border-t border-border pt-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div><p className="eyebrow">Published matrix</p><h3 className="mt-2 font-heading text-2xl">{selected.portfolios.length} seats in {selected.name}</h3></div>
+          <h3 className="text-sm font-semibold">{`Published · ${selected.portfolios.length} seats in ${selected.name}`}</h3>
           <div className="grid gap-2 sm:grid-cols-[1fr_0.7fr_auto]"><Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Country or person" /><Input value={newTag} onChange={(e) => setNewTag(e.target.value)} placeholder={tagLabel} /><Button onClick={handleAdd} disabled={isPending || !newName.trim()}><Plus /> Add</Button></div>
         </div>
         <div className="mt-6 overflow-x-auto border-y border-border">

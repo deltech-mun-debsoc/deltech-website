@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { t } from "@/content/strings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,6 +17,10 @@ export function SignInForm({
 }) {
   const [mlState, mlAction, mlPending] = useActionState(requestMagicLink, null);
   const [pwState, pwAction, pwPending] = useActionState(signInWithPassword, null);
+  const pwRedirect = pwState?.redirectTo;
+  useEffect(() => {
+    if (pwRedirect) window.location.assign(pwRedirect);
+  }, [pwRedirect]);
   // Controlled so "Forgot password?" can hand the user to the magic-link tab.
   // That link is the whole password-recovery flow: the magic link is already a
   // single-use expiring token, so there is no separate reset token to mint.
@@ -54,6 +58,7 @@ export function SignInForm({
             <Input
               id="ml-email"
               name="email"
+              defaultValue={mlState?.email}
               type="email"
               autoComplete="email"
               required
@@ -90,11 +95,12 @@ export function SignInForm({
             <Input
               id="pw-email"
               name="email"
+              defaultValue={pwState?.email}
               type="email"
               autoComplete="email"
               required
               placeholder={t("auth.emailPlaceholder")}
-              disabled={pwPending}
+              disabled={pwPending || !!pwRedirect}
               className="h-14 rounded-none border-0 border-b-2 border-black/30 bg-transparent px-0 text-base shadow-none focus-visible:border-teal-700 focus-visible:ring-0"
             />
           </div>
@@ -107,7 +113,7 @@ export function SignInForm({
               autoComplete="current-password"
               required
               placeholder={t("auth.passwordPlaceholder")}
-              disabled={pwPending}
+              disabled={pwPending || !!pwRedirect}
               className="h-14 rounded-none border-0 border-b-2 border-black/30 bg-transparent px-0 text-base shadow-none focus-visible:border-teal-700 focus-visible:ring-0"
             />
           </div>
@@ -122,8 +128,8 @@ export function SignInForm({
                     : t("auth.errorDefault")}
             </p>
           )}
-          <Button type="submit" disabled={pwPending} className="h-14 w-full rounded-none text-base">
-            {pwPending ? t("common.loading") : t("auth.signInWithPasswordButton")}
+          <Button type="submit" disabled={pwPending || !!pwRedirect} className="h-14 w-full rounded-none text-base">
+            {pwPending || pwRedirect ? t("common.loading") : t("auth.signInWithPasswordButton")}
           </Button>
 
           <button

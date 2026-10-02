@@ -24,9 +24,10 @@ export function roleHome(role: string | null | undefined): string {
   }
 }
 
-// Can this role reach this path? Mirrors the gates in auth.config.ts `authorized`
-// so we never hand someone a landing they'd immediately bounce off (loop guard).
-function roleCanAccess(pathname: string, role: string | null | undefined): boolean {
+// Can this role reach this path? This IS the proxy's gate (auth.config.ts
+// `authorized` calls it) and safeLanding's filter, so a landing we hand out can
+// never be one the proxy then refuses.
+export function roleCanAccess(pathname: string, role: string | null | undefined): boolean {
   if (pathname.startsWith("/admin")) return role === "ADMIN" || role === "MAINTAINER"
   if (pathname.startsWith("/write")) return role === "AUTHOR" || role === "ADMIN" || role === "MAINTAINER"
   if (pathname.startsWith("/dashboard")) return role === "REGISTERER"

@@ -38,24 +38,17 @@ export default async function CommitteesSettingsPage() {
   }))
 
   return (
-    <div className="space-y-12">
-      <section className="border-t-4 border-foreground pt-6">
-        <p className="eyebrow">01 / Structure</p>
-        <h2 className="mt-3 font-heading text-3xl">Committees</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          The rooms of this event, with the other names cross delegations use for them.
-        </p>
-        <div className="rule my-6" />
+    <div className="space-y-10">
+      <section className="space-y-4">
+        <h2 className="text-sm font-semibold">Committees</h2>
         <TabCommittees committees={serialized} />
       </section>
 
-      <section className="border-t-4 border-foreground pt-6">
-        <p className="eyebrow">02 / Matrix studio</p>
-        <h2 className="mt-3 font-heading text-3xl">Build the room</h2>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Give the generator the scenario, inspect its reasoning, correct the draft, then publish it.
-        </p>
-        <div className="rule my-5" />
+      <section className="space-y-4 border-t border-border pt-8">
+        <div>
+          <h2 className="text-sm font-semibold">Matrix</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">Generate or load a draft, correct it, then publish.</p>
+        </div>
         <TabPortfolios committees={serialized} />
       </section>
 

@@ -16,6 +16,16 @@ export const IMPORT_FIELDS = [
 
 export type ImportFieldKey = (typeof IMPORT_FIELDS)[number]["key"]
 
+// Row errors are stored as "field: message" (zod's path and message). Shown to
+// staff as the column's own label, so "fullName: Required" reads "Full name: missing".
+export function readableRowError(error: string): string {
+  const m = /^(\w+): (.*)$/.exec(error)
+  if (!m) return error
+  const label = IMPORT_FIELDS.find((f) => f.key === m[1])?.label ?? m[1]
+  const message = m[2] === "Required" ? "missing" : m[2] === "did not resolve" ? "no committee by that name" : m[2]
+  return `${label}: ${message}`
+}
+
 export type ColumnMapping = Partial<Record<ImportFieldKey, string>>
 
 export const mappedRowSchema = z.object({

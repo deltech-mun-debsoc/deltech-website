@@ -1,0 +1,19 @@
+# Development only. The key and secret below are public and must never be used
+# anywhere a stranger could connect.
+port: 7880
+rtc:
+  tcp_port: 7881
+  # One UDP port instead of a range: one firewall rule, one thing to check. The
+  # production server uses the same shape.
+  udp_port: 7882
+  # Browsers on this machine reach the container on loopback.
+  node_ip: 127.0.0.1
+  use_external_ip: false
+keys:
+  devkey: devsecret-devsecret-devsecret-devsecret
+webhook:
+  api_key: devkey
+  urls:
+    - http://host.docker.internal:3000/api/livekit/webhook
+logging:
+  level: info

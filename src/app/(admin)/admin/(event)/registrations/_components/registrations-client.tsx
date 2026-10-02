@@ -56,6 +56,11 @@ const SOURCE_LABEL: Record<string, string> = {
   SELF: "Self", CROSS_DEL: "Cross-del", SPONSORED: "Sponsored", INTERNAL: "Internal", MANUAL: "Manual",
 }
 
+const FOLLOW_UP_ITEMS = [{ value: "", label: "Any follow-up" }, { value: "due", label: "Follow-up due" }, { value: "never", label: "Unpaid, never called" }]
+const QUERY_ITEMS = [{ value: "", label: "Any question" }, { value: "open", label: "Unanswered question" }]
+const DTU_ITEMS = [{ value: "", label: "DTU or not" }, { value: "true", label: "DTU only" }, { value: "false", label: "Not DTU" }]
+const ACCOMMODATION_ITEMS = [{ value: "", label: "Any accommodation" }, { value: "true", label: "Needs accommodation" }, { value: "false", label: "No accommodation" }]
+
 const FILTER_KEYS = ["q", "committeeId", "status", "source", "isDtu", "needsAccommodation", "followUp", "query"] as const
 
 function buildUrl(filters: Filters) {
@@ -124,6 +129,14 @@ export function RegistrationsClient({ delegates, committees, total, filters, int
     }
   }
 
+  const statusItems = useMemo(
+    () => [{ value: "", label: "Every stage" }, ...STATUS_OPTIONS.map((s) => ({ value: s, label: statusMeta(s).label }))],
+    []
+  )
+  const sourceItems = useMemo(
+    () => [{ value: "", label: "Any source" }, ...SOURCE_OPTIONS.map((s) => ({ value: s, label: SOURCE_LABEL[s] }))],
+    []
+  )
   const committeeItems = useMemo(
     () => [{ value: "", label: "All committees" }, ...toSelectItems(committees, (c) => c.id, (c) => c.name)],
     [committees]
@@ -213,7 +226,7 @@ export function RegistrationsClient({ delegates, committees, total, filters, int
             />
           </form>
 
-          <Select value={filters.status || undefined} onValueChange={(v) => navigate({ status: v || "" })}>
+          <Select items={statusItems} value={filters.status || undefined} onValueChange={(v) => navigate({ status: v || "" })}>
             <SelectTrigger size="sm" className="w-40">
               <SelectValue placeholder="Every stage" />
             </SelectTrigger>
@@ -282,7 +295,7 @@ export function RegistrationsClient({ delegates, committees, total, filters, int
 
         {moreOpen && (
           <div className="flex flex-wrap items-center gap-2 rounded-lg bg-muted/40 p-2">
-            <Select value={filters.followUp || undefined} onValueChange={(v) => navigate({ followUp: v || "" })}>
+            <Select items={FOLLOW_UP_ITEMS} value={filters.followUp || undefined} onValueChange={(v) => navigate({ followUp: v || "" })}>
               <SelectTrigger size="sm" className="w-44">
                 <SelectValue placeholder="Any follow-up" />
               </SelectTrigger>
@@ -292,7 +305,7 @@ export function RegistrationsClient({ delegates, committees, total, filters, int
                 <SelectItem value="never">Unpaid, never called</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={filters.query || undefined} onValueChange={(v) => navigate({ query: v || "" })}>
+            <Select items={QUERY_ITEMS} value={filters.query || undefined} onValueChange={(v) => navigate({ query: v || "" })}>
               <SelectTrigger size="sm" className="w-48">
                 <SelectValue placeholder="Any question" />
               </SelectTrigger>
@@ -303,7 +316,7 @@ export function RegistrationsClient({ delegates, committees, total, filters, int
             </Select>
             {!intra && (
               <>
-                <Select value={filters.source || undefined} onValueChange={(v) => navigate({ source: v || "" })}>
+                <Select items={sourceItems} value={filters.source || undefined} onValueChange={(v) => navigate({ source: v || "" })}>
                   <SelectTrigger size="sm" className="w-40">
                     <SelectValue placeholder="Any source" />
                   </SelectTrigger>
@@ -314,7 +327,7 @@ export function RegistrationsClient({ delegates, committees, total, filters, int
                     ))}
                   </SelectContent>
                 </Select>
-                <Select value={filters.isDtu || undefined} onValueChange={(v) => navigate({ isDtu: v || "" })}>
+                <Select items={DTU_ITEMS} value={filters.isDtu || undefined} onValueChange={(v) => navigate({ isDtu: v || "" })}>
                   <SelectTrigger size="sm" className="w-36">
                     <SelectValue placeholder="DTU or not" />
                   </SelectTrigger>
@@ -324,7 +337,7 @@ export function RegistrationsClient({ delegates, committees, total, filters, int
                     <SelectItem value="false">Not DTU</SelectItem>
                   </SelectContent>
                 </Select>
-                <Select value={filters.needsAccommodation || undefined} onValueChange={(v) => navigate({ needsAccommodation: v || "" })}>
+                <Select items={ACCOMMODATION_ITEMS} value={filters.needsAccommodation || undefined} onValueChange={(v) => navigate({ needsAccommodation: v || "" })}>
                   <SelectTrigger size="sm" className="w-44">
                     <SelectValue placeholder="Any accommodation" />
                   </SelectTrigger>

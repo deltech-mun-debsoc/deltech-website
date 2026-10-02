@@ -1,0 +1,25 @@
+# Local LiveKit for developing committee video. Not used by any deployed
+# environment; the production SFU is provisioned separately in the conference
+# month (see docs and the online-committees plan).
+#
+#   docker compose -f dev/livekit.yml up
+#
+# Then in .env.local:
+#   LIVEKIT_URL=ws://localhost:7880
+#   LIVEKIT_API_KEY=devkey
+#   LIVEKIT_API_SECRET=devsecret-devsecret-devsecret-devsecret
+name: mun-livekit-dev
+
+services:
+  livekit:
+    image: livekit/livekit-server:v1.13.7
+    command: ["--config", "/etc/livekit.yaml"]
+    ports:
+      - "7880:7880"       # signalling (HTTP + WebSocket)
+      - "7881:7881"       # WebRTC over TCP, the fallback
+      - "7882:7882/udp"   # WebRTC over UDP, one muxed port
+    volumes:
+      - ./livekit-server.yaml:/etc/livekit.yaml:ro
+    extra_hosts:
+      # So webhooks reach `npm run dev` on the host, on Linux as well as macOS.
+      - "host.docker.internal:host-gateway"

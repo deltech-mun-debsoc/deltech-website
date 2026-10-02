@@ -19,6 +19,12 @@ import { Separator } from "@/components/ui/separator"
 import { createFee, updateFee, deleteFee } from "../actions"
 import type { ClientFee } from "../_lib/types"
 
+const FEE_TYPE_ITEMS = [
+  { value: "STANDARD", label: "Standard" },
+  { value: "CRISIS", label: "Crisis" },
+  { value: "PRESS", label: "Press" },
+]
+
 interface FeeRow extends ClientFee {
   dirty: boolean
 }
@@ -158,6 +164,7 @@ export function TabFees({ fees }: Props) {
                   </td>
                   <td className="px-4 py-2">
                     <Select
+                      items={FEE_TYPE_ITEMS}
                       value={row.committeeType}
                       onValueChange={(v) => updateRow(row.id, { committeeType: v ?? row.committeeType })}
                     >
@@ -243,6 +250,7 @@ export function TabFees({ fees }: Props) {
           <div className="space-y-1">
             <Label className="text-xs text-muted-foreground">Type</Label>
             <Select
+              items={FEE_TYPE_ITEMS}
               value={newRow.committeeType}
               onValueChange={(v) => setNewRow((p) => ({ ...p, committeeType: v ?? "STANDARD" }))}
             >

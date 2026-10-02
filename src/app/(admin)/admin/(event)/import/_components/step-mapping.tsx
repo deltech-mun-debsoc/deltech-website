@@ -239,15 +239,16 @@ export function StepMapping({
                     </td>
                     <td className="px-2 py-2">
                       <Select
+                        items={[{ value: NONE_SENTINEL, label: "Skip" }, ...headers.map((h) => ({ value: h, label: h }))]}
                         value={selected ?? NONE_SENTINEL}
                         onValueChange={(v) => { if (v !== null) setField(field.key, v) }}
                       >
                         <SelectTrigger className="h-8 w-48 text-xs">
-                          <SelectValue placeholder=",  skip , " />
+                          <SelectValue placeholder="Skip" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value={NONE_SENTINEL} className="text-xs text-muted-foreground">
-                           , skip.
+                            Skip
                           </SelectItem>
                           {headers.map((h) => (
                             <SelectItem key={h} value={h} className="text-xs">{h}</SelectItem>

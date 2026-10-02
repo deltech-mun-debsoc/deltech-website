@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma"
 import { bus } from "@/lib/realtime/bus"
 import { RATE_LIMITS, rateLimit } from "@/lib/rate-limit"
 import { audit } from "@/lib/audit"
+import { syncFloorRoom } from "@/lib/livekit/server"
 import { t } from "@/content/strings"
 import { isPresent, type CommitteeAttendanceName } from "./roll-call"
 import type { ChatViewer } from "./chat"
@@ -49,6 +50,10 @@ class StaleVersion extends Error {}
 const refuse = (key: Parameters<typeof t>[0]): never => {
   throw new FloorRefusal(t(key))
 }
+
+// Dais operations that change who holds the floor, and so who may be seen and
+// heard in the video room.
+const SPEAKER_OPS: ReadonlySet<DaisOp["op"]> = new Set(["nextSpeaker", "endSpeaker", "startCaucus", "endCaucus"])
 
 export function floorNudge(committeeId: string): void {
   bus.publish(`committee:${committeeId}`, "floor", null)
@@ -477,6 +482,9 @@ export async function runDaisOp(
     await audit(viewer.email, `floor_${op.op}`, "CommitteeSession", session.id, JSON.parse(JSON.stringify(op)))
   }
   floorNudge(committeeId)
+  // Not awaited: the chair's click must not wait on the SFU, and syncFloorRoom
+  // never throws. The room converges within one LiveKit round trip.
+  if (SPEAKER_OPS.has(op.op)) void syncFloorRoom(committeeId)
   return { success: true }
 }
 

@@ -55,7 +55,9 @@ export function AllotDialog({ delegate, committees, fees, paymentsRequired, onCl
     paymentsRequired && chosenCommittee
       ? fees.find((f) => f.committeeType === chosenCommittee.type && f.isDtu === delegate.isDtu) ?? null
       : null
-  const committeeItems = toSelectItems(committees, (c) => c.id, (c) => c.name)
+  const openIn = (c: SerializedCommittee) => c.portfolios.filter((p) => p.status === "AVAILABLE").length
+  const committeeLabel = (c: SerializedCommittee) => `${c.name} · ${openIn(c)} open`
+  const committeeItems = toSelectItems(committees, (c) => c.id, committeeLabel)
 
   const close = () => {
     if (isPending) return
@@ -109,10 +111,8 @@ export function AllotDialog({ delegate, committees, fees, paymentsRequired, onCl
   ) => {
     const available = seat.status === "AVAILABLE"
     const picked = chosen?.id === seat.id
-    const openElsewhere =
-      !available && jumpTo
-        ? committees.find((c) => c.id === jumpTo)?.portfolios.filter((p) => p.status === "AVAILABLE").length ?? 0
-        : 0
+    const jumpCommittee = !available && jumpTo ? committees.find((c) => c.id === jumpTo) : undefined
+    const openElsewhere = jumpCommittee ? openIn(jumpCommittee) : 0
     return (
       <button
         key={seat.id}
@@ -140,7 +140,7 @@ export function AllotDialog({ delegate, committees, fees, paymentsRequired, onCl
         {note && (
           <span className="shrink-0 text-xs text-muted-foreground">
             {note}
-            {openElsewhere > 0 && ` · ${openElsewhere} other open here`}
+            {openElsewhere > 0 && ` · see ${openElsewhere} open in ${jumpCommittee!.name}`}
           </span>
         )}
         {picked && <CheckCircle2 className="size-4 shrink-0 text-primary" />}
@@ -194,14 +194,16 @@ export function AllotDialog({ delegate, committees, fees, paymentsRequired, onCl
 
         <section className="space-y-2">
           <div className={cn("flex flex-wrap items-center justify-between gap-2", !showOthers && "hidden")}>
-            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Or any open seat in</h3>
+            <h3 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              {choices.length === 0 ? "Open seats in" : "Or any open seat in"}
+            </h3>
             <Select items={committeeItems} value={browseId} onValueChange={(v) => v && setBrowseId(v)}>
-              <SelectTrigger className="h-8 w-56 text-sm">
+              <SelectTrigger className="h-9 w-64 text-sm">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
                 {committees.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
+                  <SelectItem key={c.id} value={c.id}>{committeeLabel(c)}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -217,7 +219,7 @@ export function AllotDialog({ delegate, committees, fees, paymentsRequired, onCl
           ) : openSeats.length === 0 ? (
             <p className="text-sm text-muted-foreground">{`No open seats in ${browse?.name ?? "this committee"}.`}</p>
           ) : (
-            <div className="grid max-h-48 grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3">
+            <div className="grid max-h-72 grid-cols-2 gap-2 overflow-y-auto pr-1 sm:grid-cols-3">
               {openSeats.map((p) => seatButton(p, p.name, null, false))}
             </div>
           )}
@@ -253,7 +255,7 @@ export function AllotDialog({ delegate, committees, fees, paymentsRequired, onCl
             Cancel
           </Button>
           <Button onClick={handleConfirm} disabled={!chosen || isPending || (paymentsRequired && !fee)}>
-            {isPending ? "Seating…" : chosen ? `Give them ${chosen.name}` : "Pick a seat"}
+            {isPending ? "Seating…" : chosen ? `Give them ${chosen.name}` : "Pick a seat above"}
           </Button>
         </DialogFooter>
       </DialogContent>
