@@ -58,14 +58,14 @@ const read = (p: string) => readFileSync(p, "utf8")
   assert.match(src, /warning:/, "a partial success must be reported as a warning, not a failure")
 }
 
-// Only the dialog knows whether it took the hold, so only the dialog may
-// release it. The board used to branch on the server-rendered status, which
-// never matched our own hold and did match someone else's.
+// Only the seat picker knows whether it took the hold, so only it may release
+// it. The board used to branch on the server-rendered status, which never
+// matched our own hold and did match someone else's.
 {
-  const dialog = read("src/app/(admin)/admin/(event)/allotment/_components/allot-dialog.tsx")
+  const picker = read("src/app/(admin)/admin/(event)/allotment/_components/seat-picker.tsx")
   const board = read("src/app/(admin)/admin/(event)/allotment/_components/allotment-board.tsx")
-  assert.match(dialog, /releaseHold\(seat\.id, holdToken\)/, "the dialog must release with its hold token")
-  assert.match(dialog, /holdToken,\s*\}/, "allotment confirmation must prove it owns the hold")
+  assert.match(picker, /releaseHold\(seat\.id, hold\.holdToken\)/, "the picker must release with its hold token")
+  assert.match(picker, /holdToken: hold\.holdToken,\s*\}/, "allotment confirmation must prove it owns the hold")
   assert.doesNotMatch(board, /releaseHold/, "the board must not release holds it knows nothing about")
 }
 

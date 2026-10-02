@@ -91,9 +91,7 @@ export default async function AllotmentPage(props: { searchParams: Promise<{ del
     <div className="space-y-6">
       <PageHeader
         title="Allotment"
-        description={paymentsRequired
-          ? "Pick a waiting delegate and give them a seat. They are emailed a payment link straight away."
-          : "Pick a waiting delegate and give them a seat. They are confirmed and emailed straight away."}
+        description={paymentsRequired ? "Allotting emails a payment link." : "Allotting confirms and emails the delegate."}
       />
       <AllotmentBoard
         focusDelegateId={focusDelegateId ?? null}
