@@ -49,8 +49,7 @@ export function FailedEmailsCard({ count, logs }: { count: number; logs: FailedL
         </h2>
       </div>
       <p className="mt-1 text-sm text-muted-foreground">
-        These emails did not reach the person. Press Resend to try again. Ones without a Resend
-        button have to be sent again from the page that sends them.
+        Not delivered.
       </p>
       <div className="mt-4 divide-y divide-border/60">
         {logs.map((log) => (

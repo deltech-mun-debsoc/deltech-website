@@ -66,7 +66,7 @@ export function AddDelegate({ committees, intra }: Props) {
           <DialogHeader>
             <DialogTitle>Add a delegate</DialogTitle>
             <DialogDescription>
-              For someone registering on the spot, even while public registration is closed. Everything is needed unless it says optional. They get an email with their application link.
+              Walk-in registration, works while public registration is closed. They are emailed their application link.
             </DialogDescription>
           </DialogHeader>
           <form className="space-y-5" onSubmit={onSubmit}>

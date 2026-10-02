@@ -4,7 +4,7 @@ import { useState, useTransition } from "react"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { ArrowRight, Check, ChevronDown, Circle, LockKeyhole } from "lucide-react"
+import { ChevronDown, LockKeyhole } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -15,16 +15,8 @@ import { saveEventSettings, type EventSettingsInput } from "../actions"
 export type EventSettingsValues = Required<EventSettingsInput>
 
 const KINDS = [
-  {
-    value: "INTRA_MUN",
-    title: "Intra MUN",
-    body: "For DTU students. Registration asks for a roll number instead of a college, and skips accommodation.",
-  },
-  {
-    value: "CONFERENCE",
-    title: "Conference",
-    body: "Open to every college. Registration asks for the institution and accommodation.",
-  },
+  { value: "INTRA_MUN", title: "Intra MUN", hint: "DTU only · roll number, no accommodation" },
+  { value: "CONFERENCE", title: "Conference", hint: "Any college · institution and accommodation" },
 ] as const
 
 function Toggle({
@@ -45,10 +37,10 @@ function Toggle({
   locked?: boolean
 }) {
   return (
-    <div className={cn("flex items-center justify-between gap-6 py-5", disabled && "opacity-55")}>
+    <div className={cn("flex items-center justify-between gap-6 py-3.5", disabled && "opacity-55")}>
       <div>
-        <Label htmlFor={id} className="text-base font-semibold">{title}</Label>
-        <p className="mt-1 text-sm text-muted-foreground">{body}</p>
+        <Label htmlFor={id} className="text-sm font-medium">{title}</Label>
+        <p className="mt-0.5 text-xs text-muted-foreground">{body}</p>
       </div>
       <div className="flex shrink-0 items-center gap-2">
         {locked && <LockKeyhole className="size-4 text-muted-foreground" aria-label="Admin only" />}
@@ -89,109 +81,96 @@ export function EventSettings({
       router.refresh()
     })
 
-  const checklist = [
-    { done: !!(v.name.trim() && v.dates.trim() && v.venue.trim()), label: "Name, dates and venue", href: "#event-details" },
-    { done: readiness.committees > 0, label: `Committees (${readiness.committees})`, href: "/admin/config/committees" },
-    { done: readiness.seats > 0, label: `Seats in the matrix (${readiness.seats})`, href: "/admin/config/committees" },
-    { done: v.published, label: "Published on the website", href: "#event-website" },
-    { done: v.published && v.registrationOpen, label: "Registration open", href: "#event-website" },
+  const missing = [
+    !(v.name.trim() && v.dates.trim() && v.venue.trim()) && { label: "Name, dates and venue", href: "#event-details" },
+    readiness.committees === 0 && { label: "Committees", href: "/admin/config/committees" },
+    readiness.seats === 0 && { label: "Matrix seats", href: "/admin/config/committees" },
+  ].filter((m): m is { label: string; href: string } => !!m)
+
+  const status = [
+    { on: v.published, label: v.published ? "Live" : "Hidden" },
+    { on: v.published && v.registrationOpen, label: v.registrationOpen ? "Registration open" : "Registration closed" },
+    { on: v.published && v.matrixPublic, label: v.matrixPublic ? "Matrix public" : "Matrix hidden" },
+    { on: v.paymentsEnabled, label: v.paymentsEnabled ? "Paid" : "Free" },
   ]
 
-  const summary = v.published
-    ? `Visitors see ${v.name.trim() || "this event"} on the homepage. Registration is ${v.registrationOpen ? "open" : "closed"}, the matrix is ${v.matrixPublic ? "public" : "hidden"}, and it is ${v.paymentsEnabled ? "paid" : "free"}.`
-    : "Hidden from visitors while you set it up. Staff can build committees, the matrix and delegates meanwhile."
-
   return (
-    <div className="space-y-10 pb-24">
-      <section className="grid gap-px overflow-hidden border border-border bg-border lg:grid-cols-[1.2fr_0.8fr]">
-        <div className="bg-ink p-6 text-paper sm:p-8">
-          <p className="font-mono text-xs uppercase tracking-[0.2em] text-paper/55">{v.published ? "Live on the website" : "Not published yet"}</p>
-          <p className="mt-4 max-w-2xl font-heading text-2xl leading-snug sm:text-3xl">{summary}</p>
-        </div>
-        <div className="bg-background p-6 sm:p-8">
-          <p className="eyebrow">Ready to run</p>
-          <ul className="mt-4 space-y-2.5">
-            {checklist.map((item) => (
-              <li key={item.label}>
-                <Link href={item.href} className="group flex items-center gap-2.5 text-sm">
-                  {item.done ? <Check className="size-4 text-primary" /> : <Circle className="size-4 text-muted-foreground" />}
-                  <span className={cn(item.done ? "text-foreground" : "text-muted-foreground group-hover:text-foreground")}>{item.label}</span>
-                  {!item.done && <ArrowRight className="size-3.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
-      </section>
+    <div className="space-y-8 pb-24">
+      <div className="flex flex-wrap items-center gap-2 text-xs">
+        {status.map((item) => (
+          <span
+            key={item.label}
+            className={cn(
+              "rounded-full border px-2.5 py-1",
+              item.on ? "border-primary/40 bg-primary/10 text-primary" : "border-border text-muted-foreground",
+            )}
+          >
+            {item.label}
+          </span>
+        ))}
+        {missing.map((item) => (
+          <Link
+            key={item.label}
+            href={item.href}
+            className="rounded-full border border-amber-500/40 bg-amber-500/10 px-2.5 py-1 text-amber-700 hover:bg-amber-500/20 dark:text-amber-300"
+          >
+            {`Missing: ${item.label}`}
+          </Link>
+        ))}
+      </div>
 
-      <section className="space-y-4">
-        <div>
-          <p className="eyebrow">What kind of event</p>
-          <h2 className="mt-2 font-heading text-2xl">Who is it for?</h2>
+      <section className="space-y-2">
+        <h2 className="text-sm font-semibold">Event type</h2>
+        <div className="inline-flex rounded-lg border border-border p-0.5" role="radiogroup" aria-label="Event type">
+          {KINDS.map((kind) => (
+            <button
+              key={kind.value}
+              type="button"
+              role="radio"
+              aria-checked={v.kind === kind.value}
+              onClick={() => set("kind", kind.value)}
+              className={cn(
+                "rounded-md px-4 py-1.5 text-sm font-medium transition-colors",
+                v.kind === kind.value ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {kind.title}
+            </button>
+          ))}
         </div>
-        <div className="grid gap-px overflow-hidden border border-border bg-border md:grid-cols-2" role="radiogroup" aria-label="Kind of event">
-          {KINDS.map((kind) => {
-            const selected = v.kind === kind.value
-            return (
-              <button
-                key={kind.value}
-                type="button"
-                role="radio"
-                aria-checked={selected}
-                onClick={() => set("kind", kind.value)}
-                className={cn(
-                  "p-5 text-left transition-colors",
-                  selected ? "bg-primary text-primary-foreground" : "bg-background hover:bg-muted",
-                )}
-              >
-                <div className="flex items-center justify-between">
-                  <p className="text-lg font-bold">{kind.title}</p>
-                  {selected && <Check className="size-5" />}
-                </div>
-                <p className={cn("mt-2 text-sm", selected ? "text-primary-foreground/80" : "text-muted-foreground")}>{kind.body}</p>
-              </button>
-            )
-          })}
-        </div>
+        <p className="text-xs text-muted-foreground">{KINDS.find((k) => k.value === v.kind)?.hint}</p>
       </section>
 
       <section id="event-website" className="scroll-mt-24">
-        <p className="eyebrow">On the website</p>
-        <h2 className="mt-2 font-heading text-2xl">What visitors can do</h2>
-        <div className="mt-2 divide-y divide-border border-y border-border">
+        <h2 className="text-sm font-semibold">Website</h2>
+        <div className="mt-1 divide-y divide-border border-y border-border">
           <Toggle
             id="event-published"
-            title="Publish this event"
-            body="Shows the event on the homepage, with its committees and a registration link."
+            title="Published"
+            body="Homepage, committees and the register button."
             checked={v.published}
             onChange={(next) => set("published", next)}
           />
           <Toggle
             id="event-registration"
-            title="Accept registrations"
-            body={v.published ? "The registration form takes new delegates." : "Publish the event first."}
+            title="Registration open"
+            body={v.published ? "The form accepts new delegates." : "Publish first."}
             checked={v.registrationOpen}
             onChange={(next) => set("registrationOpen", next)}
             disabled={!v.published}
           />
           <Toggle
             id="event-matrix"
-            title="Show the portfolio matrix"
-            body={v.published ? "Visitors see which seats are still available, and can pick one when they register." : "Publish the event first."}
+            title="Matrix public"
+            body={v.published ? "Open seats are visible and can be picked at registration." : "Publish first."}
             checked={v.matrixPublic}
             onChange={(next) => set("matrixPublic", next)}
             disabled={!v.published}
           />
           <Toggle
             id="event-payments"
-            title="Collect payment after allotment"
-            body={
-              !canManagePayments
-                ? "Only an admin can change this."
-                : intra
-                  ? "Intra MUNs are normally free. When off, allotting a seat confirms the delegate straight away."
-                  : "When on, allotting a seat sends a payment link and the delegate is confirmed once they pay."
-            }
+            title="Payment after allotment"
+            body={canManagePayments ? "On: allotment sends a pay link. Off: allotment confirms straight away." : "Admin only."}
             checked={v.paymentsEnabled}
             onChange={(next) => set("paymentsEnabled", next)}
             locked={!canManagePayments}
@@ -199,11 +178,8 @@ export function EventSettings({
         </div>
       </section>
 
-      <section id="event-details" className="scroll-mt-24 space-y-5">
-        <div>
-          <p className="eyebrow">Details</p>
-          <h2 className="mt-2 font-heading text-2xl">How the event is described</h2>
-        </div>
+      <section id="event-details" className="scroll-mt-24 space-y-4">
+        <h2 className="text-sm font-semibold">Details</h2>
         <div className="grid gap-5 md:grid-cols-2">
           <div className="space-y-2">
             <Label htmlFor="event-name">Event name</Label>
@@ -228,7 +204,7 @@ export function EventSettings({
         </div>
         <details className="group">
           <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground [&::-webkit-details-marker]:hidden">
-            More options: button text, external form, closed message
+            Button text, external form, closed message
             <ChevronDown className="size-4 transition-transform group-open:rotate-180" />
           </summary>
           <div className="mt-5 grid gap-5 md:grid-cols-2">

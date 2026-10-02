@@ -34,7 +34,7 @@ export default async function EventControlPage() {
   ])
 
   return (
-    <div className="space-y-12">
+    <div className="space-y-10">
       {/* Keyed by the event so the form re-reads its values whenever the event
           changes. Its fields are local state seeded once on mount; without the key,
           starting or closing an event below left the old event's name and switches

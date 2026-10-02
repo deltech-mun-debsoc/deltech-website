@@ -240,7 +240,7 @@ export function Composer({
                   </Chip>
                 ))}
               </div>
-              <p className="text-[11px] text-muted-foreground">Nothing chosen means everyone except removed delegates. To mail particular people, tick them on the delegate list.</p>
+              <p className="text-[11px] text-muted-foreground">No filter means everyone except removed delegates. To pick people, tick them on the delegate list.</p>
               {!showFiner ? (
                 <button
                   type="button"

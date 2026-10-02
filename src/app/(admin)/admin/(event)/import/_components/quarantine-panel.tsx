@@ -62,7 +62,7 @@ export function QuarantinePanel({ rows }: Props) {
         <p className="text-sm font-semibold">Rows that need fixing</p>
         <Badge variant="secondary" className="text-xs">{rows.length}</Badge>
         <p className="text-xs text-muted-foreground">
-          These could not be added as delegates. Fix the details and press Retry, or Dismiss to drop the row.
+          Fix and retry, or dismiss.
         </p>
       </div>
 
