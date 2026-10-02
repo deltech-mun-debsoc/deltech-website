@@ -1311,7 +1311,7 @@ saving: "Saving…",
     recoveryHint:
       "We will email you a one-time sign-in link. It takes you straight to your account page, where you can set a new password.",
     noPasswordYetHint:
-      "Invited by an admin? You will not have a password yet. Use the magic link tab, then set one from your account page.",
+      "No password yet? Use the magic link, then set one from your account.",
     tooManyRequests: "Too many attempts. Wait a few minutes and try again.",
   },
 
@@ -1340,8 +1340,8 @@ saving: "Saving…",
     registerButton: "Register as a delegate",
     allotmentSection: "Your allotment",
     paymentSection: "Payment",
-    notAllottedYet: "Your application is under review. You’ll receive your committee and portfolio by email once the secretariat processes it.",
-    paymentPendingNote: "Payment details will appear once you’ve been allotted a committee.",
+    notAllottedYet: "Not allotted yet. You will be emailed when you are.",
+    paymentPendingNote: "Shown after allotment.",
     confirmedMessage: "Your registration is confirmed. See you at the conference!",
   },
 

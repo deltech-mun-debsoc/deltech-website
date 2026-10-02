@@ -96,7 +96,7 @@ export default async function DashboardPage() {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                  {t("brand.name")}. Application Status
+                  {t("brand.name")}
                 </p>
                 <h1 className="mt-1 text-xl font-bold">{delegate.fullName}</h1>
                 <p className="text-sm text-muted-foreground">{delegate.email}</p>
@@ -151,55 +151,34 @@ export default async function DashboardPage() {
               </>
             )}
 
-            <Separator />
-
-            {/* Payment */}
-            <div className="space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-wider text-primary">
-                {paymentsRequired ? t("dashboard.paymentSection") : "Event fee"}
-              </p>
-              {paymentsRequired && payment ? (
-                <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-3">
-                    <Field
-                      label="Amount"
-                      value={`₹${payment.amountInr.toLocaleString("en-IN")}`}
-                    />
-                    <Field
-                      label="Status"
-                      value={PAY_STATUS_LABEL[payment.status] ?? payment.status}
-                    />
-                    {isConfirmed && payment.confirmedAt && (
-                      <Field
-                        label="Confirmed on"
-                        value={formatDate(payment.confirmedAt)}
-                      />
-                    )}
-                  </div>
-
-                  {needsPayment && (
-                    <Link
-                      href={payLink!}
-                      className={cn(buttonVariants({ size: "lg" }), "w-full")}
-                    >
-                      Pay Now · ₹{payment.amountInr.toLocaleString("en-IN")}
-                    </Link>
-                  )}
-
-                  {isConfirmed && (
-                    <div className="rounded-lg bg-muted/50 p-3 text-sm text-muted-foreground">
-                      ✓ {t("dashboard.confirmedMessage")}
-                    </div>
+            {paymentsRequired && (
+              <>
+                <Separator />
+                <div className="space-y-3">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-primary">
+                    {t("dashboard.paymentSection")}
+                  </p>
+                  {payment ? (
+                    <>
+                      <div className="grid grid-cols-2 gap-3">
+                        <Field label="Amount" value={`₹${payment.amountInr.toLocaleString("en-IN")}`} />
+                        <Field label="Status" value={PAY_STATUS_LABEL[payment.status] ?? payment.status} />
+                        {isConfirmed && payment.confirmedAt && (
+                          <Field label="Confirmed on" value={formatDate(payment.confirmedAt)} />
+                        )}
+                      </div>
+                      {needsPayment && (
+                        <Link href={payLink!} className={cn(buttonVariants({ size: "lg" }), "w-full")}>
+                          Pay Now · ₹{payment.amountInr.toLocaleString("en-IN")}
+                        </Link>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">{t("dashboard.paymentPendingNote")}</p>
                   )}
                 </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  {paymentsRequired
-                    ? t("dashboard.paymentPendingNote")
-                    : t("marketing.noPaymentRequired")}
-                </p>
-              )}
-            </div>
+              </>
+            )}
           </div>
         )}
       </div>

@@ -1,6 +1,6 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Search, Undo2 } from "lucide-react"
@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { revokeAllotment } from "../actions"
 import { committeeDemand, delegateChoices, ORDINAL } from "../_lib/balance"
-import { AllotDialog } from "./allot-dialog"
+import { SeatPicker } from "./seat-picker"
 import { useAllotmentLive } from "../_lib/use-allotment-live"
 import type { CommitteeType, PortfolioStatus } from "@/generated/prisma/client"
 
@@ -102,9 +102,10 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, 
     notify()
   }
   const [search, setSearch] = useState("")
-  const [seating, setSeating] = useState<SerializedDelegate | null>(
-    () => delegates.find((d) => d.id === focusDelegateId) ?? null,
-  )
+  // Arriving from "Add and give a seat": bring that delegate's row into view.
+  useEffect(() => {
+    if (focusDelegateId) document.getElementById(`waiting-${focusDelegateId}`)?.scrollIntoView({ block: "center" })
+  }, [focusDelegateId])
   const [revokeTarget, setRevokeTarget] = useState<{ portfolio: SerializedPortfolio; committee: SerializedCommittee } | null>(null)
   const [revoking, setRevoking] = useState(false)
 
@@ -120,15 +121,14 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, 
     matches([p.allotment!.delegate.fullName, p.allotment!.delegate.email, p.name, c.name]),
   )
 
-  const closeDialog = () => {
-    setSeating(null)
+  const done = () => {
     if (focusDelegateId) router.replace("/admin/allotment", { scroll: false })
     refreshAndNotify()
   }
 
   const handleAllotted = (name: string, seat: string, hadWarning?: boolean) => {
-    closeDialog()
-    if (!hadWarning) toast.success(`${name} is seated as ${seat}.`)
+    done()
+    if (!hadWarning) toast.success(`${name} allotted ${seat}.`)
   }
 
   const handleRevoke = async () => {
@@ -182,7 +182,7 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, 
                 <div className="h-full rounded-full bg-primary" style={{ width: `${total ? (taken / total) * 100 : 0}%` }} />
               </div>
               <p className={cn("mt-2 text-xs", crowded ? "font-medium text-amber-600 dark:text-amber-400" : "text-muted-foreground")}>
-                {`${open} open · ${firsts} waiting want it first`}
+                {`${open} open · ${firsts} first choices`}
               </p>
             </div>
           )
@@ -216,8 +216,8 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, 
                 return (
                   <li
                     key={d.id}
-                    onClick={() => setSeating(d)}
-                    className="flex cursor-pointer items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/40"
+                    id={`waiting-${d.id}`}
+                    className={cn("flex flex-wrap items-center gap-3 px-4 py-3", d.id === focusDelegateId && "bg-primary/5 ring-1 ring-inset ring-primary/40")}
                   >
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-medium">{d.fullName}</p>
@@ -249,9 +249,14 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, 
                         )}
                       </div>
                     </div>
-                    <Button size="sm" variant="outline" onClick={(e) => { e.stopPropagation(); setSeating(d) }}>
-                      Seat
-                    </Button>
+                    <SeatPicker
+                      delegate={d}
+                      committees={committees}
+                      fees={fees}
+                      paymentsRequired={paymentsRequired}
+                      onAllotted={handleAllotted}
+                      onGone={done}
+                    />
                   </li>
                 )
               })}
@@ -293,17 +298,6 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, 
           )}
         </section>
       </div>
-
-      {seating && (
-        <AllotDialog
-          delegate={seating}
-          committees={committees}
-          fees={fees}
-          paymentsRequired={paymentsRequired}
-          onClose={closeDialog}
-          onAllotted={handleAllotted}
-        />
-      )}
 
       <ConfirmDialog
         open={Boolean(revokeTarget)}

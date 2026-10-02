@@ -3,7 +3,7 @@
 import { useActionState } from "react"
 import { t } from "@/content/strings"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
+import { PasswordInput } from "@/components/ui/password-input"
 import { Label } from "@/components/ui/label"
 import { PASSWORD_MIN } from "@/lib/schemas/password"
 import { setOwnPassword } from "../actions"
@@ -27,10 +27,9 @@ export function PasswordForm({ hasPassword }: { hasPassword: boolean }) {
       {hasPassword && (
         <div className="flex flex-col gap-2">
           <Label htmlFor="currentPassword">{t("account.currentPasswordLabel")}</Label>
-          <Input
+          <PasswordInput
             id="currentPassword"
             name="currentPassword"
-            type="password"
             autoComplete="current-password"
             required
             disabled={pending}
@@ -40,10 +39,9 @@ export function PasswordForm({ hasPassword }: { hasPassword: boolean }) {
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="password">{t("account.newPasswordLabel")}</Label>
-        <Input
+        <PasswordInput
           id="password"
           name="password"
-          type="password"
           autoComplete="new-password"
           minLength={PASSWORD_MIN}
           required
@@ -53,10 +51,9 @@ export function PasswordForm({ hasPassword }: { hasPassword: boolean }) {
 
       <div className="flex flex-col gap-2">
         <Label htmlFor="confirmPassword">{t("auth.confirmPasswordLabel")}</Label>
-        <Input
+        <PasswordInput
           id="confirmPassword"
           name="confirmPassword"
-          type="password"
           autoComplete="new-password"
           minLength={PASSWORD_MIN}
           required
