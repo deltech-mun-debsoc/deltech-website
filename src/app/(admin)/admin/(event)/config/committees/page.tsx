@@ -27,6 +27,7 @@ export default async function CommitteesSettingsPage() {
     aliases: c.aliases,
     portfolioTagLabel: c.portfolioTagLabel,
     matrixBrief: c.matrixBrief,
+    groupLink: c.groupLink,
     portfolios: c.portfolios.map((p) => ({
       id: p.id,
       committeeId: p.committeeId,

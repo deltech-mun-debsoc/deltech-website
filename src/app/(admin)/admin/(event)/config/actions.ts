@@ -224,6 +224,20 @@ export async function setRegistrationOpen(
 }
 
 // ── Committees ─────────────────────────────────────────────────────────────────
+// The group link goes into delegates' mail, so only a plain https URL is kept.
+// Empty clears it.
+function groupLinkOrError(raw: string | null | undefined): { value: string | null } | { error: string } {
+  const v = raw?.trim()
+  if (!v) return { value: null }
+  try {
+    const url = new URL(v)
+    if (url.protocol !== "https:") return { error: "Group link must start with https://" }
+    return { value: url.toString() }
+  } catch {
+    return { error: "Group link is not a valid URL." }
+  }
+}
+
 export async function createCommittee(data: {
   name: string
   slug: string
@@ -234,14 +248,17 @@ export async function createCommittee(data: {
   aliases?: string[]
   portfolioTagLabel?: string
   matrixBrief?: string
+  groupLink?: string | null
 }): Promise<{ success: boolean; error?: string }> {
   const session = await requireStaff()
+  const link = groupLinkOrError(data.groupLink)
+  if ("error" in link) return { success: false, error: link.error }
   try {
     // A committee belongs to the event it is being built for. Without a running
     // event there is nothing to attach it to, so this refuses rather than
     // creating an orphan that no screen would ever list.
     const event = await requireActiveEvent()
-    const committee = await prisma.committee.create({ data: { ...data, eventId: event.id } })
+    const committee = await prisma.committee.create({ data: { ...data, groupLink: link.value, eventId: event.id } })
     await audit(session.user?.email ?? "unknown", "committee.create", "Committee", committee.id, {
       name: data.name,
     })
@@ -264,11 +281,14 @@ export async function updateCommittee(
     aliases?: string[]
     portfolioTagLabel?: string
     matrixBrief?: string
+    groupLink?: string | null
   },
 ): Promise<{ success: boolean; error?: string }> {
   const session = await requireStaff()
+  const link = groupLinkOrError(data.groupLink)
+  if ("error" in link) return { success: false, error: link.error }
   try {
-    await prisma.committee.update({ where: { id }, data })
+    await prisma.committee.update({ where: { id }, data: { ...data, groupLink: link.value } })
     await audit(session.user?.email ?? "unknown", "committee.update", "Committee", id)
     return { success: true }
   } catch {

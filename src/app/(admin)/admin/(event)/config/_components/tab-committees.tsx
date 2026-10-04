@@ -50,6 +50,7 @@ const schema = z.object({
   aliasesText: z.string(),
   portfolioTagLabel: z.string(),
   matrixBrief: z.string(),
+  groupLink: z.string().trim().refine((v) => v === "" || /^https:\/\/\S+$/.test(v), "Must start with https://"),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -84,6 +85,7 @@ export function TabCommittees({ committees }: Props) {
       aliasesText: "",
       portfolioTagLabel: "",
       matrixBrief: "",
+      groupLink: "",
     },
     resolver: zodResolver(schema) as never,
   })
@@ -110,6 +112,7 @@ export function TabCommittees({ committees }: Props) {
       aliasesText: "",
       portfolioTagLabel: "",
       matrixBrief: "",
+      groupLink: "",
     })
     setDialogOpen(true)
   }
@@ -127,6 +130,7 @@ export function TabCommittees({ committees }: Props) {
       aliasesText: c.aliases.join(", "),
       portfolioTagLabel: c.portfolioTagLabel ?? "",
       matrixBrief: c.matrixBrief ?? "",
+      groupLink: c.groupLink ?? "",
     })
     setDialogOpen(true)
   }
@@ -147,6 +151,7 @@ export function TabCommittees({ committees }: Props) {
           .filter(Boolean),
         portfolioTagLabel: data.portfolioTagLabel || undefined,
         matrixBrief: data.matrixBrief || undefined,
+        groupLink: data.groupLink || null,
       }
 
       const result = editTarget
@@ -291,6 +296,18 @@ export function TabCommittees({ committees }: Props) {
                 {...form.register("agenda")}
                 placeholder="e.g. Digital Healthcare"
               />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs">WhatsApp group link</Label>
+              <Input {...form.register("groupLink")} type="url" placeholder="https://chat.whatsapp.com/…" />
+              {form.formState.errors.groupLink ? (
+                <p className="text-xs text-destructive">{form.formState.errors.groupLink.message}</p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Free event: sent with the allotment. Paid event: sent once payment is confirmed.
+                </p>
+              )}
             </div>
 
             <div className="space-y-1.5">

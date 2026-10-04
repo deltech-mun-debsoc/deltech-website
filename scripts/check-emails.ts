@@ -21,7 +21,6 @@ import { MagicLinkEmail } from "../src/emails/magic-link";
 import { RegistrationReceivedEmail } from "../src/emails/registration-received";
 import { CoDelegateRegisteredEmail } from "../src/emails/co-delegate-registered";
 import { AllotmentEmail } from "../src/emails/allotment";
-import { CoDelegateNoticeEmail } from "../src/emails/co-delegate-notice";
 import { PaymentConfirmedEmail } from "../src/emails/payment-confirmed";
 import { PaymentReminderEmail } from "../src/emails/payment-reminder";
 import { BlogApprovedEmail } from "../src/emails/blog-approved";
@@ -220,19 +219,9 @@ const cases: Array<[string, ReactElement, string[]]> = [
       refundPolicy: "",
       contactEmail: "c@x.test",
       contacts,
+      groupUrl: "https://chat.test/unsc",
     }),
-    ["Nothing to pay"],
-  ],
-  [
-    "co-delegate-notice",
-    CoDelegateNoticeEmail({
-      coDelegateName: "Sam",
-      primaryDelegateName: "Riya",
-      committeeName: "UNSC",
-      portfolioName: "France",
-      paymentsEnabled: true,
-    }),
-    ["Sam", "France"],
+    ["Nothing to pay", "https://chat.test/unsc", "Join the UNSC WhatsApp group"],
   ],
   [
     "payment-confirmed",
@@ -244,10 +233,12 @@ const cases: Array<[string, ReactElement, string[]]> = [
       amountInr: 1200,
       confirmedAt: new Date("2026-09-01T00:00:00Z"),
       whatsappCommunityUrl: "https://chat.test/x",
+      groupUrl: "https://chat.test/unsc",
+      partnerName: "Sam",
       contactEmail: "c@x.test",
       contacts,
     }),
-    ["1,200", "France"],
+    ["1,200", "France", "https://chat.test/unsc", "Co-delegate", "Sam"],
   ],
   [
     "payment-reminder",
@@ -335,6 +326,48 @@ async function main() {
     }
   }
 
+  // ── Group links only once the seat is theirs ────────────────────────────────
+  // On a paid event the committee group goes out with payment confirmation, never
+  // with the allotment, which a delegate can ignore without paying.
+  {
+    const paid = await render(
+      AllotmentEmail({
+        eventName: "DelTech MUN", fullName: "Riya", committeeName: "UNSC", portfolioName: "France",
+        agenda: null, amountInr: 1200, payLink: "https://x.test/pay/t", paymentsEnabled: true,
+        needsAccommodation: false, accommodationNote: "", conferenceDates: "", venue: "",
+        paymentDeadline: "", paymentProofUrl: "", refundPolicy: "", contactEmail: "c@x.test", contacts,
+        groupUrl: "https://chat.test/unsc",
+      }),
+    )
+    assert.ok(!paid.includes("chat.test/unsc"), "a paid allotment email must not carry the group link")
+    const send = readFileSync("src/lib/resend.ts", "utf8")
+    const fn = send.slice(send.indexOf("export async function sendAllotmentEmail"), send.indexOf("export async function sendPaymentConfirmed"))
+    assert.match(fn, /groupUrl: paymentsEnabled \? undefined : committee\.groupLink/, "allotment passes the group link only on a free event")
+    assert.match(fn, /whatsappCommunityUrl: paymentsEnabled \? undefined/, "allotment withholds the community link on a paid event")
+  }
+
+  // ── A double delegation mails both people ──────────────────────────────────
+  {
+    const { seatHolders, sendToSeatHolders } = await import("../src/lib/resend")
+    const pair = seatHolders({ fullName: "Riya", email: "r@x.test", coDelegate: { fullName: "Sam", email: "s@x.test" } })
+    assert.deepEqual(pair.map((r) => [r.email, r.partner, r.primary]), [["r@x.test", "Sam", true], ["s@x.test", "Riya", false]])
+    assert.equal(seatHolders({ fullName: "Riya", email: "r@x.test", coDelegate: null }).length, 1)
+    assert.equal(seatHolders({ fullName: "Riya", email: "R@x.test", coDelegate: { fullName: "Sam", email: "r@x.test " } }).length, 1, "same address is mailed once")
+
+    const sent: string[] = []
+    // The partner's failure must not fail the main delegate's send.
+    await sendToSeatHolders(pair, undefined, async (r) => {
+      sent.push(r.email)
+      if (!r.primary) throw new Error("bounce")
+    })
+    assert.deepEqual(sent, ["r@x.test", "s@x.test"])
+    await assert.rejects(sendToSeatHolders(pair, undefined, async (r) => { if (r.primary) throw new Error("x") }), "the main delegate's failure fails the send")
+    // Resend from a log row goes to that address alone, and surfaces its failure.
+    sent.length = 0
+    await assert.rejects(sendToSeatHolders(pair, "S@x.test", async (r) => { sent.push(r.email); throw new Error("x") }))
+    assert.deepEqual(sent, ["s@x.test"])
+  }
+
   // ── Allotment is sent once unless a person asks again ───────────────────────
 // Allotment.emailSentAt was written but never read, EmailLog has no unique
 // constraint, and this template passes no idempotency key, so nothing stopped a
@@ -354,7 +387,7 @@ async function main() {
   // to override the guard. If it stops forcing, Resend silently does nothing.
   assert.match(
     src,
-    /allotment: \(id: string\) => sendAllotmentEmail\(id, \{ force: true \}\)/,
+    /allotment: \(id, to\) => sendAllotmentEmail\(id, \{ force: true, onlyTo: to \}\)/,
     "the resend path must force, or pressing Resend would quietly do nothing",
   )
 }

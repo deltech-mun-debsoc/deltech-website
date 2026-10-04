@@ -4,11 +4,13 @@ import { EmailShell, P, B, Cta, Panel, Row, Contacts } from "./_shell"
 interface Props {
   eventName: string
   fullName: string
+  partnerName?: string
   committeeName: string
   portfolioName: string
   amountInr: number
   confirmedAt: Date
   whatsappCommunityUrl: string
+  groupUrl?: string
   contactEmail: string
   contacts: Array<{ name: string; role: string; phone: string }>
 }
@@ -16,11 +18,13 @@ interface Props {
 export function PaymentConfirmedEmail({
   eventName,
   fullName,
+  partnerName,
   committeeName,
   portfolioName,
   amountInr,
   confirmedAt,
   whatsappCommunityUrl,
+  groupUrl,
   contactEmail,
   contacts,
 }: Props) {
@@ -39,11 +43,14 @@ export function PaymentConfirmedEmail({
       <Panel title="Your allotment" tone="brand">
         <Row label="Committee" value={committeeName} />
         <Row label="Portfolio" value={portfolioName} />
+        {partnerName && <Row label="Co-delegate" value={partnerName} />}
         <Row
           label="Confirmed on"
           value={formatDateLong(confirmedAt)}
         />
       </Panel>
+
+      {groupUrl && <Cta href={groupUrl}>Join the {committeeName} WhatsApp group</Cta>}
 
       <P last={!whatsappCommunityUrl}>
         Schedule, venue, prep material and committee notices all come through the official channels
