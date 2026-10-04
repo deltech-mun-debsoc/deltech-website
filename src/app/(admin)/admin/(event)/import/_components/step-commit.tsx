@@ -2,7 +2,9 @@
 
 import { useState, useTransition } from "react"
 import { CheckCircle2, XCircle, Users, Kanban } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import Link from "next/link"
+import { Button, buttonVariants } from "@/components/ui/button"
+import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import type { ValidatedRow } from "@/lib/schemas/import"
 import type { CommitResult } from "../actions"
@@ -30,7 +32,7 @@ export function StepCommit({ validated, skipped, onBack, onDone }: Props) {
       })
       setResult(res)
       if (res.created > 0) {
-        toast.success(`Imported ${res.created} delegate${res.created !== 1 ? "s" : ""}${res.allotted > 0 ? `, ${res.allotted} allotted` : ""}.`)
+        toast.success(`Imported ${res.created} delegate${res.created !== 1 ? "s" : ""}${res.allotted > 0 ? `, ${res.allotted} allotted as drafts` : ""}.`)
       } else {
         toast.error("No delegates were created.")
       }
@@ -49,7 +51,7 @@ export function StepCommit({ validated, skipped, onBack, onDone }: Props) {
           </div>
           <div className="rounded-lg bg-primary/5 border border-primary/20 p-4 text-center">
             <p className="text-2xl font-bold text-primary">{result.allotted}</p>
-            <p className="text-xs text-primary/70 mt-1">Auto-allotted</p>
+            <p className="text-xs text-primary/70 mt-1">Allotted as drafts</p>
           </div>
           <div className="rounded-lg bg-muted border border-border p-4 text-center">
             <p className="text-2xl font-bold text-muted-foreground">{result.skipped}</p>
@@ -78,7 +80,14 @@ export function StepCommit({ validated, skipped, onBack, onDone }: Props) {
           </div>
         )}
 
-        <Button className="w-full" onClick={() => result && onDone(result)}>Done</Button>
+        <div className="flex gap-2">
+          {result.allotted > 0 && (
+            <Link href="/admin/allotment" className={cn(buttonVariants({ variant: "outline" }), "flex-1")}>
+              {`Email the ${result.allotted} drafts`}
+            </Link>
+          )}
+          <Button className="flex-1" onClick={() => result && onDone(result)}>Done</Button>
+        </div>
       </div>
     )
   }
@@ -98,7 +107,7 @@ export function StepCommit({ validated, skipped, onBack, onDone }: Props) {
             <div className="flex items-center gap-2 text-sm">
               <Kanban className="size-4 text-primary" />
               <span className="font-medium">{withAllotment}</span>
-              <span className="text-muted-foreground">will be auto-allotted (best available preference)</span>
+              <span className="text-muted-foreground">will be allotted as drafts (best available preference), emailed from Allotment</span>
             </div>
           )}
         </div>
