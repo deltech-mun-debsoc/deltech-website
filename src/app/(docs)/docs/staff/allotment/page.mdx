@@ -11,45 +11,50 @@ You work through **people**, not countries: pick someone who is waiting and give
 - **A card per committee**: how many seats are filled, how many are open, and how many
   waiting delegates want it as their first choice. That last number turns amber when more
   people want the committee first than it has seats left.
-- **Waiting for a seat**: everyone registered and not yet seated, oldest first. Each shows
-  their choices. A choice in colour names a seat that is still open; a struck-through one
-  is already taken; a grey one did not match a seat in the matrix.
-- **Seated**: everyone who has a seat, newest first.
+- **Waiting for a seat**: everyone registered and not yet seated. Each shows their choices
+  and their MUN experience. A choice in colour names a seat that is still open; a
+  struck-through one is already taken; a grey one did not match a seat in the matrix. Filter
+  by the committee they chose or by experience, and sort by registration time or experience.
+- **Seated**: everyone who has a seat, newest first. A **Draft** has not been emailed yet.
 
 One search box filters both lists by name, email, roll number, committee or seat.
 
 ## Giving someone a seat
 
 <Steps>
-1. Press **Give a seat** next to their name.
+1. Choose a **committee** on their row. It starts on their first choice that still has room.
 
-2. Their choices are listed first. The first one that is still open is already picked.
+2. Choose a **seat**. Seats they asked for are at the top.
 
-3. To seat them somewhere else, choose a committee under **Or any open seat in** and pick
-   a seat.
+3. Check the fee (at a paid event) and press **Allot**. The seat is now a **draft**.
 
-4. Check the summary (seat, and the fee at a paid event) and press **Give them …**.
+4. When the drafts look right, press **Email** on a row, or **Email N** for all of them.
 </Steps>
 
-The seat is only held for the moment you confirm, so leaving the dialog open never blocks a
-colleague. If two people give out the same seat at once, one of them is told to pick another.
+A draft reserves the seat but tells nobody: the delegate still sees themselves as waiting, so
+you can take seats back and reshuffle as more people register. The seat is only held for the
+moment you press Allot, so nothing blocks a colleague. If two people allot the same seat at
+once, one is told it is no longer open.
 
 ## On-the-spot registrations
 
 On the Delegates page, **Add delegate** takes a name, email, phone, and roll number or college.
-**Add and give a seat** brings you straight here with that person's dialog open. Staff can add
+**Add and give a seat** brings you straight here with that person's row highlighted. Staff can add
 people even when public registration is closed.
 
-## What one allotment actually does
+## What allotting and emailing do
 
-It is not one write. In a single action the platform:
+**Allot** creates the allotment, marks the seat taken and mirrors it to the Google Sheet if
+sync is configured. The delegate is not told.
 
-- creates the allotment and marks the seat taken;
+**Email** is when they are told. For each draft the platform:
+
 - works out the fee from the committee type and the delegate's DTU flag;
 - creates a payment through the configured provider;
 - moves the delegate to **Payment sent**;
-- emails the delegate, and their co-delegate if they have one;
-- mirrors the change to the Google Sheet if sync is configured.
+- emails the delegate, and their co-delegate if they have one.
+
+If any step fails, that allotment stays a draft and you can press Email again.
 
 <Callout type="note">
 At a free event none of the payment steps happen. The delegate is **Confirmed**
@@ -60,7 +65,7 @@ immediately. See [operating modes](/docs/staff/modes).
 
 **Take back** on the Seated list returns the delegate to waiting and reopens the seat. It is
 admin only, deliberately: it changes the delegate, the allotment, the seat and the payment
-together, and the delegate has already been emailed. They are not emailed again.
+together. A delegate who was already emailed is not emailed again; a draft was never seen.
 
 If a delegate needs to move, take the seat back and give them the new one.
 
