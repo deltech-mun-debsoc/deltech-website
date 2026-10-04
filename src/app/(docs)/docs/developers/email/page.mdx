@@ -40,11 +40,15 @@ where it matters most.
 
 In `src/emails/`, sharing `_shell.tsx`:
 
-`registration-received`, `co-delegate-registered`, `allotment`, `co-delegate-notice`,
+`registration-received`, `co-delegate-registered`, `allotment`,
 `payment-confirmed`, `payment-reminder`, `blog-approved`, `blog-changes-requested`,
 `blog-rejected`, `recruitment-selected`, `staff-invite`, `magic-link`.
 
 Shared chrome goes in `_shell.tsx`, not in each template.
+
+On a double delegation, `allotment`, `payment-reminder` and `payment-confirmed` go to both people
+(`sendToSeatHolders` in `src/lib/resend.ts`). The main delegate's send decides success; the
+partner's is logged under the same delegate, and Resend on that log row goes to the partner only.
 
 ## The staging sink
 
