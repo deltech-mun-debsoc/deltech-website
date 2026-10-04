@@ -54,8 +54,10 @@ export function SeatPicker({ delegate, committees, fees, paymentsRequired, onAll
       try {
         const hold = await holdPortfolio(seat.id)
         if (!hold.success || !hold.holdToken) {
-          toast.error("A colleague is allotting that seat right now. Pick another.")
+          // Taken or being taken since this list loaded: refresh so it drops out.
+          toast.error(`${seat.name} is no longer open. Pick another.`)
           setSeatId(null)
+          onGone()
           return
         }
         const result = await allotPortfolio({
