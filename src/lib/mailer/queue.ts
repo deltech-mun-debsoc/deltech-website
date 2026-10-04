@@ -87,12 +87,13 @@ export async function recipientMergeVars(
     where: { id: delegateId },
     select: {
       publicToken: true,
-      allotment: { select: { portfolio: { select: { name: true, committee: { select: { name: true } } } } } },
+      allotment: { select: { emailSentAt: true, portfolio: { select: { name: true, committee: { select: { name: true } } } } } },
     },
   })
   if (!d) return vars
   vars.statusLink = `${APP_URL}/status/${d.publicToken}`
-  if (d.allotment) {
+  // A draft allotment is not merged in: the delegate has not been told yet.
+  if (d.allotment?.emailSentAt) {
     vars.portfolio = d.allotment.portfolio.name
     vars.committee = d.allotment.portfolio.committee.name
   }

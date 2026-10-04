@@ -49,7 +49,7 @@ import { MAIL_PRESETS, presetFor } from "../src/lib/mailer/presets"
   assert.deepEqual((chosen.AND as unknown[])[1], { status: { in: ["CANCELLED"] } }, "cancelled delegates only when asked for")
 
   const unpaid = buildDelegateAudienceWhere(parseDelegateAudience({ allotted: "yes", paymentStatuses: ["PENDING", "SENT"] }), scope)
-  assert.deepEqual((unpaid.AND as unknown[]).slice(2), [{ allotment: { isNot: null } }, { payment: { status: { in: ["PENDING", "SENT"] } } }])
+  assert.deepEqual((unpaid.AND as unknown[]).slice(2), [{ allotment: { is: { emailSentAt: { not: null } } } }, { payment: { status: { in: ["PENDING", "SENT"] } } }])
 
   // Untrusted JSON: an unknown status must not reach the query.
   assert.deepEqual(parseDelegateAudience({ statuses: ["DROP TABLE"] }), parseDelegateAudience({}), "invalid filters fall back to the safe default")
@@ -68,7 +68,7 @@ import { MAIL_PRESETS, presetFor } from "../src/lib/mailer/presets"
   const unpaidStage = STAGE_SHORTCUTS.find((s) => s.key === "allotted-unpaid")!
   assert.deepEqual(
     (buildDelegateAudienceWhere(parseDelegateAudience(unpaidStage.filters), scope).AND as unknown[]).slice(2),
-    [{ allotment: { isNot: null } }, { payment: { status: { in: ["PENDING", "SENT", "FAILED"] } } }],
+    [{ allotment: { is: { emailSentAt: { not: null } } } }, { payment: { status: { in: ["PENDING", "SENT", "FAILED"] } } }],
   )
 }
 

@@ -82,7 +82,7 @@ export async function allotPortfolio(input: {
   const paymentsEnabled = deriveEventState(content).paymentsRequired
 
   try {
-    const txResult = await prisma.$transaction(async (tx) => {
+    await prisma.$transaction(async (tx) => {
       // 1. Re-check portfolio has not already been allotted inside the transaction
       const portfolio = await tx.portfolio.findUnique({
         where: { id: input.portfolioId },
@@ -105,12 +105,13 @@ export async function allotPortfolio(input: {
         throw e
       }
 
-      // 2. Confirm delegate is still REGISTERED
+      // 2. Confirm delegate is still waiting. A draft allotment leaves them
+      // REGISTERED, so the allotment row is what says they already have a seat.
       const delegate = await tx.delegate.findUnique({
         where: { id: input.delegateId },
-        select: { isDtu: true, status: true, email: true, publicToken: true },
+        select: { isDtu: true, status: true, allotment: { select: { id: true } } },
       })
-      if (!delegate || delegate.status !== "REGISTERED") {
+      if (!delegate || delegate.status !== "REGISTERED" || delegate.allotment) {
         const e = new Error("Delegate unavailable") as Error & { code: string }
         e.code = "DELEGATE_UNAVAILABLE"
         throw e
@@ -135,12 +136,9 @@ export async function allotPortfolio(input: {
         throw e
       }
 
-      // 5. Payment provider from settings
-      const providerSetting = await tx.setting.findUnique({ where: { key: "paymentProvider" } })
-      const paymentProvider =
-        typeof providerSetting?.value === "string" ? providerSetting.value : "upi_qr"
-
-      // 6. Create Allotment, unique constraint on portfolioId is the final race guard
+      // 5. Create Allotment, unique constraint on portfolioId is the final race guard.
+      // A draft: the delegate stays REGISTERED and hears nothing until it is
+      // emailed (emailAllotments), so seats can be reshuffled as people arrive.
       await tx.allotment.create({
         data: {
           delegateId: input.delegateId,
@@ -150,85 +148,12 @@ export async function allotPortfolio(input: {
         },
       })
 
-      // 7. Portfolio → ALLOTTED
+      // 6. Portfolio → ALLOTTED
       await tx.portfolio.update({
         where: { id: input.portfolioId },
         data: { status: "ALLOTTED", holdToken: null, holdExpiresAt: null },
       })
-
-      // 8. Delegate → ALLOTTED
-      await tx.delegate.update({
-        where: { id: input.delegateId },
-        data: { status: paymentsEnabled ? "ALLOTTED" : "CONFIRMED" },
-      })
-
-      // 9. Payment row, provider + amount both from DB, link set after transaction
-      if (paymentsEnabled && fee) {
-        await tx.payment.create({
-          data: {
-            delegateId: input.delegateId,
-            provider: paymentProvider,
-            amountInr: fee.amountInr,
-            status: "PENDING",
-          },
-        })
-      }
-
-      return {
-        fee: fee ? { amountInr: fee.amountInr } : null,
-        delegateEmail: delegate.email,
-        delegateToken: delegate.publicToken,
-      }
     })
-
-    // Generate the payment link outside the transaction, because it is an
-    // external HTTP call. It also gets its own try/catch: the allotment above
-    // is already durably committed, so letting a provider outage fall through
-    // to the outer catch reported "Allotment failed. Please try again." while
-    // silently skipping the email, the audit entry and the sheet sync. The
-    // delegate was left allotted with no link and no notification, and the
-    // admin was told nothing had happened.
-    let payLinkFailed = false
-    if (paymentsEnabled && txResult.fee) {
-      try {
-        const provider = await getActiveProvider()
-        const { link, orderId } = await provider.createPaymentLink({
-          delegateId: input.delegateId,
-          publicToken: txResult.delegateToken,
-          amountInr: txResult.fee.amountInr,
-          email: txResult.delegateEmail,
-        })
-        await prisma.payment.update({
-          where: { delegateId: input.delegateId },
-          data: {
-            paymentLink: link,
-            status: "SENT",
-            ...(orderId ? { razorpayOrderId: orderId } : {}),
-          },
-        })
-        await prisma.delegate.update({
-          where: { id: input.delegateId },
-          data: { status: "PAYMENT_SENT" },
-        })
-      } catch (err) {
-        payLinkFailed = true
-        console.error("[allotPortfolio] payment link generation failed", err)
-      }
-    }
-
-    // Fire allotment email; co-delegate notice only for a double-delegation committee.
-    // Skipped when the pay link failed, because that email's whole point is to
-    // carry the link. Regenerating it from the drawer sends the email.
-    try {
-      if (!payLinkFailed) await sendAllotmentEmail(input.delegateId)
-    } catch {
-      // email failure must not roll back the allotment
-    }
-    try {
-      await sendCoDelegateNotice(input.delegateId)
-    } catch {
-      // intentionally silent
-    }
 
     await audit(adminEmail, "allotment.create", "Delegate", input.delegateId, {
       portfolioId: input.portfolioId,
@@ -236,14 +161,6 @@ export async function allotPortfolio(input: {
       paymentsEnabled,
     })
     await syncSheetForDelegate(input.delegateId)
-
-    if (payLinkFailed) {
-      return {
-        success: true,
-        warning:
-          "Allotted, but the payment link could not be generated, so no email was sent. Use “Regenerate pay link” in the delegate drawer once the provider is back.",
-      }
-    }
     return { success: true }
   } catch (err: unknown) {
     // Hard race: unique constraint on portfolioId
@@ -284,6 +201,104 @@ export async function allotPortfolio(input: {
   }
 }
 
+// ── emailAllotments ────────────────────────────────────────────────────────────
+// Releases draft allotments: this is when the delegate is told. For a paid event
+// it makes the payment row and link first, because that email exists to carry
+// the link; a free event confirms them. Then the allotment email and, for a
+// double delegation, the co-delegate notice.
+//
+// Each delegate is claimed by setting emailSentAt where it is still null, so two
+// staff pressing Email at once cannot send twice or make two pay links. Any
+// failure puts the claim back, leaving the allotment a draft to retry, and the
+// delegate-facing pages show nothing until emailSentAt is set.
+export async function emailAllotments(
+  delegateIds: string[],
+): Promise<{ sent: number; failed: { name: string; reason: string }[] }> {
+  const session = await requireStaff()
+  const adminEmail = session.user?.email ?? "admin"
+  const paymentsEnabled = deriveEventState(await getContent()).paymentsRequired
+
+  let sent = 0
+  const failed: { name: string; reason: string }[] = []
+  // Sequential on purpose: the mail transport is rate limited.
+  for (const delegateId of delegateIds) {
+    const claim = await prisma.allotment.updateMany({
+      where: { delegateId, emailSentAt: null },
+      data: { emailSentAt: new Date() },
+    })
+    if (claim.count === 0) continue
+
+    const delegate = await prisma.delegate.findUnique({
+      where: { id: delegateId },
+      select: {
+        fullName: true,
+        status: true,
+        isDtu: true,
+        email: true,
+        publicToken: true,
+        allotment: { select: { committee: { select: { type: true } } } },
+      },
+    })
+    try {
+      if (!delegate?.allotment) throw new Error("No allotment")
+      // Already confirmed (a cross delegation, or a retry after the email failed)
+      // needs only the email.
+      if (delegate.status === "REGISTERED") {
+        if (paymentsEnabled) {
+          const fee = await prisma.fee.findFirst({
+            where: { committeeType: delegate.allotment.committee.type, isDtu: delegate.isDtu },
+          })
+          if (!fee) throw new Error("No fee set for this committee type")
+          const providerSetting = await prisma.setting.findUnique({ where: { key: "paymentProvider" } })
+          await prisma.payment.upsert({
+            where: { delegateId },
+            create: {
+              delegateId,
+              provider: typeof providerSetting?.value === "string" ? providerSetting.value : "upi_qr",
+              amountInr: fee.amountInr,
+              status: "PENDING",
+            },
+            update: {},
+          })
+          let payLinkFailed = false
+          try {
+            const { link, orderId } = await (await getActiveProvider()).createPaymentLink({
+              delegateId,
+              publicToken: delegate.publicToken,
+              amountInr: fee.amountInr,
+              email: delegate.email,
+            })
+            await prisma.payment.update({
+              where: { delegateId },
+              data: { paymentLink: link, status: "SENT", ...(orderId ? { razorpayOrderId: orderId } : {}) },
+            })
+          } catch (err) {
+            payLinkFailed = true
+            console.error("[emailAllotments] payment link generation failed", err)
+          }
+          if (payLinkFailed) throw new Error("Payment link could not be generated")
+          await prisma.delegate.update({ where: { id: delegateId }, data: { status: "PAYMENT_SENT" } })
+        } else {
+          await prisma.delegate.update({ where: { id: delegateId }, data: { status: "CONFIRMED" } })
+        }
+      }
+      await sendAllotmentEmail(delegateId, { force: true })
+      await sendCoDelegateNotice(delegateId).catch(() => {})
+      await audit(adminEmail, "allotment.email", "Delegate", delegateId)
+      await syncSheetForDelegate(delegateId)
+      sent++
+    } catch (err) {
+      await prisma.allotment.updateMany({ where: { delegateId }, data: { emailSentAt: null } })
+      const message = err instanceof Error ? err.message : ""
+      failed.push({
+        name: delegate?.fullName ?? delegateId,
+        reason: message.startsWith("Email send failed") ? "the email did not send, still a draft" : message || "failed, still a draft",
+      })
+    }
+  }
+  return { sent, failed }
+}
+
 // ── revokeAllotment ────────────────────────────────────────────────────────────
 // Undoes an allotment: frees the portfolio, resets delegate to REGISTERED,
 // and cancels any PENDING payment (does not touch PAID / SENT payments).
@@ -305,7 +320,11 @@ export async function revokeAllotment(input: {
         where: { delegateId: input.delegateId },
         select: { status: true },
       })
-      if (payment?.status === "SENT") throw new Error("LIVE_PAYMENT_LINK")
+      // A draft's link was never delivered: the delegate only sees it once the
+      // email has gone (emailAllotments sets emailSentAt last), so it can go.
+      const allotment = await tx.allotment.findUnique({ where: { id: input.allotmentId }, select: { emailSentAt: true } })
+      const draft = !allotment?.emailSentAt
+      if (payment?.status === "SENT" && !draft) throw new Error("LIVE_PAYMENT_LINK")
       if (payment && ["PAID", "OFFLINE", "COMPED"].includes(payment.status)) {
         throw new Error("PAYMENT_FINAL")
       }
@@ -322,7 +341,7 @@ export async function revokeAllotment(input: {
       })
 
       await tx.payment.deleteMany({
-        where: { delegateId: input.delegateId, status: { in: ["PENDING", "FAILED"] } },
+        where: { delegateId: input.delegateId, status: { in: draft ? ["PENDING", "FAILED", "SENT"] : ["PENDING", "FAILED"] } },
       })
     })
 

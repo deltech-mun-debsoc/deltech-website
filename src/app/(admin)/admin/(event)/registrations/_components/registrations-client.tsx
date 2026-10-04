@@ -430,7 +430,7 @@ export function RegistrationsClient({ delegates, committees, total, filters, int
                   </td>
                   <td className="max-w-60 px-4 py-3">
                     {d.allotment ? (
-                      <span className="block truncate font-medium text-card-foreground">{`${committeeMap.get(d.allotment.committeeId) ?? ""} · ${d.allotment.portfolio.name}`}</span>
+                      <span className="block truncate font-medium text-card-foreground">{`${committeeMap.get(d.allotment.committeeId) ?? ""} · ${d.allotment.portfolio.name}${d.allotment.emailSentAt ? "" : " · draft"}`}</span>
                     ) : d.pref1CommitteeId ? (
                       <span className="block truncate text-muted-foreground">{`Wants ${committeeMap.get(d.pref1CommitteeId) ?? "-"}${d.pref1Portfolio ? ` · ${d.pref1Portfolio}` : ""}`}</span>
                     ) : (

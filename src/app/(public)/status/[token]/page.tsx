@@ -55,13 +55,18 @@ export default async function StatusPage(props: {
   const session = await auth()
   const isOwner = session?.user?.email?.toLowerCase() === delegate.email.toLowerCase()
 
-  const { payment, allotment } = delegate
+  // A draft allotment (not emailed yet) is staff-only: until it is sent the
+  // delegate sees no seat, no payment and the status they had before it.
+  const draft = !!delegate.allotment && !delegate.allotment.emailSentAt
+  const allotment = draft ? null : delegate.allotment
+  const payment = draft ? null : delegate.payment
+  const status = draft ? "REGISTERED" : delegate.status
   const needsPayment =
     paymentsRequired && payment && (payment.status === "PENDING" || payment.status === "SENT") && payment.paymentLink
   const payLink = payment?.paymentLink
     ? publicPaymentLink(payment.paymentLink, delegate.publicToken)
     : null
-  const isConfirmed = delegate.status === "CONFIRMED"
+  const isConfirmed = status === "CONFIRMED"
 
   return (
     <div className="mx-auto max-w-lg px-4 py-12">
@@ -75,8 +80,8 @@ export default async function StatusPage(props: {
             <h1 className="mt-1 text-xl font-bold">{delegate.fullName}</h1>
             <p className="text-sm text-muted-foreground">{delegate.email}</p>
           </div>
-          <Badge variant={STATUS_VARIANT[delegate.status] ?? "secondary"}>
-            {STATUS_LABEL[delegate.status] ?? delegate.status}
+          <Badge variant={STATUS_VARIANT[status] ?? "secondary"}>
+            {STATUS_LABEL[status] ?? status}
           </Badge>
         </div>
 
