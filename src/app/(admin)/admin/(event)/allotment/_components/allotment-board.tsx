@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
+import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { emailAllotments, revokeAllotment } from "../actions"
 import { committeeDemand, delegateChoices, ORDINAL } from "../_lib/balance"
@@ -155,6 +156,18 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, 
     .sort((a, b) => b.portfolio.allotment!.allottedAt.localeCompare(a.portfolio.allotment!.allottedAt))
   const unsent = seated.filter(({ portfolio: p }) => !p.allotment!.emailSentAt)
   const [sending, setSending] = useState<string | null>(null)
+  // Ticked drafts (delegate ids). Pruned to drafts still unsent, so a row that
+  // was emailed or taken back since never stays selected.
+  const [picked, setPicked] = useState<Set<string>>(new Set())
+  const unsentIds = new Set(unsent.map(({ portfolio: p }) => p.allotment!.delegateId))
+  const selected = [...picked].filter((id) => unsentIds.has(id))
+  const toggle = (id: string) =>
+    setPicked((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
   const [confirmSendAll, setConfirmSendAll] = useState(false)
   const send = async (ids: string[], key: string) => {
     setSending(key)
@@ -168,6 +181,7 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, 
     } finally {
       setSending(null)
       setConfirmSendAll(false)
+      setPicked(new Set())
     }
   }
   const seatedShown = seated.filter(({ portfolio: p, committee: c }) =>
@@ -349,9 +363,11 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, 
           </header>
           {unsent.length > 0 && (
             <div className="flex items-center justify-between gap-3 border-b border-border/60 bg-amber-500/5 px-4 py-2.5 text-sm">
-              <span className="text-muted-foreground">{`${unsent.length} not emailed yet`}</span>
+              <span className="text-muted-foreground">
+                {selected.length > 0 ? `${selected.length} of ${unsent.length} drafts ticked` : `${unsent.length} not emailed yet`}
+              </span>
               <Button size="sm" disabled={!!sending} onClick={() => setConfirmSendAll(true)}>
-                <Mail /> {sending === "all" ? "Emailing…" : `Email ${unsent.length}`}
+                <Mail /> {sending === "all" ? "Emailing…" : selected.length > 0 ? `Email ${selected.length} ticked` : `Email all ${unsent.length}`}
               </Button>
             </div>
           )}
@@ -363,11 +379,20 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, 
             <ul className="divide-y divide-border/50">
               {seatedShown.map(({ portfolio: p, committee: c }) => (
                 <li key={p.id} className="flex items-center gap-3 px-4 py-2.5">
+                  {unsent.length > 0 && p.allotment!.emailSentAt && <span className="size-4 shrink-0" />}
+                  {!p.allotment!.emailSentAt && (
+                    <Checkbox
+                      checked={picked.has(p.allotment!.delegateId)}
+                      onCheckedChange={() => toggle(p.allotment!.delegateId)}
+                      aria-label={`Tick ${p.allotment!.delegate.fullName} to email`}
+                      disabled={!!sending}
+                    />
+                  )}
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">
-                      {p.allotment!.delegate.fullName}
+                    <p className="flex items-center gap-2 text-sm font-medium">
+                      <span className="truncate">{p.allotment!.delegate.fullName}</span>
                       {!p.allotment!.emailSentAt && (
-                        <span className="ml-2 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">Draft</span>
+                        <span className="shrink-0 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">Draft</span>
                       )}
                     </p>
                     <p className="truncate text-xs text-muted-foreground">
@@ -404,11 +429,11 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, 
       <ConfirmDialog
         open={confirmSendAll}
         onOpenChange={(next) => !next && setConfirmSendAll(false)}
-        title={`Email ${unsent.length} allotments?`}
+        title={`Email ${selected.length || unsent.length} ${(selected.length || unsent.length) === 1 ? "allotment" : "allotments"}?`}
         description={paymentsRequired ? "Each delegate gets their seat and a payment link." : "Each delegate gets their seat and is confirmed."}
-        confirmLabel={`Email ${unsent.length}`}
+        confirmLabel={`Email ${selected.length || unsent.length}`}
         pending={sending === "all"}
-        onConfirm={() => void send(unsent.map(({ portfolio: p }) => p.allotment!.delegateId), "all")}
+        onConfirm={() => void send(selected.length > 0 ? selected : [...unsentIds], "all")}
       />
 
       <ConfirmDialog
