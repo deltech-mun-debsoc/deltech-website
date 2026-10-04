@@ -349,6 +349,7 @@ async function main() {
       }),
     )
     assert.ok(!/Nothing to pay/.test(free), "a free allotment says nothing about payment")
+    for (const c of contacts) assert.ok(!free.includes(c.phone), "contact phone numbers stay out of mail")
     const send = readFileSync("src/lib/resend.ts", "utf8")
     const fn = send.slice(send.indexOf("export async function sendAllotmentEmail"), send.indexOf("export async function sendPaymentConfirmed"))
     assert.match(fn, /groupUrl: paymentsEnabled \? undefined : committee\.groupLink/, "allotment passes the group link only on a free event")
