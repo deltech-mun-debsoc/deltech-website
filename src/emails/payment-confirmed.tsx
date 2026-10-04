@@ -9,6 +9,7 @@ interface Props {
   amountInr: number
   confirmedAt: Date
   whatsappCommunityUrl: string
+  groupUrl?: string
   contactEmail: string
   contacts: Array<{ name: string; role: string; phone: string }>
 }
@@ -21,6 +22,7 @@ export function PaymentConfirmedEmail({
   amountInr,
   confirmedAt,
   whatsappCommunityUrl,
+  groupUrl,
   contactEmail,
   contacts,
 }: Props) {
@@ -44,6 +46,8 @@ export function PaymentConfirmedEmail({
           value={formatDateLong(confirmedAt)}
         />
       </Panel>
+
+      {groupUrl && <Cta href={groupUrl}>Join the {committeeName} WhatsApp group</Cta>}
 
       <P last={!whatsappCommunityUrl}>
         Schedule, venue, prep material and committee notices all come through the official channels

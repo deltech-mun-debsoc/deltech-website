@@ -323,7 +323,10 @@ export async function sendAllotmentEmail(
       // mail clients strip inline SVG, and a broken QR at the door is worse than
       // a link to a working one.
       statusUrl: `${APP_URL}/status/${delegate.publicToken}`,
-      whatsappCommunityUrl: content.whatsappCommunityUrl,
+      // Groups are for delegates who have a confirmed seat. On a paid event that
+      // is after payment, so the links go in the payment-confirmed mail instead.
+      whatsappCommunityUrl: paymentsEnabled ? undefined : content.whatsappCommunityUrl,
+      groupUrl: paymentsEnabled ? undefined : committee.groupLink ?? undefined,
     }),
   })
 
@@ -364,6 +367,7 @@ export async function sendCoDelegateNotice(delegateId: string): Promise<void> {
       committeeName: committee.name,
       portfolioName: portfolio.name,
       paymentsEnabled,
+      groupUrl: paymentsEnabled ? undefined : committee.groupLink ?? undefined,
     }),
   })
 }
@@ -400,6 +404,7 @@ export async function sendPaymentConfirmed(delegateId: string): Promise<void> {
       amountInr: delegate.payment.amountInr,
       confirmedAt: delegate.payment.confirmedAt ?? new Date(),
       whatsappCommunityUrl: content.whatsappCommunityUrl,
+      groupUrl: committee.groupLink ?? undefined,
       contactEmail: content.secretariatEmail,
       contacts: content.queryContacts,
     }),

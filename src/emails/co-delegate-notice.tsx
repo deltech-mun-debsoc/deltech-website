@@ -1,4 +1,4 @@
-import { EmailShell, P, B, Panel, Row } from "./_shell"
+import { EmailShell, P, B, Panel, Row, Cta } from "./_shell"
 
 interface Props {
   coDelegateName: string
@@ -6,6 +6,7 @@ interface Props {
   committeeName: string
   portfolioName: string
   paymentsEnabled: boolean
+  groupUrl?: string
 }
 
 export function CoDelegateNoticeEmail({
@@ -14,6 +15,7 @@ export function CoDelegateNoticeEmail({
   committeeName,
   portfolioName,
   paymentsEnabled,
+  groupUrl,
 }: Props) {
   return (
     <EmailShell
@@ -31,11 +33,13 @@ export function CoDelegateNoticeEmail({
         <Row label="Portfolio" value={portfolioName} />
       </Panel>
 
-      <P last>
+      <P last={!groupUrl || paymentsEnabled}>
         {paymentsEnabled
           ? "Payment is your primary delegate's responsibility. Schedule and prep material follow closer to the date."
           : "Nothing to pay for this Intra MUN. Your shared allotment is already confirmed."}
       </P>
+
+      {groupUrl && !paymentsEnabled && <Cta href={groupUrl}>Join the {committeeName} WhatsApp group</Cta>}
     </EmailShell>
   )
 }

@@ -220,8 +220,9 @@ const cases: Array<[string, ReactElement, string[]]> = [
       refundPolicy: "",
       contactEmail: "c@x.test",
       contacts,
+      groupUrl: "https://chat.test/unsc",
     }),
-    ["Nothing to pay"],
+    ["Nothing to pay", "https://chat.test/unsc", "Join the UNSC WhatsApp group"],
   ],
   [
     "co-delegate-notice",
@@ -244,10 +245,11 @@ const cases: Array<[string, ReactElement, string[]]> = [
       amountInr: 1200,
       confirmedAt: new Date("2026-09-01T00:00:00Z"),
       whatsappCommunityUrl: "https://chat.test/x",
+      groupUrl: "https://chat.test/unsc",
       contactEmail: "c@x.test",
       contacts,
     }),
-    ["1,200", "France"],
+    ["1,200", "France", "https://chat.test/unsc"],
   ],
   [
     "payment-reminder",
@@ -333,6 +335,26 @@ async function main() {
         `${name} render is missing ${JSON.stringify(needle)}`,
       );
     }
+  }
+
+  // ── Group links only once the seat is theirs ────────────────────────────────
+  // On a paid event the committee group goes out with payment confirmation, never
+  // with the allotment, which a delegate can ignore without paying.
+  {
+    const paid = await render(
+      AllotmentEmail({
+        eventName: "DelTech MUN", fullName: "Riya", committeeName: "UNSC", portfolioName: "France",
+        agenda: null, amountInr: 1200, payLink: "https://x.test/pay/t", paymentsEnabled: true,
+        needsAccommodation: false, accommodationNote: "", conferenceDates: "", venue: "",
+        paymentDeadline: "", paymentProofUrl: "", refundPolicy: "", contactEmail: "c@x.test", contacts,
+        groupUrl: "https://chat.test/unsc",
+      }),
+    )
+    assert.ok(!paid.includes("chat.test/unsc"), "a paid allotment email must not carry the group link")
+    const send = readFileSync("src/lib/resend.ts", "utf8")
+    const fn = send.slice(send.indexOf("export async function sendAllotmentEmail"), send.indexOf("export async function sendCoDelegateNotice"))
+    assert.match(fn, /groupUrl: paymentsEnabled \? undefined : committee\.groupLink/, "allotment passes the group link only on a free event")
+    assert.match(fn, /whatsappCommunityUrl: paymentsEnabled \? undefined/, "allotment withholds the community link on a paid event")
   }
 
   // ── Allotment is sent once unless a person asks again ───────────────────────

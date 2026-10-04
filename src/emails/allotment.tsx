@@ -23,6 +23,7 @@ interface Props {
   contacts: Array<{ name: string; role: string; phone: string }>
   statusUrl?: string
   whatsappCommunityUrl?: string
+  groupUrl?: string
 }
 
 export function AllotmentEmail({
@@ -45,6 +46,7 @@ export function AllotmentEmail({
   contacts,
   statusUrl,
   whatsappCommunityUrl,
+  groupUrl,
 }: Props) {
   const payable = paymentsEnabled && amountInr != null && payLink
   const amount = amountInr != null ? `₹${amountInr.toLocaleString("en-IN")}` : ""
@@ -143,7 +145,10 @@ export function AllotmentEmail({
           )}
         </>
       ) : (
-        <Callout>Nothing to pay. Your allotment is confirmed as it stands.</Callout>
+        <>
+          <Callout>Nothing to pay. Your allotment is confirmed as it stands.</Callout>
+          {groupUrl && <Cta href={groupUrl}>Join the {committeeName} WhatsApp group</Cta>}
+        </>
       )}
 
       {statusUrl && (
