@@ -55,13 +55,18 @@ export default async function StatusPage(props: {
   const session = await auth()
   const isOwner = session?.user?.email?.toLowerCase() === delegate.email.toLowerCase()
 
-  const { payment, allotment } = delegate
+  // A draft allotment (not emailed yet) is staff-only: until it is sent the
+  // delegate sees no seat, no payment and the status they had before it.
+  const draft = !!delegate.allotment && !delegate.allotment.emailSentAt
+  const allotment = draft ? null : delegate.allotment
+  const payment = draft ? null : delegate.payment
+  const status = draft ? "REGISTERED" : delegate.status
   const needsPayment =
     paymentsRequired && payment && (payment.status === "PENDING" || payment.status === "SENT") && payment.paymentLink
   const payLink = payment?.paymentLink
     ? publicPaymentLink(payment.paymentLink, delegate.publicToken)
     : null
-  const isConfirmed = delegate.status === "CONFIRMED"
+  const isConfirmed = status === "CONFIRMED"
 
   return (
     <div className="mx-auto max-w-lg px-4 py-12">
@@ -70,13 +75,13 @@ export default async function StatusPage(props: {
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              {STRINGS.brand.name}. Application Status
+              {STRINGS.brand.name}
             </p>
             <h1 className="mt-1 text-xl font-bold">{delegate.fullName}</h1>
             <p className="text-sm text-muted-foreground">{delegate.email}</p>
           </div>
-          <Badge variant={STATUS_VARIANT[delegate.status] ?? "secondary"}>
-            {STATUS_LABEL[delegate.status] ?? delegate.status}
+          <Badge variant={STATUS_VARIANT[status] ?? "secondary"}>
+            {STATUS_LABEL[status] ?? status}
           </Badge>
         </div>
 
@@ -104,59 +109,37 @@ export default async function StatusPage(props: {
               Allotment
             </p>
             <p className="mt-2 text-sm text-muted-foreground">
-              Not yet allotted. The secretariat will email your committee and portfolio once
-              they have gone through the applications.
+              Not allotted yet. You will be emailed when you are.
             </p>
           </div>
         )}
 
-        <Separator />
-
-        {/* Payment */}
-        <div className="space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-wider text-primary">{paymentsRequired ? "Payment" : "Event fee"}</p>
-          {paymentsRequired && payment ? (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <Field
-                  label="Amount"
-                  value={`₹${payment.amountInr.toLocaleString("en-IN")}`}
-                />
-                <Field
-                  label="Status"
-                  value={PAY_STATUS_LABEL[payment.status] ?? payment.status}
-                />
-                {isConfirmed && payment.confirmedAt && (
-                  <Field
-                    label="Confirmed on"
-                    value={formatDate(payment.confirmedAt)}
-                  />
-                )}
-              </div>
-
-              {needsPayment && (
-                <Link
-                  href={payLink!}
-                  className={cn(buttonVariants({ size: "lg" }), "w-full")}
-                >
-                  Pay Now · ₹{payment.amountInr.toLocaleString("en-IN")}
-                </Link>
-              )}
-
-              {isConfirmed && (
-                <div className="rounded-lg bg-muted/50 p-3 text-sm text-muted-foreground">
-                  ✓ Your registration is confirmed. See you at the conference!
-                </div>
+        {paymentsRequired && (
+          <>
+            <Separator />
+            <div className="space-y-3">
+              <p className="text-xs font-semibold uppercase tracking-wider text-primary">Payment</p>
+              {payment ? (
+                <>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Field label="Amount" value={`₹${payment.amountInr.toLocaleString("en-IN")}`} />
+                    <Field label="Status" value={PAY_STATUS_LABEL[payment.status] ?? payment.status} />
+                    {isConfirmed && payment.confirmedAt && (
+                      <Field label="Confirmed on" value={formatDate(payment.confirmedAt)} />
+                    )}
+                  </div>
+                  {needsPayment && (
+                    <Link href={payLink!} className={cn(buttonVariants({ size: "lg" }), "w-full")}>
+                      Pay Now · ₹{payment.amountInr.toLocaleString("en-IN")}
+                    </Link>
+                  )}
+                </>
+              ) : (
+                <p className="text-sm text-muted-foreground">Shown after allotment.</p>
               )}
             </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              {paymentsRequired
-                ? "Payment details will appear here once you have been allotted a committee."
-                : STRINGS.marketing.noPaymentRequired}
-            </p>
-          )}
-        </div>
+          </>
+        )}
 
         {/* Check-in QR, only once the delegate is confirmed to attend */}
         {isConfirmed && (
@@ -171,14 +154,10 @@ export default async function StatusPage(props: {
           <>
             <Separator />
             <p className="text-center text-xs text-muted-foreground">
-              This link is unique to you, keep it safe.{" "}
-              <Link
-                href="/signin"
-                className="text-primary underline-offset-2 hover:underline"
-              >
+              <Link href="/signin" className="text-primary underline-offset-2 hover:underline">
                 Sign in
               </Link>{" "}
-              to access your account.
+              with this email to see it any time.
             </p>
           </>
         )}

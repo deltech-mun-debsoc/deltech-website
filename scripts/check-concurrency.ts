@@ -52,20 +52,28 @@ const read = (p: string) => readFileSync(p, "utf8")
     "holdPortfolio must not discard the updateMany result",
   )
 
-  // The allotment is committed before the payment link is generated, so a
-  // provider outage must not skip the email/audit/sheet-sync that follow.
-  assert.match(src, /let payLinkFailed = false/, "pay-link failure must be tracked, not thrown")
-  assert.match(src, /warning:/, "a partial success must be reported as a warning, not a failure")
+  // Allotting is a draft: it must not email anyone or make a pay link.
+  const allot = src.slice(src.indexOf("export async function allotPortfolio"), src.indexOf("export async function emailAllotments"))
+  assert.doesNotMatch(allot, /sendAllotmentEmail|createPaymentLink|sendCoDelegateNotice/, "allotting must not tell the delegate")
+  // Emailing claims each allotment (emailSentAt where null) before any side
+  // effect, so two staff cannot send twice, and gives the claim back on failure.
+  const release = src.slice(src.indexOf("export async function emailAllotments"))
+  assert.match(release, /where: \{ delegateId, emailSentAt: null \}/, "release must claim atomically")
+  assert.ok(
+    release.indexOf("claim.count === 0") < release.indexOf("createPaymentLink"),
+    "the claim must be checked before a pay link is made",
+  )
+  assert.match(release, /data: \{ emailSentAt: null \}/, "a failed release must return the claim")
 }
 
-// Only the dialog knows whether it took the hold, so only the dialog may
-// release it. The board used to branch on the server-rendered status, which
-// never matched our own hold and did match someone else's.
+// Only the seat picker knows whether it took the hold, so only it may release
+// it. The board used to branch on the server-rendered status, which never
+// matched our own hold and did match someone else's.
 {
-  const dialog = read("src/app/(admin)/admin/(event)/allotment/_components/allot-dialog.tsx")
+  const picker = read("src/app/(admin)/admin/(event)/allotment/_components/seat-picker.tsx")
   const board = read("src/app/(admin)/admin/(event)/allotment/_components/allotment-board.tsx")
-  assert.match(dialog, /releaseHold\(seat\.id, holdToken\)/, "the dialog must release with its hold token")
-  assert.match(dialog, /holdToken,\s*\}/, "allotment confirmation must prove it owns the hold")
+  assert.match(picker, /releaseHold\(seat\.id, hold\.holdToken\)/, "the picker must release with its hold token")
+  assert.match(picker, /holdToken: hold\.holdToken,\s*\}/, "allotment confirmation must prove it owns the hold")
   assert.doesNotMatch(board, /releaseHold/, "the board must not release holds it knows nothing about")
 }
 

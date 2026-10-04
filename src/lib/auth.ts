@@ -27,8 +27,8 @@ declare module "next-auth" {
 // and writable without a module augmentation ("next-auth/jwt" is not resolvable
 // under this tsconfig's module resolution).
 
-// Accounts are only ever created deliberately: /signup for delegates, an admin
-// invite for staff. Left to itself the email provider signs *anyone* up: on
+// Accounts are only ever created deliberately: /signup or an existing delegate
+// application for delegates (provisionDelegateAccount), an admin invite for staff. Left to itself the email provider signs *anyone* up: on
 // link click Auth.js creates the missing row with the schema default role
 // (AUTHOR), which grants /write. So an unknown address must be refused, not
 // provisioned. This is also what stops a deleted user walking back in through
@@ -53,7 +53,29 @@ async function mayStartSession(email: string | null | undefined): Promise<boolea
     user = await prisma.user.findUnique({ where, select: { disabledAt: true } });
   }
 
-  return !!user && !user.disabledAt;
+  if (user) return !user.disabledAt;
+  return provisionDelegateAccount(where.email);
+}
+
+// Delegates who arrive through a Google Form, a cross-delegation sheet or the
+// desk have an application but no account. Their first magic-link request makes
+// the same REGISTERER account /signup would, so "Sign in" on their status page
+// works; the link still only reaches their own inbox. The dashboard finds the
+// application by email, so nothing else needs linking.
+async function provisionDelegateAccount(email: string): Promise<boolean> {
+  const delegate = await prisma.delegate.findFirst({
+    where: { email: { equals: email, mode: "insensitive" } },
+    orderBy: { createdAt: "desc" },
+    select: { fullName: true },
+  });
+  if (!delegate) return false;
+  try {
+    await prisma.user.create({ data: { email, name: delegate.fullName, role: "REGISTERER" } });
+  } catch (err) {
+    // A concurrent request created it first; that row is all this needed.
+    if ((err as { code?: string })?.code !== "P2002") throw err;
+  }
+  return true;
 }
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
