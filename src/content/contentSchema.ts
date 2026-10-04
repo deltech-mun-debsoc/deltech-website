@@ -66,7 +66,7 @@ export const ContentSchema = z.object({
   paymentProofUrl: z.string().default(""),
   refundPolicy: z.string().default("Payments are non-refundable once an allotment is accepted."),
   whatsappCommunityUrl: z.string().default(""),
-  secretariatEmail: z.string().default("secretariat.deltechmun@gmail.com"),
+  secretariatEmail: z.string().default("deltech.mun@gmail.com"),
   sheetSyncUrl: z.string().default(""),
   recruitmentSheetUrl: z.string().default(""),
   sheetPullSources: z
