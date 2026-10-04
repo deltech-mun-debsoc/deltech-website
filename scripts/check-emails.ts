@@ -221,7 +221,7 @@ const cases: Array<[string, ReactElement, string[]]> = [
       contacts,
       groupUrl: "https://chat.test/unsc",
     }),
-    ["Nothing to pay", "https://chat.test/unsc", "Join the UNSC WhatsApp group"],
+    ["https://chat.test/unsc", "Join the UNSC WhatsApp group"],
   ],
   [
     "payment-confirmed",
@@ -340,6 +340,15 @@ async function main() {
       }),
     )
     assert.ok(!paid.includes("chat.test/unsc"), "a paid allotment email must not carry the group link")
+    const free = await render(
+      AllotmentEmail({
+        eventName: "Intra MUN", fullName: "Riya", committeeName: "UNSC", portfolioName: "France",
+        agenda: null, paymentsEnabled: false, needsAccommodation: false, accommodationNote: "",
+        conferenceDates: "", venue: "", paymentDeadline: "", paymentProofUrl: "", refundPolicy: "",
+        contactEmail: "c@x.test", contacts,
+      }),
+    )
+    assert.ok(!/Nothing to pay/.test(free), "a free allotment says nothing about payment")
     const send = readFileSync("src/lib/resend.ts", "utf8")
     const fn = send.slice(send.indexOf("export async function sendAllotmentEmail"), send.indexOf("export async function sendPaymentConfirmed"))
     assert.match(fn, /groupUrl: paymentsEnabled \? undefined : committee\.groupLink/, "allotment passes the group link only on a free event")
