@@ -3,13 +3,15 @@
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { Search, Undo2 } from "lucide-react"
+import { Mail, Search, Undo2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import { revokeAllotment } from "../actions"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { emailAllotments, revokeAllotment } from "../actions"
 import { committeeDemand, delegateChoices, ORDINAL } from "../_lib/balance"
+import { experienceScore } from "../_lib/experience"
 import { SeatPicker } from "./seat-picker"
 import { useAllotmentLive } from "../_lib/use-allotment-live"
 import type { CommitteeType, PortfolioStatus } from "@/generated/prisma/client"
@@ -90,6 +92,18 @@ interface Props {
   focusDelegateId: string | null
 }
 
+type Sort = "oldest" | "newest" | "experience"
+const SORT_ITEMS = [
+  { value: "oldest", label: "Registered first" },
+  { value: "newest", label: "Newest first" },
+  { value: "experience", label: "Most experience" },
+]
+const EXPERIENCE_ITEMS = [
+  { value: "any", label: "Any experience" },
+  { value: "yes", label: "Experienced" },
+  { value: "no", label: "First-timers" },
+]
+
 export function delegateLine(d: Pick<SerializedDelegate, "rollNumber" | "isDtu" | "institution">) {
   return d.rollNumber ?? (d.isDtu ? "DTU" : d.institution)
 }
@@ -113,10 +127,49 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, 
   const q = search.trim().toLowerCase()
   const matches = (fields: (string | null | undefined)[]) => !q || fields.some((f) => f?.toLowerCase().includes(q))
 
-  const waiting = delegates.filter((d) => matches([d.fullName, d.email, d.rollNumber, d.institution]))
+  const [committeeFilter, setCommitteeFilter] = useState("all")
+  const [experienceFilter, setExperienceFilter] = useState("any")
+  const [sort, setSort] = useState<Sort>("oldest")
+  const committeeFilterItems = [
+    { value: "all", label: "Any committee" },
+    ...committees.map((c) => ({ value: c.id, label: c.name })),
+    { value: "none", label: "No committee chosen" },
+  ]
+  const waiting = delegates
+    .filter((d) => matches([d.fullName, d.email, d.rollNumber, d.institution, d.munExperience]))
+    .filter((d) => {
+      const prefs = [d.pref1CommitteeId, d.pref2CommitteeId, d.pref3CommitteeId].filter(Boolean)
+      if (committeeFilter === "none") return prefs.length === 0
+      return committeeFilter === "all" || prefs.includes(committeeFilter)
+    })
+    .filter((d) => experienceFilter === "any" || (experienceScore(d.munExperience) > 0) === (experienceFilter === "yes"))
+    .sort((a, b) =>
+      sort === "experience"
+        ? experienceScore(b.munExperience) - experienceScore(a.munExperience) || a.createdAt.localeCompare(b.createdAt)
+        : sort === "newest"
+          ? b.createdAt.localeCompare(a.createdAt)
+          : a.createdAt.localeCompare(b.createdAt),
+    )
   const seated = committees
     .flatMap((c) => c.portfolios.filter((p) => p.allotment).map((p) => ({ portfolio: p, committee: c })))
     .sort((a, b) => b.portfolio.allotment!.allottedAt.localeCompare(a.portfolio.allotment!.allottedAt))
+  const unsent = seated.filter(({ portfolio: p }) => !p.allotment!.emailSentAt)
+  const [sending, setSending] = useState<string | null>(null)
+  const [confirmSendAll, setConfirmSendAll] = useState(false)
+  const send = async (ids: string[], key: string) => {
+    setSending(key)
+    try {
+      const { sent, failed } = await emailAllotments(ids)
+      if (sent) toast.success(`Emailed ${sent} ${sent === 1 ? "delegate" : "delegates"}.`)
+      for (const f of failed) toast.error(`${f.name}: ${f.reason}`, { duration: 10000 })
+      refreshAndNotify()
+    } catch {
+      toast.error("Could not reach the server. Try again.")
+    } finally {
+      setSending(null)
+      setConfirmSendAll(false)
+    }
+  }
   const seatedShown = seated.filter(({ portfolio: p, committee: c }) =>
     matches([p.allotment!.delegate.fullName, p.allotment!.delegate.email, p.name, c.name]),
   )
@@ -128,7 +181,7 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, 
 
   const handleAllotted = (name: string, seat: string, hadWarning?: boolean) => {
     done()
-    if (!hadWarning) toast.success(`${name} allotted ${seat}.`)
+    if (!hadWarning) toast.success(`${name} · ${seat} saved as a draft. Email when ready.`)
   }
 
   const handleRevoke = async () => {
@@ -203,8 +256,30 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, 
         <section className="editorial-card overflow-hidden">
           <header className="flex items-baseline justify-between border-b border-border/60 px-4 py-3">
             <h2 className="font-heading text-lg">Waiting for a seat</h2>
-            <span className="text-sm tabular-nums text-muted-foreground">{delegates.length}</span>
+            <span className="text-sm tabular-nums text-muted-foreground">
+              {waiting.length === delegates.length ? delegates.length : `${waiting.length} of ${delegates.length}`}
+            </span>
           </header>
+          <div className="flex flex-wrap gap-2 border-b border-border/60 px-4 py-2.5">
+            <Select items={committeeFilterItems} value={committeeFilter} onValueChange={(v) => setCommitteeFilter(v ?? "all")}>
+              <SelectTrigger size="sm" className="w-44 text-sm" aria-label="Filter by chosen committee"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {committeeFilterItems.map((i) => <SelectItem key={i.value} value={i.value}>{i.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select items={EXPERIENCE_ITEMS} value={experienceFilter} onValueChange={(v) => setExperienceFilter(v ?? "any")}>
+              <SelectTrigger size="sm" className="w-40 text-sm" aria-label="Filter by experience"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {EXPERIENCE_ITEMS.map((i) => <SelectItem key={i.value} value={i.value}>{i.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select items={SORT_ITEMS} value={sort} onValueChange={(v) => setSort((v as Sort) ?? "oldest")}>
+              <SelectTrigger size="sm" className="ml-auto w-44 text-sm" aria-label="Sort"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {SORT_ITEMS.map((i) => <SelectItem key={i.value} value={i.value}>{i.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
           {waiting.length === 0 ? (
             <p className="px-4 py-8 text-center text-sm text-muted-foreground">
               {delegates.length === 0 ? "Everyone who registered has a seat." : "No waiting delegate matches."}
@@ -225,6 +300,9 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, 
                         {delegateLine(d)}
                         {d.coDelegate ? ` · with ${d.coDelegate.fullName}` : ""}
                       </p>
+                      {d.munExperience?.trim() && (
+                        <p className="truncate text-xs text-muted-foreground" title={d.munExperience}>{`Experience: ${d.munExperience}`}</p>
+                      )}
                       <div className="mt-1.5 flex flex-wrap gap-1.5">
                         {choices.length === 0 ? (
                           <span className="text-xs text-muted-foreground">No committee chosen</span>
@@ -269,6 +347,14 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, 
             <h2 className="font-heading text-lg">Seated</h2>
             <span className="text-sm tabular-nums text-muted-foreground">{seated.length}</span>
           </header>
+          {unsent.length > 0 && (
+            <div className="flex items-center justify-between gap-3 border-b border-border/60 bg-amber-500/5 px-4 py-2.5 text-sm">
+              <span className="text-muted-foreground">{`${unsent.length} not emailed yet`}</span>
+              <Button size="sm" disabled={!!sending} onClick={() => setConfirmSendAll(true)}>
+                <Mail /> {sending === "all" ? "Emailing…" : `Email ${unsent.length}`}
+              </Button>
+            </div>
+          )}
           {seatedShown.length === 0 ? (
             <p className="px-4 py-8 text-center text-sm text-muted-foreground">
               {seated.length === 0 ? "Nobody has a seat yet." : "No seated delegate matches."}
@@ -278,12 +364,28 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, 
               {seatedShown.map(({ portfolio: p, committee: c }) => (
                 <li key={p.id} className="flex items-center gap-3 px-4 py-2.5">
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{p.allotment!.delegate.fullName}</p>
+                    <p className="truncate text-sm font-medium">
+                      {p.allotment!.delegate.fullName}
+                      {!p.allotment!.emailSentAt && (
+                        <span className="ml-2 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">Draft</span>
+                      )}
+                    </p>
                     <p className="truncate text-xs text-muted-foreground">
                       {`${c.name} · ${p.name}`}
                       {c.doubleDelegation && p.allotment!.delegate.coDelegate ? ` · with ${p.allotment!.delegate.coDelegate.fullName}` : ""}
                     </p>
                   </div>
+                  {!p.allotment!.emailSentAt && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="gap-1 text-xs"
+                      disabled={!!sending}
+                      onClick={() => void send([p.allotment!.delegateId], p.id)}
+                    >
+                      <Mail className="size-3.5" /> {sending === p.id ? "Emailing…" : "Email"}
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="sm"
@@ -298,6 +400,16 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, 
           )}
         </section>
       </div>
+
+      <ConfirmDialog
+        open={confirmSendAll}
+        onOpenChange={(next) => !next && setConfirmSendAll(false)}
+        title={`Email ${unsent.length} allotments?`}
+        description={paymentsRequired ? "Each delegate gets their seat and a payment link." : "Each delegate gets their seat and is confirmed."}
+        confirmLabel={`Email ${unsent.length}`}
+        pending={sending === "all"}
+        onConfirm={() => void send(unsent.map(({ portfolio: p }) => p.allotment!.delegateId), "all")}
+      />
 
       <ConfirmDialog
         open={Boolean(revokeTarget)}
