@@ -14,6 +14,9 @@ import { emailAllotments, revokeAllotment } from "../actions"
 import { committeeDemand, delegateChoices, ORDINAL } from "../_lib/balance"
 import { experienceScore } from "../_lib/experience"
 import { SeatPicker } from "./seat-picker"
+import { DelegateDrawer } from "../../registrations/_components/delegate-drawer"
+import { getDelegateForDrawer } from "../../registrations/actions"
+import type { SerializedDelegate as DrawerDelegate } from "../../registrations/_lib/types"
 import { useAllotmentLive } from "../_lib/use-allotment-live"
 import type { CommitteeType, PortfolioStatus } from "@/generated/prisma/client"
 
@@ -91,6 +94,7 @@ interface Props {
   eventId: string | null
   // Opened straight from "Add and give a seat" on the delegate list.
   focusDelegateId: string | null
+  intra: boolean
 }
 
 type Sort = "oldest" | "newest" | "experience"
@@ -109,7 +113,7 @@ export function delegateLine(d: Pick<SerializedDelegate, "rollNumber" | "isDtu" 
   return d.rollNumber ?? (d.isDtu ? "DTU" : d.institution)
 }
 
-export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, eventId, focusDelegateId }: Props) {
+export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, eventId, focusDelegateId, intra }: Props) {
   const router = useRouter()
   const { notify } = useAllotmentLive(eventId)
   const refreshAndNotify = () => {
@@ -117,6 +121,12 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, 
     notify()
   }
   const [search, setSearch] = useState("")
+  // The same side panel as the Delegates page: full application, edit, emails.
+  const [drawer, setDrawer] = useState<DrawerDelegate | null>(null)
+  const openDrawer = (id: string) =>
+    getDelegateForDrawer(id)
+      .then((d) => (d ? setDrawer(d) : toast.error("That delegate is gone. Reload the page.")))
+      .catch(() => toast.error("Could not reach the server. Try again."))
   // Arriving from "Add and give a seat": bring that delegate's row into view.
   useEffect(() => {
     if (focusDelegateId) document.getElementById(`waiting-${focusDelegateId}`)?.scrollIntoView({ block: "center" })
@@ -309,7 +319,9 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, 
                     className={cn("flex flex-wrap items-center gap-3 px-4 py-3", d.id === focusDelegateId && "bg-primary/5 ring-1 ring-inset ring-primary/40")}
                   >
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium">{d.fullName}</p>
+                      <button type="button" onClick={() => void openDrawer(d.id)} className="max-w-full truncate text-left font-medium hover:underline">
+                        {d.fullName}
+                      </button>
                       <p className="truncate text-xs text-muted-foreground">
                         {delegateLine(d)}
                         {d.coDelegate ? ` · with ${d.coDelegate.fullName}` : ""}
@@ -390,7 +402,9 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, 
                   )}
                   <div className="min-w-0 flex-1">
                     <p className="flex items-center gap-2 text-sm font-medium">
-                      <span className="truncate">{p.allotment!.delegate.fullName}</span>
+                      <button type="button" onClick={() => void openDrawer(p.allotment!.delegateId)} className="truncate text-left hover:underline">
+                        {p.allotment!.delegate.fullName}
+                      </button>
                       {!p.allotment!.emailSentAt && (
                         <span className="shrink-0 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">Draft</span>
                       )}
@@ -425,6 +439,17 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, 
           )}
         </section>
       </div>
+
+      <DelegateDrawer
+        delegate={drawer}
+        committees={committees}
+        intra={intra}
+        onClose={() => setDrawer(null)}
+        onUpdated={(updated) => {
+          setDrawer(updated)
+          refreshAndNotify()
+        }}
+      />
 
       <ConfirmDialog
         open={confirmSendAll}
