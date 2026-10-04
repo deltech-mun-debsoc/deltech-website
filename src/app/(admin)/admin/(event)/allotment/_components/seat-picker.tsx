@@ -18,21 +18,29 @@ interface Props {
   onGone: () => void
 }
 
-// One dropdown per waiting delegate: their open choices first, then every open
-// seat by committee. Picking only stages the seat; Allot commits it. The seat is
+// Committee, then seat: each committee's matrix is its own list, so a 120-seat
+// AIPPM never buries a 90-seat UNSC. The committee starts on their first choice
+// that still has room, with their requested seats at the top of its list.
+// Picking only stages the seat; Allot commits it. The seat is
 // held just for the moment of committing, so an open dropdown never blocks a
 // colleague.
 export function SeatPicker({ delegate, committees, fees, paymentsRequired, onAllotted, onGone }: Props) {
+  const open = (c: SerializedCommittee) => c.portfolios.filter((p) => p.status === "AVAILABLE")
+  const withRoom = committees.filter((c) => open(c).length > 0)
+  const choices = delegateChoices(delegate, committees)
+  const [committeeId, setCommitteeId] = useState<string | null>(
+    () => choices.find((ch) => open(ch.committee).length > 0)?.committee.id ?? null,
+  )
   const [seatId, setSeatId] = useState<string | null>(null)
   const [pending, startTransition] = useTransition()
 
-  const open = (c: SerializedCommittee) => c.portfolios.filter((p) => p.status === "AVAILABLE")
-  const choices = delegateChoices(delegate, committees).filter((ch) => ch.seat?.status === "AVAILABLE")
-  const seats = new Map<string, { seat: SerializedPortfolio; committee: SerializedCommittee }>()
-  for (const c of committees) for (const p of open(c)) seats.set(p.id, { seat: p, committee: c })
-
-  const items = [...seats.values()].map(({ seat, committee }) => ({ value: seat.id, label: `${committee.name} · ${seat.name}` }))
-  const picked = seatId ? seats.get(seatId) : undefined
+  const committee = withRoom.find((c) => c.id === committeeId)
+  const asked = choices.filter((ch) => ch.committee.id === committeeId && ch.seat?.status === "AVAILABLE")
+  const rest = committee ? open(committee).filter((p) => !asked.some((ch) => ch.seat?.id === p.id)) : []
+  const committeeItems = withRoom.map((c) => ({ value: c.id, label: `${c.name} · ${open(c).length} open` }))
+  const seatItems = committee ? open(committee).map((p) => ({ value: p.id, label: p.name })) : []
+  const seat: SerializedPortfolio | undefined = committee?.portfolios.find((p) => p.id === seatId)
+  const picked = committee && seat ? { seat, committee } : undefined
   const fee =
     paymentsRequired && picked
       ? fees.find((f) => f.committeeType === picked.committee.type && f.isDtu === delegate.isDtu) ?? null
@@ -70,37 +78,49 @@ export function SeatPicker({ delegate, committees, fees, paymentsRequired, onAll
     })
   }
 
-  if (seats.size === 0) return <span className="text-xs text-muted-foreground">No open seats</span>
+  if (withRoom.length === 0) return <span className="text-xs text-muted-foreground">No open seats</span>
 
   return (
-    <div className="flex shrink-0 items-center gap-2">
-      <Select items={items} value={seatId} onValueChange={(v) => setSeatId(v)} disabled={pending}>
-        <SelectTrigger size="sm" className="w-56 text-sm" aria-label={`Seat for ${delegate.fullName}`}>
-          <SelectValue placeholder="Choose a seat" />
+    <div className="flex shrink-0 flex-wrap items-center gap-2">
+      <Select
+        items={committeeItems}
+        value={committeeId}
+        onValueChange={(v) => {
+          setCommitteeId(v)
+          setSeatId(null)
+        }}
+        disabled={pending}
+      >
+        <SelectTrigger size="sm" className="w-40 text-sm" aria-label={`Committee for ${delegate.fullName}`}>
+          <SelectValue placeholder="Committee">
+            {(value: string | null) => withRoom.find((c) => c.id === value)?.name ?? "Committee"}
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent>
+          {committeeItems.map((c) => (
+            <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Select items={seatItems} value={seatId} onValueChange={(v) => setSeatId(v)} disabled={pending || !committee}>
+        <SelectTrigger size="sm" className="w-48 text-sm" aria-label={`Seat for ${delegate.fullName}`}>
+          <SelectValue placeholder="Seat" />
         </SelectTrigger>
         <SelectContent className="max-h-80">
-          {choices.length > 0 && (
+          {asked.length > 0 && (
             <SelectGroup>
               <SelectLabel>Asked for</SelectLabel>
-              {choices.map((ch) => (
-                <SelectItem key={`choice-${ch.seat!.id}`} value={ch.seat!.id}>
-                  {`${ORDINAL[ch.rank]} · ${ch.committee.name} · ${ch.seat!.name}`}
-                </SelectItem>
+              {asked.map((ch) => (
+                <SelectItem key={`asked-${ch.seat!.id}`} value={ch.seat!.id}>{`${ch.seat!.name} · ${ORDINAL[ch.rank]}`}</SelectItem>
               ))}
             </SelectGroup>
           )}
-          {committees.map((c) => {
-            const list = open(c).filter((p) => !choices.some((ch) => ch.seat?.id === p.id))
-            if (list.length === 0) return null
-            return (
-              <SelectGroup key={c.id}>
-                <SelectLabel>{`${c.name} · ${open(c).length} open`}</SelectLabel>
-                {list.map((p) => (
-                  <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
-                ))}
-              </SelectGroup>
-            )
-          })}
+          <SelectGroup>
+            {asked.length > 0 && <SelectLabel>Open</SelectLabel>}
+            {rest.map((p) => (
+              <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+            ))}
+          </SelectGroup>
         </SelectContent>
       </Select>
       {picked && (
