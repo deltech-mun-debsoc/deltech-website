@@ -153,6 +153,9 @@ model Committee {
   sortOrder         Int           @default(0)
   portfolioTagLabel String?
   matrixBrief       String?
+  // The committee's WhatsApp group for this event. Sent with the allotment when
+  // the event is free, and only after payment when it is not.
+  groupLink         String?
 
   // How the committee meets. `type` above is the committee's character; this is
   // its delivery format. Nothing in the schema carried an online/offline
