@@ -15,7 +15,7 @@ export function statusMeta(status: string) {
 export const EMAIL_LABEL: Record<string, string> = {
   "registration-received": "Registration received",
   allotment: "Seat allotted",
-  "co-delegate-notice": "Co-delegate added",
+  "co-delegate-notice": "Co-delegate allotment",
   "co-delegate-registered": "Co-delegate registered",
   "payment-confirmed": "Payment confirmed",
   "payment-reminder": "Payment reminder",
