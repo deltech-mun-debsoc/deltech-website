@@ -460,8 +460,11 @@ export async function regeneratePaymentLink(
     await prisma.delegate.update({ where: { id: delegateId }, data: { status: "PAYMENT_SENT" } })
     await audit(session.user?.email ?? "unknown", "delegate.regeneratePaymentLink", "Delegate", delegateId)
     const updated = await reloadDelegate(delegateId)
+    // A draft keeps the link until it is emailed from Allotment. A released
+    // allotment gets the new link now: pressing this is a deliberate resend.
+    if (!delegate.allotment.emailSentAt) return { success: true, delegate: updated }
     try {
-      await sendAllotmentEmail(delegateId)
+      await sendAllotmentEmail(delegateId, { force: true })
     } catch {
       return {
         success: true,
@@ -473,6 +476,13 @@ export async function regeneratePaymentLink(
   } catch {
     return { success: false, error: "Failed to regenerate payment link." }
   }
+}
+
+// The delegate drawer opened from somewhere other than this list (Allotment).
+export async function getDelegateForDrawer(delegateId: string): Promise<SerializedDelegate | null> {
+  await requireStaff()
+  const d = await prisma.delegate.findUnique({ where: { id: delegateId }, include: delegateInclude })
+  return d ? serializeDelegate(d) : null
 }
 
 // Fetched when the drawer opens rather than joined onto every table row.
