@@ -4,7 +4,8 @@ import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { AlertTriangle } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import Link from "next/link"
+import { Button, buttonVariants } from "@/components/ui/button"
 import { resendEmail } from "../registrations/actions"
 import { EMAIL_LABEL } from "../registrations/_lib/status"
 
@@ -65,6 +66,13 @@ export function FailedEmailsCard({ count, logs }: { count: number; logs: FailedL
               )}
             </div>
             {log.delegateId ? (
+              <div className="flex shrink-0 gap-2">
+              <Link
+                href={`/admin/registrations?q=${encodeURIComponent(log.toEmail)}`}
+                className={buttonVariants({ variant: "ghost", size: "sm" })}
+              >
+                Fix details
+              </Link>
               <Button
                 variant="outline"
                 size="sm"
@@ -74,6 +82,7 @@ export function FailedEmailsCard({ count, logs }: { count: number; logs: FailedL
               >
                 {pendingId === log.id ? "Resending…" : "Resend"}
               </Button>
+              </div>
             ) : (
               <span className="shrink-0 text-xs text-muted-foreground">Resend from its own page</span>
             )}
