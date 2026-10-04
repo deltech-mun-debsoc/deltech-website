@@ -1,6 +1,6 @@
 import { Text, Hr, Section, Button } from "@react-email/components"
 import {
-  EmailShell, P, B, A, Cta, Panel, Row, Callout, Contacts, muted, bodyInk, ink, brand,
+  EmailShell, P, B, A, Cta, Panel, Row, Contacts, muted, bodyInk, ink, brand,
 } from "./_shell"
 
 interface Props {
@@ -148,10 +148,7 @@ export function AllotmentEmail({
           )}
         </>
       ) : (
-        <>
-          <Callout>Nothing to pay. Your allotment is confirmed as it stands.</Callout>
-          {groupUrl && <Cta href={groupUrl}>Join the {committeeName} WhatsApp group</Cta>}
-        </>
+        groupUrl && <Cta href={groupUrl}>Join the {committeeName} WhatsApp group</Cta>
       )}
 
       {statusUrl && (
