@@ -277,6 +277,12 @@ export async function sendAllotmentEmail(
   }
 
   if (delegate.allotment.emailSentAt && !force) return
+  // A forced send is a deliberate resend of an allotment already released. A
+  // draft must go through emailAllotments, which makes the pay link first;
+  // resending a stale log row for a re-allotted draft would skip that.
+  if (force && !delegate.allotment.emailSentAt) {
+    throw new Error("This allotment is still a draft. Email it from the Allotment page.")
+  }
 
   const committee = delegate.allotment.portfolio.committee
   const portfolio = delegate.allotment.portfolio
