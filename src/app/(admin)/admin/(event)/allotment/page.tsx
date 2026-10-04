@@ -87,6 +87,8 @@ export default async function AllotmentPage(props: { searchParams: Promise<{ del
     })),
   }))
 
+  const event = await getActiveEvent()
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -97,7 +99,8 @@ export default async function AllotmentPage(props: { searchParams: Promise<{ del
       />
       <AllotmentBoard
         focusDelegateId={focusDelegateId ?? null}
-        eventId={(await getActiveEvent())?.id ?? null}
+        eventId={event?.id ?? null}
+        intra={event?.kind === "INTRA_MUN"}
         committees={serializedCommittees}
         delegates={serializedDelegates}
         fees={fees}

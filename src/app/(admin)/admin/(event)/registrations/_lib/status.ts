@@ -20,4 +20,6 @@ export const EMAIL_LABEL: Record<string, string> = {
   "payment-confirmed": "Payment confirmed",
   "payment-reminder": "Payment reminder",
   "magic-link": "Sign-in link",
+  "payment-link": "Payment link",
+  "staff-invite": "Staff invite",
 }

@@ -184,12 +184,8 @@ export async function commitImport(params: {
 
       if (result.ok) {
         created++
-        if (result.allotted) {
-          allotted++
-          void import("@/lib/resend")
-            .then(({ sendAllotmentEmail }) => sendAllotmentEmail(result.delegateId))
-            .catch(() => undefined)
-        }
+        // Auto-allotted seats are drafts: staff email them from Allotment.
+        if (result.allotted) allotted++
       } else if (result.reason === "duplicate") {
         skipped++
         errors.push({ row: i, email: row.email, reason: "Email already registered, skipped." })
