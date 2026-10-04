@@ -9,7 +9,6 @@ import { STRINGS } from "@/content/strings"
 import { APP_URL } from "@/lib/app-url"
 import { RegistrationReceivedEmail } from "@/emails/registration-received"
 import { AllotmentEmail } from "@/emails/allotment"
-import { CoDelegateNoticeEmail } from "@/emails/co-delegate-notice"
 import { CoDelegateRegisteredEmail } from "@/emails/co-delegate-registered"
 import { PaymentConfirmedEmail } from "@/emails/payment-confirmed"
 import { PaymentReminderEmail } from "@/emails/payment-reminder"
@@ -252,9 +251,42 @@ export async function sendRegistrationEmails(delegateId: string): Promise<void> 
 // constraint, and this template passes no idempotency key, so nothing stopped the
 // same delegate being told twice. Allotment is the one email people act on, so a
 // duplicate reads as a changed allotment.
+// A double delegation is two people on one seat, and both need the allotment,
+// the payment mails and the group link. The main delegate's send decides the
+// outcome; the partner's is logged like any other, so a failure shows up under
+// Failed emails and Resend there goes to them alone.
+interface Recipient {
+  name: string
+  email: string
+  partner?: string
+  primary: boolean
+}
+
+export function seatHolders(d: { fullName: string; email: string; coDelegate: { fullName: string; email: string } | null }): Recipient[] {
+  const out: Recipient[] = [{ name: d.fullName, email: d.email, partner: d.coDelegate?.fullName, primary: true }]
+  const co = d.coDelegate
+  if (co && co.email.trim().toLowerCase() !== d.email.trim().toLowerCase()) {
+    out.push({ name: co.fullName, email: co.email, partner: d.fullName, primary: false })
+  }
+  return out
+}
+
+export async function sendToSeatHolders(
+  recipients: Recipient[],
+  onlyTo: string | undefined,
+  send: (r: Recipient) => Promise<void>,
+): Promise<void> {
+  const only = onlyTo?.trim().toLowerCase()
+  for (const r of recipients) {
+    if (only && r.email.trim().toLowerCase() !== only) continue
+    if (r.primary || only) await send(r)
+    else await send(r).catch(() => {})
+  }
+}
+
 export async function sendAllotmentEmail(
   delegateId: string,
-  { force = false }: { force?: boolean } = {},
+  { force = false, onlyTo }: { force?: boolean; onlyTo?: string } = {},
 ): Promise<void> {
   const delegate = await prisma.delegate.findUniqueOrThrow({
     where: { id: delegateId },
@@ -263,6 +295,7 @@ export async function sendAllotmentEmail(
       email: true,
       publicToken: true,
       needsAccommodation: true,
+      coDelegate: { select: { fullName: true, email: true } },
       allotment: {
         include: {
           portfolio: { include: { committee: true } },
@@ -295,40 +328,44 @@ export async function sendAllotmentEmail(
   const paymentsEnabled = deriveEventState(content).paymentsRequired
   const payLink = publicPaymentLink(delegate.payment?.paymentLink, delegate.publicToken)
 
-  await loggedSend({
-    delegateId,
-    template: "allotment",
-    toEmail: delegate.email,
-    subject,
-    reactElement: AllotmentEmail({
-      eventName: content.activeEventName || content.landingHero.title,
-      fullName: delegate.fullName,
-      committeeName: committee.name,
-      portfolioName: portfolio.name,
-      agenda: committee.agenda ?? null,
-      amountInr: delegate.payment?.amountInr,
-      payLink: paymentsEnabled ? payLink : undefined,
-      paymentsEnabled,
-      needsAccommodation: delegate.needsAccommodation,
-      accommodationNote: content.accommodationNote,
-      conferenceDates: content.conferenceDates,
-      venue: content.venue,
-      paymentDeadline: content.paymentDeadline,
-      paymentProofUrl: content.paymentProofUrl,
-      refundPolicy: content.refundPolicy,
-      contactEmail: content.secretariatEmail,
-      contacts: content.queryContacts,
-      // Their own page: allotment, payment state, and the check-in QR the desk
-      // scans on the day. The QR lives there rather than in the email because
-      // mail clients strip inline SVG, and a broken QR at the door is worse than
-      // a link to a working one.
-      statusUrl: `${APP_URL}/status/${delegate.publicToken}`,
-      // Groups are for delegates who have a confirmed seat. On a paid event that
-      // is after payment, so the links go in the payment-confirmed mail instead.
-      whatsappCommunityUrl: paymentsEnabled ? undefined : content.whatsappCommunityUrl,
-      groupUrl: paymentsEnabled ? undefined : committee.groupLink ?? undefined,
+  await sendToSeatHolders(seatHolders(delegate), onlyTo, (r) =>
+    loggedSend({
+      delegateId,
+      template: "allotment",
+      toEmail: r.email,
+      subject,
+      reactElement: AllotmentEmail({
+        eventName: content.activeEventName || content.landingHero.title,
+        fullName: r.name,
+        partnerName: r.partner,
+        committeeName: committee.name,
+        portfolioName: portfolio.name,
+        agenda: committee.agenda ?? null,
+        amountInr: delegate.payment?.amountInr,
+        payLink: paymentsEnabled ? payLink : undefined,
+        paymentsEnabled,
+        needsAccommodation: delegate.needsAccommodation,
+        accommodationNote: content.accommodationNote,
+        conferenceDates: content.conferenceDates,
+        venue: content.venue,
+        paymentDeadline: content.paymentDeadline,
+        paymentProofUrl: content.paymentProofUrl,
+        refundPolicy: content.refundPolicy,
+        contactEmail: content.secretariatEmail,
+        contacts: content.queryContacts,
+        // Their own page: allotment, payment state, and the check-in QR the desk
+        // scans on the day. The QR lives there rather than in the email because
+        // mail clients strip inline SVG, and a broken QR at the door is worse than
+        // a link to a working one. The page and its QR are the main delegate's,
+        // so the partner is not sent it.
+        statusUrl: r.primary ? `${APP_URL}/status/${delegate.publicToken}` : undefined,
+        // Groups are for delegates who have a confirmed seat. On a paid event that
+        // is after payment, so the links go in the payment-confirmed mail instead.
+        whatsappCommunityUrl: paymentsEnabled ? undefined : content.whatsappCommunityUrl,
+        groupUrl: paymentsEnabled ? undefined : committee.groupLink ?? undefined,
+      }),
     }),
-  })
+  )
 
   await prisma.allotment.update({
     where: { delegateId },
@@ -336,48 +373,13 @@ export async function sendAllotmentEmail(
   })
 }
 
-export async function sendCoDelegateNotice(delegateId: string): Promise<void> {
-  const delegate = await prisma.delegate.findUniqueOrThrow({
-    where: { id: delegateId },
-    select: {
-      fullName: true,
-      coDelegate: true,
-      allotment: {
-        include: { portfolio: { include: { committee: true } } },
-      },
-    },
-  })
-
-  if (!delegate.coDelegate || !delegate.allotment) return
-
-  const committee = delegate.allotment.portfolio.committee
-  const portfolio = delegate.allotment.portfolio
-  const content = await getContent()
-  const paymentsEnabled = deriveEventState(content).paymentsRequired
-  const subject = STRINGS.email.subjects.coDelegateNotice.replace("{committee}", committee.name)
-
-  await loggedSend({
-    delegateId,
-    template: "co-delegate-notice",
-    toEmail: delegate.coDelegate.email,
-    subject,
-    reactElement: CoDelegateNoticeEmail({
-      coDelegateName: delegate.coDelegate.fullName,
-      primaryDelegateName: delegate.fullName,
-      committeeName: committee.name,
-      portfolioName: portfolio.name,
-      paymentsEnabled,
-      groupUrl: paymentsEnabled ? undefined : committee.groupLink ?? undefined,
-    }),
-  })
-}
-
-export async function sendPaymentConfirmed(delegateId: string): Promise<void> {
+export async function sendPaymentConfirmed(delegateId: string, onlyTo?: string): Promise<void> {
   const delegate = await prisma.delegate.findUniqueOrThrow({
     where: { id: delegateId },
     select: {
       fullName: true,
       email: true,
+      coDelegate: { select: { fullName: true, email: true } },
       allotment: {
         include: { portfolio: { include: { committee: true } } },
       },
@@ -389,29 +391,33 @@ export async function sendPaymentConfirmed(delegateId: string): Promise<void> {
 
   const committee = delegate.allotment.portfolio.committee
   const portfolio = delegate.allotment.portfolio
+  const payment = delegate.payment
   const content = await getContent()
 
-  await loggedSend({
-    delegateId,
-    template: "payment-confirmed",
-    toEmail: delegate.email,
-    subject: STRINGS.email.subjects.paymentConfirmed,
-    reactElement: PaymentConfirmedEmail({
-      eventName: content.activeEventName || content.landingHero.title,
-      fullName: delegate.fullName,
-      committeeName: committee.name,
-      portfolioName: portfolio.name,
-      amountInr: delegate.payment.amountInr,
-      confirmedAt: delegate.payment.confirmedAt ?? new Date(),
-      whatsappCommunityUrl: content.whatsappCommunityUrl,
-      groupUrl: committee.groupLink ?? undefined,
-      contactEmail: content.secretariatEmail,
-      contacts: content.queryContacts,
+  await sendToSeatHolders(seatHolders(delegate), onlyTo, (r) =>
+    loggedSend({
+      delegateId,
+      template: "payment-confirmed",
+      toEmail: r.email,
+      subject: STRINGS.email.subjects.paymentConfirmed,
+      reactElement: PaymentConfirmedEmail({
+        eventName: content.activeEventName || content.landingHero.title,
+        fullName: r.name,
+        partnerName: r.partner,
+        committeeName: committee.name,
+        portfolioName: portfolio.name,
+        amountInr: payment.amountInr,
+        confirmedAt: payment.confirmedAt ?? new Date(),
+        whatsappCommunityUrl: content.whatsappCommunityUrl,
+        groupUrl: committee.groupLink ?? undefined,
+        contactEmail: content.secretariatEmail,
+        contacts: content.queryContacts,
+      }),
     }),
-  })
+  )
 }
 
-export async function sendPaymentReminder(delegateId: string): Promise<void> {
+export async function sendPaymentReminder(delegateId: string, onlyTo?: string): Promise<void> {
   const content = await getContent()
   if (!deriveEventState(content).paymentsRequired) return
 
@@ -421,6 +427,7 @@ export async function sendPaymentReminder(delegateId: string): Promise<void> {
       fullName: true,
       email: true,
       publicToken: true,
+      coDelegate: { select: { fullName: true, email: true } },
       allotment: {
         include: { portfolio: { include: { committee: true } } },
       },
@@ -432,21 +439,24 @@ export async function sendPaymentReminder(delegateId: string): Promise<void> {
 
   const committee = delegate.allotment.portfolio.committee
   const portfolio = delegate.allotment.portfolio
+  const amountInr = delegate.payment.amountInr
   const payLink = publicPaymentLink(delegate.payment.paymentLink, delegate.publicToken)
 
-  await loggedSend({
-    delegateId,
-    template: "payment-reminder",
-    toEmail: delegate.email,
-    subject: STRINGS.email.subjects.paymentReminder,
-    reactElement: PaymentReminderEmail({
-      fullName: delegate.fullName,
-      committeeName: committee.name,
-      portfolioName: portfolio.name,
-      amountInr: delegate.payment.amountInr,
-      payLink,
+  await sendToSeatHolders(seatHolders(delegate), onlyTo, (r) =>
+    loggedSend({
+      delegateId,
+      template: "payment-reminder",
+      toEmail: r.email,
+      subject: STRINGS.email.subjects.paymentReminder,
+      reactElement: PaymentReminderEmail({
+        fullName: r.name,
+        committeeName: committee.name,
+        portfolioName: portfolio.name,
+        amountInr,
+        payLink,
+      }),
     }),
-  })
+  )
 }
 
 export async function sendBlogApproved(postId: string): Promise<void> {
@@ -604,13 +614,16 @@ export async function sendMagicLink(email: string, url: string): Promise<void> {
 // Resend by log ID (admin drawer)
 // ---------------------------------------------------------------------------
 
-const RESENDABLE_TEMPLATES: Record<string, (id: string) => Promise<void>> = {
+// Each gets the address the log row went to, so resending a co-delegate's copy
+// does not mail the main delegate again.
+const RESENDABLE_TEMPLATES: Record<string, (id: string, toEmail: string) => Promise<void>> = {
   "registration-received": sendRegistrationReceived,
   "co-delegate-registered": sendCoDelegateRegistered,
   // Explicitly forced: pressing Resend is a person deciding to send it again, so
   // it must override the once-only guard rather than silently doing nothing.
-  allotment: (id: string) => sendAllotmentEmail(id, { force: true }),
-  "co-delegate-notice": sendCoDelegateNotice,
+  allotment: (id, to) => sendAllotmentEmail(id, { force: true, onlyTo: to }),
+  // The partner's old notice, from before they were sent the full allotment.
+  "co-delegate-notice": (id, to) => sendAllotmentEmail(id, { force: true, onlyTo: to }),
   "payment-confirmed": sendPaymentConfirmed,
   "payment-reminder": sendPaymentReminder,
 }
@@ -620,7 +633,7 @@ export async function resendByLogId(logId: string): Promise<void> {
   const fn = RESENDABLE_TEMPLATES[log.template]
   if (!fn) throw new Error(`Template "${log.template}" cannot be resent via logId`)
   if (!log.delegateId) throw new Error(`Log ${logId} has no delegateId`)
-  await fn(log.delegateId)
+  await fn(log.delegateId, log.toEmail)
 }
 
 // ---------------------------------------------------------------------------

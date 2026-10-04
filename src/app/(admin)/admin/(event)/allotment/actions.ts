@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma"
 import { requireStaff, requireAdmin } from "@/lib/authz"
 import { audit } from "@/lib/audit"
 import { getActiveProvider } from "@/lib/payments"
-import { sendAllotmentEmail, sendCoDelegateNotice } from "@/lib/resend"
+import { sendAllotmentEmail } from "@/lib/resend"
 import { syncSheetCell, syncSheetForDelegate } from "@/lib/sheet-sync"
 import { getContent } from "@/lib/settings"
 import { deriveEventState } from "@/lib/event-state"
@@ -283,7 +283,6 @@ export async function emailAllotments(
         }
       }
       await sendAllotmentEmail(delegateId, { force: true })
-      await sendCoDelegateNotice(delegateId).catch(() => {})
       await audit(adminEmail, "allotment.email", "Delegate", delegateId)
       await syncSheetForDelegate(delegateId)
       sent++

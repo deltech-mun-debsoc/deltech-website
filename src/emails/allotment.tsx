@@ -6,6 +6,7 @@ import {
 interface Props {
   eventName: string
   fullName: string
+  partnerName?: string
   committeeName: string
   portfolioName: string
   agenda: string | null
@@ -29,6 +30,7 @@ interface Props {
 export function AllotmentEmail({
   eventName,
   fullName,
+  partnerName,
   committeeName,
   portfolioName,
   agenda,
@@ -70,6 +72,7 @@ export function AllotmentEmail({
       <Panel title="Your allotment">
         <Row label="Committee" value={committeeName} />
         <Row label="Portfolio" value={portfolioName} />
+        {partnerName && <Row label="Co-delegate" value={partnerName} />}
         {agenda && (
           <>
             <Text style={{ color: muted, fontSize: 11, margin: "0 0 2px" }}>Agenda</Text>

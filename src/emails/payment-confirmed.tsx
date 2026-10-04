@@ -4,6 +4,7 @@ import { EmailShell, P, B, Cta, Panel, Row, Contacts } from "./_shell"
 interface Props {
   eventName: string
   fullName: string
+  partnerName?: string
   committeeName: string
   portfolioName: string
   amountInr: number
@@ -17,6 +18,7 @@ interface Props {
 export function PaymentConfirmedEmail({
   eventName,
   fullName,
+  partnerName,
   committeeName,
   portfolioName,
   amountInr,
@@ -41,6 +43,7 @@ export function PaymentConfirmedEmail({
       <Panel title="Your allotment" tone="brand">
         <Row label="Committee" value={committeeName} />
         <Row label="Portfolio" value={portfolioName} />
+        {partnerName && <Row label="Co-delegate" value={partnerName} />}
         <Row
           label="Confirmed on"
           value={formatDateLong(confirmedAt)}
