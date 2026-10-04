@@ -39,7 +39,7 @@ export default async function AllotmentPage(props: { searchParams: Promise<{ del
       },
     }),
     prisma.delegate.findMany({
-      where: { status: "REGISTERED", ...scope },
+      where: { status: "REGISTERED", allotment: null, ...scope },
       orderBy: { createdAt: "asc" },
       select: {
         id: true,
@@ -91,7 +91,9 @@ export default async function AllotmentPage(props: { searchParams: Promise<{ del
     <div className="space-y-6">
       <PageHeader
         title="Allotment"
-        description={paymentsRequired ? "Allotting emails a payment link." : "Allotting confirms and emails the delegate."}
+        description={paymentsRequired
+          ? "Allotments are drafts until emailed. Emailing sends the seat and a payment link."
+          : "Allotments are drafts until emailed. Emailing sends the seat and confirms the delegate."}
       />
       <AllotmentBoard
         focusDelegateId={focusDelegateId ?? null}

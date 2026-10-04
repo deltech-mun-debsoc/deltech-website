@@ -48,7 +48,11 @@ export default async function DashboardPage() {
   const content = await getContent();
   const paymentsRequired = deriveEventState(content).paymentsRequired;
 
-  const { payment, allotment } = delegate ?? {};
+  // A draft allotment (not emailed yet) is staff-only; see the status page.
+  const draft = !!delegate?.allotment && !delegate.allotment.emailSentAt;
+  const allotment = draft ? null : delegate?.allotment;
+  const payment = draft ? null : delegate?.payment;
+  const status = draft ? "REGISTERED" : delegate?.status;
   // Only an online seat has a chat to open, and only a verified account gets one.
   const onlineSeats = await mySeats();
   const needsPayment =
@@ -59,7 +63,7 @@ export default async function DashboardPage() {
   const payLink = delegate && payment?.paymentLink
     ? publicPaymentLink(payment.paymentLink, delegate.publicToken)
     : null;
-  const isConfirmed = delegate?.status === "CONFIRMED";
+  const isConfirmed = status === "CONFIRMED";
 
   return (
     <div className="min-h-svh bg-muted/30">
@@ -101,8 +105,8 @@ export default async function DashboardPage() {
                 <h1 className="mt-1 text-xl font-bold">{delegate.fullName}</h1>
                 <p className="text-sm text-muted-foreground">{delegate.email}</p>
               </div>
-              <Badge variant={STATUS_VARIANT[delegate.status] ?? "secondary"}>
-                {STATUS_LABEL[delegate.status] ?? delegate.status}
+              <Badge variant={STATUS_VARIANT[status!] ?? "secondary"}>
+                {STATUS_LABEL[status!] ?? status}
               </Badge>
             </div>
 
