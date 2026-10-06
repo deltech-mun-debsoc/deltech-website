@@ -3,7 +3,25 @@ export const metadata = {
   description: "Live form intake, the nightly re-sync, and the sheet mirror.",
 }
 
-Three separate integrations, often confused with each other.
+Separate integrations, often confused with each other. Each has one job.
+
+## The Form response sheet (Delegates, Google Form)
+
+For an Intra MUN, registrations arrive in the Google Form's response sheet. Connect it
+once on **Delegates, Google Form**. When the site has a service account, share the sheet
+with the address it shows, as a Viewer: the sheet stays private. Without one, the sheet
+has to be open to anyone with the link, and the screen says so, because that exposes
+every name, phone and roll number in it.
+
+After that, the routine is two buttons. **Check new responses** reads the sheet and
+shows what would change. **Import reviewed responses** applies exactly that. If the
+sheet is edited or re-sorted in between, Import refuses and asks you to check again, so
+nothing is imported that nobody looked at. **Manage source** is only for changing the
+link or the columns; changing the link replaces the connection rather than adding a
+second one.
+
+A connection belongs to its event. Reusing the same Form for next year's event starts
+clean.
 
 ## 1. Live intake from a Google Form
 

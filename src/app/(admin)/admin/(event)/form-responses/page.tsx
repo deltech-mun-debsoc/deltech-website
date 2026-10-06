@@ -1,6 +1,7 @@
 import { requireStaff } from "@/lib/authz"
 import { prisma } from "@/lib/prisma"
-import { currentEventScope } from "@/lib/event"
+import { currentEventScope, getActiveEvent } from "@/lib/event"
+import { sheetBotEmail } from "@/lib/sheet-fetch"
 import { t } from "@/content/strings"
 import { formatDateTime } from "@/lib/datetime"
 import { PageHeader } from "@/app/(admin)/_components/page-header"
@@ -14,14 +15,30 @@ export const dynamic = "force-dynamic"
 export default async function FormResponsesPage() {
   await requireStaff()
 
-  const [sources, queries] = await Promise.all([
+  const scope = await currentEventScope()
+  const [event, sources, queries] = await Promise.all([
+    getActiveEvent(),
+    // This event's sources only: a tab connected for last year's event is last
+    // year's, even when the same Form is reused.
     prisma.delegateSheetSource.findMany({
-      where: { isActive: true },
+      where: { isActive: true, ...scope },
       orderBy: { createdAt: "asc" },
-      select: { id: true, label: true, sheetUrl: true, sheetKey: true, mapping: true, lastImportedAt: true },
+      select: {
+        id: true,
+        label: true,
+        sheetUrl: true,
+        sheetKey: true,
+        mapping: true,
+        lastImportedAt: true,
+        lastCheckedAt: true,
+        lastCheckRows: true,
+        lastCheckNeedsAction: true,
+        lastCheckError: true,
+        lastAccess: true,
+      },
     }),
     prisma.delegate.findMany({
-      where: { query: { not: null }, queryResolvedAt: null, NOT: { query: "" }, ...(await currentEventScope()) },
+      where: { query: { not: null }, queryResolvedAt: null, NOT: { query: "" }, ...scope },
       orderBy: { createdAt: "asc" },
       select: { id: true, fullName: true, email: true, whatsapp: true, query: true },
       take: 200,
@@ -41,7 +58,14 @@ export default async function FormResponsesPage() {
           sheetKey: s.sheetKey,
           mapping: (s.mapping ?? {}) as Partial<DelegateMapping>,
           lastImported: s.lastImportedAt ? formatDateTime(s.lastImportedAt) : null,
+          lastChecked: s.lastCheckedAt ? formatDateTime(s.lastCheckedAt) : null,
+          lastCheckRows: s.lastCheckRows,
+          lastCheckNeedsAction: s.lastCheckNeedsAction,
+          lastCheckError: s.lastCheckError,
+          lastAccess: s.lastAccess,
         }))}
+        eventName={event?.name ?? ""}
+        bot={sheetBotEmail()}
         // A volunteer connecting the Intra form for the first time sees it already
         // matched; they confirm, they do not build.
         defaultMapping={INTRA_FORM_MAPPING}
