@@ -17,6 +17,7 @@ import {
   normalizeRollNumber,
   planDelegateImport,
   type ExistingDelegate,
+  type Resolutions,
 } from "../src/lib/delegate-import"
 import { INTRA_FORM_MAPPING, suggestDelegateMapping } from "../src/lib/schemas/delegate-import"
 
@@ -58,8 +59,13 @@ function response(o: {
   }
 }
 
-const plan = (rows: Record<string, string>[], existing: ExistingDelegate[] = [], overrides = {}) =>
-  planDelegateImport(rows, INTRA_FORM_MAPPING, { sheetKey: SHEET, existing, committees, overrides })
+const plan = (rows: Record<string, string>[], existing: ExistingDelegate[] = [], resolutions: Partial<Resolutions> = {}) =>
+  planDelegateImport(rows, INTRA_FORM_MAPPING, {
+    sheetKey: SHEET,
+    existing,
+    committees,
+    resolutions: { committees: {}, rows: {}, keep: {}, ...resolutions },
+  })
 
 // ── The form's headers map without a human touching anything ────────────────
 {
@@ -152,10 +158,9 @@ const plan = (rows: Record<string, string>[], existing: ExistingDelegate[] = [],
     { id: "old", email: "g@x.com", sourceSheetKey: null, sourceRowKey: null, sourceRowHash: null, manualEditedFields: [], status: "CONFIRMED" },
   ]
   const p = plan([response({ email: "g@x.com" })], existing)
-  assert.equal(p.rows[0].outcome, "invalid", "a clash with a delegate from elsewhere must not become an update of them")
-  assert.match(p.rows[0].errors!.join(" "), /already registered another way \(status: confirmed\)/)
-  assert.equal(p.counts.invalid, 1, "counts must reflect the reclassified row")
-  assert.equal(p.counts.create, 0)
+  assert.equal(p.rows[0].bucket, "decision", "a clash with a delegate from elsewhere is a question, never an update of them")
+  assert.equal(p.rows[0].decisions[0].kind, "identity")
+  assert.equal(p.buckets.ready, 0)
 }
 
 // ── An unknown committee is surfaced; an alias resolves ────────────────────
@@ -165,7 +170,7 @@ const plan = (rows: Record<string, string>[], existing: ExistingDelegate[] = [],
     response({ email: "i@x.com", c1: "All India Political Parties Meet" }),
   ])
   assert.equal(p.rows[0].candidate!.pref1CommitteeId, null)
-  assert.match((p.rows[0].warnings ?? []).join(" "), /doesn't match any committee/)
+  assert.equal(p.rows[0].bucket, "decision", "an unknown committee holds the row for a decision, not a silent empty")
   assert.equal(p.rows[1].candidate!.pref1CommitteeId, "c-aippm", "a committee alias must resolve")
 }
 
@@ -200,7 +205,8 @@ const plan = (rows: Record<string, string>[], existing: ExistingDelegate[] = [],
   assert.notEqual(a, key({ eventId: "e2" }), "the same tab in next year's event is a different plan")
   assert.notEqual(a, key({ sourceId: "s2" }), "another source is a different plan")
   assert.notEqual(a, key({ mapping: { ...INTRA_FORM_MAPPING, rollNumber: undefined } }), "a changed mapping is a different plan")
-  assert.notEqual(a, key({ overrides: { "k@x.com": "h" } }), "a different submission kept is a different plan")
+  assert.notEqual(a, key({ resolutions: { committees: {}, rows: {}, keep: { "k@x.com": "h" } } }), "a different submission kept is a different plan")
+  assert.notEqual(a, key({ resolutions: { committees: { disec: "c-unsc" }, rows: {}, keep: {} } }), "a committee answer settled differently is a different plan")
   // Re-sorting the sheet changes the content order, which is also a new plan.
   const two = [response({ email: "a@x.com" }), response({ email: "b@x.com" })]
   assert.notEqual(key({ rows: two }), key({ rows: [...two].reverse() }), "a reordered sheet must be checked again")
@@ -213,14 +219,101 @@ const plan = (rows: Record<string, string>[], existing: ExistingDelegate[] = [],
   const p = plan([early, late])
   assert.equal(p.rows[1].outcome, "create", "the latest submission is kept by default")
   const earlyHash = p.rows[0].rowHash
-  const kept = plan([early, late], [], { "r@x.com": earlyHash })
+  const kept = plan([early, late], [], { keep: { "r@x.com": earlyHash } })
   assert.equal(kept.rows[0].outcome, "create", "the chosen submission is kept")
   assert.equal(kept.rows[1].outcome, "skip-duplicate")
   // The same choice survives the sheet being re-sorted: it follows the answer,
   // not the row number.
-  const resorted = plan([late, early], [], { "r@x.com": earlyHash })
+  const resorted = plan([late, early], [], { keep: { "r@x.com": earlyHash } })
   assert.equal(resorted.rows[1].outcome, "create", "the kept answer follows its content after a re-sort")
   assert.equal(resorted.rows[1].candidate?.pref1Portfolio, "France")
+}
+
+// ── Acceptance: the review asks, it does not guess ─────────────────────────
+{
+  const shared = [
+    { id: "c-a", name: "UNGA-DISEC", slug: "unga-disec", aliases: ["DISEC"] },
+    { id: "c-b", name: "DISEC Junior", slug: "disec-jr", aliases: ["DISEC"] },
+    { id: "c-unsc", name: "UNSC", slug: "unsc", aliases: [] },
+  ]
+  const planWith = (rows: Record<string, string>[], res: Partial<Resolutions> = {}, existing: ExistingDelegate[] = []) =>
+    planDelegateImport(rows, INTRA_FORM_MAPPING, {
+      sheetKey: SHEET,
+      existing,
+      committees: shared,
+      resolutions: { committees: {}, rows: {}, keep: {}, ...res },
+    })
+
+  // Two committees sharing an alias: one question for every row that gave it.
+  const two = planWith([response({ email: "s1@x.com", c1: "DISEC", c2: "", phone: "9300000001", roll: "2K23/CO/1" }), response({ email: "s2@x.com", c1: "disec", c2: "", phone: "9300000002", roll: "2K23/CO/2" })])
+  assert.equal(two.buckets.decision, 2)
+  const q = two.rows[0].decisions[0]
+  assert.ok(q.kind === "committee" && q.ambiguous && q.candidates.length === 2, "both committees are offered, neither is picked")
+  assert.equal(q.kind === "committee" && q.key, two.rows[1].decisions[0].kind === "committee" && two.rows[1].decisions[0].key, "the same answer is one question")
+  const answered = planWith([response({ email: "s1@x.com", c1: "DISEC", c2: "", phone: "9300000001", roll: "2K23/CO/1" }), response({ email: "s2@x.com", c1: "disec", c2: "", phone: "9300000002", roll: "2K23/CO/2" })], { committees: { disec: "c-b" } })
+  assert.equal(answered.buckets.ready, 2, "one answer settles every row")
+  assert.ok(answered.rows.every((r) => r.candidate!.pref1CommitteeId === "c-b"))
+
+  // A near-match committee is suggested, never applied.
+  const near = planWith([response({ email: "n@x.com", c1: "UNSCC", c2: "" })])
+  const nq = near.rows[0].decisions[0]
+  assert.equal(near.rows[0].bucket, "decision")
+  assert.ok(nq.kind === "committee" && !nq.ambiguous && nq.candidates[0].id === "c-unsc")
+  assert.equal(near.rows[0].candidate!.pref1CommitteeId, null)
+  // "Leave it empty" is an answer too.
+  assert.equal(planWith([response({ email: "n@x.com", c1: "UNSCC", c2: "" })], { committees: { unscc: null } }).rows[0].bucket, "ready")
+
+  // Someone already registered on the website: three answers, none of them
+  // touches their stage or seat.
+  const site: ExistingDelegate[] = [
+    { id: "w1", email: "w@x.com", fullName: "Web Person", source: "SELF", seat: "UNSC · India", sourceSheetKey: null, sourceRowKey: null, sourceRowHash: null, manualEditedFields: ["rollNumber"], status: "CONFIRMED" },
+  ]
+  const row = [response({ email: "w@x.com", phone: "9111111111", roll: "2K24/ME/9", c1: "UNSC", c2: "", p1: "France" })]
+  const ask = planWith(row, {}, site)
+  const id = ask.rows[0].decisions[0]
+  assert.ok(id.kind === "identity" && id.existing.seat === "UNSC · India" && id.existing.source === "SELF", "the existing record's source and seat are shown")
+  const h = ask.rows[0].rowHash
+  const skip = planWith(row, { rows: { [h]: "skip" } }, site)
+  assert.equal(skip.rows[0].outcome, "skip-kept")
+  assert.equal(skip.rows[0].bucket, "skipped")
+  const safe = planWith(row, { rows: { [h]: "safe-fields" } }, site)
+  assert.equal(safe.rows[0].outcome, "update")
+  assert.equal(safe.rows[0].candidateId, "w1")
+  assert.ok(safe.rows[0].safeOnly)
+  assert.deepEqual(Object.keys(safe.rows[0].changes!).sort(), ["whatsapp"], "only contact details, and never a field edited by hand")
+  assert.deepEqual(safe.rows[0].protectedFields, ["rollNumber"])
+  const fixed = planWith(row, { rows: { [h]: { email: "w.other@x.com" } } }, site)
+  assert.equal(fixed.rows[0].outcome, "create")
+  assert.equal(fixed.rows[0].candidate!.email, "w.other@x.com")
+  assert.equal(fixed.rows[0].rowHash, h, "the correction stays attached to the same response")
+  // Once the contact correction is applied, the response is done.
+  const applied = planWith(row, {}, [{ ...site[0], sourceRowHash: h }])
+  assert.equal(applied.rows[0].outcome, "skip-unchanged", "a response already applied is not asked about again")
+
+  // The same student under two emails: flagged, never merged.
+  const twin = [response({ email: "t1@x.com", roll: "2K23/CO/777", c1: "UNSC", c2: "" }), response({ email: "t2@x.com", roll: "2K23/CO/777", phone: "9222222222", c1: "UNSC", c2: "" })]
+  const dup = planWith(twin)
+  assert.equal(dup.buckets.decision, 2, "both responses are flagged")
+  const dq = dup.rows[1].decisions[0]
+  assert.ok(dq.kind === "possible-duplicate" && dq.by === "roll number" && dq.others[0].email === "t1@x.com")
+  const settled = planWith(twin, { rows: { [dup.rows[0].rowHash]: "import", [dup.rows[1].rowHash]: "skip" } })
+  assert.equal(settled.rows[0].bucket, "ready")
+  assert.equal(settled.rows[1].outcome, "skip-kept")
+  // Against someone already registered with another email, too.
+  const reg = planWith([response({ email: "t3@x.com", roll: "2K23/CO/888", c1: "UNSC", c2: "" })], {}, [
+    { id: "r1", email: "old@x.com", rollNumber: "2K23/CO/888", sourceSheetKey: null, sourceRowKey: null, sourceRowHash: null, manualEditedFields: [], status: "REGISTERED" },
+  ])
+  const rq = reg.rows[0].decisions[0]
+  assert.ok(rq.kind === "possible-duplicate" && rq.others[0].registered)
+
+  // A suspicious roll number is a warning: it still imports.
+  const warn = planWith([response({ email: "x@x.com", roll: "hello", c1: "UNSC", c2: "" })])
+  assert.equal(warn.rows[0].bucket, "warning")
+
+  // A broken row asks to be fixed or skipped; skipping quiets it.
+  const bad = planWith([response({ email: "" })])
+  assert.equal(bad.rows[0].bucket, "decision")
+  assert.equal(planWith([response({ email: "" })], { rows: { [bad.rows[0].rowHash]: "skip" } }).rows[0].bucket, "skipped")
 }
 
 console.log("delegate import checks passed (form mapping, resubmission, case, refetch, hand edits, invalid rows, DTU, clashes, committees)")
