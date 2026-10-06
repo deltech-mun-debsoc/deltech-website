@@ -30,7 +30,7 @@ const STATE_STYLE: Record<PortfolioState, string> = {
   paid:
     "border-primary/40 bg-primary/10 text-primary",
   blocked:
-    "border-border/40 bg-muted/60 text-muted-foreground/60 line-through",
+    "border-border/60 bg-muted/60 text-muted-foreground",
 }
 
 // What a cell is called depends on whether the event charges, not on what the
@@ -68,11 +68,11 @@ export function MatrixBoard({
 
   return (
     <div>
-      <div className="mb-14 flex flex-wrap items-center gap-x-8 gap-y-4 border-y border-foreground/20 py-5">
+      <div className="mb-8 flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-foreground/20 pb-5">
         {LEGEND_STATES.map((l) => (
           <span
             key={l.state}
-            className="data-label flex items-center gap-2 text-muted-foreground"
+            className="flex items-center gap-2 text-sm text-muted-foreground"
           >
             <span className={`size-3 rounded-[2px] ${l.square}`} />
             {stateLabel(l.state, paymentsRequired)}
@@ -89,32 +89,30 @@ export function MatrixBoard({
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-40px" }}
             transition={{ duration: 0.4, delay: Math.min(ci * 0.05, 0.3), ease: "easeOut" }}
-            className="grid border-b border-foreground/20 py-10 lg:grid-cols-[5rem_0.72fr_1.28fr] lg:gap-10 lg:py-14"
+            className="grid border-b border-foreground/20 py-8 lg:grid-cols-[0.72fr_1.28fr] lg:gap-10 lg:py-10"
           >
-            <p className="mb-5 font-mono text-sm font-semibold text-primary lg:mb-0">{String(ci + 1).padStart(2, "0")}</p>
             <div>
               <div>
-                <h2 className="font-heading text-4xl leading-none md:text-5xl">{committee.name}</h2>
-                <p className="data-label mt-4 text-muted-foreground">
+                <h2 className="text-3xl leading-none md:text-4xl">{committee.name}</h2>
+                <p className="mt-1 text-sm text-muted-foreground">
                   {TYPE_LABEL[committee.type]}
                   {committee.doubleDelegation && " · " + t("marketing.doubleDelegation")}
                 </p>
                 {committee.agenda && (
-                  <p className="mt-5 max-w-md text-base leading-relaxed text-muted-foreground">{committee.agenda}</p>
+                  <p className="mt-3 max-w-md text-base leading-relaxed text-muted-foreground">{committee.agenda}</p>
                 )}
               </div>
               <span
-                className={`mt-6 inline-flex items-center gap-2 font-mono text-sm font-semibold tabular-nums ${openCount === 0 ? "text-destructive" : "text-primary"}`}
+                className={`mt-4 inline-flex text-sm font-semibold tabular-nums ${openCount === 0 ? "text-destructive" : "text-primary"}`}
               >
-                <span className={openCount === 0 ? "size-2 rounded-full bg-destructive" : "signal-dot"} />
                 {openCount === 0 ? t("marketing.statusFull") : openCount + " " + t("marketing.openLabel")}
               </span>
             </div>
 
             <div className="mt-9 lg:mt-0">
               {committee.portfolios.length === 0 ? (
-                <div className="border-y border-dashed border-border py-8">
-                  <p className="font-heading text-2xl">{t("marketing.matrixComingSoon")}</p>
+                <div className="rounded-lg border border-dashed border-border p-6">
+                  <p className="text-lg font-semibold">{t("marketing.matrixComingSoon")}</p>
                   <p className="mt-2 text-base text-muted-foreground">{t("marketing.matrixComingSoonBody")}</p>
                 </div>
               ) : (
@@ -123,9 +121,12 @@ export function MatrixBoard({
                   <div
                     key={p.id}
                     title={stateLabel(p.state, paymentsRequired)}
-                    className={`flex min-h-14 items-center border px-3 py-3 text-sm font-semibold leading-snug transition-colors ${STATE_STYLE[p.state]}`}
+                    className={`flex min-h-12 flex-col justify-center rounded-md border px-3 py-2.5 text-sm font-medium leading-snug ${STATE_STYLE[p.state]}`}
                   >
                     {p.name}
+                    {p.state === "available"
+                      ? <span className="sr-only">{" · " + stateLabel(p.state, paymentsRequired)}</span>
+                      : <span className="mt-0.5 text-xs font-normal">{stateLabel(p.state, false)}</span>}
                   </div>
                 ))}
               </div>
