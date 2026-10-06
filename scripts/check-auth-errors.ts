@@ -67,7 +67,10 @@ const read = (p: string) => readFileSync(p, "utf8")
 
   // An unknown address lands on the same page a real send does. Naming the
   // reason would confirm which addresses are registered.
-  assert.match(magic, /redirect\("\/signin\/sent"\)/, "a refused magic link must land on the check-your-inbox page")
+  // With the same query Auth.js appends after a real send: the sent page only
+  // claims an email went out when it sees type=email, and a refusal must be
+  // indistinguishable from a send.
+  assert.match(magic, /redirect\("\/signin\/sent\?provider=resend&type=email"\)/, "a refused magic link must land on the check-your-inbox page, with the real send's query")
   assert.doesNotMatch(
     magic,
     /if \(err instanceof AuthError\) return \{ error: "errorDefault" \}/,
