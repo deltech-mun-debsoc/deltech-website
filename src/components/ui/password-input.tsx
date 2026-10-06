@@ -17,7 +17,7 @@ function PasswordInput({ className, disabled, ...props }: Omit<React.ComponentPr
         disabled={disabled}
         aria-label={shown ? "Hide password" : "Show password"}
         aria-pressed={shown}
-        className="absolute inset-y-0 right-0 flex w-11 items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-50"
+        className="absolute inset-y-0 right-0 flex w-11 items-center justify-center rounded-r-lg text-muted-foreground outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50"
       >
         {shown ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
       </button>

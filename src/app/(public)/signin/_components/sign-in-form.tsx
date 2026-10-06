@@ -33,20 +33,16 @@ export function SignInForm({
   const magicCallbackUrl = recovering ? "/account" : callbackUrl;
 
   return (
-    <Tabs value={tab} onValueChange={(v) => setTab(String(v))}>
-      {/* No data-[state=active] overrides here. This Tabs primitive sets
-          data-active, never data-state, so those utilities never matched --
-          verified on the rendered element, which carries data-active and has no
-          data-state attribute at all. They had been dead since before the token
-          rename, and their presence made the tabs look deliberately styled when
-          in fact the component's own data-active: styles were doing all the
-          work. Those styles use theme tokens, which is correct now that the
-          card carries .theme-light. */}
-      <TabsList className="mb-7 grid h-13 w-full grid-cols-2 rounded-none bg-black/5 p-1">
-        <TabsTrigger value="magic" className="h-11 rounded-none text-sm font-bold">
+    <Tabs value={tab} onValueChange={(v) => setTab(String(v))} className="gap-6">
+      {/* The base TabsList pins its height with group-data-horizontal/tabs:h-8,
+          which a plain h-* cannot override, so the track stayed 32px while the
+          triggers were 44px. Override the same variant so track and triggers
+          share one height. */}
+      <TabsList className="grid w-full grid-cols-2 rounded-lg bg-muted p-1 group-data-horizontal/tabs:h-12">
+        <TabsTrigger value="magic" className="h-full rounded-md text-sm font-semibold data-active:shadow-sm">
           {t("auth.magicLinkTab")}
         </TabsTrigger>
-        <TabsTrigger value="password" className="h-11 rounded-none text-sm font-bold">
+        <TabsTrigger value="password" className="h-full rounded-md text-sm font-semibold data-active:shadow-sm">
           {t("auth.passwordTab")}
         </TabsTrigger>
       </TabsList>
@@ -65,11 +61,11 @@ export function SignInForm({
               required
               placeholder={t("auth.emailPlaceholder")}
               disabled={mlPending}
-              className="h-14 rounded-none border-0 border-b-2 border-black/30 bg-transparent px-0 text-base shadow-none focus-visible:border-teal-700 focus-visible:ring-0"
+             
             />
           </div>
           {mlState?.error && (
-            <p className="text-sm text-destructive">
+            <p role="alert" className="text-sm text-destructive">
               {mlState.error === "tooManyRequests"
                 ? t("auth.tooManyRequests")
                 : mlState.error === "errorRetry"
@@ -78,11 +74,11 @@ export function SignInForm({
             </p>
           )}
           {recovering && (
-            <p className="text-xs leading-relaxed text-foreground/60">
+            <p className="text-sm leading-relaxed text-muted-foreground">
               {t("auth.recoveryHint")}
             </p>
           )}
-          <Button type="submit" disabled={mlPending} className="h-14 w-full rounded-none text-base">
+          <Button type="submit" disabled={mlPending} className="h-11 w-full text-base">
             {mlPending ? t("common.sending") : t("auth.sendLinkButton")}
           </Button>
         </form>
@@ -102,7 +98,7 @@ export function SignInForm({
               required
               placeholder={t("auth.emailPlaceholder")}
               disabled={pwPending || !!pwRedirect}
-              className="h-14 rounded-none border-0 border-b-2 border-black/30 bg-transparent px-0 text-base shadow-none focus-visible:border-teal-700 focus-visible:ring-0"
+             
             />
           </div>
           <div className="flex flex-col gap-2">
@@ -114,11 +110,11 @@ export function SignInForm({
               required
               placeholder={t("auth.passwordPlaceholder")}
               disabled={pwPending || !!pwRedirect}
-              className="h-14 rounded-none border-0 border-b-2 border-black/30 bg-transparent px-0 text-base shadow-none focus-visible:border-teal-700 focus-visible:ring-0"
+             
             />
           </div>
           {pwState?.error && (
-            <p className="text-sm text-destructive">
+            <p role="alert" className="text-sm text-destructive">
               {pwState.error === "invalidCredentials"
                 ? t("auth.invalidCredentials")
                 : pwState.error === "tooManyRequests"
@@ -128,7 +124,7 @@ export function SignInForm({
                     : t("auth.errorDefault")}
             </p>
           )}
-          <Button type="submit" disabled={pwPending || !!pwRedirect} className="h-14 w-full rounded-none text-base">
+          <Button type="submit" disabled={pwPending || !!pwRedirect} className="h-11 w-full text-base">
             {pwPending || pwRedirect ? t("common.loading") : t("auth.signInWithPasswordButton")}
           </Button>
 
@@ -138,7 +134,7 @@ export function SignInForm({
               setRecovering(true);
               setTab("magic");
             }}
-            className="-mt-1 self-start text-sm font-bold text-teal-800 underline underline-offset-2"
+            className="self-start rounded-sm text-sm font-semibold text-primary underline underline-offset-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             {t("auth.forgotPassword")}
           </button>
@@ -147,7 +143,7 @@ export function SignInForm({
               "invalid email or password" is actively misleading for them.
               Stated up front rather than as an error, which would leak
               whether a given address has an account. */}
-          <p className="text-xs leading-relaxed text-black/50">{t("auth.noPasswordYetHint")}</p>
+          <p className="text-sm leading-relaxed text-muted-foreground">{t("auth.noPasswordYetHint")}</p>
         </form>
       </TabsContent>
     </Tabs>
