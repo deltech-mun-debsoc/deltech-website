@@ -15,6 +15,8 @@ import { statusMeta } from "../../registrations/_lib/status"
 import { presetDraft, previewMail, saveCampaign, scheduleCampaign, sendTestMail, type CampaignInput } from "../actions"
 
 const STATUSES = ["REGISTERED", "ALLOTTED", "PAYMENT_SENT", "CONFIRMED", "WAITLISTED", "CANCELLED"] as const
+// Stages that only exist when the event charges delegates.
+const PAYMENT_STAGES = new Set<string>(["ALLOTTED", "PAYMENT_SENT"])
 const PAYMENTS = ["PENDING", "SENT", "PAID", "FAILED", "COMPED", "OFFLINE"] as const
 const PAYMENT_LABEL: Record<(typeof PAYMENTS)[number], string> = {
   PENDING: "Not sent yet",
@@ -89,6 +91,7 @@ export function Composer({
   tags = [],
   prOn = false,
   isAdmin,
+  caps = { payments: true, intra: false },
 }: {
   audience: Audience
   campaign?: ComposerCampaign
@@ -96,6 +99,9 @@ export function Composer({
   tags?: string[]
   prOn?: boolean
   isAdmin: boolean
+  // What this event offers: a free event has no payment stages to mail, and an
+  // Intra MUN has no colleges or accommodation to filter by.
+  caps?: { payments: boolean; intra: boolean }
 }) {
   const router = useRouter()
   const base = audience === "CONTACTS" ? "/admin/outreach" : "/admin/mailer"
@@ -192,12 +198,13 @@ export function Composer({
       }),
     )
 
-  const presets = MAIL_PRESETS.filter((p) => p.audience === "ANY" || p.audience === audience)
+  const presets = MAIL_PRESETS.filter((p) => (p.audience === "ANY" || p.audience === audience) && (caps.payments || !p.needsPayments))
+  const stages = STAGE_SHORTCUTS.filter((s) => caps.payments || !s.needsPayments)
   const shortcutOn = (filters: Partial<DelegateFilters>) =>
     JSON.stringify({ ...EMPTY_DELEGATE, ...filters }) === JSON.stringify(delegateFilters)
   // The finer filters overlap the stages, so they stay folded away unless one is
   // set by hand: an active filter is never hidden.
-  const stageOn = STAGE_SHORTCUTS.some((s) => shortcutOn(s.filters as Partial<DelegateFilters>))
+  const stageOn = stages.some((s) => shortcutOn(s.filters as Partial<DelegateFilters>))
   const finerSet =
     !stageOn &&
     (delegateFilters.statuses.length > 0 ||
@@ -226,7 +233,7 @@ export function Composer({
             <div className="space-y-3 rounded-lg border border-border p-4">
               <div className="flex flex-wrap items-center gap-1.5 text-xs">
                 <span className="w-28 text-muted-foreground">Stage</span>
-                {STAGE_SHORTCUTS.map((s) => (
+                {stages.map((s) => (
                   <Chip key={s.key} on={shortcutOn(s.filters as Partial<DelegateFilters>)} onClick={() => setDelegateFilters({ ...EMPTY_DELEGATE, ...(s.filters as Partial<DelegateFilters>) })}>
                     {s.label}
                   </Chip>
@@ -253,12 +260,13 @@ export function Composer({
               <>
               <div className="flex flex-wrap items-center gap-1.5 text-xs">
                 <span className="w-28 text-muted-foreground">Status</span>
-                {STATUSES.map((s) => (
+                {STATUSES.filter((s) => caps.payments || !PAYMENT_STAGES.has(s)).map((s) => (
                   <Chip key={s} on={delegateFilters.statuses.includes(s)} onClick={() => setDelegateFilters({ ...delegateFilters, statuses: toggle(delegateFilters.statuses, s) })}>
                     {statusMeta(s).label}
                   </Chip>
                 ))}
               </div>
+              {caps.payments && (
               <div className="flex flex-wrap items-center gap-1.5 text-xs">
                 <span className="w-28 text-muted-foreground">Payment</span>
                 {PAYMENTS.map((s) => (
@@ -267,9 +275,14 @@ export function Composer({
                   </Chip>
                 ))}
               </div>
+              )}
               <TriPick label="Allotted" value={delegateFilters.allotted} onChange={(v) => setDelegateFilters({ ...delegateFilters, allotted: v })} />
-              <TriPick label="DTU" value={delegateFilters.isDtu} onChange={(v) => setDelegateFilters({ ...delegateFilters, isDtu: v })} />
-              <TriPick label="Accommodation" value={delegateFilters.needsAccommodation} onChange={(v) => setDelegateFilters({ ...delegateFilters, needsAccommodation: v })} />
+              {!caps.intra && (
+                <>
+                  <TriPick label="DTU" value={delegateFilters.isDtu} onChange={(v) => setDelegateFilters({ ...delegateFilters, isDtu: v })} />
+                  <TriPick label="Accommodation" value={delegateFilters.needsAccommodation} onChange={(v) => setDelegateFilters({ ...delegateFilters, needsAccommodation: v })} />
+                </>
+              )}
               <TriPick label="Checked in" value={delegateFilters.checkedIn} onChange={(v) => setDelegateFilters({ ...delegateFilters, checkedIn: v })} />
               </>
               )}

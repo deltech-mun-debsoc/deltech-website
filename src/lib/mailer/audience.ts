@@ -38,9 +38,10 @@ export function parseContactAudience(raw: unknown): ContactAudience {
 
 // One click for the stages a secretariat actually mails. Each is a set of
 // filters, so the composer shows exactly what it chose and it can be refined.
-export const STAGE_SHORTCUTS: { key: string; label: string; filters: Partial<DelegateAudience> }[] = [
+// needsPayments marks a stage that only exists when the event charges.
+export const STAGE_SHORTCUTS: { key: string; label: string; filters: Partial<DelegateAudience>; needsPayments?: boolean }[] = [
   { key: "unallotted", label: "Not allotted yet", filters: { statuses: ["REGISTERED", "WAITLISTED"], allotted: "no" } },
-  { key: "allotted-unpaid", label: "Allotted, unpaid", filters: { allotted: "yes", paymentStatuses: ["PENDING", "SENT", "FAILED"] } },
+  { key: "allotted-unpaid", label: "Allotted, unpaid", filters: { allotted: "yes", paymentStatuses: ["PENDING", "SENT", "FAILED"] }, needsPayments: true },
   { key: "confirmed", label: "Confirmed", filters: { statuses: ["CONFIRMED"] } },
   { key: "checked-in", label: "Checked in", filters: { checkedIn: "yes" } },
   { key: "not-checked-in", label: "Confirmed, not checked in", filters: { statuses: ["CONFIRMED"], checkedIn: "no" } },
