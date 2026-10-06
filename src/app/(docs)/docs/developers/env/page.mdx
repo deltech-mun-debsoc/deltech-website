@@ -81,6 +81,7 @@ The `Dockerfile` sets these; do not put them in `app.env`.
 | `CRON_SECRET` | Bearer token the cron routes require. Staging has its own value. |
 | `GFORM_SHARED_SECRET` | Header secret for the Google Form webhook. |
 | `SHEET_SYNC_SECRET` | Authenticates the outbound sheet mirror. |
+| `GOOGLE_SA_EMAIL`, `GOOGLE_SA_PRIVATE_KEY` | A Google service account (Drive API on) that reads response sheets shared with it, so they need not be public. Optional; without it, sheets must be shared by link. |
 | `GROQ_API_KEY`, `GROQ_MODEL` | AI import mapping. Optional. |
 
 ## Development and scripts only
