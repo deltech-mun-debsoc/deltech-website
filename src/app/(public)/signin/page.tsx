@@ -2,8 +2,8 @@ import Link from "next/link"
 import { redirect } from "next/navigation"
 import { landingFor } from "@/lib/landing"
 import { t } from "@/content/strings"
+import { AuthStage } from "@/components/auth-stage"
 import { SignInForm } from "./_components/sign-in-form"
-import { AuthStage } from "./_components/auth-stage"
 import { AuthErrorBanner } from "./_components/auth-error-banner"
 
 export default async function SignInPage(props: {
@@ -20,16 +20,19 @@ export default async function SignInPage(props: {
   if (target) redirect(target)
 
   return (
-    <AuthStage kind="delegate">
-      <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-teal-700">Identity / 01</p>
-      <h2 className="mt-5 max-w-[11ch] font-heading text-4xl leading-tight sm:text-5xl">{t("auth.signInTitle")}</h2>
-      {created && <div className="mt-5 border-l-4 border-teal-700 bg-teal-50 px-4 py-3 text-sm font-semibold text-teal-900">Account created. Your door is ready.</div>}
+    <AuthStage marker={t("auth.delegateMarker")} headline={[t("auth.delegateHeadline1"), t("auth.delegateHeadline2")]} intro={t("auth.delegateIntro")}>
+      <h2 className="font-heading text-4xl leading-tight">{t("auth.signInTitle")}</h2>
+      {created && <p role="status" className="mt-5 border-l-4 border-teal-700 bg-teal-50 px-4 py-3 text-sm font-semibold text-teal-900">{t("auth.accountCreated")}</p>}
       <AuthErrorBanner error={error} />
-      <div className="my-7 h-px bg-black/15" />
-      <SignInForm callbackUrl={callbackUrl} />
-      <div className="mt-7 flex flex-col gap-3 border-t border-black/15 pt-5 text-sm sm:flex-row sm:justify-between">
-        <span>New delegate? <Link href="/signup" className="font-bold text-teal-800 underline">Create your identity</Link></span>
-        <Link href="/signin/staff" className="text-black/55 underline hover:text-black">Secretariat door →</Link>
+      <div className="mt-7">
+        <SignInForm callbackUrl={callbackUrl} />
+      </div>
+      <div className="mt-7 flex flex-col gap-3 border-t border-black/15 pt-5 text-sm sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-black/65">
+          {t("auth.newDelegate")}{" "}
+          <Link href="/signup" className="font-semibold text-teal-800 underline underline-offset-4">{t("auth.signUpLinkText")}</Link>
+        </p>
+        <Link href="/signin/staff" className="text-black/65 underline underline-offset-4 hover:text-black">{t("auth.staffLink")}</Link>
       </div>
     </AuthStage>
   )
