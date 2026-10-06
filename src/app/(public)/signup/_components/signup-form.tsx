@@ -19,29 +19,30 @@ export function SignupForm() {
   const [mlState, mlAction, mlPending] = useActionState(signupWithMagicLink, null);
 
   return (
-    <form action={mlAction} className="flex flex-col gap-4">
-      <div className="flex flex-col gap-1.5">
+    <form action={mlAction} className="flex flex-col gap-5">
+      <div className="flex flex-col gap-2">
         <Label htmlFor="ml-email">{t("auth.emailLabel")}</Label>
         <Input
           id="ml-email"
           name="email"
+          defaultValue={mlState?.email}
           type="email"
           autoComplete="email"
           required
           placeholder={t("auth.emailPlaceholder")}
           disabled={mlPending}
-          className="h-10"
+         
         />
       </div>
       {mlState?.error && (
-        <p className="text-sm text-destructive">
+        <p role="alert" className="text-sm text-destructive">
           {ERROR_MESSAGES[mlState.error] ?? ERROR_MESSAGES.errorDefault}
         </p>
       )}
-      <Button type="submit" disabled={mlPending} className="h-10 w-full">
+      <Button type="submit" disabled={mlPending} className="h-11 w-full text-base">
         {mlPending ? t("common.sending") : t("auth.sendMagicLinkButton")}
       </Button>
-      <p className="text-xs text-center text-muted-foreground">
+      <p className="text-sm leading-relaxed text-muted-foreground">
         {t("auth.signUpVerificationNote")}
       </p>
     </form>

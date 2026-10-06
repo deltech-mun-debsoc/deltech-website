@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation";
+import Link from "next/link";
 import { landingFor } from "@/lib/landing";
 import { t } from "@/content/strings";
+import { AuthStage } from "@/components/auth-stage";
 import { SignupForm } from "./_components/signup-form";
-import Link from "next/link";
 
 export default async function SignupPage() {
   // Signed in already: send them to their role's home, decided in the one place
@@ -12,29 +13,18 @@ export default async function SignupPage() {
   if (target) redirect(target);
 
   return (
-    <div className="paper-grid flex min-h-svh items-center justify-center p-4">
-      <div className="w-full max-w-sm">
-        <div className="mb-10 text-center">
-          <Link href="/" className="display text-3xl text-foreground">
-            {t("brand.name")}
-          </Link>
-          <p className="eyebrow mt-3">Delegate account</p>
-        </div>
-
-        <div className="editorial-card p-6 sm:p-8">
-          <h1 className="font-heading text-2xl">{t("auth.signUpTitle")}</h1>
-          <p className="mt-1.5 text-sm text-muted-foreground">{t("auth.signUpDescription")}</p>
-          <div className="rule mt-5 mb-6" />
-          <SignupForm />
-        </div>
-
-        <p className="mt-5 text-center text-sm text-muted-foreground">
-          Already have an account?{" "}
-          <Link href="/signin" className="text-foreground underline-offset-2 hover:underline">
-            {t("auth.signInLinkText")}
-          </Link>
-        </p>
+    <AuthStage marker={t("auth.signUpMarker")} headline={[t("auth.signUpHeadline1"), t("auth.signUpHeadline2")]} intro={t("auth.delegateIntro")}>
+      <h2 className="font-heading text-4xl leading-tight">{t("auth.signUpTitle")}</h2>
+      <p className="mt-3 text-base leading-relaxed text-black/65">{t("auth.signUpDescription")}</p>
+      <div className="mt-7">
+        <SignupForm />
       </div>
-    </div>
+      <p className="mt-7 border-t border-black/15 pt-5 text-sm text-black/65">
+        {t("auth.alreadyHaveAccount")}{" "}
+        <Link href="/signin" className="font-semibold text-teal-800 underline underline-offset-4">
+          {t("auth.signInLinkText")}
+        </Link>
+      </p>
+    </AuthStage>
   );
 }
