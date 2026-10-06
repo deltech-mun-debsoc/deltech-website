@@ -45,15 +45,14 @@ export default async function RegisterPage() {
   return (
     <div className="section-shell grid gap-12 py-16 lg:grid-cols-[0.62fr_1fr] lg:gap-20 lg:py-24">
       <aside className="lg:sticky lg:top-28 lg:self-start">
-        <p className="eyebrow">{t("marketing.registrationEyebrow")}</p>
-        <h1 className="display-section mt-6 max-w-[8ch]">{t("register.pageTitle")}</h1>
+        <h1 className="display-section max-w-[9ch]">{t("register.pageTitle")}</h1>
         <p className="body-large mt-7 text-muted-foreground">{t("register.pageSubtitle")}</p>
         <div className="mt-10 border-y border-foreground/20 py-6">
           <p className="data-label text-primary">{t("marketing.registrationBriefLabel")}</p>
           <p className="mt-3 text-base leading-relaxed text-muted-foreground">{t("marketing.registrationBrief")}</p>
         </div>
       </aside>
-      <div className="diplomatic-surface border border-border/80 p-5 sm:p-9 lg:p-12">
+      <div className="diplomatic-surface min-w-0 border border-border/80 p-5 sm:p-9 lg:p-12">
         <RegistrationForm committees={committees} intra={state.isIntra} />
       </div>
     </div>

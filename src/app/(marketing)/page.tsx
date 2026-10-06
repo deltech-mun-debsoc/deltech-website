@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, RadioTower } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { getContent } from "@/lib/settings";
 import { prisma } from "@/lib/prisma"
 import { currentEventScope } from "@/lib/event";
@@ -70,23 +70,21 @@ export default async function LandingPage() {
         <div className="section-shell">
           <div className="grid gap-12 lg:grid-cols-[0.9fr_1.1fr] lg:gap-20">
             <div>
-              <p className="eyebrow">{eventState.showEventHero ? "The society behind the event" : "How the society works"}</p>
-              <h2 className="display-section mt-5 max-w-[11ch]">Start curious. Learn the room. Help build the next one.</h2>
-              <p className="body-large mt-7 max-w-xl text-muted-foreground">
-                DelTech MUN is DTU&apos;s student-run Model United Nations society. Members learn research, procedure, speaking, and negotiation by practising together, then use those skills to run simulations, publish ideas, and organise conferences.
-              </p>
+              <p className="eyebrow">{eventState.showEventHero ? t("marketing.societyBehindEvent") : t("marketing.societyHowItWorks")}</p>
+              <h2 className="display-section mt-5 max-w-[11ch]">{t("marketing.societyWorkTitle")}</h2>
+              <p className="body-large mt-7 max-w-xl text-muted-foreground">{t("marketing.societyWorkBody")}</p>
             </div>
             <ol className="border-t border-foreground/20">
-              {[
-                ["Learn", "Workshops turn unfamiliar rules into usable skills: how to research a country, write a position, speak clearly, negotiate, and draft a resolution."],
-                ["Practise", "Free campus simulations give first-timers a real committee room and give experienced delegates harder problems to solve."],
-                ["Build", "Students research agendas, chair committees, write the Dispatch, manage delegate journeys, and leave the society stronger for the next team."],
-              ].map(([title, body], index) => (
+              {([
+                ["marketing.societyWorkLearn", "marketing.societyWorkLearnBody"],
+                ["marketing.societyWorkPractise", "marketing.societyWorkPractiseBody"],
+                ["marketing.societyWorkBuild", "marketing.societyWorkBuildBody"],
+              ] as const).map(([title, body], index) => (
                 <li key={title} className="grid gap-4 border-b border-foreground/20 py-7 sm:grid-cols-[4rem_1fr] sm:py-9">
                   <span className="font-mono text-sm font-semibold text-primary">0{index + 1}</span>
                   <div>
-                    <h3 className="font-heading text-2xl">{title}</h3>
-                    <p className="mt-2 max-w-xl text-base leading-relaxed text-muted-foreground">{body}</p>
+                    <h3 className="font-heading text-3xl">{t(title)}</h3>
+                    <p className="mt-2 max-w-xl text-base leading-relaxed text-muted-foreground">{t(body)}</p>
                   </div>
                 </li>
               ))}
@@ -101,8 +99,7 @@ export default async function LandingPage() {
         <div className="section-shell">
           <div className="grid gap-8 border-b border-foreground/20 pb-12 lg:grid-cols-[1fr_0.8fr]">
             <div>
-              <p className="eyebrow">{t("marketing.committeesEyebrow")}</p>
-              <h2 className="display-section mt-5 max-w-[11ch]">{t("marketing.committeesTitle")}</h2>
+              <h2 className="display-section max-w-[11ch]">{t("marketing.committeesTitle")}</h2>
             </div>
             <p className="body-large self-end text-muted-foreground">
               {content.agendasBlurb || t("marketing.committeesBody")}
@@ -110,20 +107,19 @@ export default async function LandingPage() {
           </div>
 
           <div>
-            {committees.map((committee, index) => {
+            {committees.map((committee) => {
               const open = openByCommittee.get(committee.id) ?? 0;
               return (
                 <Link
                   key={committee.id}
                   href="/availability"
-                  className="group grid gap-5 border-b border-foreground/20 py-8 transition-colors hover:bg-primary/[0.045] sm:grid-cols-[4rem_0.9fr_1.2fr_auto] sm:items-center sm:px-3"
+                  className="group grid gap-4 border-b border-foreground/20 py-8 transition-colors hover:bg-primary/[0.045] sm:grid-cols-[0.9fr_1.2fr_auto] sm:items-center sm:gap-8 sm:px-3"
                 >
-                  <span className="font-mono text-sm font-semibold text-muted-foreground">0{index + 1}</span>
                   <div>
                     <h3 className="font-heading text-3xl transition-transform duration-300 group-hover:translate-x-1 md:text-4xl">
                       {committee.name}
                     </h3>
-                    <p className="data-label mt-2 text-[0.6875rem] text-muted-foreground">
+                    <p className="mt-2 text-sm text-muted-foreground">
                       {TYPE_LABEL[committee.type]}
                       {committee.doubleDelegation ? " · " + t("marketing.doubleDelegation") : ""}
                     </p>
@@ -131,11 +127,8 @@ export default async function LandingPage() {
                   <p className="max-w-lg text-base leading-relaxed text-muted-foreground">
                     {committee.agenda || t("marketing.committeeBriefPending")}
                   </p>
-                  <div className="flex items-center gap-3 sm:justify-end">
-                    <span className={open > 0 ? "signal-dot" : "size-2 rounded-full bg-destructive"} />
-                    <span className="font-mono text-sm font-semibold tabular-nums">
-                      {open} {t("marketing.openLabel")}
-                    </span>
+                  <div className={cn("flex items-center gap-2 text-sm font-semibold tabular-nums sm:justify-end", open > 0 ? "text-primary" : "text-destructive")}>
+                    {open > 0 ? open + " " + t("marketing.openLabel") : t("marketing.statusFull")}
                     <ArrowRight className="size-5 transition-transform group-hover:translate-x-1" />
                   </div>
                 </Link>
@@ -149,11 +142,7 @@ export default async function LandingPage() {
         <div className="paper-grid absolute inset-0 opacity-15" aria-hidden />
         <div className="section-shell relative grid gap-12 lg:grid-cols-[1.1fr_0.9fr] lg:items-end">
           <div>
-            <p className="data-label flex items-center gap-3 text-gold-300 dark:text-primary-foreground">
-              <RadioTower className="size-4" />
-              {t("marketing.matrixEyebrow")}
-            </p>
-            <h2 className="display-section mt-6 max-w-[10ch]">{t("marketing.matrixTitle")}</h2>
+            <h2 className="display-section max-w-[10ch]">{t("marketing.matrixTitle")}</h2>
           </div>
           <div>
             <p className="body-large text-primary-foreground/75">{t("marketing.matrixBody")}</p>
@@ -167,11 +156,9 @@ export default async function LandingPage() {
               >
                 {t("marketing.matrixCta")}
               </Link>
-              <p className="font-mono text-3xl font-semibold tabular-nums">
-                {String(openPortfolioCount).padStart(2, "0")}
-                <span className="ml-2 text-sm uppercase tracking-[0.12em] text-primary-foreground/75">
-                  {t("marketing.openLabel")}
-                </span>
+              <p className="flex items-baseline gap-3">
+                <span className="font-mono text-6xl font-semibold leading-none tabular-nums">{openPortfolioCount}</span>
+                <span className="text-base text-primary-foreground/80">{t("marketing.openPortfolios")}</span>
               </p>
             </div>
           </div>
@@ -182,8 +169,7 @@ export default async function LandingPage() {
         <section className="border-b border-border/70 py-24 sm:py-32">
           <div className="section-shell grid gap-12 lg:grid-cols-[0.9fr_1.1fr]">
             <div>
-              <p className="eyebrow">{t("landing.sectionAwards")}</p>
-              <h2 className="display-section mt-5 max-w-[9ch]">{t("marketing.awardsTitle")}</h2>
+              <h2 className="display-section max-w-[9ch]">{t("marketing.awardsTitle")}</h2>
             </div>
             <div className="border-t border-foreground/20">
               {content.awards.map((award, index) => (
@@ -202,8 +188,7 @@ export default async function LandingPage() {
           <div className="section-shell">
             <FadeUp className="grid gap-8 lg:grid-cols-[1fr_0.8fr]">
               <div>
-                <p className="eyebrow">{t("landing.sectionContacts")}</p>
-                <h2 className="display-section mt-5 max-w-[10ch]">{t("marketing.contactsTitle")}</h2>
+                <h2 className="display-section max-w-[10ch]">{t("marketing.contactsTitle")}</h2>
               </div>
               <p className="body-large self-end text-muted-foreground">{t("marketing.contactsBody")}</p>
             </FadeUp>
@@ -216,8 +201,8 @@ export default async function LandingPage() {
                 >
                   <p className="data-label text-muted-foreground">{contact.role}</p>
                   <p className="mt-3 font-heading text-2xl">{contact.name}</p>
-                  <p className="mt-2 font-mono text-sm text-primary transition-transform group-hover:translate-x-1">
-                    {contact.phone} ↗
+                  <p className="mt-2 font-mono text-sm tabular-nums text-primary group-hover:underline">
+                    {contact.phone}
                   </p>
                 </a>
               ))}
@@ -228,11 +213,10 @@ export default async function LandingPage() {
 
       <section className="noise-wash py-24 text-center sm:py-36">
         <div className="section-shell">
-          <p className="eyebrow">{t("marketing.finalEyebrow")}</p>
-          <h2 className="display-section mx-auto mt-6 max-w-[12ch]">{t("marketing.finalTitle")}</h2>
+          <h2 className="display-section mx-auto max-w-[12ch]">{t("marketing.finalTitle")}</h2>
           <div className="mt-10 flex flex-wrap justify-center gap-3">
             {content.publicSections.registration && <Link href={ctaHref} className={buttonVariants({ size: "lg" })}>
-              {eventState.acceptsRegistrations ? content.landingHero.ctaLabel : "Registration status"}
+              {eventState.acceptsRegistrations ? content.landingHero.ctaLabel : t("marketing.registrationStatus")}
             </Link>}
             <Link href={content.publicSections.dispatch ? "/blog" : "/team"} className={buttonVariants({ variant: "outline", size: "lg" })}>
               {t("marketing.readDispatch")}

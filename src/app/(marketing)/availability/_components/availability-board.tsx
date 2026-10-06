@@ -33,7 +33,7 @@ function CountBadge({ count }: { count: number }) {
 
   return (
     <div
-      className={`flex h-20 w-24 flex-col items-center justify-center overflow-hidden font-mono font-semibold ${color}`}
+      className={`flex h-16 w-20 flex-col items-center justify-center overflow-hidden rounded-lg text-xl font-semibold tabular-nums ${color}`}
     >
       <AnimatePresence mode="wait" initial={false}>
         <motion.span
@@ -46,7 +46,7 @@ function CountBadge({ count }: { count: number }) {
           {count}
         </motion.span>
       </AnimatePresence>
-      <span className="data-label mt-1 font-normal opacity-70">{t("marketing.openLabel")}</span>
+      <span className="text-xs font-medium">{t("marketing.openLabel")}</span>
     </div>
   )
 }
@@ -60,21 +60,18 @@ export function AvailabilityBoard({ initial }: Props) {
 
   return (
     <div className="border-t border-foreground/20">
-      {committees.map((committee, index) => (
+      {committees.map((committee) => (
         <motion.div
           key={committee.id}
           layout
-          className="grid items-center gap-5 border-b border-foreground/20 py-7 sm:grid-cols-[4rem_1fr_auto]"
+          className="flex items-center justify-between gap-5 border-b border-foreground/20 py-5"
         >
-          <span className="font-mono text-sm font-semibold text-primary">{String(index + 1).padStart(2, "0")}</span>
-          <div className="min-w-0 flex-1">
-            <p className="font-heading text-3xl leading-tight text-card-foreground">{committee.name}</p>
-            <div className="mt-1 flex flex-wrap items-center gap-2">
-              <span className="data-label mt-2 text-muted-foreground">
-                {TYPE_LABEL[committee.type]}
-                {committee.doubleDelegation && " · " + t("marketing.doubleDelegation")}
-              </span>
-            </div>
+          <div className="min-w-0">
+            <h2 className="text-3xl leading-tight">{committee.name}</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {TYPE_LABEL[committee.type]}
+              {committee.doubleDelegation && " · " + t("marketing.doubleDelegation")}
+            </p>
           </div>
           <CountBadge count={Math.max(0, committee.availableCount)} />
         </motion.div>
