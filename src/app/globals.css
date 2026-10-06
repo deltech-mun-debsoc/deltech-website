@@ -390,21 +390,23 @@
     width: min(100% - 2rem, 76rem);
     margin-inline: auto;
   }
+  /* Old values (-0.055em / 0.84) collided ascenders with the line above and
+     fused "fl"; these keep the scale but give the letters room. */
   .display-hero {
     font-family: var(--font-display);
-    font-size: clamp(4rem, 10vw, 9.5rem);
-    font-weight: 570;
+    font-size: clamp(3.5rem, 9vw, 8.5rem);
+    font-weight: 560;
     font-variation-settings: "opsz" 96;
-    letter-spacing: -0.055em;
-    line-height: 0.84;
+    letter-spacing: -0.03em;
+    line-height: 0.92;
   }
   .display-section {
     font-family: var(--font-display);
-    font-size: clamp(2.5rem, 6vw, 5.75rem);
+    font-size: clamp(2.5rem, 5.5vw, 5rem);
     font-weight: 560;
     font-variation-settings: "opsz" 72;
-    letter-spacing: -0.04em;
-    line-height: 0.94;
+    letter-spacing: -0.025em;
+    line-height: 0.98;
   }
   .body-large {
     font-size: clamp(1.125rem, 1.45vw, 1.375rem);
