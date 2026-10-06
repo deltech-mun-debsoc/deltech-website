@@ -10,7 +10,7 @@ import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import dynamic from "next/dynamic"
 import { Skeleton } from "@/components/ui/skeleton"
-import { STATUS_META } from "./registrations/_lib/status"
+import { NEEDS_SEAT, STATUS_META } from "./registrations/_lib/status"
 import { buildDelegateWhere } from "./registrations/_lib/build-where"
 
 // recharts is ~100kB gzipped and this is the first screen every staff member
@@ -67,6 +67,7 @@ export default async function AdminOverviewPage() {
     openQuestions,
     followUpsDue,
     content,
+    needsSeat,
   ] = await Promise.all([
     prisma.delegate.groupBy({ by: ["status"], where: scope, _count: { _all: true } }),
     prisma.delegate.groupBy({ by: ["source"], where: scope, _count: { _all: true } }),
@@ -102,6 +103,7 @@ export default async function AdminOverviewPage() {
     prisma.delegate.count({ where: { ...scope, ...buildDelegateWhere({ query: "open" }) } }),
     prisma.delegate.count({ where: { ...scope, ...buildDelegateWhere({ followUp: "due" }) } }),
     getContent(),
+    prisma.delegate.count({ where: { ...scope, ...buildDelegateWhere({ status: NEEDS_SEAT }) } }),
   ])
 
   const paymentsActive = deriveEventState(content).paymentsRequired
@@ -109,7 +111,8 @@ export default async function AdminOverviewPage() {
   const count = (status: string) => byStatus.find((s) => s.status === status)?._count._all ?? 0
   const waiting = count("REGISTERED")
   const unpaid = count("ALLOTTED") + count("PAYMENT_SENT")
-  const confirmed = count("CONFIRMED")
+  // Accepted with nothing to pay but holding no seat is not "confirmed" yet.
+  const confirmed = count("CONFIRMED") - needsSeat
   const seatCount = portfolioCounts.reduce((n, g) => n + g._count._all, 0)
 
   const checklist: ChecklistItem[] = [
@@ -133,6 +136,7 @@ export default async function AdminOverviewPage() {
     { key: "REGISTERED", count: waiting, href: "/admin/registrations?status=REGISTERED" },
     { key: "WAITLISTED", count: count("WAITLISTED"), href: "/admin/registrations?status=WAITLISTED" },
     { key: "PAYMENT_SENT", count: unpaid, href: "/admin/registrations?status=PAYMENT_SENT", label: "Seated, unpaid" },
+    { key: NEEDS_SEAT, count: needsSeat, href: `/admin/registrations?status=${NEEDS_SEAT}` },
     { key: "CONFIRMED", count: confirmed, href: "/admin/registrations?status=CONFIRMED" },
     { key: "CANCELLED", count: count("CANCELLED"), href: "/admin/registrations?status=CANCELLED" },
   ].filter((s) => s.count > 0)
@@ -140,6 +144,7 @@ export default async function AdminOverviewPage() {
 
   const todo = [
     waiting > 0 && { label: `${waiting} waiting for a seat`, action: "Give seats", href: "/admin/allotment", tone: "bg-amber-500" },
+    needsSeat > 0 && { label: `${needsSeat} accepted, still without a seat`, action: "Give seats", href: "/admin/allotment", tone: "bg-amber-500" },
     openQuestions > 0 && { label: `${openQuestions} unanswered ${openQuestions === 1 ? "question" : "questions"}`, action: "Answer", href: "/admin/registrations?query=open", tone: "bg-amber-500" },
     paymentsActive && followUpsDue > 0 && { label: `${followUpsDue} follow-ups due`, action: "Call them", href: "/admin/registrations?followUp=due", tone: "bg-sky-500" },
     paymentsActive && unpaid > 0 && { label: `${unpaid} seated but not paid`, action: "Chase", href: "/admin/registrations?status=PAYMENT_SENT", tone: "bg-sky-500" },
