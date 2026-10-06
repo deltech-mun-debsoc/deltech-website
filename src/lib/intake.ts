@@ -54,17 +54,76 @@ export interface CommitteeRef {
   aliases: string[]
 }
 
-// exact name → alias → slug → case-insensitive name. No fuzzy guessing here;
-// anything unresolved is left for the AI pass (wizard) or the quarantine.
-export function matchCommittee(input: string | undefined, committees: CommitteeRef[]): CommitteeRef | undefined {
-  if (!input) return undefined
-  const q = input.trim().toLowerCase()
-  if (!q) return undefined
-  return (
-    committees.find((c) => c.name.toLowerCase() === q) ??
-    committees.find((c) => c.aliases.some((a) => a.trim().toLowerCase() === q)) ??
-    committees.find((c) => c.slug.toLowerCase() === q)
+// What a typed committee answer means, without guessing.
+//
+//   match      one committee, by name, alias or slug, ignoring case, spaces and
+//              punctuation ("unga disec" is UNGA-DISEC)
+//   ambiguous  more than one committee claims it (two committees sharing an
+//              alias). Nothing is picked: the first one in query order used to
+//              win silently.
+//   none       nothing claims it. `suggestions` are near spellings a person can
+//              accept; they are never applied on their own.
+export type CommitteeResolution =
+  | { kind: "match"; committee: CommitteeRef }
+  | { kind: "ambiguous"; candidates: CommitteeRef[] }
+  | { kind: "none"; suggestions: CommitteeRef[] }
+
+export function committeeKey(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, "")
+}
+
+function editDistance(a: string, b: string): number {
+  if (Math.abs(a.length - b.length) > 2) return 3
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j)
+  for (let i = 1; i <= a.length; i++) {
+    const cur = [i]
+    for (let j = 1; j <= b.length; j++) {
+      cur[j] = Math.min(prev[j] + 1, cur[j - 1] + 1, prev[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1))
+    }
+    prev = cur
+  }
+  return prev[b.length]
+}
+
+export function resolveCommittee(input: string | undefined, committees: CommitteeRef[]): CommitteeResolution {
+  const q = committeeKey(input ?? "")
+  if (!q) return { kind: "none", suggestions: [] }
+  const names = (c: CommitteeRef) => [c.name, c.slug, ...c.aliases].map(committeeKey).filter(Boolean)
+
+  // A committee's own name outranks another committee's alias.
+  const byName = committees.filter((c) => committeeKey(c.name) === q)
+  if (byName.length === 1) return { kind: "match", committee: byName[0] }
+  const claimed = committees.filter((c) => names(c).includes(q))
+  if (claimed.length === 1) return { kind: "match", committee: claimed[0] }
+  if (claimed.length > 1) return { kind: "ambiguous", candidates: claimed }
+
+  const near = committees.filter((c) =>
+    names(c).some((n) => (q.length >= 3 && (n.startsWith(q) || q.startsWith(n))) || (q.length >= 4 && editDistance(q, n) <= 2)),
   )
+  return { kind: "none", suggestions: near }
+}
+
+// Only a single, certain match. An ambiguous or unknown answer is left for a
+// person (the import review) or the quarantine, never settled by query order.
+export function matchCommittee(input: string | undefined, committees: CommitteeRef[]): CommitteeRef | undefined {
+  const r = resolveCommittee(input, committees)
+  return r.kind === "match" ? r.committee : undefined
+}
+
+// The same alias on two committees makes every answer naming it ambiguous.
+// Returns the first collision as a sentence, or null. Compared the way answers
+// are matched: ignoring case, spaces and punctuation.
+export function aliasCollision(
+  committee: { id?: string; name: string; slug?: string; aliases: string[] },
+  others: CommitteeRef[],
+): string | null {
+  for (const label of [committee.name, committee.slug ?? "", ...committee.aliases]) {
+    const k = committeeKey(label)
+    if (!k) continue
+    const clash = others.find((o) => o.id !== committee.id && [o.name, o.slug, ...o.aliases].some((n) => committeeKey(n) === k))
+    if (clash) return `"${label}" already names ${clash.name}. Each name or alias can point to one committee only.`
+  }
+  return null
 }
 
 export interface NormalizedRow {
