@@ -18,7 +18,7 @@ export default function GlobalError({ error, reset }: { error: Error & { digest?
         }}
       >
         <div style={{ maxWidth: 420, textAlign: "center" }}>
-          <p style={{ fontSize: 12, letterSpacing: "0.08em", textTransform: "uppercase", color: "#8a6a2f" }}>
+          <p style={{ fontSize: 13, color: "#8a6a2f" }}>
             Error
           </p>
           <h1 style={{ fontSize: 32, margin: "0.5rem 0 0.75rem" }}>Something went wrong</h1>
