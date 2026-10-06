@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { deriveCsvUrl } from "@/lib/gsheet-url"
-import { saveContent } from "../../config/actions"
+import { savePartnerSheets } from "../actions"
 
 interface Source {
   presetName: string
@@ -39,7 +39,7 @@ export function PartnerSheetsCard({ sources, presetNames }: Props) {
 
   const save = (next: Source[]) =>
     startTransition(async () => {
-      const result = await saveContent({ sheetPullSources: next })
+      const result = await savePartnerSheets(next)
       if (result.success) {
         router.refresh()
       } else {
