@@ -260,24 +260,15 @@
   h3,
   h4 {
     font-family: var(--heading-face);
-    letter-spacing: -0.01em;
+    font-weight: 600;
   }
-  /* Public pages are editorial (Fraunces headings). Operational areas set the
-     heading face to sans: tables, forms and controls read faster there. */
+  /* Headings are sans everywhere. A page that earns an editorial headline uses
+     .headline on that one element. */
   :root {
-    --heading-face: var(--font-display);
-  }
-  .admin-shell,
-  .recruitment-shell,
-  .app-shell {
     --heading-face: var(--font-sans);
   }
   .app-shell {
     display: contents;
-  }
-  :where(.admin-shell, .recruitment-shell, .app-shell) :where(h1, h2, h3, h4) {
-    font-weight: 600;
-    letter-spacing: -0.015em;
   }
   table {
     font-variant-numeric: tabular-nums;
@@ -292,23 +283,21 @@
 
 /* ── Editorial utilities ─────────────────────────────────────────────────── */
 @layer components {
-  /* serif display headlines at large optical size */
-  .display {
+  /* The one serif headline a public page may carry. */
+  .headline {
     font-family: var(--font-display);
-    font-weight: 560;
-    letter-spacing: -0.02em;
-    font-variation-settings: "opsz" 72;
+    font-size: clamp(2.25rem, 4.5vw, 3.5rem);
+    font-weight: 400;
+    line-height: 1.12;
+    letter-spacing: -0.005em;
   }
-  /* Occasional editorial marker above a public headline. Ordinary labels use
-     .data-label / .section-label, which are sentence case. */
+  /* Small sentence-case label above a block. */
   .eyebrow {
     font-family: var(--font-sans);
-    font-size: 0.8125rem;
-    font-weight: 650;
-    line-height: 1.35;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
-    color: var(--accent-foreground);
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.4;
+    color: var(--muted-foreground);
   }
   /* hairline rules */
   .rule {
@@ -359,10 +348,6 @@
   .dark body:has(.overscroll-adaptive) {
     background: #07100d;
   }
-  :where(.admin-shell, .recruitment-shell, .app-shell) .eyebrow {
-    text-transform: none;
-    letter-spacing: 0;
-  }
   .admin-shell .eyebrow,
   .admin-shell .data-label,
   .recruitment-shell .eyebrow,
@@ -394,24 +379,6 @@
   .section-shell {
     width: min(100% - 2rem, 76rem);
     margin-inline: auto;
-  }
-  /* Old values (-0.055em / 0.84) collided ascenders with the line above and
-     fused "fl"; these keep the scale but give the letters room. */
-  .display-hero {
-    font-family: var(--font-display);
-    font-size: clamp(3.5rem, 9vw, 8.5rem);
-    font-weight: 560;
-    font-variation-settings: "opsz" 96;
-    letter-spacing: -0.03em;
-    line-height: 0.92;
-  }
-  .display-section {
-    font-family: var(--font-display);
-    font-size: clamp(2.5rem, 5.5vw, 5rem);
-    font-weight: 560;
-    font-variation-settings: "opsz" 72;
-    letter-spacing: -0.025em;
-    line-height: 0.98;
   }
   .body-large {
     font-size: clamp(1.125rem, 1.45vw, 1.375rem);
@@ -582,7 +549,7 @@
 }
 .write-canvas .ProseMirror h1 {
   font-size: 1.875rem;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.25;
   margin-top: 2rem;
   margin-bottom: 0.5rem;
@@ -590,7 +557,7 @@
 }
 .write-canvas .ProseMirror h2 {
   font-size: 1.375rem;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.3;
   margin-top: 1.75rem;
   margin-bottom: 0.5rem;
@@ -659,14 +626,14 @@
 }
 .blog-prose h1 {
   font-size: 1.875rem;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.25;
   margin: 2rem 0 0.5rem;
   font-family: var(--font-display), Georgia, "Times New Roman", serif;
 }
 .blog-prose h2 {
   font-size: 1.375rem;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.3;
   margin: 1.75rem 0 0.5rem;
   font-family: var(--font-display), Georgia, "Times New Roman", serif;
@@ -763,8 +730,7 @@
    generous heading offsets for anchor links, and every table scrolls inside its
    own box rather than pushing the page sideways.
 
-   Headings stay on --font-display (Fraunces). That is what keeps the docs
-   recognisably part of the product rather than a generic docs template.
+   Headings are sans, like every other interface heading.
 --------------------------------------------------------------------------- */
 .docs-prose {
   font-family: var(--font-sans);
@@ -778,13 +744,12 @@
 .docs-prose h2,
 .docs-prose h3,
 .docs-prose h4 {
-  font-family: var(--font-display);
-  letter-spacing: -0.02em;
+  font-family: var(--font-sans);
   scroll-margin-top: 6rem;
 }
 .docs-prose h2 {
   font-size: 1.5rem;
-  font-weight: 560;
+  font-weight: 600;
   line-height: 1.25;
   margin-top: 2.75rem;
   padding-top: 1.75rem;
