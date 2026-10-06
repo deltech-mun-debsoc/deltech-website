@@ -283,9 +283,9 @@ const cases: Array<[string, ReactElement, string[]]> = [
     "staff-invite",
     StaffInviteEmail({
       role: "MAINTAINER",
-      signInUrl: "https://x.test/signin/staff",
+      signInUrl: "https://x.test/signin",
     }),
-    ["a maintainer", "https://x.test/signin/staff"],
+    ["a maintainer", "https://x.test/signin"],
   ],
   [
     "recruitment-selected",
