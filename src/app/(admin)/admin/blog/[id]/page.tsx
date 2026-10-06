@@ -99,14 +99,14 @@ export default async function AdminBlogPostPage(props: { params: Promise<{ id: s
         <aside className="w-64 shrink-0 space-y-5">
           {/* Author */}
           <div className="rounded-xl border bg-card p-4 space-y-1">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Author</p>
+            <p className="text-xs font-medium text-muted-foreground">Author</p>
             <p className="text-sm font-medium">{post.author.name ?? "-"}</p>
             <p className="text-xs text-muted-foreground">{post.author.email}</p>
           </div>
 
           {/* Metadata */}
           <div className="rounded-xl border bg-card p-4 space-y-3">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Details</p>
+            <p className="text-xs font-medium text-muted-foreground">Details</p>
 
             {post.submittedAt && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -140,14 +140,14 @@ export default async function AdminBlogPostPage(props: { params: Promise<{ id: s
           {/* Review note (if any) */}
           {post.reviewNote && (
             <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 space-y-1 dark:border-amber-800 dark:bg-amber-950/30">
-              <p className="text-xs font-medium text-amber-700 uppercase tracking-wide dark:text-amber-300">Review note</p>
+              <p className="text-xs font-medium text-amber-700 dark:text-amber-300">Review note</p>
               <p className="text-sm text-amber-900 leading-relaxed dark:text-amber-100">{post.reviewNote}</p>
             </div>
           )}
 
           {/* Moderation actions */}
           <div className="rounded-xl border bg-card p-4 space-y-3">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Moderation</p>
+            <p className="text-xs font-medium text-muted-foreground">Moderation</p>
             <ModerationPanel
               postId={post.id}
               status={post.status as "PENDING" | "PUBLISHED" | "CHANGES_REQUESTED" | "REJECTED" | "DRAFT"}

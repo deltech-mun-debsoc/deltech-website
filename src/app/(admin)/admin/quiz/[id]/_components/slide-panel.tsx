@@ -53,7 +53,7 @@ export function SlidePanel({
   return (
     <aside className={cn("theme-light admin-rail flex shrink-0 flex-col overflow-hidden border-r border-black/15 bg-[#f5f1e8]", className)}>
       <div className="border-b border-black/10 px-4 py-4">
-        <p className="font-mono text-xs font-bold uppercase tracking-[0.18em] text-black/45">Run of show · {slides.length}</p>
+        <p className="font-mono text-xs font-bold text-black/45">Run of show · {slides.length}</p>
       </div>
       <div className="flex-1 overflow-y-auto">
         {slides.length === 0 ? (
@@ -80,7 +80,7 @@ export function SlidePanel({
                     </span>
                     <span className="font-mono text-xs text-muted-foreground/60">{String(idx + 1).padStart(2, "0")}</span>
                   </div>
-                  <p className="mt-1 truncate pl-[18px] text-xs uppercase tracking-wider text-muted-foreground">
+                  <p className="mt-1 truncate pl-[18px] text-xs text-muted-foreground">
                     {t(`quiz.slideType.${slide.type}` as Parameters<typeof t>[0])}
                   </p>
                 </button>

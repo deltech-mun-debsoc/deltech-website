@@ -41,7 +41,7 @@ export default async function AdminQuizPage(props: { searchParams: Promise<{ vie
       <section className="grid overflow-hidden border border-foreground/15 bg-ink text-paper lg:grid-cols-[1.2fr_0.8fr]">
         <div className="p-7 sm:p-9">
           <RadioTower className="size-8 text-primary" />
-          <p className="mt-12 font-mono text-xs uppercase tracking-[0.2em] text-paper/50">New broadcast</p>
+          <p className="mt-12 font-mono text-xs text-paper/50">New broadcast</p>
           <h2 className="mt-3 max-w-[12ch] font-heading text-4xl leading-tight sm:text-5xl">Build something the room can feel.</h2>
           <form action={createPresentation}>
             <button type="submit" className="mt-8 inline-flex h-13 items-center gap-2 bg-primary px-6 text-base font-bold text-primary-foreground transition-opacity hover:opacity-90">
@@ -117,7 +117,7 @@ export default async function AdminQuizPage(props: { searchParams: Promise<{ vie
                     <Presentation className="mt-10 size-7 text-primary" />
                     <h3 className="mt-5 font-heading text-3xl leading-tight">{presentation.title}</h3>
                     <div className="mt-8 flex flex-wrap gap-2">
-                      <span className="bg-ink px-2.5 py-1 font-mono text-xs uppercase tracking-wider text-paper">{t(("quiz.modes." + presentation.mode) as Parameters<typeof t>[0])}</span>
+                      <span className="bg-ink px-2.5 py-1 font-mono text-xs text-paper">{t(("quiz.modes." + presentation.mode) as Parameters<typeof t>[0])}</span>
                       <span className="bg-muted px-2.5 py-1 text-xs">{presentation._count.slides} slides</span>
                       {runs > 0 && <span className="bg-muted px-2.5 py-1 text-xs">{runs} run{runs === 1 ? "" : "s"}</span>}
                     </div>
