@@ -121,6 +121,7 @@ model Event {
 
   committees Committee[]
   delegates  Delegate[]
+  formSources DelegateSheetSource[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -307,7 +308,9 @@ model Delegate {
   sourceRowHash      String?
   manualEditedFields String[] @default([])
 
-  @@unique([sourceSheetKey, sourceRowKey])
+  // Per event: the same Form tab reused for next year's event starts clean
+  // instead of colliding with last year's rows.
+  @@unique([eventId, sourceSheetKey, sourceRowKey])
   @@unique([eventId, email])
   @@index([eventId, nextFollowUpAt])
   @@index([eventId])
@@ -950,26 +953,38 @@ model RecruitmentImport {
 }
 
 // A Google Form response sheet that delegate registrations are pulled from --
-// the Intra MUN registration form. The same shape as RecruitmentSheetSource, but
-// not scoped to a recruitment cycle.
+// the Intra MUN registration form. The same shape as RecruitmentSheetSource, and
+// scoped to its event the way that one is scoped to a cycle.
 model DelegateSheetSource {
   id       String  @id @default(cuid())
+  eventId  String
+  event    Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
   label    String
   sheetUrl String
   csvUrl   String
   // "<spreadsheetId>:<gid>", stored on every delegate the tab produced.
-  sheetKey String  @unique
+  sheetKey String
   // { delegateField: sheetColumnHeader }
   mapping  Json    @default("{}")
   isActive Boolean @default(true)
 
   lastImportedAt DateTime?
+  // Source health, from the last time someone checked it: when, what was found,
+  // how many rows need a person, and whether the sheet was read privately
+  // ("private": shared with the service account) or through a public link.
+  lastCheckedAt        DateTime?
+  lastCheckRows        Int?
+  lastCheckNeedsAction Int?
+  lastCheckError       String?
+  lastAccess           String?
 
   createdById String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   imports DelegateImport[]
+
+  @@unique([eventId, sheetKey])
 }
 
 model DelegateImport {
