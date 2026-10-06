@@ -62,15 +62,15 @@ export function PasswordForm({ hasPassword }: { hasPassword: boolean }) {
       </div>
 
       {state?.error && (
-        <p className="text-sm text-destructive">
+        <p role="alert" className="text-sm text-destructive">
           {t((ERRORS[state.error] ?? "auth.errorDefault") as Parameters<typeof t>[0])}
         </p>
       )}
       {state?.success && (
-        <p className="text-sm font-medium text-teal-800">{t("account.passwordSaved")}</p>
+        <p role="status" className="text-sm font-medium text-primary">{t("account.passwordSaved")}</p>
       )}
 
-      <Button type="submit" disabled={pending}>
+      <Button type="submit" disabled={pending} className="h-11 w-full">
         {pending ? t("common.loading") : t("account.savePasswordButton")}
       </Button>
     </form>

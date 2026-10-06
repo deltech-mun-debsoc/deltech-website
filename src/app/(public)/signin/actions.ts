@@ -75,7 +75,9 @@ export async function requestMagicLink(
     // which addresses are registered, which is the same reason
     // noPasswordYetHint is worded the way it is. /signin/sent says outright
     // that nothing arrives if the address has no account.
-    if (err instanceof AuthError) redirect("/signin/sent");
+    // Same URL Auth.js sends a real send to (pages.verifyRequest plus its
+    // query), so the two outcomes cannot be told apart from the address bar.
+    if (err instanceof AuthError) redirect("/signin/sent?provider=resend&type=email");
     return { error: "errorDefault", email };
   }
 }
