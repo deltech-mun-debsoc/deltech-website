@@ -6,6 +6,8 @@ export const STRINGS = {
   brand: {
     name: "DelTech MUN",
     tagline: "Model United Nations at Delhi Technological University",
+    logoAlt: "DelTech MUN logo",
+    university: "Delhi Technological University",
   },
 
   landing: {
