@@ -52,6 +52,7 @@ export function Header({ sections, registrationOpen }: { sections: Content["publ
             <Link
               key={href}
               href={href}
+              aria-current={pathname === href ? "page" : undefined}
               className={cn(
                 "border-b-2 pb-1 text-[0.9375rem] font-semibold transition-colors",
                 pathname === href
@@ -108,23 +109,20 @@ export function Header({ sections, registrationOpen }: { sections: Content["publ
             transition={{ duration: 0.18 }}
             className="fixed inset-x-0 bottom-0 top-20 z-40 overflow-y-auto border-t border-border bg-background lg:hidden"
           >
-            <div className="paper-grid flex min-h-full flex-col px-4 py-8">
-              <p className="eyebrow mb-5">Society index</p>
+            <div className="flex min-h-full flex-col px-4 py-6">
               <ul className="divide-y divide-border/70 border-y border-border/70">
-                {navLinks.map(({ href, label }, index) => (
+                {navLinks.map(({ href, label }) => (
                   <li key={href}>
                     <Link
                       href={href}
                       onClick={() => setOpen(false)}
+                      aria-current={pathname === href ? "page" : undefined}
                       className={cn(
-                        "flex items-center justify-between py-5 text-2xl font-heading transition-colors",
+                        "flex items-center py-4 text-lg font-semibold transition-colors",
                         pathname === href ? "text-primary" : "text-foreground",
                       )}
                     >
-                      <span>{label}</span>
-                      <span className="font-mono text-xs text-muted-foreground">
-                        0{index + 1}
-                      </span>
+                      {label}
                     </Link>
                   </li>
                 ))}
@@ -144,9 +142,6 @@ export function Header({ sections, registrationOpen }: { sections: Content["publ
                 <BookOpen aria-hidden="true" />
                 {t("nav.docs")}
               </a>
-              <p className="mt-auto pt-12 text-sm leading-relaxed text-muted-foreground">
-                {t("brand.tagline")}
-              </p>
             </div>
           </motion.nav>
         )}
