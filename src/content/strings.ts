@@ -417,7 +417,7 @@ export const STRINGS = {
       identityQuestion: "{email} is already registered: {source}, {stage}. What should happen to this response?",
       identityWithSeat: "{email} is already registered: {source}, {stage}, seat {seat}. What should happen to this response?",
       identityKeep: "Keep existing, skip this response",
-      identitySafe: "Update their phone and roll number only",
+      identitySafe: "Update their contact details only",
       identityCorrect: "It is someone else: correct the email",
       identityCorrectPlaceholder: "The right email for this response",
       identityCorrectSave: "Use this email",
