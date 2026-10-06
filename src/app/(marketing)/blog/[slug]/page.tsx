@@ -58,7 +58,7 @@ export default async function BlogArticlePage({ params }: Props) {
       <header className="section-shell grid gap-10 border-b border-foreground/20 py-14 lg:grid-cols-[1fr_0.38fr] lg:items-end lg:py-20">
         <div>
           {post.tags.length > 0 && <p className="eyebrow">{post.tags.slice(0, 3).join(" · ")}</p>}
-          <h1 className="display-section mt-5 max-w-[12ch]">{post.title}</h1>
+          <h1 className="display-section mt-5 max-w-[18ch]">{post.title}</h1>
           {post.subtitle && <p className="body-large mt-7 max-w-3xl text-muted-foreground">{post.subtitle}</p>}
         </div>
         <div className="border-l border-foreground/20 pl-6 text-sm leading-relaxed text-muted-foreground">
