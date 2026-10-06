@@ -44,14 +44,14 @@ export default async function TeamPage() {
         <div className="section-shell relative grid gap-12 lg:grid-cols-[1fr_0.42fr] lg:items-end">
           <FadeUp>
             <p className="eyebrow">{t("marketing.teamEyebrow")}</p>
-            <h1 className="display-section mt-6 max-w-[10ch]">{t("marketing.teamTitle")}</h1>
+            <h1 className="display-section mt-6 max-w-[12ch]">{t("marketing.teamTitle")}</h1>
             <p className="body-large mt-8 max-w-2xl text-muted-foreground">{t("marketing.teamBody")}</p>
           </FadeUp>
           <div className="border-l border-foreground/20 pl-7">
             <p className="font-mono text-[5rem] font-semibold leading-none tabular-nums text-primary sm:text-[7rem]">
-              {String(members.length).padStart(2, "0")}
+              {members.length}
             </p>
-            <p className="data-label mt-4 text-muted-foreground">{t("marketing.activeTeam")}</p>
+            <p className="mt-4 text-base text-muted-foreground">{t("marketing.activeTeam")}</p>
           </div>
         </div>
       </section>
