@@ -763,7 +763,7 @@
    generous heading offsets for anchor links, and every table scrolls inside its
    own box rather than pushing the page sideways.
 
-   Headings stay on --font-heading (Fraunces). That is what keeps the docs
+   Headings stay on --font-display (Fraunces). That is what keeps the docs
    recognisably part of the product rather than a generic docs template.
 --------------------------------------------------------------------------- */
 .docs-prose {
@@ -778,7 +778,7 @@
 .docs-prose h2,
 .docs-prose h3,
 .docs-prose h4 {
-  font-family: var(--font-heading);
+  font-family: var(--font-display);
   letter-spacing: -0.02em;
   scroll-margin-top: 6rem;
 }
