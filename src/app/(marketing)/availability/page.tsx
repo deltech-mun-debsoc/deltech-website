@@ -1,4 +1,3 @@
-import { RadioTower } from "lucide-react"
 import { prisma } from "@/lib/prisma"
 import { currentEventScope } from "@/lib/event"
 import { getContent } from "@/lib/settings"
@@ -16,22 +15,19 @@ function MatrixHero({ totalAvailable, exact }: { totalAvailable: number; exact: 
   return (
     <section className="relative overflow-hidden border-b border-border/70 bg-ink py-20 text-paper sm:py-28">
       <div className="paper-grid absolute inset-0 opacity-[0.08]" aria-hidden />
-      <div className="section-shell relative grid gap-12 lg:grid-cols-[1fr_0.42fr] lg:items-end">
+      <div className="section-shell relative grid gap-10 lg:grid-cols-[1fr_0.42fr] lg:items-end">
         <div>
-          <p className="data-label flex items-center gap-3 text-gold-300">
-            <RadioTower className="size-4" />
-            {t("marketing.availabilityEyebrow")}
-          </p>
-          <h1 className="display-section mt-6 max-w-[9ch]">{t("marketing.availabilityTitle")}</h1>
-          <p className="body-large mt-8 max-w-2xl text-paper/65">
+          <p className="eyebrow text-gold-300">{t("marketing.availabilityEyebrow")}</p>
+          <h1 className="display-section mt-6 max-w-[11ch]">{t("marketing.availabilityTitle")}</h1>
+          <p className="body-large mt-8 max-w-2xl text-paper/70">
             {exact ? t("marketing.availabilityBody") : t("marketing.availabilityCountsBody")}
           </p>
         </div>
         <div className="border-l border-paper/20 pl-7">
           <p className="font-mono text-[5rem] font-semibold leading-none tabular-nums text-gold-300 sm:text-[7rem]">
-            {String(totalAvailable).padStart(2, "0")}
+            {totalAvailable}
           </p>
-          <p className="data-label mt-4 text-paper/55">{t("marketing.portfoliosStillOpen")}</p>
+          <p className="mt-4 text-base text-paper/70">{t("marketing.portfoliosStillOpen")}</p>
         </div>
       </div>
     </section>
@@ -70,14 +66,8 @@ export default async function AvailabilityPage() {
     return (
       <div>
         <MatrixHero totalAvailable={totalAvailable} exact={false} />
-        <section className="py-20 sm:py-28">
+        <section className="py-16 sm:py-24">
           <div className="section-shell">
-            <div className="mb-12 grid gap-6 border-b border-foreground/20 pb-8 md:grid-cols-[1fr_0.7fr]">
-              <h2 className="font-heading text-4xl md:text-5xl">{t("marketing.committeeSignal")}</h2>
-              <p className="self-end text-base leading-relaxed text-muted-foreground">
-                {t("marketing.countsDisclosure")}
-              </p>
-            </div>
             {initial.length === 0 ? (
               <p className="border-y border-border py-16 text-lg text-muted-foreground">{t("empty.noCommittees")}</p>
             ) : (
@@ -112,7 +102,7 @@ export default async function AvailabilityPage() {
   return (
     <div>
       <MatrixHero totalAvailable={totalAvailable} exact />
-      <section className="py-20 sm:py-28">
+      <section className="py-16 sm:py-24">
         <div className="section-shell">
           {matrix.length === 0 ? (
             <p className="border-y border-border py-16 text-lg text-muted-foreground">{t("empty.noCommittees")}</p>
