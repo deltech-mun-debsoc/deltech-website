@@ -7,7 +7,11 @@ Use semantic utilities such as `bg-background`, `text-foreground`, `text-muted-f
 The main shared layout and type utilities are:
 
 - `section-shell` for the responsive page width;
-- `display-hero` and `display-section` for editorial display type;
+- `display-hero` and `display-section` for public editorial headlines (Fraunces). Keep their leading and tracking; tighter values make ascenders collide and fuse "fl";
+- `font-heading` / plain `h1`-`h4` follow `--heading-face`: Fraunces on public pages, Geist inside `.admin-shell`, `.recruitment-shell` and `.app-shell` (delegate dashboard, writer area);
 - `body-large` for prominent readable supporting copy;
-- `data-label` and `eyebrow` for operational labels;
-- `diplomatic-surface`, `paper-grid`, and `noise-wash` for the visual system.
+- `eyebrow` is an occasional tracked uppercase marker above a public headline (sentence case inside the app shells). Use it where it adds information, not above every section;
+- `data-label` and `section-label` for ordinary labels, in sentence case. Do not add `uppercase` or wide `tracking-*` to labels, buttons, navigation, table headers or statuses;
+- `font-mono` only for identifiers, codes and numbers that need aligned digits.
+
+Brand assets live in `public/brand/` and are rendered through `BrandLogo` and `BrandEmblem` (`src/components/brand-logo.tsx`): full lockup and emblem-only, each in white, navy (#244278) and black, extracted from `deltech-mun-source.jpg` without redrawing. Use the emblem where space is small; never shrink the full lockup into an icon.
