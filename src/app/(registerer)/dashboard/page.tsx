@@ -18,7 +18,7 @@ import { mySeats } from "@/lib/committee/viewer";
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
-      <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{label}</p>
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
       <p className="mt-0.5 text-sm">{value ?? "-"}</p>
     </div>
   );
@@ -99,7 +99,7 @@ export default async function DashboardPage() {
             {/* Header */}
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                <p className="text-xs font-semibold text-muted-foreground">
                   {t("brand.name")}
                 </p>
                 <h1 className="mt-1 text-xl font-bold">{delegate.fullName}</h1>
@@ -114,7 +114,7 @@ export default async function DashboardPage() {
 
             {/* Allotment */}
             <div className="space-y-3">
-              <p className="text-xs font-semibold uppercase tracking-wider text-primary">
+              <p className="text-xs font-semibold text-primary">
                 {t("dashboard.allotmentSection")}
               </p>
               {allotment ? (
@@ -144,7 +144,7 @@ export default async function DashboardPage() {
               <>
                 <Separator />
                 <div className="space-y-3">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-primary">
+                  <p className="text-xs font-semibold text-primary">
                     Co-delegate
                   </p>
                   <div className="grid grid-cols-2 gap-3">
@@ -159,7 +159,7 @@ export default async function DashboardPage() {
               <>
                 <Separator />
                 <div className="space-y-3">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-primary">
+                  <p className="text-xs font-semibold text-primary">
                     {t("dashboard.paymentSection")}
                   </p>
                   {payment ? (

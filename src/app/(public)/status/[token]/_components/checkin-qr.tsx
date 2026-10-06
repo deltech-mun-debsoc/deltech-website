@@ -13,7 +13,7 @@ interface Props {
 export function CheckinQR({ checkinUrl }: Props) {
   return (
     <div className="flex flex-col items-center gap-4">
-      <p className="text-xs font-semibold uppercase tracking-wider text-primary">
+      <p className="text-xs font-semibold text-primary">
         {t("checkin.qrHeading")}
       </p>
       <div className="relative bg-white p-5 shadow-[10px_10px_0_#0f766e]">

@@ -19,7 +19,7 @@ export function QRBlock({ upiString, amountInr, payeeName, upiVpa }: Props) {
       </div>
 
       <div className="w-full border-y border-border py-4 text-center">
-        <p className="text-xs font-bold uppercase tracking-[0.18em] text-muted-foreground">This QR pays</p>
+        <p className="text-xs font-bold text-muted-foreground">This QR pays</p>
         <p className="mt-2 text-xl font-bold">{payeeName}</p>
         <p className="mt-1 font-mono text-sm text-primary">{upiVpa}</p>
       </div>

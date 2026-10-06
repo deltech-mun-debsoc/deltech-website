@@ -86,7 +86,7 @@ export default async function PayPage(props: {
       <div className="mx-auto grid max-w-5xl overflow-hidden border border-black/15 bg-background shadow-[18px_18px_0_rgba(15,118,110,0.22)] lg:grid-cols-[0.78fr_1.22fr]">
         <aside className="flex flex-col justify-between bg-ink p-7 text-paper sm:p-10">
           <div>
-            <p className="font-mono text-xs uppercase tracking-[0.22em] text-paper/55">{STRINGS.brand.name} / secure payment</p>
+            <p className="font-mono text-xs text-paper/55">{STRINGS.brand.name} / secure payment</p>
             <h1 className="mt-12 max-w-[8ch] font-heading text-5xl leading-[0.95] sm:text-6xl">Confirm your seat.</h1>
           </div>
           <div className="mt-14 border-t border-paper/20 pt-6">
@@ -122,7 +122,7 @@ export default async function PayPage(props: {
 
         {/* Amount */}
         <div className="flex items-end justify-between">
-          <span className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">Amount due</span>
+          <span className="text-sm font-semibold text-muted-foreground">Amount due</span>
           <span className="font-heading text-4xl">₹{payment.amountInr.toLocaleString("en-IN")}</span>
         </div>
 
