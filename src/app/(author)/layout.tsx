@@ -11,5 +11,5 @@ export default async function AuthorLayout({ children }: { children: React.React
   // Delegates and anyone else without authoring rights go to their own home,
   // not a dead-end, the blog editor is authors + staff only.
   if (!role || !AUTHOR_ROLES.has(role)) redirect(roleHome(role))
-  return <>{children}</>
+  return <div className="app-shell">{children}</div>
 }
