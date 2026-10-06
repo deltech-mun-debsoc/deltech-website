@@ -160,7 +160,7 @@ export function TabPortfolios({ committees }: { committees: ClientCommittee[] })
           <div className="grid gap-2 sm:grid-cols-[1fr_0.7fr_auto]"><Input value={newName} onChange={(e) => setNewName(e.target.value)} placeholder="Country or person" /><Input value={newTag} onChange={(e) => setNewTag(e.target.value)} placeholder={tagLabel} /><Button onClick={handleAdd} disabled={isPending || !newName.trim()}><Plus /> Add</Button></div>
         </div>
         <div className="mt-6 overflow-x-auto border-y border-border">
-          <table className="w-full min-w-[700px] text-left text-sm"><thead className="bg-muted/50 text-xs uppercase tracking-wider text-muted-foreground"><tr><th className="px-4 py-3">Rank</th><th className="px-4 py-3">Portfolio</th><th className="px-4 py-3">{tagLabel}</th><th className="px-4 py-3">State</th><th className="px-4 py-3"><span className="sr-only">Actions</span></th></tr></thead>
+          <table className="w-full min-w-[700px] text-left text-sm"><thead className="bg-muted/50 text-xs text-muted-foreground"><tr><th className="px-4 py-3">Rank</th><th className="px-4 py-3">Portfolio</th><th className="px-4 py-3">{tagLabel}</th><th className="px-4 py-3">State</th><th className="px-4 py-3"><span className="sr-only">Actions</span></th></tr></thead>
             <tbody className="divide-y divide-border">{selected.portfolios.slice().sort((a,b) => (a.priority || 999) - (b.priority || 999) || a.name.localeCompare(b.name)).map((p) => <tr key={p.id}>
               <td className="px-4 py-3 font-mono text-muted-foreground">{p.priority || "-"}</td>
               <td className="px-4 py-3 font-semibold">{editing?.id === p.id ? <Input value={editName} onChange={(e) => setEditName(e.target.value)} /> : p.name}</td>

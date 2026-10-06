@@ -89,7 +89,7 @@ function SortHeader({ label, field, currentSort, currentDir, onSort }: {
   return (
     <button
       onClick={() => onSort(field, nextDir)}
-      className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground"
+      className="flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground"
     >
       {label}
       {active ? (
@@ -390,7 +390,7 @@ export function RegistrationsClient({ delegates, committees, total, filters, int
                       onSort={handleSort}
                     />
                   ) : (
-                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    <span className="text-xs font-semibold text-muted-foreground">
                       {label}
                     </span>
                   )}

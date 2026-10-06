@@ -69,7 +69,7 @@ export async function CampaignView({ id, audience }: { id: string; audience: Aud
       <div className="flex flex-wrap gap-3 text-sm">
         {(["SENT", "PENDING", "SENDING", "FAILED", "SKIPPED"] as const).map((s) => (
           <div key={s} className="rounded-lg border border-border px-4 py-2">
-            <p className="text-xs uppercase tracking-wider text-muted-foreground">{s.toLowerCase()}</p>
+            <p className="text-xs text-muted-foreground">{s.toLowerCase()}</p>
             <p className="text-xl font-semibold tabular-nums">{n(s)}</p>
           </div>
         ))}
@@ -79,7 +79,7 @@ export async function CampaignView({ id, audience }: { id: string; audience: Aud
       )}
       <div className="overflow-x-auto rounded-lg border border-border">
         <table className="w-full text-sm">
-          <thead className="bg-muted/40 text-left text-xs uppercase tracking-wider text-muted-foreground">
+          <thead className="bg-muted/40 text-left text-xs text-muted-foreground">
             <tr><th className="px-3 py-2">Recipient</th><th className="px-3 py-2">Status</th><th className="px-3 py-2">Sent</th></tr>
           </thead>
           <tbody>

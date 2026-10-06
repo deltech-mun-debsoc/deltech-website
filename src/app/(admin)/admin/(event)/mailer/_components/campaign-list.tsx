@@ -33,7 +33,7 @@ export async function CampaignList({ audience }: { audience: "DELEGATES" | "CONT
   return (
     <div className="overflow-x-auto rounded-lg border border-border">
       <table className="w-full text-sm">
-        <thead className="bg-muted/40 text-left text-xs uppercase tracking-wider text-muted-foreground">
+        <thead className="bg-muted/40 text-left text-xs text-muted-foreground">
           <tr><th className="px-3 py-2">Subject</th><th className="px-3 py-2">State</th><th className="px-3 py-2">Sent</th><th className="px-3 py-2">When</th></tr>
         </thead>
         <tbody>
