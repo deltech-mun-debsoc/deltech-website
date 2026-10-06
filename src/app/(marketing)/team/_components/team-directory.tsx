@@ -52,8 +52,11 @@ function MemberCard({ member, index }: { member: PublicTeamMember; index: number
           loading="lazy"
         />
       ) : (
-        <div className="noise-wash flex aspect-[4/5] items-center justify-center bg-gradient-to-br from-gold-300/25 via-background to-gold-500/20 text-foreground transition-colors duration-500 group-hover:from-gold-300/35 group-hover:to-gold-500/30 dark:from-stone-900 dark:via-stone-950 dark:to-amber-950">
-          <span className="display text-7xl text-gold-700 dark:text-gold-300">{initials}</span>
+        // No photo on file: a monogram on the same ink as the card in both
+        // themes, sitting above the name block rather than behind it.
+        <div aria-hidden className="relative flex aspect-[4/5] items-start bg-ink px-6 pt-10">
+          <div className="paper-grid absolute inset-0 opacity-[0.07]" />
+          <span className="display relative text-[7rem] leading-none text-gold-300/90">{initials}</span>
         </div>
       )}
 
@@ -91,7 +94,7 @@ function MemberCard({ member, index }: { member: PublicTeamMember; index: number
       )}
 
       <div className="absolute inset-x-0 bottom-0 p-5 text-white sm:p-6">
-        <p className="text-[0.65rem] font-bold uppercase tracking-[0.18em] text-white/70 transition-colors duration-500 group-hover:text-gold-300">{member.designation}</p>
+        <p className="text-[0.65rem] font-bold text-white/70 transition-colors duration-500 group-hover:text-gold-300">{member.designation}</p>
         <h3 className="mt-2 font-heading text-3xl leading-[0.9] sm:text-4xl">{member.name}</h3>
         <span className="mt-4 block h-px w-10 bg-gold-300 transition-[width] duration-700 ease-out group-hover:w-full motion-reduce:transition-none" />
       </div>
@@ -155,7 +158,7 @@ function CouncilRail({ level, members }: { level: (typeof TEAM_LEVELS)[number]; 
         ))}
       </div>
       {members.length > 2 && (
-        <p className="mt-3 font-mono text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground sm:hidden">
+        <p className="mt-3 font-mono text-[0.65rem] text-muted-foreground sm:hidden">
           Swipe to meet the council →
         </p>
       )}
