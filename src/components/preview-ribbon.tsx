@@ -19,7 +19,7 @@ export function PreviewRibbon() {
   if (!IS_PREVIEW) return null
   return (
     <div
-      className="pointer-events-none fixed bottom-3 left-3 z-[100] select-none rounded-full border border-gold-500/60 bg-ink px-3 py-1 font-mono text-[0.6875rem] font-bold uppercase tracking-[0.14em] text-gold-300 shadow-lg"
+      className="pointer-events-none fixed bottom-3 left-3 z-[100] select-none rounded-full border border-gold-500/60 bg-ink px-3 py-1 font-mono text-[0.6875rem] font-bold text-gold-300 shadow-lg"
       role="status"
     >
       Test site &middot; not live

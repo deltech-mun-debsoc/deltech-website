@@ -80,7 +80,7 @@ export default async function QuizResultsPage(props: { params: Promise<{ id: str
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
-                  <thead className="text-left text-xs uppercase tracking-wider text-muted-foreground">
+                  <thead className="text-left text-xs text-muted-foreground">
                     <tr>
                       <th className="py-2 pr-3">#</th>
                       <th className="py-2 pr-3">Name</th>

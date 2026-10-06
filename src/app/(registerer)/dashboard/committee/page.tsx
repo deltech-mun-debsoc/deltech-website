@@ -23,7 +23,7 @@ export default async function CommitteePage(props: {
   if (!seat || viewer?.kind !== "delegate") {
     return (
       <main className="mx-auto max-w-3xl space-y-4 px-4 py-10">
-        <h1 className="display text-3xl">{t("committeeChat.pageTitle")}</h1>
+        <h1 className="text-3xl">{t("committeeChat.pageTitle")}</h1>
         <p className="text-sm text-muted-foreground">{t("committeeChat.noSeat")}</p>
       </main>
     )
@@ -47,7 +47,7 @@ export default async function CommitteePage(props: {
     <main className="mx-auto max-w-3xl space-y-6 px-4 py-10">
       <div className="space-y-1">
         <p className="eyebrow">{seat.portfolioName}</p>
-        <h1 className="display text-3xl">{committee.name}</h1>
+        <h1 className="text-3xl">{committee.name}</h1>
         <p className="text-sm text-muted-foreground">{t("committeeChat.pageDescription")}</p>
       </div>
 

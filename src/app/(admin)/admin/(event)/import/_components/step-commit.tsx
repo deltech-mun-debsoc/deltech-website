@@ -65,7 +65,7 @@ export function StepCommit({ validated, skipped, onBack, onDone }: Props) {
 
         {result.errors.length > 0 && (
           <div className="space-y-2">
-            <p className="text-xs font-semibold uppercase tracking-wider text-destructive">Errors</p>
+            <p className="text-xs font-semibold text-destructive">Errors</p>
             <div className="overflow-auto max-h-48 rounded-lg border border-destructive/30 bg-destructive/5">
               {result.errors.map((e, i) => (
                 <div key={i} className="flex gap-3 px-4 py-2 border-b border-destructive/10 last:border-0">
@@ -96,7 +96,7 @@ export function StepCommit({ validated, skipped, onBack, onDone }: Props) {
     <div className="rounded-xl border border-border bg-card p-6 space-y-6">
       {/* Summary */}
       <div className="space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Ready to import</p>
+        <p className="text-xs font-semibold text-muted-foreground">Ready to import</p>
         <div className="flex flex-wrap gap-4">
           <div className="flex items-center gap-2 text-sm">
             <Users className="size-4 text-primary" />

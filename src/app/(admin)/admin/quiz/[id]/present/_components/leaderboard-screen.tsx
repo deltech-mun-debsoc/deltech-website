@@ -19,7 +19,7 @@ interface Props {
 function Movement({ delta }: { delta: number | undefined }) {
   if (delta === undefined) {
     return (
-      <span className="font-mono text-[0.65rem] font-black uppercase tracking-[0.12em] opacity-55">
+      <span className="font-mono text-[0.65rem] font-black opacity-55">
         {t("quiz.joinedBoard")}
       </span>
     )
@@ -46,7 +46,7 @@ export function LeaderboardScreen({ entries, final, theme, onNext, onEnd }: Prop
 
       <header className="relative mb-5 flex items-end justify-between border-b pb-4" style={{ borderColor: surface.border }}>
         <div>
-          <p className="mb-2 flex items-center gap-2 font-mono text-xs font-black uppercase tracking-[0.22em] opacity-55">
+          <p className="mb-2 flex items-center gap-2 font-mono text-xs font-black opacity-55">
             <span className="size-2 animate-pulse" style={{ background: theme.accentColor }} />
             {final ? t("quiz.finalResults") : t("quiz.liveStandings")}
           </p>
@@ -64,7 +64,7 @@ export function LeaderboardScreen({ entries, final, theme, onNext, onEnd }: Prop
           >
             <Trophy className="size-7" style={{ color: theme.accentColor }} />
             <div>
-              <p className="font-mono text-[0.65rem] font-black uppercase tracking-[0.16em] opacity-55">{t("quiz.rankN", { n: 1 })}</p>
+              <p className="font-mono text-[0.65rem] font-black opacity-55">{t("quiz.rankN", { n: 1 })}</p>
               <p className="max-w-52 truncate font-heading text-2xl">{top[0].nickname}</p>
             </div>
           </motion.div>
@@ -101,7 +101,7 @@ export function LeaderboardScreen({ entries, final, theme, onNext, onEnd }: Prop
                     <div className="flex justify-center"><Movement delta={entry.delta} /></div>
                     <span className="text-right font-mono text-lg font-black tabular-nums">
                       {entry.totalPoints.toLocaleString()}
-                      <span className="ml-1 text-[0.6rem] uppercase opacity-45">{t("quiz.pointsShort")}</span>
+                      <span className="ml-1 text-[0.6rem] opacity-45">{t("quiz.pointsShort")}</span>
                     </span>
                   </motion.div>
                 )
@@ -115,12 +115,12 @@ export function LeaderboardScreen({ entries, final, theme, onNext, onEnd }: Prop
 
       <div className="relative mt-5 flex justify-end gap-3 border-t pt-4" style={{ borderColor: surface.border }}>
         {!final && onNext && (
-          <button onClick={onNext} className="px-8 py-3 font-mono text-sm font-black uppercase tracking-[0.12em] transition-transform hover:-translate-y-0.5" style={{ background: theme.accentColor, color: readableOn(theme.accentColor) }}>
+          <button onClick={onNext} className="px-8 py-3 font-mono text-sm font-black transition-transform hover:-translate-y-0.5" style={{ background: theme.accentColor, color: readableOn(theme.accentColor) }}>
             {t("quiz.nextSlide")} →
           </button>
         )}
         {onEnd && (
-          <button onClick={onEnd} className="border px-8 py-3 font-mono text-sm font-black uppercase tracking-[0.12em] transition-opacity hover:opacity-75" style={{ borderColor: theme.accentColor, color: theme.accentColor }}>
+          <button onClick={onEnd} className="border px-8 py-3 font-mono text-sm font-black transition-opacity hover:opacity-75" style={{ borderColor: theme.accentColor, color: theme.accentColor }}>
             {t("quiz.endSession")}
           </button>
         )}

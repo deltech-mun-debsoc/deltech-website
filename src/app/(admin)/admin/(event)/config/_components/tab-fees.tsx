@@ -135,7 +135,7 @@ export function TabFees({ fees }: Props) {
               {["Label", "Committee type", "DTU?", "Amount (₹)", ""].map((h) => (
                 <th
                   key={h}
-                  className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                  className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground"
                 >
                   {h}
                 </th>
@@ -234,7 +234,7 @@ export function TabFees({ fees }: Props) {
 
       {/* Add new fee row */}
       <div className="space-y-3">
-        <p className="text-xs font-semibold uppercase tracking-wider text-primary">
+        <p className="text-xs font-semibold text-primary">
           Add fee row
         </p>
         <div className="flex flex-wrap items-end gap-3">

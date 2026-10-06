@@ -48,7 +48,7 @@ export default function DocsLayout({ children }: { children: ReactNode }) {
             </span>
             <span className="leading-tight">
               <span className="block font-semibold">{t("brand.name")}</span>
-              <span className="block text-[0.6875rem] tracking-[0.15em] text-muted-foreground uppercase">
+              <span className="block text-[0.6875rem] text-muted-foreground">
                 {t("docs.breadcrumbRoot")}
               </span>
             </span>

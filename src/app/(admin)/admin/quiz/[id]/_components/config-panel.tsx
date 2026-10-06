@@ -64,7 +64,7 @@ function TimerField({
 function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
-      <Label className="text-sm font-bold uppercase tracking-[0.12em] text-muted-foreground">{label}</Label>
+      <Label className="text-sm font-bold text-muted-foreground">{label}</Label>
       {children}
     </div>
   )
@@ -719,7 +719,7 @@ export function ConfigPanel({ slide, mode, onChange, className }: Props) {
   return (
     <aside className={cn("admin-rail flex shrink-0 flex-col overflow-hidden border-l border-black/15 bg-background", className)}>
       <div className="flex items-center gap-2 border-b px-5 py-5">
-        <span className="font-mono text-xs font-bold uppercase tracking-[0.18em] text-primary">
+        <span className="font-mono text-xs font-bold text-primary">
           {t(`quiz.slideType.${slide.type}` as Parameters<typeof t>[0])}
         </span>
       </div>

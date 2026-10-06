@@ -24,7 +24,7 @@
   --font-mono: var(--font-geist-mono);
   --font-display: var(--font-display);
   --font-serif: var(--font-display);
-  --font-heading: var(--font-display);
+  --font-heading: var(--heading-face);
   --text-xs: 0.8125rem;
   --text-xs--line-height: 1.4;
   --text-sm: 0.9375rem;
@@ -259,8 +259,25 @@
   h2,
   h3,
   h4 {
-    font-family: var(--font-heading);
+    font-family: var(--heading-face);
     letter-spacing: -0.01em;
+  }
+  /* Public pages are editorial (Fraunces headings). Operational areas set the
+     heading face to sans: tables, forms and controls read faster there. */
+  :root {
+    --heading-face: var(--font-display);
+  }
+  .admin-shell,
+  .recruitment-shell,
+  .app-shell {
+    --heading-face: var(--font-sans);
+  }
+  .app-shell {
+    display: contents;
+  }
+  :where(.admin-shell, .recruitment-shell, .app-shell) :where(h1, h2, h3, h4) {
+    font-weight: 600;
+    letter-spacing: -0.015em;
   }
   table {
     font-variant-numeric: tabular-nums;
@@ -282,13 +299,14 @@
     letter-spacing: -0.02em;
     font-variation-settings: "opsz" 72;
   }
-  /* small-caps kicker above headlines */
+  /* Occasional editorial marker above a public headline. Ordinary labels use
+     .data-label / .section-label, which are sentence case. */
   .eyebrow {
     font-family: var(--font-sans);
     font-size: 0.8125rem;
-    font-weight: 680;
+    font-weight: 650;
     line-height: 1.35;
-    letter-spacing: 0.14em;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
     color: var(--accent-foreground);
   }
@@ -341,6 +359,10 @@
   .dark body:has(.overscroll-adaptive) {
     background: #07100d;
   }
+  :where(.admin-shell, .recruitment-shell, .app-shell) .eyebrow {
+    text-transform: none;
+    letter-spacing: 0;
+  }
   .admin-shell .eyebrow,
   .admin-shell .data-label,
   .recruitment-shell .eyebrow,
@@ -373,43 +395,42 @@
     width: min(100% - 2rem, 76rem);
     margin-inline: auto;
   }
+  /* Old values (-0.055em / 0.84) collided ascenders with the line above and
+     fused "fl"; these keep the scale but give the letters room. */
   .display-hero {
     font-family: var(--font-display);
-    font-size: clamp(4rem, 10vw, 9.5rem);
-    font-weight: 570;
+    font-size: clamp(3.5rem, 9vw, 8.5rem);
+    font-weight: 560;
     font-variation-settings: "opsz" 96;
-    letter-spacing: -0.055em;
-    line-height: 0.84;
+    letter-spacing: -0.03em;
+    line-height: 0.92;
   }
   .display-section {
     font-family: var(--font-display);
-    font-size: clamp(2.5rem, 6vw, 5.75rem);
+    font-size: clamp(2.5rem, 5.5vw, 5rem);
     font-weight: 560;
     font-variation-settings: "opsz" 72;
-    letter-spacing: -0.04em;
-    line-height: 0.94;
+    letter-spacing: -0.025em;
+    line-height: 0.98;
   }
   .body-large {
     font-size: clamp(1.125rem, 1.45vw, 1.375rem);
     line-height: 1.6;
   }
   .data-label {
-    font-family: var(--font-mono);
-    font-size: 0.8125rem;
-    font-weight: 650;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
+    font-family: var(--font-sans);
+    font-size: 0.875rem;
+    font-weight: 600;
+    line-height: 1.4;
   }
   /* A section heading, not a field label. `.data-label` was doing both jobs, which
      made an <h2> and the <dt> under it typographically identical, and its mono
      family silently overrode the heading font (components layer beats base). */
   .section-label {
     font-family: var(--font-sans);
-    font-size: 0.8125rem;
-    font-weight: 680;
-    line-height: 1.35;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
+    font-size: 0.875rem;
+    font-weight: 600;
+    line-height: 1.4;
     color: var(--muted-foreground);
   }
   .diplomatic-surface {
@@ -742,7 +763,7 @@
    generous heading offsets for anchor links, and every table scrolls inside its
    own box rather than pushing the page sideways.
 
-   Headings stay on --font-heading (Fraunces). That is what keeps the docs
+   Headings stay on --font-display (Fraunces). That is what keeps the docs
    recognisably part of the product rather than a generic docs template.
 --------------------------------------------------------------------------- */
 .docs-prose {
@@ -757,7 +778,7 @@
 .docs-prose h2,
 .docs-prose h3,
 .docs-prose h4 {
-  font-family: var(--font-heading);
+  font-family: var(--font-display);
   letter-spacing: -0.02em;
   scroll-margin-top: 6rem;
 }
@@ -875,9 +896,7 @@
   background: color-mix(in oklch, var(--foreground) 4%, transparent);
   font-family: var(--font-sans);
   font-size: 0.8125rem;
-  font-weight: 650;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-weight: 600;
   color: var(--muted-foreground);
   text-align: left;
 }

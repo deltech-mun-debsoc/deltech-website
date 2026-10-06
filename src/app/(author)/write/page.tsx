@@ -48,8 +48,8 @@ export default async function WritePage() {
     <div className="mx-auto max-w-2xl px-6 py-16">
       <div className="mb-10 flex items-center justify-between">
         <div>
-          <h1 className="font-serif text-2xl font-bold text-gray-900">Your stories</h1>
-          <p className="mt-1 text-sm text-gray-500">{posts.length} post{posts.length !== 1 ? "s" : ""}</p>
+          <h1 className="text-2xl font-semibold text-foreground">Your stories</h1>
+          <p className="mt-1 text-sm text-muted-foreground">{posts.length} post{posts.length !== 1 ? "s" : ""}</p>
         </div>
         <div className="flex items-center gap-2">
           {/* The author area had no header controls at all, so a pure AUTHOR
@@ -67,8 +67,8 @@ export default async function WritePage() {
 
       {posts.length === 0 ? (
         <div className="py-20 text-center">
-          <PenLine className="mx-auto mb-4 size-10 text-gray-300" />
-          <p className="text-gray-400">No stories yet. Start writing!</p>
+          <PenLine className="mx-auto mb-4 size-10 text-muted-foreground/60" />
+          <p className="text-muted-foreground">No stories yet. Start writing!</p>
           <form action={createDraft}>
             <Button type="submit" className="mt-6">Write your first story</Button>
           </form>
@@ -79,15 +79,15 @@ export default async function WritePage() {
             <li key={post.id}>
               <Link
                 href={`/write/${post.id}`}
-                className="group block rounded-xl border border-gray-100 bg-white p-6 transition-shadow hover:shadow-md"
+                className="group block rounded-xl border border-border bg-card p-6 transition-shadow hover:shadow-md"
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
-                    <p className="truncate font-serif text-lg font-semibold text-gray-900 group-hover:text-teal-700">
-                      {post.title || <span className="text-gray-400">Untitled</span>}
+                    <p className="truncate text-lg font-semibold text-foreground group-hover:text-primary">
+                      {post.title || <span className="text-muted-foreground">Untitled</span>}
                     </p>
                     {post.subtitle && (
-                      <p className="mt-0.5 truncate text-sm text-gray-500">{post.subtitle}</p>
+                      <p className="mt-0.5 truncate text-sm text-muted-foreground">{post.subtitle}</p>
                     )}
                     {/* REJECTED was excluded here, so a rejected author saw a
                         red badge and no reason anywhere in the product. */}
@@ -109,7 +109,7 @@ export default async function WritePage() {
                       {STATUS_LABEL[post.status] ?? post.status}
                     </Badge>
                     {post.readMin && (
-                      <span className="flex items-center gap-1 text-xs text-gray-400">
+                      <span className="flex items-center gap-1 text-xs text-muted-foreground">
                         <Clock className="size-3" />
                         {post.readMin} min
                       </span>

@@ -714,7 +714,6 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
       <Screen k={appState}>
         <div className="flex flex-col items-center gap-5 py-6 text-center">
           <span className="text-7xl">🎉</span>
-          <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-teal-700">Transmission complete</p>
           <h1 className="font-heading text-5xl">{t("quiz.sessionEnded")}</h1>
           {myEntry && (
             <p className="text-lg text-muted-foreground">
@@ -730,7 +729,6 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
     return (
       <Screen k={appState}>
         <form onSubmit={handleNicknameSubmit} className="flex w-full max-w-lg flex-col gap-5 py-4">
-          <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-teal-700">Identify yourself</p>
           <h1 className="font-heading text-4xl leading-tight sm:text-5xl">{presentationTitle || t("quiz.joinTitle")}</h1>
           <p className="text-lg text-muted-foreground">{t("quiz.enterNickname")}</p>
           <Input
@@ -752,14 +750,13 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
     return (
       <Screen k={appState}>
         <div className="flex w-full max-w-lg flex-col gap-6 py-4">
-          <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-teal-700">Choose your signal</p>
           <h1 className="font-heading text-5xl">{t("quiz.pickAvatar")}</h1>
           {/* Grouped and scrollable: 72 emoji in one undifferentiated grid is
               harder to choose from than 20 was, not easier. */}
           <div className="max-h-[52vh] space-y-4 overflow-y-auto pr-1">
             {AVATAR_GROUPS.map((group) => (
               <div key={group.key} className="space-y-2">
-                <p className="font-mono text-[0.7rem] font-bold uppercase tracking-[0.16em] text-muted-foreground">
+                <p className="text-sm font-medium text-muted-foreground">
                   {t(`quiz.avatarGroups.${group.key}` as StringKey)}
                 </p>
                 <div className="grid grid-cols-5 gap-2 sm:grid-cols-6">
@@ -788,7 +785,7 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
         <div className="flex flex-col items-center gap-5 py-8 text-center">
           <span className="text-7xl">{avatar || FALLBACK_AVATAR}</span>
           <p className="font-heading text-4xl">{nickname}</p>
-          <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-teal-700">{t("quiz.waitingToStart")}</p>
+          <p className="text-sm font-semibold text-primary">{t("quiz.waitingToStart")}</p>
           <div className="mt-4 flex gap-1">
             {[0, 1, 2].map((i) => (
               <span
@@ -817,7 +814,7 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
       <Screen k={appState}>
         <div className="w-full max-w-xl space-y-6 py-2">
           <div className="space-y-2 text-center">
-            <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-teal-700">{t("quiz.liveStandings")}</p>
+            <p className="text-sm font-semibold text-primary">{t("quiz.liveStandings")}</p>
             <h2 className="font-heading text-5xl sm:text-6xl">
             {lbFinal ? t("quiz.finalResults") : t("quiz.leaderboard")}
             </h2>
@@ -846,7 +843,7 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
                   <p className="truncate text-sm font-bold">{entry.nickname}</p>
                   <span
                     className={cn(
-                      "inline-block font-mono text-[0.6rem] font-black uppercase tracking-wide",
+                      "inline-block font-mono text-[0.6rem] font-black",
                       movement > 0 && "text-emerald-700",
                       movement < 0 && "text-rose-700",
                       movement === 0 && "text-black/45",
@@ -899,7 +896,7 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
           {showVerdict && result.correct === true && (
             <>
               <span className="quiz-result-pop text-7xl" aria-hidden>✓</span>
-              <p className="font-mono text-xs font-black uppercase tracking-[0.24em] text-emerald-800">{t("quiz.correct")}</p>
+              <p className="font-mono text-xs font-black text-emerald-800">{t("quiz.correct")}</p>
               <p className="max-w-[11ch] font-heading text-5xl leading-[0.95] text-emerald-950 sm:text-6xl">{t(feedbackKey)}</p>
               <p className="font-mono text-3xl font-black text-emerald-800 tabular-nums">
                 +<CountUp to={result.points} /> {t("quiz.pointsShort")}
@@ -917,7 +914,7 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
               {/* Partial credit (a near-miss number, a partly-right multi-select)
                   is not simply "wrong": saying so would be a lie about the score
                   they can see on the leaderboard. */}
-              <p className={cn("font-mono text-xs font-black uppercase tracking-[0.24em]", partial ? "text-amber-800" : "text-rose-800")}>
+              <p className={cn("font-mono text-xs font-black", partial ? "text-amber-800" : "text-rose-800")}>
                 {t(result.points > 0 ? "quiz.closeEnough" : "quiz.incorrect")}
               </p>
               <p className={cn("max-w-[12ch] font-heading text-5xl leading-[0.95] sm:text-6xl", partial ? "text-amber-950" : "text-rose-950")}>
@@ -933,13 +930,13 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
           {!showVerdict && (
             <>
               <span className="flex size-24 items-center justify-center rounded-full bg-teal-700 text-5xl text-white">✓</span>
-              <p className="font-mono text-xs font-black uppercase tracking-[0.24em] text-teal-800">{t("quiz.answerLocked")}</p>
+              <p className="font-mono text-xs font-black text-teal-800">{t("quiz.answerLocked")}</p>
               <p className="max-w-sm font-heading text-4xl leading-tight">{t("quiz.revealIncoming")}</p>
             </>
           )}
           {showVerdict && revealedAnswers.length > 0 && (
             <div className="mt-2 w-full max-w-md border-t border-current/15 pt-4">
-              <p className="font-mono text-[0.65rem] font-black uppercase tracking-[0.2em] opacity-55">{t("quiz.correctAnswer")}</p>
+              <p className="font-mono text-[0.65rem] font-black opacity-55">{t("quiz.correctAnswer")}</p>
               <p className="mt-1 text-lg font-bold">{revealedAnswers.join(" · ")}</p>
             </div>
           )}
@@ -1031,7 +1028,7 @@ export function ParticipantApp({ sessionId, roomCode, initialStatus, presentatio
       <div className="w-full max-w-2xl space-y-7">
         <div className="space-y-1">
           <div className="flex items-baseline justify-between gap-3">
-            <p className="font-mono text-xs font-bold uppercase tracking-[0.18em] text-teal-700">
+            <p className="text-sm font-semibold text-primary">
               {t("quiz.slideProgress", { n: slideIndex + 1, total: slideCount })}
             </p>
             {secondsLeft !== null && !isLocked && (
@@ -1317,7 +1314,7 @@ function Screen({ children, padding, k, urgent, banner, tone = "neutral" }: {
       >
         <div className="absolute inset-16 rounded-full border border-dashed border-teal-300/20" />
       </div>
-      <div className="absolute left-5 top-5 flex items-center gap-2 font-mono text-xs font-bold uppercase tracking-[0.2em] text-white/45">
+      <div className="absolute left-5 top-5 flex items-center gap-2 font-mono text-xs font-bold text-white/45">
         <span className="size-2 animate-pulse bg-teal-300" /> Audience live
       </div>
       {banner}

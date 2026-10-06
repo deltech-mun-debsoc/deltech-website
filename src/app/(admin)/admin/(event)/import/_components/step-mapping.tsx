@@ -148,7 +148,7 @@ export function StepMapping({
       {/* Presets */}
       {presets.length > 0 && (
         <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          <p className="text-xs font-semibold text-muted-foreground">
             Saved presets
           </p>
           <div className="flex flex-wrap gap-2">
@@ -185,7 +185,7 @@ export function StepMapping({
       <div>
         <div className="mb-3 flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <p className="text-xs font-semibold text-muted-foreground">
               Column mapping
             </p>
             <p className="mt-0.5 text-xs text-muted-foreground">
@@ -275,7 +275,7 @@ export function StepMapping({
 
       {/* Save as preset */}
       <div className="space-y-2 rounded-lg border border-dashed border-border p-4">
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <p className="text-xs font-semibold text-muted-foreground">
           Save as preset
         </p>
         <div className="flex gap-2">
