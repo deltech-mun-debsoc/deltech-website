@@ -33,7 +33,7 @@ export function RecruitmentMobileNav({ user }: { user: RecruitmentShellUser }) {
       <Drawer open={open} onOpenChange={setOpen} direction="left">
         <DrawerContent className="flex h-full w-[min(17rem,calc(100vw-2rem))] flex-col">
           <DrawerHeader className="border-b border-border/70 text-left">
-            <DrawerTitle className="display text-2xl">{t("recruitment.brand")}</DrawerTitle>
+            <DrawerTitle className="text-xl font-semibold">{t("recruitment.brand")}</DrawerTitle>
             {user.cycleName && (
               <p className="data-label text-muted-foreground">{user.cycleName}</p>
             )}
