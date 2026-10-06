@@ -1,6 +1,8 @@
 import { cache } from "react"
 import { prisma } from "@/lib/prisma"
 import type { Event } from "@/generated/prisma/client"
+import { deserializeSettingValue } from "@/lib/setting-value"
+import { CAPABILITY_REFUSAL, eventCapabilities, type Capability, type EventCapabilities } from "@/lib/event-state"
 
 // States an event is no longer being run in. The database carries a partial
 // unique index over everything outside this set, so at most one event is active
@@ -68,6 +70,7 @@ export async function createEvent(input: {
         name: input.name,
         slug: input.slug,
         kind: input.kind ?? "CONFERENCE",
+        crossDelegationsEnabled: (input.kind ?? "CONFERENCE") !== "INTRA_MUN",
         state: "DRAFT",
       },
       select: { id: true },
@@ -109,4 +112,29 @@ export async function reopenEvent(id: string): Promise<{ closedName: string | nu
 export async function currentEventScope(): Promise<{ eventId: string }> {
   const event = await getActiveEvent()
   return { eventId: event?.id ?? "__no-active-event__" }
+}
+
+// The running event's capabilities (src/lib/event-state.ts), once per request.
+// Partner sheets are read straight from their Setting row rather than through
+// getContent, which imports this module.
+export const getEventCapabilities = cache(async (): Promise<EventCapabilities> => {
+  const event = await getActiveEvent()
+  if (!event) return eventCapabilities(null, false)
+  const [crossDelegates, pullRow] = await Promise.all([
+    prisma.delegate.count({ where: { eventId: event.id, source: "CROSS_DEL" }, take: 1 }),
+    prisma.setting.findUnique({ where: { key: "sheetPullSources" } }),
+  ])
+  const pulls = pullRow ? deserializeSettingValue(pullRow.value) : undefined
+  const partnerSheets = Array.isArray(pulls) && pulls.some((p) => (p as { source?: string })?.source === "CROSS_DEL")
+  return eventCapabilities(event, crossDelegates > 0 || partnerSheets)
+})
+
+export class CapabilityError extends Error {}
+
+// For server actions: refuses, in words an organiser can act on, anything the
+// running event does not offer. The tab being hidden is not the guard; this is.
+export async function requireCapability(capability: Capability): Promise<EventCapabilities> {
+  const caps = await getEventCapabilities()
+  if (!caps[capability]) throw new CapabilityError(CAPABILITY_REFUSAL[capability])
+  return caps
 }

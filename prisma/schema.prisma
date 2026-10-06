@@ -118,6 +118,9 @@ model Event {
   registrationOpen Boolean @default(false)
   paymentsEnabled  Boolean @default(false)
   matrixPublic     Boolean @default(false)
+  // Colleges sending delegates in bulk (file upload or a linked partner sheet).
+  // Never offered for an Intra MUN; see eventCapabilities.
+  crossDelegationsEnabled Boolean @default(false)
 
   committees Committee[]
   delegates  Delegate[]
