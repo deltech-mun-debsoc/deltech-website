@@ -73,7 +73,7 @@ export function Footer({ contacts, conferenceDates, venue, societyLocation, soci
                 </Link>
               </li>}
               <li>
-                <Link href="/signin/staff" className="text-paper/70 transition-colors hover:text-paper">
+                <Link href="/signin" className="text-paper/70 transition-colors hover:text-paper">
                   {t("marketing.organiserSignIn")}
                 </Link>
               </li>
