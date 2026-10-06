@@ -24,7 +24,7 @@
   --font-mono: var(--font-geist-mono);
   --font-display: var(--font-display);
   --font-serif: var(--font-display);
-  --font-heading: var(--font-display);
+  --font-heading: var(--heading-face);
   --text-xs: 0.8125rem;
   --text-xs--line-height: 1.4;
   --text-sm: 0.9375rem;
@@ -259,8 +259,25 @@
   h2,
   h3,
   h4 {
-    font-family: var(--font-heading);
+    font-family: var(--heading-face);
     letter-spacing: -0.01em;
+  }
+  /* Public pages are editorial (Fraunces headings). Operational areas set the
+     heading face to sans: tables, forms and controls read faster there. */
+  :root {
+    --heading-face: var(--font-display);
+  }
+  .admin-shell,
+  .recruitment-shell,
+  .app-shell {
+    --heading-face: var(--font-sans);
+  }
+  .app-shell {
+    display: contents;
+  }
+  :where(.admin-shell, .recruitment-shell, .app-shell) :where(h1, h2, h3, h4) {
+    font-weight: 600;
+    letter-spacing: -0.015em;
   }
   table {
     font-variant-numeric: tabular-nums;
