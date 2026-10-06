@@ -171,7 +171,10 @@ export function planDelegateImport(
     sheetKey: string
     existing: ExistingDelegate[]
     committees: CommitteeRef[]
-    overrides?: Record<string, number>
+    // { email: rowHash } -- the submission an organiser chose to keep. By content
+    // rather than row number, so a sheet re-sorted between preview and import
+    // cannot quietly swap which answer is kept.
+    overrides?: Record<string, string>
   },
 ): ImportPlan<MappedDelegate> {
   const fromThisSheet = args.existing.filter((e) => e.sourceSheetKey === args.sheetKey)
@@ -182,7 +185,12 @@ export function planDelegateImport(
   )
 
   const prepared = rawRows.map((raw, i) => prepareDelegateRow(raw, mapping, i, args.committees))
-  const plan = planPreparedImport(prepared, mapping, fromThisSheet, args.overrides ?? {})
+  const byIndex: Record<string, number> = {}
+  for (const [email, hash] of Object.entries(args.overrides ?? {})) {
+    const row = prepared.find((p) => p.rowHash === hash && p.candidate?.email.toLowerCase() === email.toLowerCase())
+    if (row) byIndex[email.toLowerCase()] = row.index
+  }
+  const plan = planPreparedImport(prepared, mapping, fromThisSheet, byIndex)
 
   // Email is unique across ALL delegates. A row whose email already belongs to
   // someone registered another way -- the website, a cross-delegation import, a
@@ -213,15 +221,21 @@ export function planDelegateImport(
   return plan
 }
 
-// Applying the same sheet content with the same mapping twice is a no-op.
+// What an organiser approved, as one hash: this event, this source, this
+// mapping, this exact sheet content and these choices. Preview hands it out,
+// import recomputes it from a fresh read and refuses on any difference, so
+// Import applies exactly what was reviewed. Applying the same plan twice is a
+// no-op, keyed on the same hash.
 export function delegateImportIdempotencyKey(args: {
+  eventId: string
   sourceId: string
   mapping: DelegateMapping
   rows: Record<string, string>[]
-  overrides?: Record<string, number>
+  overrides?: Record<string, string>
 }): string {
   return contentHash({
     kind: "delegate",
+    eventId: args.eventId,
     sourceId: args.sourceId,
     mapping: args.mapping,
     rows: args.rows,

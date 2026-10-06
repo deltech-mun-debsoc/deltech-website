@@ -190,11 +190,37 @@ const plan = (rows: Record<string, string>[], existing: ExistingDelegate[] = [],
 // ── Applying the same sheet twice is a no-op ───────────────────────────────
 {
   const rows = [response({ email: "k@x.com" })]
-  const a = delegateImportIdempotencyKey({ sourceId: "s1", mapping: INTRA_FORM_MAPPING, rows })
-  const b = delegateImportIdempotencyKey({ sourceId: "s1", mapping: INTRA_FORM_MAPPING, rows })
-  const c = delegateImportIdempotencyKey({ sourceId: "s1", mapping: INTRA_FORM_MAPPING, rows: [response({ email: "k@x.com", p1: "Chad" })] })
-  assert.equal(a, b, "the same content must produce the same key")
-  assert.notEqual(a, c, "changed content must produce a different key")
+  const key = (o: Partial<Parameters<typeof delegateImportIdempotencyKey>[0]> = {}) =>
+    delegateImportIdempotencyKey({ eventId: "e1", sourceId: "s1", mapping: INTRA_FORM_MAPPING, rows, ...o })
+  const a = key()
+  assert.equal(a, key(), "the same content must produce the same key")
+  assert.notEqual(a, key({ rows: [response({ email: "k@x.com", p1: "Chad" })] }), "changed content must produce a different key")
+  // The plan token binds approval to all of these: change any one and Import
+  // refuses until it is checked again.
+  assert.notEqual(a, key({ eventId: "e2" }), "the same tab in next year's event is a different plan")
+  assert.notEqual(a, key({ sourceId: "s2" }), "another source is a different plan")
+  assert.notEqual(a, key({ mapping: { ...INTRA_FORM_MAPPING, rollNumber: undefined } }), "a changed mapping is a different plan")
+  assert.notEqual(a, key({ overrides: { "k@x.com": "h" } }), "a different submission kept is a different plan")
+  // Re-sorting the sheet changes the content order, which is also a new plan.
+  const two = [response({ email: "a@x.com" }), response({ email: "b@x.com" })]
+  assert.notEqual(key({ rows: two }), key({ rows: [...two].reverse() }), "a reordered sheet must be checked again")
+}
+
+// ── Keeping an earlier submission is pinned to its content ──────────────────
+{
+  const early = response({ ts: "9/12/2026 10:00:00", email: "r@x.com", p1: "France" })
+  const late = response({ ts: "9/13/2026 10:00:00", email: "r@x.com", p1: "Chad" })
+  const p = plan([early, late])
+  assert.equal(p.rows[1].outcome, "create", "the latest submission is kept by default")
+  const earlyHash = p.rows[0].rowHash
+  const kept = plan([early, late], [], { "r@x.com": earlyHash })
+  assert.equal(kept.rows[0].outcome, "create", "the chosen submission is kept")
+  assert.equal(kept.rows[1].outcome, "skip-duplicate")
+  // The same choice survives the sheet being re-sorted: it follows the answer,
+  // not the row number.
+  const resorted = plan([late, early], [], { "r@x.com": earlyHash })
+  assert.equal(resorted.rows[1].outcome, "create", "the kept answer follows its content after a re-sort")
+  assert.equal(resorted.rows[1].candidate?.pref1Portfolio, "France")
 }
 
 console.log("delegate import checks passed (form mapping, resubmission, case, refetch, hand edits, invalid rows, DTU, clashes, committees)")
