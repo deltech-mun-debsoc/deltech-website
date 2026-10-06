@@ -56,7 +56,7 @@ function MemberCard({ member, index }: { member: PublicTeamMember; index: number
         // themes, sitting above the name block rather than behind it.
         <div aria-hidden className="relative flex aspect-[4/5] items-start bg-ink px-6 pt-10">
           <div className="paper-grid absolute inset-0 opacity-[0.07]" />
-          <span className="display relative text-[7rem] leading-none text-gold-300/90">{initials}</span>
+          <span className="relative font-display text-[7rem] leading-none text-gold-300/90">{initials}</span>
         </div>
       )}
 

@@ -65,20 +65,20 @@ Loaded with `next/font/google` in `src/app/layout.tsx`:
 |---|---|---|
 | Geist | `--font-sans` | Body |
 | Geist Mono | `--font-geist-mono` | Code, identifiers, aligned numbers |
-| Fraunces | `--font-display` | Headings |
+| Spectral (400, 600) | `--font-display` | One editorial headline per public page; article bodies |
 
-`--font-heading` and the base `h1` to `h4` rule follow `--heading-face`. That is Fraunces on
-public pages and Geist inside `.admin-shell`, `.recruitment-shell` and `.app-shell` (the
-delegate dashboard and writer area), so operational screens keep a sans hierarchy. Fraunces is
-a variable font with an optical size axis, which the display utilities set explicitly.
+Every `h1` to `h4` is Geist at weight 600. A public page may set one headline in Spectral
+with `.headline`: the event or society name on the home page, "Meet the team", "The
+Dispatch" and an article title. Forms, navigation, cards, section headings and every task
+page (sign-in, quiz join, registration, payment) stay sans.
 
 ## Editorial utilities
 
 | Class | For |
 |---|---|
-| `.display`, `.display-hero`, `.display-section` | Fraunces display type at three scales |
+| `.headline` | The single Spectral headline on a public page |
 | `.body-large` | Prominent supporting copy |
-| `.eyebrow` | Occasional tracked uppercase marker above a public headline; sentence case in app shells |
+| `.eyebrow` | Small sentence-case label above a block. Not uppercase. |
 | `.data-label`, `.section-label` | Sentence-case labels |
 | `.rule`, `.rule-gold` | Hairline dividers |
 | `.editorial-card` | 1px ink border, card background. No drop shadow. |

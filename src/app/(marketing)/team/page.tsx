@@ -44,7 +44,7 @@ export default async function TeamPage() {
         <div className="section-shell relative grid gap-12 lg:grid-cols-[1fr_0.42fr] lg:items-end">
           <FadeUp>
             <p className="eyebrow">{t("marketing.teamEyebrow")}</p>
-            <h1 className="display-section mt-6 max-w-[12ch]">{t("marketing.teamTitle")}</h1>
+            <h1 className="headline mt-6">{t("marketing.teamTitle")}</h1>
             <p className="body-large mt-8 max-w-2xl text-muted-foreground">{t("marketing.teamBody")}</p>
           </FadeUp>
           <div className="border-l border-foreground/20 pl-7">

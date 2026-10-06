@@ -20,7 +20,7 @@ export default async function RegisterSuccessPage(props: {
   if (!delegate) {
     return (
       <div className="section-shell max-w-3xl py-20 sm:py-28">
-        <h1 className="display-section max-w-[14ch]">{t("register.success.noTokenTitle")}</h1>
+        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{t("register.success.noTokenTitle")}</h1>
         <p className="body-large mt-6 text-muted-foreground">{t("register.success.noTokenBody")}</p>
         <Link href="/register" className={cn(buttonVariants({ size: "lg" }), "mt-9")}>
           {t("register.success.registerCta")}
@@ -37,7 +37,7 @@ export default async function RegisterSuccessPage(props: {
       <div className="section-shell">
         <CheckCircle2 className="mx-auto mb-6 size-14 text-primary" aria-hidden />
         <p className="eyebrow">{t("marketing.registrationSuccessEyebrow")}</p>
-        <h1 className="display-section mx-auto mt-6 max-w-[12ch]">{t("register.success.title")}</h1>
+        <h1 className="mt-6 text-3xl font-semibold tracking-tight sm:text-4xl">{t("register.success.title")}</h1>
         <p className="body-large mx-auto mt-6 max-w-2xl text-muted-foreground">
           {isFree ? t("marketing.freeRegistrationReceived") : t("register.success.message")}
         </p>

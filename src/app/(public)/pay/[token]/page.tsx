@@ -43,7 +43,7 @@ export default async function PayPage(props: {
       <div className="paper-grid grid min-h-svh place-items-center px-4 py-20">
         <div className="editorial-card w-full max-w-md p-8 text-center">
           <p className="eyebrow text-gold-500">Payment</p>
-          <h1 className="display mt-4 text-3xl">Nothing to pay yet</h1>
+          <h1 className="mt-4 text-3xl font-semibold">Nothing to pay yet</h1>
           <p className="mt-3 text-sm text-muted-foreground">
             {delegate.fullName}, your registration is on file, but no payment has been raised
             against it. That is normal before the secretariat publishes your allotment. If you were

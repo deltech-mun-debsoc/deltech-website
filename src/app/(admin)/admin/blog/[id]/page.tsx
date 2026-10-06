@@ -69,7 +69,7 @@ export default async function AdminBlogPostPage(props: { params: Promise<{ id: s
           )}
 
           <div className="px-10 py-10">
-            <h1 className="font-serif text-3xl font-bold leading-tight text-card-foreground">
+            <h1 className="font-serif text-3xl font-normal leading-tight text-card-foreground">
               {post.title || <span className="italic text-muted-foreground">Untitled</span>}
             </h1>
 
