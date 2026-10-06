@@ -299,13 +299,14 @@
     letter-spacing: -0.02em;
     font-variation-settings: "opsz" 72;
   }
-  /* small-caps kicker above headlines */
+  /* Occasional editorial marker above a public headline. Ordinary labels use
+     .data-label / .section-label, which are sentence case. */
   .eyebrow {
     font-family: var(--font-sans);
     font-size: 0.8125rem;
-    font-weight: 680;
+    font-weight: 650;
     line-height: 1.35;
-    letter-spacing: 0.14em;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
     color: var(--accent-foreground);
   }
@@ -357,6 +358,10 @@
   .dark:has(.overscroll-adaptive),
   .dark body:has(.overscroll-adaptive) {
     background: #07100d;
+  }
+  :where(.admin-shell, .recruitment-shell, .app-shell) .eyebrow {
+    text-transform: none;
+    letter-spacing: 0;
   }
   .admin-shell .eyebrow,
   .admin-shell .data-label,
@@ -413,22 +418,19 @@
     line-height: 1.6;
   }
   .data-label {
-    font-family: var(--font-mono);
-    font-size: 0.8125rem;
-    font-weight: 650;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
+    font-family: var(--font-sans);
+    font-size: 0.875rem;
+    font-weight: 600;
+    line-height: 1.4;
   }
   /* A section heading, not a field label. `.data-label` was doing both jobs, which
      made an <h2> and the <dt> under it typographically identical, and its mono
      family silently overrode the heading font (components layer beats base). */
   .section-label {
     font-family: var(--font-sans);
-    font-size: 0.8125rem;
-    font-weight: 680;
-    line-height: 1.35;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
+    font-size: 0.875rem;
+    font-weight: 600;
+    line-height: 1.4;
     color: var(--muted-foreground);
   }
   .diplomatic-surface {
@@ -894,9 +896,7 @@
   background: color-mix(in oklch, var(--foreground) 4%, transparent);
   font-family: var(--font-sans);
   font-size: 0.8125rem;
-  font-weight: 650;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-weight: 600;
   color: var(--muted-foreground);
   text-align: left;
 }
