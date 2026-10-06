@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { DOCS_URL } from "@/lib/app-url";
 import { t } from "@/content/strings";
 import { ThemeToggle } from "./theme-toggle";
+import { BrandEmblem } from "@/components/brand-logo";
 import type { Content } from "@/content/contentSchema";
 
 export function Header({ sections, registrationOpen }: { sections: Content["publicSections"]; registrationOpen: boolean }) {
@@ -36,14 +37,12 @@ export function Header({ sections, registrationOpen }: { sections: Content["publ
     <>
     <header className="sticky top-0 z-50 w-full border-b border-border/70 bg-background/90 backdrop-blur-xl">
       <div className="section-shell flex h-20 items-center justify-between gap-5">
-        <Link href="/" className="group flex items-center gap-3 text-foreground">
-          <span className="display flex size-10 items-center justify-center rounded-full border border-foreground/25 text-xl transition-transform duration-300 group-hover:-rotate-6">
-            D
-          </span>
+        <Link href="/" className="flex items-center gap-3 text-foreground">
+          <BrandEmblem className="w-12" priority />
           <span>
-            <span className="display block text-xl leading-none">{t("brand.name")}</span>
-            <span className="mt-1 hidden text-[0.6875rem] font-semibold uppercase tracking-[0.15em] text-muted-foreground sm:block">
-              Delhi Technological University
+            <span className="block text-lg font-semibold leading-none">{t("brand.name")}</span>
+            <span className="mt-1 hidden text-xs text-muted-foreground sm:block">
+              {t("brand.university")}
             </span>
           </span>
         </Link>
