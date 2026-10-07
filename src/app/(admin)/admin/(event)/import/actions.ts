@@ -10,6 +10,7 @@ import { revalidatePath } from "next/cache"
 import { automaticIntakeAllowed } from "@/lib/event-state"
 import { CapabilityError, requireCapability } from "@/lib/event"
 import { deriveCsvUrl } from "@/lib/gsheet-url"
+import { fetchSheetRows, SheetFetchError } from "@/lib/sheet-fetch"
 import { readableRowError, type ColumnMapping, type MappedRow } from "@/lib/schemas/import"
 import { MAX_TABULAR_COLUMNS, MAX_TABULAR_ROWS, parseCsvRows } from "@/lib/tabular"
 
@@ -151,6 +152,8 @@ export async function deleteImportPreset(id: string): Promise<{ success: boolean
 
 export interface CommitResult {
   created:     number
+  // Of those created: how many got a draft seat from their choices. The rest
+  // are accepted with nothing to pay and wait for a seat on Allotment.
   allotted:    number
   skipped:     number
   quarantined: number
@@ -337,4 +340,27 @@ export async function savePartnerSheets(next: PartnerSheet[]): Promise<{ success
   await audit(session.user?.email ?? "unknown", "partnerSheets.save", "Setting", "sheetPullSources", { count: clean.length })
   revalidatePath("/admin/import")
   return { success: true }
+}
+
+// "Review now" on a linked sheet: read it with its saved mapping and hand the
+// rows to the same review an uploaded file gets, instead of waiting for the
+// nightly pull to import whatever it finds.
+export async function readPartnerSheet(presetName: string): Promise<
+  | { success: true; headers: string[]; rows: Record<string, string>[]; mapping: ColumnMapping }
+  | { success: false; error: string }
+> {
+  await requireStaff()
+  const refused = await crossDelegationRefusal()
+  if (refused) return { success: false, error: refused }
+  const content = await getContent()
+  const source = content.sheetPullSources.find((s) => s.presetName === presetName)
+  const preset = await prisma.importPreset.findUnique({ where: { name: presetName } })
+  if (!source || !preset) return { success: false, error: "That linked sheet or its preset no longer exists." }
+  try {
+    const { headers, rows } = await fetchSheetRows(source.csvUrl)
+    const stringRows = rows.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, String(v ?? "").trim()])))
+    return { success: true, headers, rows: stringRows, mapping: preset.mapping as ColumnMapping }
+  } catch (err) {
+    return { success: false, error: err instanceof SheetFetchError ? err.message : "The sheet could not be read." }
+  }
 }

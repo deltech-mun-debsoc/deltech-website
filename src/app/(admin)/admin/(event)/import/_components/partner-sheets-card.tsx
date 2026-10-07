@@ -3,11 +3,10 @@
 import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { Plus, Trash2, FileSpreadsheet } from "lucide-react"
+import { FileSpreadsheet, Plus, Trash2, TriangleAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
 import {
   Select,
   SelectContent,
@@ -16,40 +15,43 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { deriveCsvUrl } from "@/lib/gsheet-url"
-import { savePartnerSheets } from "../actions"
-
-interface Source {
-  presetName: string
-  csvUrl: string
-  source: "SELF" | "CROSS_DEL"
-}
+import { formatDateTime } from "@/lib/datetime"
+import type { SheetPullHealth } from "@/lib/sheet-pull"
+import { readPartnerSheet, savePartnerSheets, type PartnerSheet } from "../actions"
+import type { WizardStart } from "./import-wizard"
 
 interface Props {
-  sources: Source[]
+  sources:     PartnerSheet[]
   presetNames: string[]
+  health:      Record<string, SheetPullHealth>
+  bot:         string | null
+  // Hands a sheet's rows to the same review an uploaded file gets.
+  onReview:    (start: WizardStart) => void
 }
 
-// Recurring partners' Google Sheets, synced daily by /api/cron/gform-sync.
-export function PartnerSheetsCard({ sources, presetNames }: Props) {
+// A delegation's own Google Sheet, read every night by /api/cron/gform-sync.
+// Rows it can read are accepted; anything unclear waits under Needs fixing.
+// "Review now" puts the sheet through the same review as an uploaded file.
+export function PartnerSheetsCard({ sources, presetNames, health, bot, onReview }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [url, setUrl] = useState("")
   const [preset, setPreset] = useState(presetNames[0] ?? "")
-  const [srcType, setSrcType] = useState<"SELF" | "CROSS_DEL">("CROSS_DEL")
 
-  const save = (next: Source[]) =>
+  const save = (next: PartnerSheet[], done?: string) =>
     startTransition(async () => {
       const result = await savePartnerSheets(next)
-      if (result.success) {
-        router.refresh()
-      } else {
+      if (!result.success) {
         toast.error(result.error ?? "Failed to save.")
+        return
       }
+      if (done) toast.success(done)
+      router.refresh()
     })
 
   const add = () => {
     if (!preset) {
-      toast.error("Create an import preset first (in the wizard above).")
+      toast.error("Upload this delegation's file once and save its column matching as a preset first.")
       return
     }
     const csvUrl = deriveCsvUrl(url)
@@ -57,67 +59,77 @@ export function PartnerSheetsCard({ sources, presetNames }: Props) {
       toast.error("That doesn't look like a Google Sheets link.")
       return
     }
-    save([...sources.filter((s) => s.presetName !== preset), { presetName: preset, csvUrl, source: srcType }])
+    save([...sources.filter((s) => s.presetName !== preset), { presetName: preset, csvUrl, source: "CROSS_DEL" }], "Sheet connected.")
     setUrl("")
-    toast.success("Sheet added. It imports once a day.")
   }
 
-  const remove = (presetName: string) => save(sources.filter((s) => s.presetName !== presetName))
+  const review = (presetName: string) =>
+    startTransition(async () => {
+      const result = await readPartnerSheet(presetName)
+      if (!result.success) {
+        toast.error(result.error)
+        return
+      }
+      onReview({ headers: result.headers, rows: result.rows, mapping: result.mapping })
+    })
 
   return (
-    <div className="editorial-card p-6">
-      <div className="flex items-center gap-2">
-        <FileSpreadsheet className="size-4 text-muted-foreground" />
-        <h2 className="font-heading text-lg">Linked sheets</h2>
-      </div>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Link a delegation&apos;s Google Sheet and it imports every day on its own.
-        The sheet must be &quot;anyone with the link can view&quot;, or published to the web.
-      </p>
-      <div className="rule my-5" />
-
+    <div className="editorial-card space-y-5 p-6">
       {sources.length > 0 && (
-        <ul className="mb-5 space-y-2">
-          {sources.map((s) => (
-            <li
-              key={s.presetName}
-              className="flex items-center gap-3 rounded-md border border-border/60 bg-background px-3 py-2"
-            >
-              <Badge variant="outline" className="text-[10px]">
-                {s.source === "CROSS_DEL" ? "Cross-del" : "Self"}
-              </Badge>
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium">{s.presetName}</p>
-                <p className="truncate font-mono text-[11px] text-muted-foreground">{s.csvUrl}</p>
-              </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="size-7 shrink-0 text-destructive"
-                disabled={isPending}
-                onClick={() => remove(s.presetName)}
-              >
-                <Trash2 className="size-3.5" />
-              </Button>
-            </li>
-          ))}
+        <ul className="space-y-2">
+          {sources.map((s) => {
+            const h = health[s.presetName]
+            return (
+              <li key={s.presetName} className="space-y-2 rounded-md border border-border/60 bg-background p-3">
+                <div className="flex items-center gap-3">
+                  <FileSpreadsheet className="size-4 shrink-0 text-muted-foreground" />
+                  <p className="min-w-0 flex-1 truncate text-sm font-medium">{s.presetName}</p>
+                  <Button size="sm" variant="outline" disabled={isPending} onClick={() => review(s.presetName)}>
+                    Review now
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="size-7 shrink-0 text-muted-foreground hover:text-destructive"
+                    title="Disconnect"
+                    disabled={isPending}
+                    onClick={() => save(sources.filter((x) => x.presetName !== s.presetName))}
+                  >
+                    <Trash2 className="size-3.5" />
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  {h
+                    ? `Last read automatically ${formatDateTime(h.at)} · ${h.rows} rows · ${h.created} new · ${h.quarantined} need fixing`
+                    : "Not read automatically yet. It is read once a night."}
+                </p>
+                {h?.error && (
+                  <p className="flex items-start gap-2 text-xs text-destructive">
+                    <TriangleAlert className="mt-0.5 size-3.5 shrink-0" />
+                    {h.error}
+                  </p>
+                )}
+              </li>
+            )
+          })}
         </ul>
       )}
 
       <div className="space-y-3">
+        <p className="text-sm text-muted-foreground">
+          {bot
+            ? `Share the delegation's sheet with ${bot} as a Viewer, then connect it here. It is read every night, and you can review it now.`
+            : `The sheet must be open to anyone with the link, which exposes the names and phones in it. It is read every night, and you can review it now.`}
+        </p>
         <div className="space-y-1.5">
           <Label className="text-xs">Google Sheets link</Label>
-          <Input
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            placeholder="https://docs.google.com/spreadsheets/d/…"
-          />
+          <Input value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://docs.google.com/spreadsheets/d/…" />
         </div>
         <div className="flex flex-wrap items-end gap-2">
           <div className="space-y-1.5">
-            <Label className="text-xs">Preset (column mapping)</Label>
+            <Label className="text-xs">Column matching (preset)</Label>
             <Select value={preset} onValueChange={(v) => setPreset(v ?? "")}>
-              <SelectTrigger className="w-48">
+              <SelectTrigger className="w-56">
                 <SelectValue placeholder="No presets yet" />
               </SelectTrigger>
               <SelectContent>
@@ -129,20 +141,8 @@ export function PartnerSheetsCard({ sources, presetNames }: Props) {
               </SelectContent>
             </Select>
           </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Source</Label>
-            <Select items={[{ value: "CROSS_DEL", label: "Cross delegation" }, { value: "SELF", label: "Self" }]} value={srcType} onValueChange={(v) => setSrcType(v as "SELF" | "CROSS_DEL")}>
-              <SelectTrigger className="w-36">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="CROSS_DEL">Cross delegation</SelectItem>
-                <SelectItem value="SELF">Self</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
           <Button size="sm" className="gap-1.5" disabled={isPending || !url.trim()} onClick={add}>
-            <Plus className="size-3.5" /> Add
+            <Plus className="size-3.5" /> Connect
           </Button>
         </div>
       </div>

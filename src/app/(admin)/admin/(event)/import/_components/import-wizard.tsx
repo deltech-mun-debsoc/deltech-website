@@ -1,7 +1,6 @@
 "use client"
 
-import Link from "next/link"
-import { useState, useTransition } from "react"
+import { useEffect, useRef, useState, useTransition } from "react"
 import { Sparkles, Loader2 } from "lucide-react"
 import { Separator } from "@/components/ui/separator"
 import { toast } from "sonner"
@@ -11,16 +10,17 @@ import {
   mappedRowSchema,
   type ColumnMapping,
   type MappedRow,
+  validatedFromCleaned,
   type ValidatedRow,
 } from "@/lib/schemas/import"
-import type { ImportPresetRecord, CommitResult } from "../actions"
+import type { ImportPresetRecord } from "../actions"
 import { suggestMappingWithGemini, cleanImportRowsWithGemini } from "../actions-ai"
 import { StepUpload } from "./step-upload"
 import { StepMapping } from "./step-mapping"
 import { StepPreview } from "./step-preview"
 import { StepCommit } from "./step-commit"
 
-export type WizardStep = "upload" | "mapping" | "preview" | "commit" | "done"
+export type WizardStep = "upload" | "mapping" | "preview" | "commit"
 
 const STEPS: { key: WizardStep; label: string }[] = [
   { key: "upload",  label: "Upload"      },
@@ -29,12 +29,21 @@ const STEPS: { key: WizardStep; label: string }[] = [
   { key: "commit",  label: "Import"      },
 ]
 
+// A linked partner sheet, already read with its saved mapping: the review
+// starts at cleaning instead of at upload.
+export interface WizardStart {
+  headers: string[]
+  rows:    Record<string, string>[]
+  mapping: ColumnMapping
+}
+
 interface Props {
   presets:        ImportPresetRecord[]
   committeeNames: string[]
+  start?:         WizardStart
 }
 
-export function ImportWizard({ presets: initialPresets, committeeNames }: Props) {
+export function ImportWizard({ presets: initialPresets, committeeNames, start }: Props) {
   const [step,               setStep]               = useState<WizardStep>("upload")
   const [headers,            setHeaders]            = useState<string[]>([])
   const [rawRows,            setRawRows]            = useState<Record<string, string>[]>([])
@@ -43,8 +52,6 @@ export function ImportWizard({ presets: initialPresets, committeeNames }: Props)
   const [skipped,            setSkipped]            = useState<Set<number>>(new Set())
   const [defaultInstitution, setDefaultInstitution] = useState("")
   const [presets,            setPresets]            = useState(initialPresets)
-  // Lifted out of StepCommit so the terminal screen can link to quarantine.
-  const [result,             setResult]             = useState<CommitResult | null>(null)
 
   const [aiProcessing, startAiProcess] = useTransition()
 
@@ -56,6 +63,7 @@ export function ImportWizard({ presets: initialPresets, committeeNames }: Props)
     parsedHeaders: string[],
     parsedRows: Record<string, string>[],
     institution: string,
+    known?: ColumnMapping,
   ) => {
     setHeaders(parsedHeaders)
     setRawRows(parsedRows)
@@ -66,8 +74,10 @@ export function ImportWizard({ presets: initialPresets, committeeNames }: Props)
 
     startAiProcess(async () => {
       try {
-        // Step 1: auto-detect column mapping
-        const mapResult = await suggestMappingWithGemini(parsedHeaders, parsedRows.slice(0, 5))
+        // Step 1: auto-detect column mapping, unless the sheet brought its own
+        const mapResult = known
+          ? { success: true as const, mapping: known, rateLimited: false }
+          : await suggestMappingWithGemini(parsedHeaders, parsedRows.slice(0, 5))
 
         if (!mapResult.success) {
           if (mapResult.rateLimited) {
@@ -106,14 +116,9 @@ export function ImportWizard({ presets: initialPresets, committeeNames }: Props)
           return
         }
 
-        // Auto-skip rows the AI flagged as noise
-        const autoSkipped = new Set<number>()
-        const validatedRows: ValidatedRow[] = cleanResult.cleaned.map(({ _note, _skip, ...mapped }, i) => {
-          const parse  = mappedRowSchema.safeParse(mapped)
-          const errors = parse.success ? [] : parse.error.issues.map((e) => e.message)
-          if (_skip) autoSkipped.add(i)
-          return { index: i, raw: parsedRows[i], mapped, errors, aiNote: _note }
-        })
+        // Auto-skip rows flagged as noise
+        const validatedRows = validatedFromCleaned(cleanResult.cleaned, parsedRows)
+        const autoSkipped = new Set(validatedRows.filter((r) => r.skip).map((r) => r.index))
 
         setValidated(validatedRows)
         setSkipped(autoSkipped)
@@ -137,6 +142,16 @@ export function ImportWizard({ presets: initialPresets, committeeNames }: Props)
     })
   }
 
+  // A linked sheet starts straight at cleaning, once per sheet read (the
+  // wizard is keyed by it).
+  const startedRef = useRef(false)
+  useEffect(() => {
+    if (!start || startedRef.current) return
+    startedRef.current = true
+    handleParsed(start.headers, start.rows, "", start.mapping)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [start])
+
   // ── Inline row editing from preview ──────────────────────────────────────
   const handleRowUpdate = (index: number, field: keyof MappedRow, value: string) => {
     setValidated((prev) =>
@@ -159,15 +174,6 @@ export function ImportWizard({ presets: initialPresets, committeeNames }: Props)
     if (prev) setStep(prev.key)
   }
 
-  const reset = () => {
-    setStep("upload")
-    setHeaders([])
-    setRawRows([])
-    setMapping({})
-    setValidated([])
-    setSkipped(new Set())
-    setDefaultInstitution("")
-  }
 
   return (
     <div className="space-y-6">
@@ -248,7 +254,8 @@ export function ImportWizard({ presets: initialPresets, committeeNames }: Props)
               onNext={(m, v) => {
                 setMapping(m)
                 setValidated(v)
-                setSkipped(new Set())
+                // The manual path keeps the non-data rows it found skipped too.
+                setSkipped(new Set(v.filter((r) => r.skip).map((r) => r.index)))
                 goNext()
               }}
             />
@@ -270,44 +277,9 @@ export function ImportWizard({ presets: initialPresets, committeeNames }: Props)
             <StepCommit
               validated={validated}
               skipped={skipped}
+              committeeNames={committeeNames}
               onBack={goBack}
-              onDone={(r) => { setResult(r); setStep("done") }}
             />
-          )}
-
-          {step === "done" && (
-            <div className="rounded-xl border border-border bg-card p-10 text-center">
-              <p className="text-2xl font-bold text-foreground">Import complete</p>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Delegates have been created and appear in the registrations table.
-              </p>
-              {/* This screen used to name the registrations table and the
-                  quarantine without linking to either, so the only way on was
-                  to reset the wizard. */}
-              <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
-                <Link
-                  href="/admin/registrations"
-                  className="rounded-md border border-input px-4 py-2 text-sm font-medium hover:bg-muted"
-                >
-                  View registrations
-                </Link>
-                {result && result.quarantined > 0 && (
-                  <Link
-                    href="/admin/import#quarantine"
-                    className="rounded-md border border-amber-500/50 px-4 py-2 text-sm font-medium text-amber-700 hover:bg-amber-50 dark:text-amber-400"
-                  >
-                    Review {result.quarantined} quarantined row
-                    {result.quarantined === 1 ? "" : "s"}
-                  </Link>
-                )}
-                <button
-                  className="text-sm font-medium text-primary underline-offset-2 hover:underline"
-                  onClick={reset}
-                >
-                  Start another import
-                </button>
-              </div>
-            </div>
           )}
         </>
       )}
