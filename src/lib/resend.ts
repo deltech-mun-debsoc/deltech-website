@@ -594,7 +594,7 @@ export async function sendStaffInvite(email: string, role: string): Promise<void
     template: "staff-invite",
     toEmail: email,
     subject: "You've been added to the DelTech MUN secretariat",
-    reactElement: StaffInviteEmail({ role, signInUrl: `${APP_URL}/signin/staff` }),
+    reactElement: StaffInviteEmail({ role, signInUrl: `${APP_URL}/signin` }),
   })
 }
 

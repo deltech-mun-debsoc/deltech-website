@@ -40,7 +40,7 @@ export function SignupForm() {
         </p>
       )}
       <Button type="submit" disabled={mlPending} className="h-11 w-full text-base">
-        {mlPending ? t("common.sending") : t("auth.sendMagicLinkButton")}
+        {mlPending ? t("common.sending") : t("auth.sendLinkButton")}
       </Button>
       <p className="text-sm leading-relaxed text-muted-foreground">
         {t("auth.signUpVerificationNote")}

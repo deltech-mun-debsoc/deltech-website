@@ -42,16 +42,15 @@ assert.ok(
   "a magic link is a bearer credential; keep the window at an hour or less",
 );
 
-const promised = STRINGS.auth.checkEmailExpiry.match(/(\d+)\s*minute/);
-assert.ok(
-  promised,
-  `checkEmailExpiry must state a minute count, got: "${STRINGS.auth.checkEmailExpiry}"`,
-);
-assert.equal(
-  Number(promised![1]),
-  MAGIC_LINK_MAX_AGE_MIN,
-  "sign-in copy promises a different expiry than the provider enforces",
-);
+for (const key of ["checkEmailMessage", "directSentBody"] as const) {
+  const promised = STRINGS.auth[key].match(/(\d+)\s*minute/);
+  assert.ok(promised, `auth.${key} must state a minute count, got: "${STRINGS.auth[key]}"`);
+  assert.equal(
+    Number(promised![1]),
+    MAGIC_LINK_MAX_AGE_MIN,
+    `auth.${key} promises a different expiry than the provider enforces`,
+  );
+}
 
 // --- recruitment recipients ------------------------------------------------
 
@@ -283,9 +282,9 @@ const cases: Array<[string, ReactElement, string[]]> = [
     "staff-invite",
     StaffInviteEmail({
       role: "MAINTAINER",
-      signInUrl: "https://x.test/signin/staff",
+      signInUrl: "https://x.test/signin",
     }),
-    ["a maintainer", "https://x.test/signin/staff"],
+    ["a maintainer", "https://x.test/signin"],
   ],
   [
     "recruitment-selected",

@@ -36,7 +36,7 @@ export function TabPortfolios({ committees }: { committees: ClientCommittee[] })
   const [editTag, setEditTag] = useState("")
   const [isPending, startTransition] = useTransition()
   const selected = useMemo(() => committees.find((c) => c.id === selectedId), [committees, selectedId])
-  const tagLabel = selected?.portfolioTagLabel || "Classification"
+  const tagLabel = selected?.portfolioTagLabel || "Group"
 
   const switchCommittee = (id: string) => {
     setChosenId(id)

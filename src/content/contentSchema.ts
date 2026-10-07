@@ -35,7 +35,7 @@ export const ContentSchema = z.object({
   registrationFormUrl: z.string().default(""),
   registrationClosedMessage: z
     .string()
-    .default("Registrations are currently closed. Check back soon."),
+    .default(""),
   conferenceDates: z.string().default(""),
   venue: z.string().default(""),
   societyLocation: z.string().default("Delhi Technological University"),
@@ -44,9 +44,9 @@ export const ContentSchema = z.object({
     .object({
       title: z.string().default("DelTech MUN"),
       subtitle: z.string().default(""),
-      ctaLabel: z.string().default("Register Now"),
+      ctaLabel: z.string().default("Register"),
     })
-    .default({ title: "DelTech MUN", subtitle: "", ctaLabel: "Register Now" }),
+    .default({ title: "DelTech MUN", subtitle: "", ctaLabel: "Register" }),
   agendasBlurb: z.string().default(""),
   awards: z.array(z.string()).default([]),
   queryContacts: z

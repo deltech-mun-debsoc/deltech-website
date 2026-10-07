@@ -1,7 +1,6 @@
 import Link from "next/link"
 import {
   ArrowRight,
-  BookOpenText,
   Check,
   CircleAlert,
   LockKeyhole,
@@ -51,21 +50,13 @@ export default async function OperatorGuidePage() {
       <PageHeader
         eyebrow="Secretariat operations"
         title="Operator guide"
-        description="The launch order, daily workflows, guardrails, and recovery path for running this platform without guessing."
       >
         <span className="data-label border border-primary/25 bg-primary/5 px-3 py-2 text-primary">Signed in as {role.toLowerCase()}</span>
       </PageHeader>
 
-      <section className="relative overflow-hidden bg-ink p-7 text-paper sm:p-10">
-        <div className="paper-grid absolute inset-0 opacity-[0.08]" aria-hidden />
-        <div className="relative grid gap-10 lg:grid-cols-[1fr_0.72fr] lg:items-end">
-          <div>
-            <p className="data-label flex items-center gap-2 text-gold-300"><BookOpenText className="size-4" /> Start here</p>
-            <h2 className="mt-5 max-w-3xl font-heading text-4xl leading-tight sm:text-5xl">Operate in sequence. Verify before you publish. Escalate destructive work.</h2>
-          </div>
-          <p className="text-base leading-relaxed text-paper/68">The platform is designed so maintainers can run normal conference operations while the highest-risk actions remain admin-only. If a control is missing or disabled, check the permission map below before treating it as a bug.</p>
-        </div>
-      </section>
+      <p className="max-w-3xl text-base leading-relaxed text-muted-foreground">
+        Deletions, payment overrides, revoking a seat and roles are admin-only. If a control is missing or disabled, check the permission map below before treating it as a bug.
+      </p>
 
       <section>
         <div className="mb-7 flex items-end justify-between gap-4 border-b border-foreground/20 pb-5">
@@ -90,7 +81,7 @@ export default async function OperatorGuidePage() {
 
       <section>
         <p className="data-label text-primary">02 · Daily desk</p>
-        <h2 className="mt-3 font-heading text-4xl">The four operating surfaces</h2>
+        <h2 className="mt-3 font-heading text-4xl">Daily work</h2>
         <div className="mt-8 grid border-l border-t border-foreground/20 md:grid-cols-2">
           {dailyWork.map((item, index) => (
             <Link key={item.title} href={item.href} className="group min-h-56 border-b border-r border-foreground/20 p-7 transition-colors hover:bg-primary/[0.045]">

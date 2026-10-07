@@ -41,7 +41,7 @@ export function DocsPageHeader() {
         </ol>
       </nav>
 
-      <h1 className="display text-[clamp(2rem,4vw,2.75rem)] leading-[1.1] text-foreground">
+      <h1 className="text-[clamp(1.875rem,3.5vw,2.5rem)] font-semibold leading-tight text-foreground">
         {page.label}
       </h1>
       <p className="mt-3 max-w-2xl text-[1.0625rem] leading-relaxed text-muted-foreground">

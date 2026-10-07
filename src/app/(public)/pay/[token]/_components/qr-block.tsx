@@ -14,7 +14,7 @@ interface Props {
 export function QRBlock({ upiString, amountInr, payeeName, upiVpa }: Props) {
   return (
     <div className="flex flex-col items-center gap-6">
-      <div className="relative bg-white p-5 shadow-[10px_10px_0_#0f766e]">
+      <div className="relative rounded-lg border border-border bg-white p-5">
         <QRCodeSVG value={upiString} size={236} level="H" />
       </div>
 
