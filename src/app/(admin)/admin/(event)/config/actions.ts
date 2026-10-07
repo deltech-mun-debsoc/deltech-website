@@ -12,6 +12,7 @@ import { pickValues, reversibleSettingsMeta } from "@/lib/audit-change"
 import { fetchSheetRows, SheetFetchError } from "@/lib/sheet-fetch"
 import { portfoliosFromSheetRows, type PortfolioEntry } from "@/lib/portfolio-sheet"
 import { deriveCsvUrl } from "@/lib/gsheet-url"
+import { aliasCollision } from "@/lib/intake"
 import { closeEvent, createEvent, currentEventScope, getActiveEvent, reopenEvent, requireActiveEvent } from "@/lib/event"
 import type { EventState } from "@/generated/prisma/client"
 
@@ -255,6 +256,38 @@ function groupLinkOrError(raw: string | null | undefined): { value: string | nul
   }
 }
 
+// One name or alias, one committee, within an event. Two committees answering to
+// the same alias made every Form answer naming it ambiguous.
+async function aliasClash(
+  committee: { id?: string; name: string; slug: string; aliases?: string[] },
+  eventId: string,
+): Promise<string | null> {
+  const others = await prisma.committee.findMany({
+    where: { eventId, ...(committee.id ? { id: { not: committee.id } } : {}) },
+    select: { id: true, name: true, slug: true, aliases: true },
+  })
+  return aliasCollision({ ...committee, aliases: committee.aliases ?? [] }, others)
+}
+
+// From the import review: "save 'DISEC' as another name for UNGA-DISEC", so the
+// same answer resolves by itself next time.
+export async function addCommitteeAlias(committeeId: string, alias: string): Promise<{ success: boolean; error?: string }> {
+  const session = await requireStaff()
+  const clean = alias.trim()
+  if (!clean || clean.length > 80) return { success: false, error: "That name is empty or too long." }
+  const committee = await prisma.committee.findUnique({
+    where: { id: committeeId },
+    select: { id: true, name: true, slug: true, aliases: true, eventId: true },
+  })
+  if (!committee) return { success: false, error: "That committee no longer exists." }
+  const aliases = committee.aliases.some((a) => a.trim().toLowerCase() === clean.toLowerCase()) ? committee.aliases : [...committee.aliases, clean]
+  const clash = await aliasClash({ ...committee, aliases }, committee.eventId)
+  if (clash) return { success: false, error: clash }
+  await prisma.committee.update({ where: { id: committeeId }, data: { aliases } })
+  await audit(session.user?.email ?? "unknown", "committee.alias", "Committee", committeeId, { alias: clean })
+  return { success: true }
+}
+
 export async function createCommittee(data: {
   name: string
   slug: string
@@ -275,6 +308,8 @@ export async function createCommittee(data: {
     // event there is nothing to attach it to, so this refuses rather than
     // creating an orphan that no screen would ever list.
     const event = await requireActiveEvent()
+    const clash = await aliasClash({ ...data }, event.id)
+    if (clash) return { success: false, error: clash }
     const committee = await prisma.committee.create({ data: { ...data, groupLink: link.value, eventId: event.id } })
     await audit(session.user?.email ?? "unknown", "committee.create", "Committee", committee.id, {
       name: data.name,
@@ -305,6 +340,9 @@ export async function updateCommittee(
   const link = groupLinkOrError(data.groupLink)
   if ("error" in link) return { success: false, error: link.error }
   try {
+    const current = await prisma.committee.findUnique({ where: { id }, select: { eventId: true } })
+    const clash = current ? await aliasClash({ id, ...data }, current.eventId) : null
+    if (clash) return { success: false, error: clash }
     await prisma.committee.update({ where: { id }, data: { ...data, groupLink: link.value } })
     await audit(session.user?.email ?? "unknown", "committee.update", "Committee", id)
     return { success: true }

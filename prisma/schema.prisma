@@ -980,6 +980,11 @@ model DelegateSheetSource {
   lastCheckNeedsAction Int?
   lastCheckError       String?
   lastAccess           String?
+  // Decisions an organiser made in the import review, so a routine check does
+  // not ask them again: { committees: {answer: committeeId|null},
+  // rows: {rowHash: "skip"|"import"|"safe-fields"|{email}}, keep: {email: rowHash} }.
+  // Part of the plan token, so changing one invalidates an earlier preview.
+  resolutions          Json      @default("{}")
 
   createdById String
   createdAt   DateTime @default(now())

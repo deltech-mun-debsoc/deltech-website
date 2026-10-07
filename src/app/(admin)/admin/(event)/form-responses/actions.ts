@@ -19,11 +19,17 @@ import { requireStaff } from "@/lib/authz"
 import { audit } from "@/lib/audit"
 import { deriveCsvUrl } from "@/lib/gsheet-url"
 import { getContent } from "@/lib/settings"
-import { sheetKeyFromUrl, summarisePlan, type DuplicateGroup, type ImportPlan } from "@/lib/sheet-import"
+import { sheetKeyFromUrl, summarisePlan } from "@/lib/sheet-import"
+import { normalizeEmail } from "@/lib/intake"
+import { addCommitteeAlias } from "../config/actions"
 import {
   delegateImportIdempotencyKey,
+  parseResolutions,
   planDelegateImport,
-  rowsNeedingAttention,
+  type Bucket,
+  type Decision,
+  type DelegatePlan,
+  type RowResolution,
   type ExistingDelegate,
   type MappedDelegate,
 } from "@/lib/delegate-import"
@@ -187,12 +193,17 @@ async function loadPlanInputs() {
       select: {
         id: true,
         email: true,
+        fullName: true,
         status: true,
+        source: true,
+        rollNumber: true,
+        whatsapp: true,
         query: true,
         sourceSheetKey: true,
         sourceRowKey: true,
         sourceRowHash: true,
         manualEditedFields: true,
+        allotment: { select: { portfolio: { select: { name: true, committee: { select: { name: true } } } } } },
       },
     }),
     prisma.committee.findMany({
@@ -200,14 +211,20 @@ async function loadPlanInputs() {
       select: { id: true, name: true, slug: true, aliases: true },
     }),
   ])
-  return { existing, committees }
+  return {
+    existing: existing.map(({ allotment, ...d }) => ({
+      ...d,
+      seat: allotment ? `${allotment.portfolio.committee.name} · ${allotment.portfolio.name}` : null,
+    })),
+    committees,
+  }
 }
 
 async function loadSource(sourceId: string) {
   const [source, event] = await Promise.all([
     prisma.delegateSheetSource.findUnique({
       where: { id: sourceId },
-      select: { id: true, eventId: true, label: true, csvUrl: true, sheetKey: true, mapping: true },
+      select: { id: true, eventId: true, label: true, csvUrl: true, sheetKey: true, mapping: true, resolutions: true },
     }),
     requireActiveEvent(),
   ])
@@ -221,14 +238,27 @@ export interface FormPreviewRow {
   index: number
   rowHash: string
   outcome: string
+  bucket: Bucket
+  decisions: Decision[]
   fullName: string | null
   email: string | null
   rollNumber: string | null
   choices: string | null
+  // What an import would write to an existing delegate, by field label.
+  changes: string[]
   errors: string[]
   warnings: string[]
   protectedFields: string[]
   submittedAt: string | null
+}
+
+// A person who submitted more than once: the kept answer, and how each other
+// submission differs from it, so keeping an earlier one is an informed choice.
+export interface RepeatSubmission {
+  email: string
+  kept: { index: number; rowHash: string; submittedAt: string | null }
+  others: { index: number; rowHash: string; submittedAt: string | null; differences: { field: string; kept: string; other: string }[] }[]
+  latestKept: boolean
 }
 
 export type FormPreviewResult =
@@ -238,20 +268,34 @@ export type FormPreviewResult =
       // Hand this back to applyFormImport. It binds the import to this preview.
       planToken: string
       rows: FormPreviewRow[]
-      counts: ImportPlan<MappedDelegate>["counts"]
-      summary: string
+      buckets: DelegatePlan["buckets"]
+      repeats: RepeatSubmission[]
       alreadyApplied: boolean
-      duplicateGroups: DuplicateGroup[]
       access: "private" | "public"
     }
   | { ok: false; error: string }
 
-function toPreviewRows(
-  plan: ImportPlan<MappedDelegate>,
-  mapping: DelegateMapping,
-  committeeName: Map<string, string>,
-): FormPreviewRow[] {
-  return plan.rows.map((r) => {
+const FIELD_LABEL: Record<string, string> = {
+  fullName: "Name",
+  whatsapp: "Phone",
+  rollNumber: "Roll number",
+  munExperience: "MUN experience",
+  pref1CommitteeId: "First committee",
+  pref1Portfolio: "First portfolio",
+  pref2CommitteeId: "Second committee",
+  pref2Portfolio: "Second portfolio",
+  query: "Question",
+}
+
+function describe(field: string, value: unknown, committeeName: Map<string, string>): string {
+  if (value === null || value === undefined || value === "") return "nothing"
+  if (field.endsWith("CommitteeId")) return committeeName.get(String(value)) ?? "unknown committee"
+  return String(value)
+}
+
+function toPreview(plan: DelegatePlan, mapping: DelegateMapping, committeeName: Map<string, string>, chosen: Set<string>) {
+  const submittedAt = (raw: Record<string, string>) => (mapping.timestamp ? raw[mapping.timestamp] || null : null)
+  const rows: FormPreviewRow[] = plan.rows.map((r) => {
     const c = r.candidate
     const choice = (committeeId: string | null, portfolio: string | null) =>
       [committeeId ? committeeName.get(committeeId) : null, portfolio].filter(Boolean).join(": ")
@@ -260,50 +304,81 @@ function toPreviewRows(
       index: r.index,
       rowHash: r.rowHash,
       outcome: r.outcome,
+      bucket: r.bucket,
+      decisions: r.decisions,
       fullName: c?.fullName ?? r.raw[mapping.fullName] ?? null,
       email: c?.email ?? r.raw[mapping.email] ?? null,
       rollNumber: c?.rollNumber ?? null,
       choices: choices || null,
+      changes: r.outcome === "update" && r.changes ? Object.keys(r.changes).map((f) => FIELD_LABEL[f] ?? f) : [],
       errors: r.errors ?? [],
       warnings: r.warnings ?? [],
       protectedFields: r.protectedFields ?? [],
-      submittedAt: mapping.timestamp ? r.raw[mapping.timestamp] || null : null,
+      submittedAt: submittedAt(r.raw),
     }
   })
+
+  const repeats: RepeatSubmission[] = plan.duplicateGroups.map((g) => {
+    const kept = plan.rows[g.winnerIndex]
+    const others = g.rowIndexes
+      .filter((i) => i !== g.winnerIndex)
+      .map((i) => {
+        const other = plan.rows[i]
+        const differences = Object.keys(FIELD_LABEL)
+          .filter((f) => {
+            const a = kept.candidate?.[f as keyof MappedDelegate] ?? null
+            const b = other.candidate?.[f as keyof MappedDelegate] ?? null
+            return (a ?? "") !== (b ?? "")
+          })
+          .map((f) => ({
+            field: FIELD_LABEL[f],
+            kept: describe(f, kept.candidate?.[f as keyof MappedDelegate], committeeName),
+            other: describe(f, other.candidate?.[f as keyof MappedDelegate], committeeName),
+          }))
+        return { index: i, rowHash: other.rowHash, submittedAt: submittedAt(other.raw), differences }
+      })
+    return {
+      email: g.email,
+      kept: { index: kept.index, rowHash: kept.rowHash, submittedAt: submittedAt(kept.raw) },
+      others,
+      // The latest is kept unless the organiser chose an earlier one.
+      latestKept: !chosen.has(g.email),
+    }
+  })
+  return { rows, repeats }
 }
 
-// Reads the sheet and plans it against this event. Preview and apply both come
-// through here, so the plan and its token are computed one way.
-async function planFromSheet(sourceId: string, overrides: Record<string, string>) {
+// Reads the sheet and plans it against this event, with the decisions already
+// made for this source. Preview and apply both come through here, so the plan
+// and its token are computed one way.
+async function planFromSheet(sourceId: string) {
   const { source, mapping } = await loadSource(sourceId)
+  const resolutions = parseResolutions(source.resolutions)
   const [{ rows, access }, { existing, committees }] = await Promise.all([fetchRows(source.csvUrl), loadPlanInputs()])
   const plan = planDelegateImport(rows, mapping, {
     sheetKey: source.sheetKey,
     existing: existing as ExistingDelegate[],
     committees,
-    overrides,
+    resolutions,
   })
   const planToken = delegateImportIdempotencyKey({
     eventId: source.eventId,
     sourceId: source.id,
     mapping,
     rows: rows as Record<string, string>[],
-    overrides,
+    resolutions,
   })
   return { source, mapping, rows, access, existing, committees, plan, planToken }
 }
 
 // Read-only for delegates. It records the source's health (when it was last
 // checked and what was found), which is what the source card shows.
-export async function previewFormImport(input: {
-  sourceId: string
-  duplicateOverrides?: Record<string, string>
-}): Promise<FormPreviewResult> {
+export async function previewFormImport(input: { sourceId: string }): Promise<FormPreviewResult> {
   try {
     await requireStaff()
     let planned: Awaited<ReturnType<typeof planFromSheet>>
     try {
-      planned = await planFromSheet(input.sourceId, input.duplicateOverrides ?? {})
+      planned = await planFromSheet(input.sourceId)
     } catch (err) {
       if (err instanceof SheetFetchError) {
         await prisma.delegateSheetSource
@@ -313,29 +388,89 @@ export async function previewFormImport(input: {
       throw err
     }
     const { source, mapping, plan, planToken, access, committees } = planned
+    const chosen = new Set(Object.keys(parseResolutions(source.resolutions).keep))
     const prior = await prisma.delegateImport.findUnique({ where: { idempotencyKey: planToken }, select: { state: true } })
     await prisma.delegateSheetSource.update({
       where: { id: source.id },
       data: {
         lastCheckedAt: new Date(),
         lastCheckRows: plan.counts.total,
-        lastCheckNeedsAction: rowsNeedingAttention(plan).length,
+        lastCheckNeedsAction: plan.buckets.decision,
         lastCheckError: null,
         lastAccess: access,
       },
     })
 
+    const { rows, repeats } = toPreview(plan, mapping, new Map(committees.map((c) => [c.id, c.name])), chosen)
     return {
       ok: true,
       sourceId: source.id,
       planToken,
-      rows: toPreviewRows(plan, mapping, new Map(committees.map((c) => [c.id, c.name]))),
-      counts: plan.counts,
-      summary: summarisePlan(plan),
+      rows,
+      buckets: plan.buckets,
+      repeats,
       alreadyApplied: prior?.state === "APPLIED",
-      duplicateGroups: plan.duplicateGroups,
       access,
     }
+  } catch (err) {
+    return failure(err)
+  }
+}
+
+// One answer in the review. Kept on the source, so the next check (and every
+// routine check after it) already knows it. Clearing one is passing null.
+export type ResolutionPatch =
+  | { committee: { key: string; committeeId: string | null; alias?: string } }
+  | { committeeClear: string }
+  | { row: { rowHash: string; value: RowResolution | null } }
+  | { keep: { email: string; rowHash: string | null } }
+
+export async function saveImportResolution(input: {
+  sourceId: string
+  patch: ResolutionPatch
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  try {
+    const session = await requireStaff()
+    const { source } = await loadSource(input.sourceId)
+    const res = parseResolutions(source.resolutions)
+    const p = input.patch
+
+    if ("committee" in p) {
+      const { key, committeeId, alias } = p.committee
+      if (committeeId) {
+        const committee = await prisma.committee.findFirst({ where: { id: committeeId, eventId: source.eventId }, select: { id: true } })
+        if (!committee) throw new ImportError("That committee isn't part of this event.")
+      }
+      // Saved as another name for the committee: it now resolves by itself, for
+      // this sheet and every later one, so no per-source answer is needed.
+      if (alias && committeeId) {
+        const saved = await addCommitteeAlias(committeeId, alias)
+        if (!saved.success) throw new ImportError(saved.error ?? "Could not save that name.")
+        delete res.committees[key]
+      } else {
+        res.committees[key] = committeeId
+      }
+    } else if ("committeeClear" in p) {
+      delete res.committees[p.committeeClear]
+    } else if ("row" in p) {
+      const v = p.row.value
+      if (v && typeof v === "object") {
+        const email = normalizeEmail(v.email)
+        if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new ImportError(`"${v.email}" is not a valid email address.`)
+        res.rows[p.row.rowHash] = { email }
+      } else if (v) {
+        res.rows[p.row.rowHash] = v
+      } else {
+        delete res.rows[p.row.rowHash]
+      }
+    } else if ("keep" in p) {
+      if (p.keep.rowHash) res.keep[p.keep.email.toLowerCase()] = p.keep.rowHash
+      else delete res.keep[p.keep.email.toLowerCase()]
+    }
+
+    await prisma.delegateSheetSource.update({ where: { id: source.id }, data: { resolutions: res as object } })
+    await audit(session.user?.email ?? "unknown", "formSource.resolve", "DelegateSheetSource", source.id, { patch: p })
+    return { ok: true }
   } catch (err) {
     return failure(err)
   }
@@ -357,14 +492,13 @@ const STALE = "The sheet changed since you checked it, so nothing was imported. 
 export async function applyFormImport(input: {
   sourceId: string
   planToken: string
-  duplicateOverrides?: Record<string, string>
 }): Promise<FormApplyResult> {
   let key: string | null = null
   try {
     const session = await requireStaff()
     const actor = session.user?.email ?? "unknown"
     const [{ source, plan, planToken, existing }, content] = await Promise.all([
-      planFromSheet(input.sourceId, input.duplicateOverrides ?? {}),
+      planFromSheet(input.sourceId),
       getContent(),
     ])
 
@@ -403,7 +537,19 @@ export async function applyFormImport(input: {
         let created = 0
         let updated = 0
         for (const row of plan.rows) {
-          if (row.outcome === "create" && row.candidate) {
+          // Only what the review settled. A row still waiting on a decision is
+          // left for the next check, never imported on a guess.
+          if (row.bucket !== "ready" && row.bucket !== "warning") continue
+          if (row.outcome === "update" && row.safeOnly && row.candidateId && row.changes) {
+            // Contact details onto someone registered another way. Their
+            // source, stage and seat stay theirs; the row's hash marks this
+            // response done so it is not asked about again.
+            await tx.delegate.update({
+              where: { id: row.candidateId },
+              data: { ...row.changes, sourceRowHash: row.rowHash },
+            })
+            updated++
+          } else if (row.outcome === "create" && row.candidate) {
             const d = row.candidate
             await tx.delegate.create({
               data: {
@@ -453,10 +599,10 @@ export async function applyFormImport(input: {
         }
 
         const errors = plan.rows
-          .filter((r) => r.outcome === "invalid" || r.outcome === "skip-duplicate")
-          .map((r) => ({ rowIndex: r.index, reason: (r.errors ?? []).join(" "), raw: r.raw }))
+          .filter((r) => r.bucket === "decision" || r.outcome === "skip-duplicate")
+          .map((r) => ({ rowIndex: r.index, reason: (r.errors ?? []).join(" ") || r.decisions.map((d) => d.kind).join(", "), raw: r.raw }))
 
-        const skipped = plan.counts.skipUnchanged + plan.counts.skipDuplicate
+        const skipped = plan.buckets.skipped
         await tx.delegateImport.update({
           where: { id: importRow.id },
           data: {
@@ -464,14 +610,14 @@ export async function applyFormImport(input: {
             rowsCreated: created,
             rowsUpdated: updated,
             rowsSkipped: skipped,
-            rowsInvalid: plan.counts.invalid,
+            rowsInvalid: plan.buckets.decision,
             errors: errors.length > 0 ? errors : undefined,
             finishedAt: new Date(),
           },
         })
         await tx.delegateSheetSource.update({ where: { id: source.id }, data: { lastImportedAt: new Date() } })
 
-        return { created, updated, skipped, invalid: plan.counts.invalid }
+        return { created, updated, skipped, invalid: plan.buckets.decision }
       },
       // A large sheet does a lot of row work; the default 5s is too tight.
       { timeout: 120_000 },

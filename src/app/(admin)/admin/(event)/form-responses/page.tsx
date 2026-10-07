@@ -16,7 +16,7 @@ export default async function FormResponsesPage() {
   await requireStaff()
 
   const scope = await currentEventScope()
-  const [event, sources, queries] = await Promise.all([
+  const [event, sources, queries, committees] = await Promise.all([
     getActiveEvent(),
     // This event's sources only: a tab connected for last year's event is last
     // year's, even when the same Form is reused.
@@ -43,6 +43,7 @@ export default async function FormResponsesPage() {
       select: { id: true, fullName: true, email: true, whatsapp: true, query: true },
       take: 200,
     }),
+    prisma.committee.findMany({ where: { isActive: true, ...scope }, orderBy: { sortOrder: "asc" }, select: { id: true, name: true } }),
   ])
 
   return (
@@ -66,6 +67,7 @@ export default async function FormResponsesPage() {
         }))}
         eventName={event?.name ?? ""}
         bot={sheetBotEmail()}
+        committees={committees}
         // A volunteer connecting the Intra form for the first time sees it already
         // matched; they confirm, they do not build.
         defaultMapping={INTRA_FORM_MAPPING}

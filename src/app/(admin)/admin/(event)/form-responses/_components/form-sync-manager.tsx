@@ -4,19 +4,21 @@ import { useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
 import { Copy, Download, FileSpreadsheet, LockKeyhole, RefreshCw, TriangleAlert } from "lucide-react"
+import { ImportReview } from "./import-review"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
-import { t, type StringKey } from "@/content/strings"
+import { t } from "@/content/strings"
 import { DELEGATE_IMPORT_FIELDS, type DelegateMapping } from "@/lib/schemas/delegate-import"
 import {
   applyFormImport,
   previewFormImport,
   readSheetColumns,
   saveFormSource,
+  saveImportResolution,
   type FormPreviewResult,
+  type ResolutionPatch,
 } from "../actions"
 
 export interface FormSource {
@@ -33,23 +35,6 @@ export interface FormSource {
   lastAccess: string | null
 }
 
-const OUTCOME_LABEL: Record<string, StringKey> = {
-  create: "admin.formSync.outcomeCreate",
-  update: "admin.formSync.outcomeUpdate",
-  "skip-unchanged": "admin.formSync.outcomeSkipUnchanged",
-  "skip-duplicate": "admin.formSync.outcomeSkipDuplicate",
-  invalid: "admin.formSync.outcomeInvalid",
-}
-
-// Same tones as recruitment's responses screen, so the two importers read alike.
-const OUTCOME_TONE: Record<string, string> = {
-  create: "bg-[var(--teal-100)] text-[var(--teal-700)]",
-  update: "bg-secondary text-secondary-foreground",
-  "skip-unchanged": "bg-muted text-muted-foreground",
-  "skip-duplicate": "bg-accent text-accent-foreground",
-  invalid: "bg-[var(--signal-soft)] text-[var(--ink-soft)]",
-}
-
 const REQUIRED = DELEGATE_IMPORT_FIELDS.filter((f) => f.required).map((f) => f.key)
 
 type Preview = Extract<FormPreviewResult, { ok: true }>
@@ -59,8 +44,10 @@ export function FormSyncManager({
   defaultMapping,
   eventName,
   bot,
+  committees,
 }: {
   sources: FormSource[]
+  committees: { id: string; name: string }[]
   defaultMapping: DelegateMapping
   eventName: string
   // The service account staff share a sheet with to keep it private.
@@ -71,7 +58,6 @@ export function FormSyncManager({
   // The preview carries its own source id and plan token, so Import can only
   // ever act on the source that was checked, with exactly what was shown.
   const [preview, setPreview] = useState<Preview | null>(null)
-  const [overrides, setOverrides] = useState<Record<string, string>>({})
   const [checking, setChecking] = useState<string | null>(null)
 
   // Editor. Opens for a new source when none exist, since that is the only thing
@@ -84,7 +70,6 @@ export function FormSyncManager({
 
   function forgetPreview() {
     setPreview(null)
-    setOverrides({})
   }
 
   function openEditor(source: FormSource | null) {
@@ -96,13 +81,11 @@ export function FormSyncManager({
     setHeaders(null)
   }
 
-  function doPreview(sourceId: string, next: Record<string, string> = {}) {
-    // Choices made against one source never travel to another.
+  function doPreview(sourceId: string) {
     if (preview?.sourceId !== sourceId) setPreview(null)
-    setOverrides(next)
     setChecking(sourceId)
     startTransition(async () => {
-      const result = await previewFormImport({ sourceId, duplicateOverrides: next })
+      const result = await previewFormImport({ sourceId })
       setChecking(null)
       if (!result.ok) {
         setPreview(null)
@@ -118,7 +101,7 @@ export function FormSyncManager({
   function doApply() {
     if (!preview) return
     startTransition(async () => {
-      const result = await applyFormImport({ sourceId: preview.sourceId, planToken: preview.planToken, duplicateOverrides: overrides })
+      const result = await applyFormImport({ sourceId: preview.sourceId, planToken: preview.planToken })
       if (!result.ok) {
         toast.error(result.error)
         // A stale preview is not shown as if it were still true.
@@ -131,6 +114,28 @@ export function FormSyncManager({
           : t("admin.formSync.importedResult", { created: result.created, updated: result.updated, invalid: result.invalid }),
       )
       forgetPreview()
+      router.refresh()
+    })
+  }
+
+  // An answer is kept on the source, then the sheet is checked again with it, so
+  // the review always shows the plan Import would run.
+  function doResolve(patch: ResolutionPatch) {
+    if (!preview) return
+    const sourceId = preview.sourceId
+    startTransition(async () => {
+      const saved = await saveImportResolution({ sourceId, patch })
+      if (!saved.ok) {
+        toast.error(saved.error)
+        return
+      }
+      const result = await previewFormImport({ sourceId })
+      if (!result.ok) {
+        setPreview(null)
+        toast.error(result.error)
+        return
+      }
+      setPreview(result)
       router.refresh()
     })
   }
@@ -181,8 +186,6 @@ export function FormSyncManager({
   const missing = REQUIRED.filter((k) => !mapping[k])
   const missingLabels = DELEGATE_IMPORT_FIELDS.filter((f) => missing.includes(f.key as (typeof REQUIRED)[number])).map((f) => f.label)
   const canSave = !!label.trim() && !!sheetUrl.trim() && missing.length === 0
-
-  const attention = preview ? preview.rows.filter((r) => r.errors.length > 0 || r.warnings.length > 0) : []
 
   return (
     <div className="space-y-8">
@@ -259,136 +262,9 @@ export function FormSyncManager({
         )}
       </section>
 
-      {/* ---- Preview: exactly the plan that Import will run ---- */}
+      {/* ---- Review: exactly the plan that Import will run ---- */}
       {preview && (
-        <section className="space-y-4">
-          <h2 className="section-label">{t("admin.formSync.previewTitle")}</h2>
-
-          <div className="flex flex-wrap gap-2">
-            {(
-              [
-                ["create", preview.counts.create, "admin.formSync.countCreate"],
-                ["update", preview.counts.update, "admin.formSync.countUpdate"],
-                ["skip-unchanged", preview.counts.skipUnchanged, "admin.formSync.countUnchanged"],
-                ["skip-duplicate", preview.counts.skipDuplicate, "admin.formSync.countDuplicate"],
-                ["invalid", preview.counts.invalid, "admin.formSync.countInvalid"],
-              ] as const
-            ).map(([tone, n, key]) => (
-              <Badge key={tone} className={`px-2.5 py-1 text-sm font-medium ${OUTCOME_TONE[tone]}`}>
-                {t(key, { n })}
-              </Badge>
-            ))}
-          </div>
-
-          {preview.alreadyApplied && (
-            <p className="rounded-md bg-accent px-3 py-2 text-sm text-accent-foreground">{t("admin.formSync.alreadyApplied")}</p>
-          )}
-
-          {/* What needs a human, first: it is the only part that asks for action. */}
-          <div className="space-y-2 rounded-md border border-border/70 p-4">
-            <h3 className="flex items-center gap-2 font-medium">
-              <TriangleAlert className="size-4 text-muted-foreground" />
-              {t("admin.formSync.attentionTitle", { n: attention.length })}
-            </h3>
-            {attention.length === 0 ? (
-              <p className="text-sm text-muted-foreground">{t("admin.formSync.noAttention")}</p>
-            ) : (
-              <>
-                <p className="text-sm text-muted-foreground">{t("admin.formSync.attentionHelp")}</p>
-                <ul className="divide-y divide-border/60">
-                  {attention.map((r) => (
-                    <li key={r.index} className="py-2 text-sm">
-                      <p className="font-medium">
-                        {t("admin.formSync.duplicateRow", { row: r.index + 2 })}
-                        {r.fullName ? `  ·  ${r.fullName}` : ""}
-                        {r.email ? `  ·  ${r.email}` : ""}
-                      </p>
-                      {[...r.errors, ...r.warnings].map((m, i) => (
-                        <p key={i} className="text-muted-foreground">{m}</p>
-                      ))}
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
-          </div>
-
-          {preview.duplicateGroups.length > 0 && (
-            <div className="space-y-2 rounded-md border border-border/70 p-4">
-              <h3 className="font-medium">{t("admin.formSync.duplicatesTitle")}</h3>
-              <p className="text-sm text-muted-foreground">{t("admin.formSync.duplicatesHelp")}</p>
-              <ul className="space-y-3">
-                {preview.duplicateGroups.map((g) => (
-                  <li key={g.email} className="text-sm">
-                    <p className="font-medium">{g.email}</p>
-                    <div className="mt-1 flex flex-wrap gap-1.5">
-                      {g.rowIndexes.map((i) => {
-                        const kept = i === g.winnerIndex
-                        const row = preview.rows.find((r) => r.index === i)
-                        return (
-                          <Button
-                            key={i}
-                            size="sm"
-                            variant={kept ? "default" : "outline"}
-                            className="h-auto flex-col items-start gap-0.5 py-1.5 text-left"
-                            disabled={pending || !row}
-                            onClick={() => row && doPreview(preview.sourceId, { ...overrides, [g.email]: row.rowHash })}
-                          >
-                            <span className="text-xs font-medium">{row?.submittedAt ?? t("admin.formSync.duplicateRow", { row: i + 2 })}</span>
-                            <span className="text-[0.75rem] opacity-80">{kept ? t("admin.formSync.duplicateKept") : t("admin.formSync.duplicateUse")}</span>
-                          </Button>
-                        )
-                      })}
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          <div className="max-h-[28rem] overflow-auto rounded-md border border-border/70">
-            <table className="w-full text-left text-sm">
-              <thead className="sticky top-0 bg-card">
-                <tr className="border-b border-border/70">
-                  <th className="px-3 py-2 font-medium">{t("admin.formSync.tableRow")}</th>
-                  <th className="px-3 py-2 font-medium">{t("admin.formSync.tableStatus")}</th>
-                  <th className="px-3 py-2 font-medium">{t("admin.formSync.tableName")}</th>
-                  <th className="px-3 py-2 font-medium">{t("admin.formSync.tableEmail")}</th>
-                  <th className="px-3 py-2 font-medium">{t("admin.formSync.tableRoll")}</th>
-                  <th className="px-3 py-2 font-medium">{t("admin.formSync.tableChoices")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {preview.rows.map((r) => (
-                  <tr key={r.index} className="border-b border-border/40 align-top last:border-0">
-                    {/* +2: sheet rows start at 1 and row 1 is the header, so this
-                        is the number the organiser sees in Google Sheets. */}
-                    <td className="px-3 py-2 text-muted-foreground tabular-nums">{r.index + 2}</td>
-                    <td className="px-3 py-2">
-                      <Badge className={`font-normal ${OUTCOME_TONE[r.outcome] ?? ""}`}>{t(OUTCOME_LABEL[r.outcome] ?? "admin.formSync.outcomeInvalid")}</Badge>
-                    </td>
-                    <td className="px-3 py-2">{r.fullName}</td>
-                    <td className="px-3 py-2">
-                      <span className="block break-all">{r.email}</span>
-                      {r.protectedFields.length > 0 && (
-                        <span className="block text-xs text-muted-foreground">
-                          {t("admin.formSync.protectedNote", { fields: r.protectedFields.join(", ") })}
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-3 py-2 tabular-nums">{r.rollNumber}</td>
-                    <td className="px-3 py-2">{r.choices}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          <Button size="lg" className="gap-1.5" disabled={pending} onClick={doApply}>
-            <Download className="size-4" />
-            {pending ? t("admin.formSync.applying") : t("admin.formSync.apply")}
-          </Button>
-        </section>
+        <ImportReview preview={preview} committees={committees} pending={pending} onResolve={doResolve} onImport={doApply} />
       )}
 
       {/* ---- Connect or change a sheet ---- */}
