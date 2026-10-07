@@ -44,9 +44,9 @@ export const ContentSchema = z.object({
     .object({
       title: z.string().default("DelTech MUN"),
       subtitle: z.string().default(""),
-      ctaLabel: z.string().default("Register Now"),
+      ctaLabel: z.string().default("Register"),
     })
-    .default({ title: "DelTech MUN", subtitle: "", ctaLabel: "Register Now" }),
+    .default({ title: "DelTech MUN", subtitle: "", ctaLabel: "Register" }),
   agendasBlurb: z.string().default(""),
   awards: z.array(z.string()).default([]),
   queryContacts: z
