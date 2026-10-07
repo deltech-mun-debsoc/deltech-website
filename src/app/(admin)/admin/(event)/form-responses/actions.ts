@@ -2,17 +2,19 @@
 
 // Delegate registration through a Google Form response sheet.
 //
-// Preview and apply run the SAME planner (src/lib/delegate-import.ts), so what an
-// organiser approves is literally what gets written. Apply is keyed on a hash of
-// (source, mapping, content), so a double-click or a retry returns the first
-// result instead of importing twice.
+// Preview and apply run the SAME planner (src/lib/delegate-import.ts). Preview
+// also hands out a plan token: a hash of (event, source, mapping, sheet content,
+// choices). Apply reads the sheet again, recomputes it, and refuses on any
+// difference, so a sheet edited or re-sorted after the preview cannot import
+// something nobody looked at. The same hash keys the import, so a double-click
+// or a retry returns the first result instead of importing twice.
 //
 // Nothing here allots anyone or sends an email. Every imported delegate lands as
 // REGISTERED, and allotment stays a human decision on the Allotment board.
 
 import { revalidatePath } from "next/cache"
 import { prisma } from "@/lib/prisma"
-import { fetchSheetRows as fetchRows, SheetFetchError } from "@/lib/sheet-fetch"
+import { fetchSheetRows as fetchRows, SheetFetchError, sheetBotEmail } from "@/lib/sheet-fetch"
 import { requireStaff } from "@/lib/authz"
 import { audit } from "@/lib/audit"
 import { deriveCsvUrl } from "@/lib/gsheet-url"
@@ -21,6 +23,7 @@ import { sheetKeyFromUrl, summarisePlan, type DuplicateGroup, type ImportPlan } 
 import {
   delegateImportIdempotencyKey,
   planDelegateImport,
+  rowsNeedingAttention,
   type ExistingDelegate,
   type MappedDelegate,
 } from "@/lib/delegate-import"
@@ -70,17 +73,17 @@ function resolveSheet(url: string): { csvUrl: string; sheetKey: string } {
 // Read-only: fetch a sheet's column headers and propose a mapping, so the
 // organiser picks from real column names instead of typing them.
 export async function readSheetColumns(input: { sheetUrl: string }): Promise<
-  | { ok: true; headers: string[]; suggested: Partial<DelegateMapping>; rowCount: number }
+  | { ok: true; headers: string[]; suggested: Partial<DelegateMapping>; rowCount: number; access: "private" | "public" }
   | { ok: false; error: string }
 > {
   try {
     await requireStaff()
     const { csvUrl } = resolveSheet(input.sheetUrl)
-    const { rows, headers } = await fetchRows(csvUrl)
+    const { rows, headers, access } = await fetchRows(csvUrl)
     if (headers.length === 0) {
       throw new ImportError("The sheet is empty. It needs at least one response before its columns can be read.")
     }
-    return { ok: true, headers, suggested: suggestDelegateMapping(headers), rowCount: rows.length }
+    return { ok: true, headers, suggested: suggestDelegateMapping(headers), rowCount: rows.length, access }
   } catch (err) {
     return failure(err)
   }
@@ -90,7 +93,17 @@ export async function readSheetColumns(input: { sheetUrl: string }): Promise<
 // Source configuration
 // ---------------------------------------------------------------------------
 
+// The address staff share a sheet with to keep it private, for the connect
+// screen. Null when no service account is configured.
+export async function formSheetBot(): Promise<string | null> {
+  await requireStaff()
+  return sheetBotEmail()
+}
+
 export async function saveFormSource(input: {
+  // Set when changing an existing connection: that connection is replaced,
+  // never joined by a second one.
+  sourceId?: string
   label: string
   sheetUrl: string
   mapping: DelegateMapping
@@ -112,20 +125,42 @@ export async function saveFormSource(input: {
   try {
     const session = await requireStaff()
     const { csvUrl, sheetKey } = resolveSheet(input.sheetUrl)
-    // One source per sheet tab: saving the same tab again updates it rather than
-    // creating a rival source with a different mapping.
-    const saved = await prisma.delegateSheetSource.upsert({
-      where: { sheetKey },
-      create: {
-        label,
-        sheetUrl: input.sheetUrl.trim(),
-        csvUrl,
-        sheetKey,
-        mapping: mapping.data,
-        createdById: session.user?.email ?? "unknown",
-      },
-      update: { label, sheetUrl: input.sheetUrl.trim(), csvUrl, mapping: mapping.data, isActive: true },
-      select: { id: true },
+    const event = await requireActiveEvent()
+    const fields = { label, sheetUrl: input.sheetUrl.trim(), csvUrl, sheetKey, mapping: mapping.data, isActive: true }
+
+    const saved = await prisma.$transaction(async (tx) => {
+      const sameTab = await tx.delegateSheetSource.findUnique({
+        where: { eventId_sheetKey: { eventId: event.id, sheetKey } },
+        select: { id: true, label: true },
+      })
+
+      if (input.sourceId) {
+        const current = await tx.delegateSheetSource.findUnique({
+          where: { id: input.sourceId },
+          select: { id: true, eventId: true, sheetKey: true },
+        })
+        if (!current || current.eventId !== event.id) throw new ImportError("That sheet isn't connected to this event any more. Reload the page.")
+        if (sameTab && sameTab.id !== current.id) {
+          throw new ImportError(`That sheet is already connected as "${sameTab.label}".`)
+        }
+        // A new link for the same form (a copied sheet, a new tab): the people
+        // already imported come with it. Rows are keyed by email, so they keep
+        // matching instead of every one turning into "already registered".
+        if (current.sheetKey !== sheetKey) {
+          await tx.delegate.updateMany({
+            where: { eventId: event.id, sourceSheetKey: current.sheetKey },
+            data: { sourceSheetKey: sheetKey },
+          })
+        }
+        return tx.delegateSheetSource.update({ where: { id: current.id }, data: fields, select: { id: true } })
+      }
+
+      // One source per tab per event: connecting the same tab again updates it.
+      if (sameTab) return tx.delegateSheetSource.update({ where: { id: sameTab.id }, data: fields, select: { id: true } })
+      return tx.delegateSheetSource.create({
+        data: { ...fields, eventId: event.id, createdById: session.user?.email ?? "unknown" },
+        select: { id: true },
+      })
     })
     await audit(session.user?.email ?? "unknown", "formSource.save", "DelegateSheetSource", saved.id, {
       label,
@@ -169,11 +204,14 @@ async function loadPlanInputs() {
 }
 
 async function loadSource(sourceId: string) {
-  const source = await prisma.delegateSheetSource.findUnique({
-    where: { id: sourceId },
-    select: { id: true, label: true, csvUrl: true, sheetKey: true, mapping: true },
-  })
-  if (!source) throw new ImportError("That sheet isn't connected any more. Reload the page.")
+  const [source, event] = await Promise.all([
+    prisma.delegateSheetSource.findUnique({
+      where: { id: sourceId },
+      select: { id: true, eventId: true, label: true, csvUrl: true, sheetKey: true, mapping: true },
+    }),
+    requireActiveEvent(),
+  ])
+  if (!source || source.eventId !== event.id) throw new ImportError("That sheet isn't connected to this event any more. Reload the page.")
   const mapping = delegateMappingSchema.safeParse(source.mapping)
   if (!mapping.success) throw new ImportError("This sheet's columns aren't fully matched. Open Change this sheet and save it again.")
   return { source, mapping: mapping.data }
@@ -181,6 +219,7 @@ async function loadSource(sourceId: string) {
 
 export interface FormPreviewRow {
   index: number
+  rowHash: string
   outcome: string
   fullName: string | null
   email: string | null
@@ -195,11 +234,15 @@ export interface FormPreviewRow {
 export type FormPreviewResult =
   | {
       ok: true
+      sourceId: string
+      // Hand this back to applyFormImport. It binds the import to this preview.
+      planToken: string
       rows: FormPreviewRow[]
       counts: ImportPlan<MappedDelegate>["counts"]
       summary: string
       alreadyApplied: boolean
       duplicateGroups: DuplicateGroup[]
+      access: "private" | "public"
     }
   | { ok: false; error: string }
 
@@ -215,6 +258,7 @@ function toPreviewRows(
     const choices = c ? [choice(c.pref1CommitteeId, c.pref1Portfolio), choice(c.pref2CommitteeId, c.pref2Portfolio)].filter(Boolean).join(" / ") : null
     return {
       index: r.index,
+      rowHash: r.rowHash,
       outcome: r.outcome,
       fullName: c?.fullName ?? r.raw[mapping.fullName] ?? null,
       email: c?.email ?? r.raw[mapping.email] ?? null,
@@ -228,37 +272,69 @@ function toPreviewRows(
   })
 }
 
-// Read-only. Nothing is written, so an organiser can look as often as they like.
+// Reads the sheet and plans it against this event. Preview and apply both come
+// through here, so the plan and its token are computed one way.
+async function planFromSheet(sourceId: string, overrides: Record<string, string>) {
+  const { source, mapping } = await loadSource(sourceId)
+  const [{ rows, access }, { existing, committees }] = await Promise.all([fetchRows(source.csvUrl), loadPlanInputs()])
+  const plan = planDelegateImport(rows, mapping, {
+    sheetKey: source.sheetKey,
+    existing: existing as ExistingDelegate[],
+    committees,
+    overrides,
+  })
+  const planToken = delegateImportIdempotencyKey({
+    eventId: source.eventId,
+    sourceId: source.id,
+    mapping,
+    rows: rows as Record<string, string>[],
+    overrides,
+  })
+  return { source, mapping, rows, access, existing, committees, plan, planToken }
+}
+
+// Read-only for delegates. It records the source's health (when it was last
+// checked and what was found), which is what the source card shows.
 export async function previewFormImport(input: {
   sourceId: string
-  duplicateOverrides?: Record<string, number>
+  duplicateOverrides?: Record<string, string>
 }): Promise<FormPreviewResult> {
   try {
     await requireStaff()
-    const { source, mapping } = await loadSource(input.sourceId)
-    const [{ rows }, { existing, committees }] = await Promise.all([fetchRows(source.csvUrl), loadPlanInputs()])
-
-    const plan = planDelegateImport(rows, mapping, {
-      sheetKey: source.sheetKey,
-      existing: existing as ExistingDelegate[],
-      committees,
-      overrides: input.duplicateOverrides ?? {},
+    let planned: Awaited<ReturnType<typeof planFromSheet>>
+    try {
+      planned = await planFromSheet(input.sourceId, input.duplicateOverrides ?? {})
+    } catch (err) {
+      if (err instanceof SheetFetchError) {
+        await prisma.delegateSheetSource
+          .update({ where: { id: input.sourceId }, data: { lastCheckError: err.message } })
+          .catch(() => undefined)
+      }
+      throw err
+    }
+    const { source, mapping, plan, planToken, access, committees } = planned
+    const prior = await prisma.delegateImport.findUnique({ where: { idempotencyKey: planToken }, select: { state: true } })
+    await prisma.delegateSheetSource.update({
+      where: { id: source.id },
+      data: {
+        lastCheckedAt: new Date(),
+        lastCheckRows: plan.counts.total,
+        lastCheckNeedsAction: rowsNeedingAttention(plan).length,
+        lastCheckError: null,
+        lastAccess: access,
+      },
     })
-    const key = delegateImportIdempotencyKey({
-      sourceId: source.id,
-      mapping,
-      rows: rows as Record<string, string>[],
-      overrides: input.duplicateOverrides ?? {},
-    })
-    const prior = await prisma.delegateImport.findUnique({ where: { idempotencyKey: key }, select: { state: true } })
 
     return {
       ok: true,
+      sourceId: source.id,
+      planToken,
       rows: toPreviewRows(plan, mapping, new Map(committees.map((c) => [c.id, c.name]))),
       counts: plan.counts,
       summary: summarisePlan(plan),
       alreadyApplied: prior?.state === "APPLIED",
       duplicateGroups: plan.duplicateGroups,
+      access,
     }
   } catch (err) {
     return failure(err)
@@ -271,29 +347,31 @@ export async function previewFormImport(input: {
 
 export type FormApplyResult =
   | { ok: true; idempotent: boolean; created: number; updated: number; skipped: number; invalid: number }
-  | { ok: false; error: string }
+  // The sheet, its mapping or the choices changed since the preview. Nothing was
+  // written; the organiser checks again.
+  | { ok: false; stale: true; error: string }
+  | { ok: false; stale?: false; error: string }
+
+const STALE = "The sheet changed since you checked it, so nothing was imported. Check it again, then import."
 
 export async function applyFormImport(input: {
   sourceId: string
-  duplicateOverrides?: Record<string, number>
+  planToken: string
+  duplicateOverrides?: Record<string, string>
 }): Promise<FormApplyResult> {
   let key: string | null = null
   try {
     const session = await requireStaff()
     const actor = session.user?.email ?? "unknown"
-    const { source, mapping } = await loadSource(input.sourceId)
-    const [{ rows }, { existing, committees }, content] = await Promise.all([
-      fetchRows(source.csvUrl),
-      loadPlanInputs(),
+    const [{ source, plan, planToken, existing }, content] = await Promise.all([
+      planFromSheet(input.sourceId, input.duplicateOverrides ?? {}),
       getContent(),
     ])
 
-    key = delegateImportIdempotencyKey({
-      sourceId: source.id,
-      mapping,
-      rows: rows as Record<string, string>[],
-      overrides: input.duplicateOverrides ?? {},
-    })
+    // The import applies exactly what was reviewed, or nothing.
+    if (planToken !== input.planToken) return { ok: false, stale: true, error: STALE }
+
+    key = planToken
     const prior = await prisma.delegateImport.findUnique({ where: { idempotencyKey: key } })
     if (prior?.state === "APPLIED") {
       return {
@@ -306,13 +384,6 @@ export async function applyFormImport(input: {
       }
     }
 
-    const plan = planDelegateImport(rows, mapping, {
-      sheetKey: source.sheetKey,
-      existing: existing as ExistingDelegate[],
-      committees,
-      overrides: input.duplicateOverrides ?? {},
-    })
-
     // Fixed by the event, not by the row: an Intra MUN form only admits DTU
     // students, and has no institution question. ponytail: event-mode switch,
     // make it a per-source setting if a conference ever registers by form.
@@ -324,11 +395,6 @@ export async function applyFormImport(input: {
       async (tx) => {
         // Claiming the key inside the transaction means two concurrent applies
         // cannot both proceed: the second hits the unique index.
-        // Imported delegates join the event that is running now. An organiser
-        // pressing Import is the review step, but they still cannot import into
-        // nothing.
-        const event = await requireActiveEvent()
-
         const importRow = await tx.delegateImport.create({
           data: { sourceId: source.id, idempotencyKey, state: "PENDING", rowsTotal: plan.counts.total, importedById: actor },
           select: { id: true },
@@ -341,7 +407,9 @@ export async function applyFormImport(input: {
             const d = row.candidate
             await tx.delegate.create({
               data: {
-                eventId: event.id,
+                // The source's own event: loadSource has checked it is the one
+                // running now.
+                eventId: source.eventId,
                 fullName: d.fullName,
                 email: d.email,
                 whatsapp: d.whatsapp,
@@ -434,12 +502,9 @@ export async function applyFormImport(input: {
         }
       }
       // Otherwise an email in this sheet was registered some other way between
-      // preview and import. The whole import rolled back; a fresh preview will
-      // show that row as a clash.
-      return {
-        ok: false,
-        error: "Someone registered with one of these emails a moment ago. Nothing was imported. Press Refetch & preview again.",
-      }
+      // preview and import. The whole import rolled back; a fresh check shows
+      // that row as a clash.
+      return { ok: false, stale: true, error: "Someone registered with one of these emails a moment ago, so nothing was imported. Check again." }
     }
     return failure(err)
   }
