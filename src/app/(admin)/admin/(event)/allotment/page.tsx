@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma"
-import { currentEventScope, getActiveEvent } from "@/lib/event"
+import { currentEventScope, getActiveEvent, getEventCapabilities } from "@/lib/event"
 import { requireStaff } from "@/lib/authz"
 import { AllotmentBoard } from "./_components/allotment-board"
 import { PageHeader } from "@/app/(admin)/_components/page-header"
@@ -39,10 +39,12 @@ export default async function AllotmentPage(props: { searchParams: Promise<{ del
       },
     }),
     prisma.delegate.findMany({
-      where: { status: "REGISTERED", allotment: null, ...scope },
+      // CONFIRMED without a seat: accepted with nothing to pay, still to be placed.
+      where: { status: { in: ["REGISTERED", "CONFIRMED"] }, allotment: null, ...scope },
       orderBy: { createdAt: "asc" },
       select: {
         id: true,
+        status: true,
         fullName: true,
         email: true,
         institution: true,
@@ -87,7 +89,7 @@ export default async function AllotmentPage(props: { searchParams: Promise<{ del
     })),
   }))
 
-  const event = await getActiveEvent()
+  const [event, caps] = await Promise.all([getActiveEvent(), getEventCapabilities()])
 
   return (
     <div className="space-y-6">
@@ -100,7 +102,7 @@ export default async function AllotmentPage(props: { searchParams: Promise<{ del
       <AllotmentBoard
         focusDelegateId={focusDelegateId ?? null}
         eventId={event?.id ?? null}
-        intra={event?.kind === "INTRA_MUN"}
+        intra={caps.intra}
         committees={serializedCommittees}
         delegates={serializedDelegates}
         fees={fees}

@@ -58,3 +58,41 @@ export function automaticIntakeAllowed(
   }
   return { ok: true }
 }
+
+// What the running event's admin workspace offers, from the Event row. The UI
+// hides what is off and the server refuses it, both from this one answer, so a
+// hidden tab is never the only thing standing between an organiser and a
+// prohibited import.
+//
+// Cross delegations are shown for a conference when switched on, and also when
+// already in use (delegates or a linked partner sheet exist), so switching the
+// setting off never hides delegates who are already there. An Intra MUN never
+// takes them: it is for DTU students, and intake would auto-confirm outsiders.
+export interface EventCapabilities {
+  intra: boolean
+  payments: boolean
+  crossDelegations: boolean
+  matrixPublic: boolean
+}
+
+export type Capability = Exclude<keyof EventCapabilities, "intra">
+
+export function eventCapabilities(
+  event: { kind: string; paymentsEnabled: boolean; matrixPublic: boolean; crossDelegationsEnabled: boolean } | null,
+  crossDelegationsInUse: boolean,
+): EventCapabilities {
+  if (!event) return { intra: false, payments: false, crossDelegations: false, matrixPublic: false }
+  const intra = event.kind === "INTRA_MUN"
+  return {
+    intra,
+    payments: event.paymentsEnabled,
+    crossDelegations: !intra && (event.crossDelegationsEnabled || crossDelegationsInUse),
+    matrixPublic: event.matrixPublic,
+  }
+}
+
+export const CAPABILITY_REFUSAL: Record<Capability, string> = {
+  payments: "This event is free, so there is nothing to charge.",
+  crossDelegations: "Cross delegations are off for this event. An Intra MUN takes DTU students through its Google Form.",
+  matrixPublic: "The matrix is not public for this event.",
+}

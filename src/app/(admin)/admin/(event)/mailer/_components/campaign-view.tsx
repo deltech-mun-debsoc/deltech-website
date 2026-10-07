@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation"
 import { requireStaff } from "@/lib/authz"
 import { prisma } from "@/lib/prisma"
-import { currentEventScope } from "@/lib/event"
+import { currentEventScope, getEventCapabilities } from "@/lib/event"
 import { formatDate } from "@/lib/datetime"
 import { prMailEnabled } from "@/lib/mailer/queue"
 import { PageHeader } from "@/app/(admin)/_components/page-header"
@@ -42,6 +42,7 @@ export async function CampaignView({ id, audience }: { id: string; audience: Aud
           tags={[...new Set(tagRows.flatMap((r) => r.tags))].sort()}
           prOn={prOn}
           isAdmin={isAdmin}
+          caps={audience === "DELEGATES" ? await getEventCapabilities() : undefined}
         />
       </div>
     )

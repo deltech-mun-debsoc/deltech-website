@@ -24,9 +24,15 @@ can change an individual string without a deployment. See
 switches into the booleans the app actually branches on: whether registration is accepted,
 whether payments are required, which public sections render.
 
-**Read the derived state, never the raw setting.** The interesting logic is here, in
-particular that `INTRA_MUN` forces `paymentsRequired` to false, which is what makes allotment
-confirm a delegate immediately instead of raising a payment.
+**Read the derived state, never the raw setting.** Payments come from the event's own
+`paymentsEnabled` switch, not from its kind: an Intra MUN is free because its switch is off,
+and that is what makes allotment confirm a delegate immediately instead of raising a payment.
+
+The admin workspace asks `getEventCapabilities()` in `src/lib/event.ts` instead
+(`intra`, `payments`, `crossDelegations`, `matrixPublic`). The UI hides what is off, and
+server actions call `requireCapability()` so a hidden tab is never the only guard. Cross
+delegations are never offered for an Intra MUN; for a conference they follow the Setup
+switch, and stay visible while any already exist.
 
 ## The eight section switches
 

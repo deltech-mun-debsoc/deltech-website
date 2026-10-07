@@ -1,3 +1,4 @@
+import { delegateLine } from "../registrations/_lib/status"
 import Link from "next/link"
 import { prisma } from "@/lib/prisma"
 import { currentEventScope } from "@/lib/event"
@@ -52,6 +53,8 @@ export default async function ParticipantsPage({
       publicToken: true,
       fullName: true,
       institution: true,
+      isDtu: true,
+      rollNumber: true,
       status: true,
       checkedInAt: true,
     },
@@ -70,7 +73,7 @@ export default async function ParticipantsPage({
         ? {
             publicToken: delegate.publicToken,
             fullName: delegate.fullName,
-            institution: delegate.institution,
+            institution: delegateLine(delegate),
             status: delegate.status,
             checkedIn: !!delegate.checkedInAt,
           }

@@ -38,6 +38,11 @@ export async function saveContent(
   if (Object.keys(partial).some((k) => PAYMENT_KEYS.has(k))) {
     return { success: false, error: "Payment settings must be saved via the payment card (admin only)." }
   }
+  // Linked partner sheets admit delegates every night; they go through
+  // savePartnerSheets, which checks the event takes them.
+  if ("sheetPullSources" in partial) {
+    return { success: false, error: "Linked sheets are saved from Cross delegations." }
+  }
   try {
     const before = await getContent()
     await setContent(partial)
@@ -104,6 +109,7 @@ const EventSettingsSchema = z.object({
   registrationOpen: z.boolean(),
   paymentsEnabled: z.boolean(),
   matrixPublic: z.boolean(),
+  crossDelegationsEnabled: z.boolean(),
   label: z.string().trim().max(120),
   brief: z.string().trim().max(300),
   dates: z.string().trim().max(80),
@@ -144,8 +150,18 @@ export async function saveEventSettings(input: EventSettingsInput): Promise<{ su
     registrationOpen: event.registrationOpen,
     paymentsEnabled: event.paymentsEnabled,
     matrixPublic: event.matrixPublic,
+    crossDelegationsEnabled: event.crossDelegationsEnabled,
   }
-  const after = { name: v.name, kind: v.kind, state, registrationOpen: v.registrationOpen, paymentsEnabled, matrixPublic: v.matrixPublic }
+  const after = {
+    name: v.name,
+    kind: v.kind,
+    state,
+    registrationOpen: v.registrationOpen,
+    paymentsEnabled,
+    matrixPublic: v.matrixPublic,
+    // An Intra MUN never takes them, whatever the switch said before the kind changed.
+    crossDelegationsEnabled: v.kind !== "INTRA_MUN" && v.crossDelegationsEnabled,
+  }
 
   try {
     const content = await getContent()
@@ -155,7 +171,8 @@ export async function saveEventSettings(input: EventSettingsInput): Promise<{ su
       conferenceDates: v.dates,
       venue: v.venue,
       registrationFormUrl: v.formUrl,
-      registrationClosedMessage: v.closedMessage || content.registrationClosedMessage,
+      // Empty is a real choice: the closed page then shows no message.
+      registrationClosedMessage: v.closedMessage,
       landingHero: { ...content.landingHero, subtitle: v.brief, ctaLabel: v.ctaLabel || content.landingHero.ctaLabel },
     })
     await audit(session.user?.email ?? "unknown", "event.settings", "Event", event.id, { before, after })

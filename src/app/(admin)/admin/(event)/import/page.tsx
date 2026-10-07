@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma"
 import { getContent } from "@/lib/settings"
-import { currentEventScope } from "@/lib/event"
+import { redirect } from "next/navigation"
+import { currentEventScope, getEventCapabilities } from "@/lib/event"
 import { getImportPresets, getQuarantine } from "./actions"
 import { ImportWizard } from "./_components/import-wizard"
 import { QuarantinePanel } from "./_components/quarantine-panel"
@@ -9,6 +10,10 @@ import { PageHeader } from "@/app/(admin)/_components/page-header"
 import { DelegateTabs } from "../registrations/_components/delegate-tabs"
 
 export default async function ImportPage() {
+  // Before anything is uploaded or analysed: an event that takes no cross
+  // delegations never reaches the wizard, rather than being refused at the end.
+  if (!(await getEventCapabilities()).crossDelegations) redirect("/admin/registrations")
+
   const [presets, committees, quarantine, content] = await Promise.all([
     getImportPresets(),
     // This event's committees only: a sheet is matched against the event being run.

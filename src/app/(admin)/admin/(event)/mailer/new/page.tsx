@@ -1,12 +1,13 @@
 import { requireStaff } from "@/lib/authz"
 import { prisma } from "@/lib/prisma"
-import { currentEventScope } from "@/lib/event"
+import { currentEventScope, getEventCapabilities } from "@/lib/event"
 import { PageHeader } from "@/app/(admin)/_components/page-header"
 import { Composer } from "../_components/composer"
 
 export default async function NewMailPage() {
   const session = await requireStaff()
   const isAdmin = (session.user as { role?: string }).role === "ADMIN"
+  const caps = await getEventCapabilities()
   const committees = await prisma.committee.findMany({
     where: { isActive: true, ...(await currentEventScope()) },
     orderBy: { sortOrder: "asc" },
@@ -15,7 +16,7 @@ export default async function NewMailPage() {
   return (
     <div className="space-y-6">
       <PageHeader eyebrow="Mail" title="New mail" description="Pick a stage or set filters; the preview and count follow." />
-      <Composer audience="DELEGATES" committees={committees} isAdmin={isAdmin} />
+      <Composer audience="DELEGATES" committees={committees} isAdmin={isAdmin} caps={caps} />
     </div>
   )
 }

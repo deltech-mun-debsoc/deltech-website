@@ -107,11 +107,13 @@ export async function allotPortfolio(input: {
 
       // 2. Confirm delegate is still waiting. A draft allotment leaves them
       // REGISTERED, so the allotment row is what says they already have a seat.
+      // A CONFIRMED delegate without one was accepted with nothing to pay (a
+      // cross delegation whose choices were all taken) and is waiting too.
       const delegate = await tx.delegate.findUnique({
         where: { id: input.delegateId },
         select: { isDtu: true, status: true, allotment: { select: { id: true } } },
       })
-      if (!delegate || delegate.status !== "REGISTERED" || delegate.allotment) {
+      if (!delegate || !["REGISTERED", "CONFIRMED"].includes(delegate.status) || delegate.allotment) {
         const e = new Error("Delegate unavailable") as Error & { code: string }
         e.code = "DELEGATE_UNAVAILABLE"
         throw e
@@ -123,14 +125,16 @@ export async function allotPortfolio(input: {
         select: { type: true },
       })
 
-      // 4. Fee lookup, amount always comes from the Fee table, never hardcoded
-      const fee = paymentsEnabled ? await tx.fee.findFirst({
+      // 4. Fee lookup, amount always comes from the Fee table, never hardcoded.
+      // Someone already accepted owes nothing, so needs no fee.
+      const charges = paymentsEnabled && delegate.status === "REGISTERED"
+      const fee = charges ? await tx.fee.findFirst({
         where: {
           committeeType: committee?.type ?? "STANDARD",
           isDtu: delegate.isDtu,
         },
       }) : null
-      if (paymentsEnabled && !fee) {
+      if (charges && !fee) {
         const e = new Error("Fee missing") as Error & { code: string }
         e.code = "FEE_MISSING"
         throw e
@@ -334,10 +338,17 @@ export async function revokeAllotment(input: {
         data: { status: "AVAILABLE" },
       })
 
-      await tx.delegate.update({
-        where: { id: input.delegateId },
-        data: { status: "REGISTERED" },
-      })
+      // Back to waiting. Someone accepted with nothing to pay (no payment row,
+      // already CONFIRMED) stays accepted and needs a seat again: resetting them
+      // to REGISTERED would charge them when the next seat is emailed.
+      const delegate = await tx.delegate.findUnique({ where: { id: input.delegateId }, select: { status: true } })
+      const acceptedFree = delegate?.status === "CONFIRMED" && !payment
+      if (!acceptedFree) {
+        await tx.delegate.update({
+          where: { id: input.delegateId },
+          data: { status: "REGISTERED" },
+        })
+      }
 
       await tx.payment.deleteMany({
         where: { delegateId: input.delegateId, status: { in: draft ? ["PENDING", "FAILED", "SENT"] : ["PENDING", "FAILED"] } },

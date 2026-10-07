@@ -11,7 +11,7 @@ import { Button, buttonVariants } from "@/components/ui/button"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import type { SerializedDelegate, EmailLogEntry } from "../_lib/types"
-import { statusMeta, EMAIL_LABEL } from "../_lib/status"
+import { stageOf, EMAIL_LABEL } from "../_lib/status"
 import { DelegateEditForm } from "./delegate-edit-form"
 import {
   markPaidOffline,
@@ -192,7 +192,7 @@ export function DelegateDrawer({ delegate, committees, intra = false, onClose, o
   }
 
   const d = delegate
-  const meta = d ? statusMeta(d.status) : null
+  const meta = d ? stageOf(d) : null
   // Bounces and spam complaints are failures too: they are why an address stops working.
   const failedEmails = emailLogs?.filter((l) => l.status !== "SENT").length ?? 0
   const followUpDue = !!d?.nextFollowUpAt && new Date(d.nextFollowUpAt) <= new Date()
@@ -319,9 +319,22 @@ export function DelegateDrawer({ delegate, committees, intra = false, onClose, o
                         </div>
                       </>
                     )}
-                    {d.status === "CONFIRMED" && (
+                    {d.status === "CONFIRMED" && !d.allotment && (
                       <>
-                        <p className="font-medium">{seat ?? "Confirmed"}</p>
+                        <p className="font-medium">Accepted, needs a seat</p>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {choices[0] ? `Wants ${choices[0].committee}${choices[0].seat ? ` · ${choices[0].seat}` : ""}` : "Has not chosen a committee."}
+                        </p>
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          <Link href={`/admin/allotment?delegate=${d.id}`} className={buttonVariants({ size: "sm" })}>
+                            <Armchair className="size-4" /> Give a seat
+                          </Link>
+                        </div>
+                      </>
+                    )}
+                    {d.status === "CONFIRMED" && d.allotment && (
+                      <>
+                        <p className="font-medium">{seat}</p>
                         <p className="mt-1 text-sm text-muted-foreground">
                           {d.payment && d.payment.amountInr > 0 ? `Paid ₹${d.payment.amountInr.toLocaleString("en-IN")}` : "Confirmed, nothing to pay."}
                         </p>

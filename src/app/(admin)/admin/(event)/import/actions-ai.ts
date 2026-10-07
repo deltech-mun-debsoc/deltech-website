@@ -3,6 +3,7 @@
 import { z } from "zod"
 import { callAI, AIRateLimitError } from "@/lib/ai"
 import { requireStaff } from "@/lib/authz"
+import { CapabilityError, requireCapability } from "@/lib/event"
 import { getCommitteeRefs, normalizeRow } from "@/lib/intake"
 import type { ColumnMapping, MappedRow } from "@/lib/schemas/import"
 
@@ -15,6 +16,12 @@ export async function suggestMappingWithGemini(
   sampleRows: Record<string, string>[],
 ): Promise<{ success: boolean; mapping?: ColumnMapping; error?: string; rateLimited?: boolean }> {
   await requireStaff()
+  try {
+    await requireCapability("crossDelegations")
+  } catch (err) {
+    if (err instanceof CapabilityError) return { success: false, error: err.message }
+    throw err
+  }
 
   const prompt = `You are helping import delegate data for a Model United Nations (MUN) conference.
 
@@ -102,6 +109,12 @@ export async function cleanImportRowsWithGemini(
   _committeeNames: string[],
 ): Promise<{ success: boolean; cleaned?: CleanedRow[]; error?: string; rateLimited?: boolean }> {
   await requireStaff()
+  try {
+    await requireCapability("crossDelegations")
+  } catch (err) {
+    if (err instanceof CapabilityError) return { success: false, error: err.message }
+    throw err
+  }
   if (rows.length === 0) return { success: true, cleaned: [] }
 
   const committees = await getCommitteeRefs()
