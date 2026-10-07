@@ -178,10 +178,13 @@ export function DelegateDrawer({ delegate, committees, intra = false, onClose, o
         if (res.success) {
           toast.success("Sent.")
           setNoticeTarget(null)
-          loadLogs()
         } else toast.error(res.error ?? "It did not send.")
       })
-      .finally(() => setSendingNotice(false))
+      // A failed attempt is logged too, so the history shows it either way.
+      .finally(() => {
+        setSendingNotice(false)
+        loadLogs()
+      })
   }
 
   const committeeName = (id: string | null) => (id ? committees.find((c) => c.id === id)?.name ?? "Unknown committee" : null)
