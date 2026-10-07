@@ -1,11 +1,9 @@
 import Link from "next/link"
-import Image from "next/image"
-import { ArrowRight } from "lucide-react"
+import { Asterisk, ArrowRight } from "lucide-react"
 import { t } from "@/content/strings"
 import type { Content } from "@/content/contentSchema"
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
-import hall from "@/photos/hall.webp"
 
 // The home page's opening: what is happening, when and where, whether you can
 // register, and the one thing to do next.
@@ -21,31 +19,22 @@ export function ActiveEvent({ content, acceptsRegistrations }: { content: Conten
         : null
 
   return (
-    <section className="border-b border-border/70">
-      <div className="section-shell grid gap-10 py-12 sm:py-16 lg:grid-cols-[1fr_1.05fr] lg:items-center lg:gap-16">
+    <section className="relative overflow-hidden bg-ink text-paper">
+      <Asterisk className="absolute -right-16 -top-20 size-[30rem] text-paper/[0.035]" strokeWidth={0.6} aria-hidden />
+      <div className="section-shell relative grid gap-12 py-20 sm:py-32 lg:grid-cols-[1fr_0.62fr] lg:items-end">
         <div>
-          <p className="text-sm font-medium text-muted-foreground">{kind}</p>
-          <h1 className="headline mt-3 max-w-[16ch]">{content.activeEventName}</h1>
-          {content.landingHero.subtitle && <p className="mt-5 max-w-xl text-lg leading-relaxed text-muted-foreground">{content.landingHero.subtitle}</p>}
-          <dl className="mt-7 grid max-w-md grid-cols-2 gap-6 text-base">
-            <div><dt className="text-sm text-muted-foreground">{t("marketing.eventDateLabel")}</dt><dd className="mt-1 font-semibold">{content.conferenceDates || t("marketing.datesPending")}</dd></div>
-            <div><dt className="text-sm text-muted-foreground">{t("marketing.eventVenueLabel")}</dt><dd className="mt-1 font-semibold">{content.venue || t("marketing.venuePending")}</dd></div>
-          </dl>
-          {sections.registration && (
-            <div className="mt-8 flex flex-wrap items-center gap-x-6 gap-y-4 border-t border-border pt-6">
-              <p className="flex items-center gap-2 font-medium">
-                <span className={cn("size-2 rounded-full", acceptsRegistrations ? "bg-emerald-600" : "bg-muted-foreground")} aria-hidden />
-                {acceptsRegistrations ? t("marketing.registrationOpenStatus") : t("marketing.registrationClosedStatus")}
-              </p>
-              {next && (
-                <Link href={next.href} className={buttonVariants({ size: "lg", variant: acceptsRegistrations ? "default" : "outline" })}>
-                  {next.label}<ArrowRight />
-                </Link>
-              )}
-            </div>
-          )}
+          <p className="text-sm font-medium text-gold-300">{kind}</p>
+          <h1 className="mt-7 max-w-[18ch] font-display text-[clamp(3.75rem,7vw,7rem)] font-normal leading-[0.98] tracking-[-0.02em]">{content.activeEventName}</h1>
+          {content.landingHero.subtitle && <p className="mt-8 max-w-xl text-xl leading-relaxed text-paper/75">{content.landingHero.subtitle}</p>}
         </div>
-        <Image src={hall} alt={t("marketing.gallery.altHall")} placeholder="blur" priority sizes="(min-width: 1024px) 38rem, 100vw" className="aspect-[3/2] w-full rounded-lg object-cover" />
+        <div className="border-t border-paper/25 pt-7">
+          <dl className="grid grid-cols-2 gap-px bg-paper/20">
+            <div className="bg-ink p-5"><dt className="text-sm text-paper/65">{t("marketing.eventDateLabel")}</dt><dd className="mt-3 text-lg font-semibold">{content.conferenceDates || t("marketing.datesPending")}</dd></div>
+            <div className="bg-ink p-5"><dt className="text-sm text-paper/65">{t("marketing.eventVenueLabel")}</dt><dd className="mt-3 text-lg font-semibold">{content.venue || t("marketing.venuePending")}</dd></div>
+          </dl>
+          {sections.registration && <p className="mt-6 flex items-center gap-2 text-sm text-paper/70"><span className={cn("size-2 rounded-full", acceptsRegistrations ? "bg-emerald-400" : "bg-paper/50")} aria-hidden />{acceptsRegistrations ? t("marketing.registrationOpenStatus") : t("marketing.registrationClosedStatus")}</p>}
+          {next && <Link href={next.href} className={cn(buttonVariants({ size: "lg" }), "mt-5 bg-gold-500 text-stone-950 hover:bg-gold-300")}>{next.label}<ArrowRight /></Link>}
+        </div>
       </div>
     </section>
   )

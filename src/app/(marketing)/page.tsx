@@ -63,6 +63,10 @@ export default async function LandingPage() {
         <SocietyHero showTeam={sections.team} />
       )}
 
+      <div className="border-b border-border/70 bg-ink px-4 py-3 text-center text-sm font-medium tracking-[0.08em] text-paper">
+        DTU Intra MUN <span className="mx-4 text-gold-300" aria-hidden>·</span> DelTech MUN <span className="mx-4 text-gold-300" aria-hidden>·</span> The Dispatch
+      </div>
+
       {showCommittees && <section className="border-b border-border/70 py-16 sm:py-20">
         <div className="section-shell">
           <div className="flex flex-wrap items-baseline justify-between gap-4">
@@ -96,19 +100,27 @@ export default async function LandingPage() {
         </div>
       </section>}
 
-      <section className="border-b border-border/70 py-16 sm:py-20">
-        <div className="section-shell">
-          <h2 className="text-2xl font-semibold sm:text-3xl">{t("marketing.activitiesTitle")}</h2>
-          <ul className="mt-8 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
-            {ACTIVITIES.filter((a) => a.href !== "/blog" || sections.dispatch).map((a) => (
-              <li key={a.title} className="border-t border-border pt-5">
-                <h3 className="text-lg font-semibold">
-                  {a.href ? <Link href={a.href} className="hover:underline">{t(a.title)}</Link> : t(a.title)}
-                </h3>
-                <p className="mt-2 text-base leading-relaxed text-muted-foreground">{t(a.body)}</p>
+      <section id="society-work" className="border-b border-border/70 py-24 sm:py-32">
+        <div className="section-shell grid gap-12 lg:grid-cols-[0.85fr_1.15fr] lg:gap-20">
+          <div>
+            <p className="eyebrow">The society</p>
+            <h2 className="mt-5 max-w-[12ch] font-display text-[clamp(2.75rem,5vw,5rem)] font-normal leading-[1.03] tracking-[-0.015em]">
+              {t("marketing.activitiesTitle")}
+            </h2>
+          </div>
+          <ol className="border-t border-foreground/20">
+            {ACTIVITIES.filter((a) => a.href !== "/blog" || sections.dispatch).map((a, index) => (
+              <li key={a.title} className="grid gap-4 border-b border-foreground/20 py-7 sm:grid-cols-[3rem_1fr] sm:py-9">
+                <span className="pt-1 font-mono text-sm font-semibold text-primary">0{index + 1}</span>
+                <div>
+                  <h3 className="font-display text-3xl font-normal leading-tight">
+                    {a.href ? <Link href={a.href} className="hover:text-primary">{t(a.title)} ↗</Link> : t(a.title)}
+                  </h3>
+                  <p className="mt-2 max-w-xl text-base leading-relaxed text-muted-foreground">{t(a.body)}</p>
+                </div>
               </li>
             ))}
-          </ul>
+          </ol>
         </div>
       </section>
 

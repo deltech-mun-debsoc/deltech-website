@@ -13,9 +13,18 @@ export const revalidate = 0
 
 function Heading({ totalAvailable }: { totalAvailable: number }) {
   return (
-    <header>
-      <h1 className="text-3xl font-semibold">{t("marketing.availabilityTitle")}</h1>
-      <p className="mt-2 text-lg text-muted-foreground">{t("marketing.openPortfoliosCount", { n: totalAvailable })}</p>
+    <header className="relative overflow-hidden border-b border-white/15 bg-ink py-16 text-paper sm:py-24">
+      <div className="paper-grid absolute inset-0 opacity-[0.07]" aria-hidden />
+      <div className="section-shell relative grid gap-8 sm:grid-cols-[1fr_auto] sm:items-end">
+        <div>
+          <p className="text-sm font-medium text-gold-300">DelTech MUN</p>
+          <h1 className="mt-4 font-display text-[clamp(3.25rem,7vw,6.5rem)] font-normal leading-none tracking-[-0.02em]">Committee availability</h1>
+        </div>
+        <p className="border-l border-paper/25 pl-5 text-lg text-paper/75">
+          <span className="block font-mono text-4xl font-semibold text-paper tabular-nums">{totalAvailable}</span>
+          {t("marketing.openPortfolios")}
+        </p>
+      </div>
     </header>
   )
 }
@@ -50,9 +59,9 @@ export default async function AvailabilityPage() {
     }))
 
     return (
-      <div className="section-shell py-12 sm:py-16">
+      <div>
         <Heading totalAvailable={totalAvailable} />
-        <div className="mt-10">
+        <div className="section-shell py-12 sm:py-20">
           {initial.length === 0 ? (
             <p className="text-lg text-muted-foreground">{t("empty.noCommittees")}</p>
           ) : (
@@ -84,9 +93,9 @@ export default async function AvailabilityPage() {
   }))
 
   return (
-    <div className="section-shell py-12 sm:py-16">
+    <div>
       <Heading totalAvailable={totalAvailable} />
-      <div className="mt-10">
+      <div className="section-shell py-12 sm:py-20">
         {matrix.length === 0 ? (
           <p className="text-lg text-muted-foreground">{t("empty.noCommittees")}</p>
         ) : (

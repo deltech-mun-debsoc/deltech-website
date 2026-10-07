@@ -20,8 +20,8 @@ export default async function SignInPage(props: {
   if (target) redirect(target)
 
   return (
-    <AuthStage>
-      <h1 className="text-2xl font-semibold">{t("auth.signInTitle")}</h1>
+    <AuthStage marker="Delegate and staff access">
+      <h1 className="font-display text-4xl font-normal leading-tight">{t("auth.signInTitle")}</h1>
       {created && <p role="status" className="mt-5 rounded-lg border border-primary/30 bg-primary/10 px-4 py-3 text-sm font-medium">{t("auth.accountCreated")}</p>}
       <AuthErrorBanner error={error} />
       <div className="mt-6">

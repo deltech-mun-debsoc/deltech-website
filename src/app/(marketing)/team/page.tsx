@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma"
+import { FadeUp } from "../_components/motion"
 import { t } from "@/content/strings"
 import { TeamDirectory, type PublicTeamMember } from "./_components/team-directory"
 
@@ -37,15 +38,30 @@ export default async function TeamPage() {
   }))
 
   return (
-    <div className="section-shell py-12 sm:py-16">
-      <h1 className="headline">{t("marketing.teamTitle")}</h1>
-      <div className="mt-10">
-        {members.length === 0 ? (
-          <p className="text-lg text-muted-foreground">{t("marketing.teamEmpty")}</p>
-        ) : (
-          <TeamDirectory members={publicMembers} />
-        )}
-      </div>
+    <div>
+      <section className="relative overflow-hidden border-b border-border/70 py-20 sm:py-28">
+        <div className="paper-grid absolute inset-0 opacity-70" aria-hidden />
+        <div className="section-shell relative grid gap-10 lg:grid-cols-[1fr_0.32fr] lg:items-end">
+          <FadeUp>
+            <p className="eyebrow">DelTech MUN</p>
+            <h1 className="mt-5 max-w-[12ch] font-display text-[clamp(3.5rem,7vw,7rem)] font-normal leading-[0.98] tracking-[-0.02em]">
+              {t("marketing.teamTitle")}
+            </h1>
+          </FadeUp>
+          <p className="max-w-xs border-l border-foreground/25 pl-6 text-base leading-relaxed text-muted-foreground">
+            The secretariat and councils organising DelTech MUN.
+          </p>
+        </div>
+      </section>
+      <section className="py-20 sm:py-28">
+        <div className="section-shell">
+          {members.length === 0 ? (
+            <p className="border-y border-border py-16 text-lg text-muted-foreground">{t("marketing.teamEmpty")}</p>
+          ) : (
+            <TeamDirectory members={publicMembers} />
+          )}
+        </div>
+      </section>
     </div>
   )
 }
