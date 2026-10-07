@@ -24,7 +24,11 @@ export function readableRowError(error: string): string {
   const label = IMPORT_FIELDS.find((f) => f.key === m[1])?.label ?? m[1]
   const unresolved = /^did not resolve(?: \((.*)\))?$/.exec(m[2])
   const message =
-    m[2] === "Required" ? "missing" : unresolved ? `"${unresolved[1] ?? ""}" is not one of our committees; choose which one they meant` : m[2]
+    m[2] === "Required"
+      ? "missing"
+      : unresolved
+        ? `${unresolved[1] ? `"${unresolved[1]}"` : "the answer"} is not one of our committees; choose which one they meant`
+        : m[2]
   return `${label}: ${message}`
 }
 
