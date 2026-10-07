@@ -9,7 +9,7 @@ import { buttonVariants } from "@/components/ui/button"
 import Link from "next/link"
 import { STRINGS } from "@/content/strings"
 import { getContent } from "@/lib/settings"
-import { STATUS_LABEL, STATUS_VARIANT, PAY_STATUS_LABEL } from "@/lib/status-labels"
+import { STATUS_LABEL, STATUS_VARIANT, PAY_STATUS_LABEL, delegateFacingStatus } from "@/lib/status-labels"
 import { CheckinQR } from "./_components/checkin-qr"
 import { APP_URL } from "@/lib/app-url"
 import { deriveEventState } from "@/lib/event-state"
@@ -60,7 +60,7 @@ export default async function StatusPage(props: {
   const draft = !!delegate.allotment && !delegate.allotment.emailSentAt
   const allotment = draft ? null : delegate.allotment
   const payment = draft ? null : delegate.payment
-  const status = draft ? "REGISTERED" : delegate.status
+  const status = delegateFacingStatus(delegate.status, delegate.allotment)
   const needsPayment =
     paymentsRequired && payment && (payment.status === "PENDING" || payment.status === "SENT") && payment.paymentLink
   const payLink = payment?.paymentLink

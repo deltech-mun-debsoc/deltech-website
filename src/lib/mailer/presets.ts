@@ -22,6 +22,8 @@ export interface PresetDraft {
 
 export interface MailPreset {
   key: string
+  // Only offered for an event that charges delegates.
+  needsPayments?: boolean
   label: string
   audience: "DELEGATES" | "CONTACTS" | "ANY"
   description: string
@@ -113,6 +115,7 @@ export const MAIL_PRESETS: MailPreset[] = [
     key: "payment-nudge",
     label: "Payment reminder",
     audience: "DELEGATES",
+    needsPayments: true,
     description: "For allotted delegates who have not paid.",
     build: (c) => ({
       subject: `Your seat at ${c.eventName} is waiting on payment`,

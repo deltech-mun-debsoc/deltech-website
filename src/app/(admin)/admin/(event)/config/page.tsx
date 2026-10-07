@@ -48,6 +48,7 @@ export default async function EventControlPage() {
           registrationOpen: event.registrationOpen,
           paymentsEnabled: event.paymentsEnabled,
           matrixPublic: event.matrixPublic,
+          crossDelegationsEnabled: event.crossDelegationsEnabled,
           label: content.activeEventLabel,
           brief: content.landingHero.subtitle,
           dates: content.conferenceDates,

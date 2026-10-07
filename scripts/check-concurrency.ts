@@ -80,9 +80,12 @@ const read = (p: string) => readFileSync(p, "utf8")
 // --- a paid allotment cannot commit without a fee -------------------------
 {
   const src = read("src/app/(admin)/admin/(event)/allotment/actions.ts")
-  assert.match(src, /if \(paymentsEnabled && !fee\)/, "a paid allotment must stop when its fee is missing")
+  // A delegate already accepted with nothing to pay (CONFIRMED, no seat) is not
+  // charged, so the fee is only demanded of someone who will be.
+  assert.match(src, /const charges = paymentsEnabled && delegate\.status === "REGISTERED"/, "only a delegate who will be charged needs a fee")
+  assert.match(src, /if \(charges && !fee\)/, "a paid allotment must stop when its fee is missing")
   assert.ok(
-    src.indexOf("if (paymentsEnabled && !fee)") < src.indexOf("await tx.allotment.create"),
+    src.indexOf("if (charges && !fee)") < src.indexOf("await tx.allotment.create"),
     "the fee guard must run before the allotment is committed",
   )
 }
