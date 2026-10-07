@@ -378,6 +378,22 @@ export const STRINGS = {
     // Delegate registration through a Google Form response sheet (the Intra MUN).
     // Written for someone who has never seen this screen: every label says what
     // the button does, and nothing assumes they know what a "mapping" is.
+    sheetCopy: {
+      title: "Google Sheet copy",
+      off: "not connected",
+      on: "connected",
+      body: "The website is the seat list. This sheet is a read-only copy for people without an account; editing it changes nothing here.",
+      urlLabel: "Apps Script web app link",
+      urlPlaceholder: "https://script.google.com/macros/s/…/exec",
+      adminOnly: "Only an admin can change the link.",
+      save: "Save link",
+      saved: "Saved.",
+      badUrl: "Use the web app link from Apps Script: https://script.google.com/macros/s/…/exec",
+      resync: "Copy every seat again",
+      resyncing: "Copying…",
+      resynced: "Copied {synced} seats.",
+      resyncFailed: "Copied {synced} seats; {failed} were refused. Check the link and SHEET_SYNC_SECRET.",
+    },
     formSync: {
       title: "Google Form responses",
       description:
