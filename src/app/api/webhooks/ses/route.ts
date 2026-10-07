@@ -1,6 +1,7 @@
 import { timingSafeEqual } from "node:crypto"
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
+import { nextEmailStatus } from "@/lib/email-status"
 
 // SES bounce and complaint events, delivered by SNS from the configuration set
 // named in SES_CONFIGURATION_SET.
@@ -83,6 +84,35 @@ async function logAgainstAddress(email: string, status: string, error: string, m
   })
 }
 
+// The event is about one email we sent: write it onto that email (and onto the
+// campaign recipient, if it was campaign mail) instead of adding an unrelated
+// row. Returns false when nothing matches (mail sent before ids were stored),
+// so the caller can fall back to logging against the address.
+async function recordOnMessage(
+  messageId: string | undefined,
+  status: "DELIVERED" | "DEFERRED" | "BOUNCED" | "COMPLAINED",
+  detail: string,
+): Promise<boolean> {
+  if (!messageId) return false
+  const logs = await prisma.emailLog.findMany({ where: { providerMessageId: messageId }, select: { id: true, status: true } })
+  for (const log of logs) {
+    const next = nextEmailStatus(log.status, status)
+    if (next !== log.status) {
+      await prisma.emailLog.update({
+        where: { id: log.id },
+        data: { status: next, ...(status === "DELIVERED" ? {} : { error: detail.slice(0, 500) }) },
+      })
+    }
+  }
+  if (status === "BOUNCED" || status === "COMPLAINED") {
+    await prisma.mailRecipient.updateMany({
+      where: { providerMessageId: messageId, status: "SENT" },
+      data: { status: "FAILED", error: `${status === "BOUNCED" ? "Bounced" : "Marked as spam"}: ${detail}`.slice(0, 500) },
+    })
+  }
+  return logs.length > 0
+}
+
 export async function POST(req: NextRequest) {
   if (!secretOk(req)) return new NextResponse("Unauthorized", { status: 401 })
 
@@ -127,12 +157,9 @@ export async function POST(req: NextRequest) {
       if (permanent) {
         await prisma.mailContact.updateMany({ where: { email, bouncedAt: null }, data: { bouncedAt: now } })
       }
-      await logAgainstAddress(
-        email,
-        permanent ? "BOUNCED" : "DEFERRED",
-        r.diagnosticCode ?? `${event.bounce?.bounceType ?? "Bounce"}`,
-        messageId,
-      )
+      const status = permanent ? "BOUNCED" : "DEFERRED"
+      const detail = r.diagnosticCode ?? `${event.bounce?.bounceType ?? "Bounce"}`
+      if (!(await recordOnMessage(messageId, status, detail))) await logAgainstAddress(email, status, detail, messageId)
     }
     return NextResponse.json({ ok: true, handled: recipients.length })
   }
@@ -148,12 +175,21 @@ export async function POST(req: NextRequest) {
         where: { email, unsubscribedAt: null },
         data: { unsubscribedAt: now },
       })
-      await logAgainstAddress(email, "COMPLAINED", event.complaint?.complaintFeedbackType ?? "complaint", messageId)
+      const detail = event.complaint?.complaintFeedbackType ?? "complaint"
+      if (!(await recordOnMessage(messageId, "COMPLAINED", detail))) await logAgainstAddress(email, "COMPLAINED", detail, messageId)
     }
     return NextResponse.json({ ok: true, handled: recipients.length })
   }
 
-  // Delivery, Send, Open, Click and anything else SES may publish: acknowledged
-  // so SNS stops, but nothing here acts on them.
+  // Delivered to the receiving server, or held up on the way. Only recorded when
+  // the configuration set publishes them; until then an email reads "accepted
+  // by the email service", never "delivered".
+  if (kind === "Delivery" || kind === "DeliveryDelay") {
+    const matched = await recordOnMessage(messageId, kind === "Delivery" ? "DELIVERED" : "DEFERRED", kind)
+    return NextResponse.json({ ok: true, matched })
+  }
+
+  // Send, Open, Click and anything else SES may publish: acknowledged so SNS
+  // stops, but nothing here acts on them.
   return NextResponse.json({ ok: true, ignored: kind || "unknown" })
 }

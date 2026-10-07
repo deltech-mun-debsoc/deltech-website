@@ -85,7 +85,8 @@ async function pendingRecipients(cycleId: string) {
   // out before candidate-scoped idempotency was introduced.
   const logs = await prisma.emailLog.findMany({
     where: {
-      status: "SENT",
+      // SENT, or DELIVERED once SES reports it: either way it went out.
+      status: { in: ["SENT", "DELIVERED"] },
       toEmail: { in: allEmails },
       template: { startsWith: RECRUITMENT_SELECTED_TEMPLATE },
     },

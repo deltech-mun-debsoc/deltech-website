@@ -62,8 +62,7 @@ export default async function AdminOverviewPage() {
     feeCount,
     memberCount,
     publishedPostCount,
-    failedEmailCount,
-    recentFailedEmails,
+    recentEmails,
     openQuestions,
     followUpsDue,
     content,
@@ -93,12 +92,13 @@ export default async function AdminOverviewPage() {
     // This event's delegates only: a failure from a closed event is not
     // something anyone running this one can act on. Anything that is not SENT
     // counts, so an SES bounce or spam complaint surfaces here too.
-    prisma.emailLog.count({ where: { status: { not: "SENT" }, delegate: { is: scope } } }),
+    // This event's emails, newest first: a failure counts only while nothing
+    // later of the same kind to the same person went through.
     prisma.emailLog.findMany({
-      where: { status: { not: "SENT" }, delegate: { is: scope } },
+      where: { delegate: { is: scope }, sentAt: { gte: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000) } },
       orderBy: { sentAt: "desc" },
-      take: 8,
-      select: { id: true, template: true, toEmail: true, error: true, sentAt: true, delegateId: true },
+      take: 2000,
+      select: { id: true, template: true, status: true, toEmail: true, error: true, sentAt: true, delegateId: true },
     }),
     prisma.delegate.count({ where: { ...scope, ...buildDelegateWhere({ query: "open" }) } }),
     prisma.delegate.count({ where: { ...scope, ...buildDelegateWhere({ followUp: "due" }) } }),
@@ -106,6 +106,15 @@ export default async function AdminOverviewPage() {
     prisma.delegate.count({ where: { ...scope, ...buildDelegateWhere({ status: NEEDS_SEAT }) } }),
   ])
 
+  const seen = new Set<string>()
+  const outstanding = recentEmails.filter((l) => {
+    const key = `${l.delegateId}:${l.template}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return ["FAILED", "BOUNCED", "COMPLAINED"].includes(l.status)
+  })
+  const failedEmailCount = outstanding.length
+  const recentFailedEmails = outstanding.slice(0, 8)
   const paymentsActive = deriveEventState(content).paymentsRequired
   const published = event.state !== "DRAFT"
   const count = (status: string) => byStatus.find((s) => s.status === status)?._count._all ?? 0

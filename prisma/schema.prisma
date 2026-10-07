@@ -435,12 +435,17 @@ model EmailLog {
   delegateId String?
   template   String
   toEmail    String
+  // SENT means the provider accepted it. DELIVERED, DEFERRED, BOUNCED and
+  // COMPLAINED come later from SES events, matched by providerMessageId and
+  // written onto this same row.
   status     String    @default("SENT")
   error      String?
   sentAt     DateTime  @default(now())
+  providerMessageId String?
   delegate   Delegate? @relation(fields: [delegateId], references: [id])
 
   @@index([delegateId])
+  @@index([providerMessageId])
   @@index([status, sentAt])
 }
 
@@ -1306,8 +1311,10 @@ model MailRecipient {
   error      String?
   claimedAt  DateTime?
   sentAt     DateTime?
+  providerMessageId String?
 
   @@unique([campaignId, email])
+  @@index([providerMessageId])
   @@index([campaignId, status])
   @@index([status, sentAt])
 }
@@ -1350,6 +1357,9 @@ enum RecipientStatus {
   SENT
   FAILED
   SKIPPED
+  // Claimed, then interrupted before we heard back: the provider may or may not
+  // have accepted it. Never retried without a person checking first.
+  UNCERTAIN
 }
 
 // ---- Online committees (session floor) ----

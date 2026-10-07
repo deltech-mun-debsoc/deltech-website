@@ -58,7 +58,7 @@ function getSes(): SESv2Client {
 async function sentRecently(template: string, toEmail: string): Promise<boolean> {
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000)
   const hit = await prisma.emailLog.findFirst({
-    where: { template, toEmail, status: "SENT", sentAt: { gte: since } },
+    where: { template, toEmail, status: { in: ["SENT", "DELIVERED"] }, sentAt: { gte: since } },
     select: { id: true },
   })
   return !!hit
@@ -70,9 +70,9 @@ async function deliver(
   reactElement: React.ReactElement,
   idempotencyKey?: string,
   headers?: Record<string, string>,
-): Promise<string | undefined> {
+): Promise<{ error?: string; messageId?: string }> {
   if (TRANSPORT === "resend") {
-    const { error } = await getResend().emails.send(
+    const { data, error } = await getResend().emails.send(
       {
         from: FROM,
         to,
@@ -83,10 +83,10 @@ async function deliver(
       },
       idempotencyKey ? { idempotencyKey } : undefined,
     )
-    return error?.message
+    return error ? { error: error.message } : { messageId: data?.id }
   }
   const [html, text] = await Promise.all([render(reactElement), render(reactElement, { plainText: true })])
-  await getSes().send(
+  const sent = await getSes().send(
     new SendEmailCommand({
       FromEmailAddress: FROM,
       Destination: { ToAddresses: [to] },
@@ -100,7 +100,7 @@ async function deliver(
       },
     }),
   )
-  return undefined
+  return { messageId: sent.MessageId }
 }
 
 
@@ -124,32 +124,42 @@ async function loggedSend({
   reactElement: React.ReactElement
   idempotencyKey?: string
   headers?: Record<string, string>
-}): Promise<void> {
-  if (idempotencyKey && TRANSPORT === "ses" && (await sentRecently(template, toEmail))) return
+}): Promise<string | undefined> {
+  if (idempotencyKey && TRANSPORT === "ses" && (await sentRecently(template, toEmail))) return undefined
 
   let status = "SENT"
   let error: string | undefined
+  let messageId: string | undefined
 
   try {
     const recipient = REDIRECT_TO || toEmail
     const deliveredSubject = REDIRECT_TO ? `[STAGING → ${toEmail}] ${subject}` : subject
-    const apiError = await deliver(recipient, deliveredSubject, reactElement, idempotencyKey, headers)
-    if (apiError) {
+    const result = await deliver(recipient, deliveredSubject, reactElement, idempotencyKey, headers)
+    if (result.error) {
       status = "FAILED"
-      error = apiError
+      error = result.error
     }
+    messageId = result.messageId
   } catch (err) {
     status = "FAILED"
     error = err instanceof Error ? err.message : String(err)
   }
 
-  await prisma.emailLog.create({
-    data: { delegateId, template, toEmail, status, error },
-  })
+  // The provider's id lets later events (delivered, bounced, spam) land on this
+  // row. A failure to write the log after a successful send is only a missing
+  // log: the email went, so it must not be reported as failed and sent again.
+  try {
+    await prisma.emailLog.create({
+      data: { delegateId, template, toEmail, status, error, providerMessageId: messageId },
+    })
+  } catch (logErr) {
+    console.error("[email] sent but not logged", template, toEmail, logErr instanceof Error ? logErr.message : logErr)
+  }
 
   if (status === "FAILED") {
     throw new Error(`Email send failed [${template}→${toEmail}]: ${error}`)
   }
+  return messageId
 }
 
 // ---------------------------------------------------------------------------
@@ -274,7 +284,7 @@ export function seatHolders(d: { fullName: string; email: string; coDelegate: { 
 export async function sendToSeatHolders(
   recipients: Recipient[],
   onlyTo: string | undefined,
-  send: (r: Recipient) => Promise<void>,
+  send: (r: Recipient) => Promise<unknown>,
 ): Promise<void> {
   const only = onlyTo?.trim().toLowerCase()
   for (const r of recipients) {
@@ -611,29 +621,70 @@ export async function sendMagicLink(email: string, url: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Resend by log ID (admin drawer)
+// Sending a delegate's notice now (admin)
 // ---------------------------------------------------------------------------
+//
+// Not a replay of an old email: each builds the notice from the delegate's
+// CURRENT seat, link and address. Named for what it sends, so staff are not told
+// "send again" for something that is not the same email.
 
-// Each gets the address the log row went to, so resending a co-delegate's copy
-// does not mail the main delegate again.
-const RESENDABLE_TEMPLATES: Record<string, (id: string, toEmail: string) => Promise<void>> = {
-  "registration-received": sendRegistrationReceived,
-  "co-delegate-registered": sendCoDelegateRegistered,
-  // Explicitly forced: pressing Resend is a person deciding to send it again, so
-  // it must override the once-only guard rather than silently doing nothing.
-  allotment: (id, to) => sendAllotmentEmail(id, { force: true, onlyTo: to }),
-  // The partner's old notice, from before they were sent the full allotment.
-  "co-delegate-notice": (id, to) => sendAllotmentEmail(id, { force: true, onlyTo: to }),
-  "payment-confirmed": sendPaymentConfirmed,
-  "payment-reminder": sendPaymentReminder,
+export type DelegateNotice = "registration" | "allotment" | "payment"
+
+// The latest outcome for an address: a bounce or spam complaint means sending
+// there again is pointless (and harmful to the sending reputation) until the
+// address changes.
+export async function addressBlocked(toEmail: string): Promise<"BOUNCED" | "COMPLAINED" | null> {
+  const last = await prisma.emailLog.findFirst({
+    where: { toEmail: { equals: toEmail.trim(), mode: "insensitive" }, status: { in: ["SENT", "DELIVERED", "BOUNCED", "COMPLAINED", "FAILED"] } },
+    orderBy: { sentAt: "desc" },
+    select: { status: true },
+  })
+  return last?.status === "BOUNCED" || last?.status === "COMPLAINED" ? last.status : null
 }
 
-export async function resendByLogId(logId: string): Promise<void> {
-  const log = await prisma.emailLog.findUniqueOrThrow({ where: { id: logId } })
-  const fn = RESENDABLE_TEMPLATES[log.template]
-  if (!fn) throw new Error(`Template "${log.template}" cannot be resent via logId`)
-  if (!log.delegateId) throw new Error(`Log ${logId} has no delegateId`)
-  await fn(log.delegateId, log.toEmail)
+export async function sendDelegateNotice(delegateId: string, notice: DelegateNotice, toEmail?: string): Promise<void> {
+  const d = await prisma.delegate.findUniqueOrThrow({
+    where: { id: delegateId },
+    select: {
+      email: true,
+      coDelegate: { select: { email: true } },
+      allotment: { select: { emailSentAt: true } },
+      payment: { select: { status: true, paymentLink: true } },
+    },
+  })
+  // The current address of the person meant: the delegate, or their co-delegate.
+  const target = toEmail && d.coDelegate?.email.toLowerCase() === toEmail.toLowerCase() ? d.coDelegate.email : d.email
+  const blocked = await addressBlocked(target)
+  if (blocked) {
+    throw new Error(
+      blocked === "BOUNCED"
+        ? `${target} bounced. Fix the address first.`
+        : `${target} marked our email as spam. Reach them another way.`,
+    )
+  }
+  if (notice === "registration") {
+    if (target === d.email) await sendRegistrationReceived(delegateId)
+    else await sendCoDelegateRegistered(delegateId)
+    return
+  }
+  if (notice === "allotment") {
+    if (!d.allotment?.emailSentAt) throw new Error("Their seat is still a draft. Email it from Allotment.")
+    await sendAllotmentEmail(delegateId, { force: true, onlyTo: target })
+    return
+  }
+  if (!d.payment || !["PENDING", "SENT"].includes(d.payment.status) || !d.payment.paymentLink) {
+    throw new Error("They have no payment link waiting.")
+  }
+  await sendPaymentReminder(delegateId, target)
+}
+
+// Which notice a logged template belongs to, for retrying a failure from the
+// dashboard. Campaign mail and sign-in links are not retried from here.
+export function noticeForTemplate(template: string): DelegateNotice | null {
+  if (template === "registration-received" || template === "co-delegate-registered") return "registration"
+  if (template === "allotment" || template === "co-delegate-notice") return "allotment"
+  if (template === "payment-reminder") return "payment"
+  return null
 }
 
 // ---------------------------------------------------------------------------
@@ -661,8 +712,8 @@ export async function sendMailerEmail(input: {
   ctaUrl?: string
   unsubscribeUrl?: string
   unsubscribePostUrl?: string
-}): Promise<void> {
-  await loggedSend({
+}): Promise<string | undefined> {
+  return loggedSend({
     delegateId: input.delegateId,
     template: `mailer:${input.campaignId}`,
     toEmail: input.toEmail,

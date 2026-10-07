@@ -241,7 +241,7 @@ async function sendPending(budget: number, now: Date, prOn: boolean): Promise<{ 
           // so it is dropped for that recipient rather than sent broken.
           const button = ctaUrl && ctaLabel && !/\{[a-zA-Z]+\}/.test(ctaUrl) ? { ctaUrl, ctaLabel } : {}
 
-          await sendMailerEmail({
+          const messageId = await sendMailerEmail({
             campaignId: r.campaign.id,
             toEmail: r.email,
             delegateId: r.delegateId ?? undefined,
@@ -258,7 +258,10 @@ async function sendPending(budget: number, now: Date, prOn: boolean): Promise<{ 
             ...button,
           })
 
-          await prisma.mailRecipient.update({ where: { id: r.id }, data: { status: "SENT", sentAt: new Date(), error: null } })
+          await prisma.mailRecipient.update({
+            where: { id: r.id },
+            data: { status: "SENT", sentAt: new Date(), error: null, providerMessageId: messageId ?? null },
+          })
           if (r.contactId) {
             await prisma.mailContact.update({ where: { id: r.contactId }, data: { lastMailedAt: new Date() } })
           }
