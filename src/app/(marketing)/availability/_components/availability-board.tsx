@@ -67,7 +67,7 @@ export function AvailabilityBoard({ initial }: Props) {
           className="flex items-center justify-between gap-5 border-b border-foreground/20 py-5"
         >
           <div className="min-w-0">
-            <h2 className="text-3xl leading-tight">{committee.name}</h2>
+            <h2 className="text-xl font-semibold">{committee.name}</h2>
             <p className="mt-1 text-sm text-muted-foreground">
               {TYPE_LABEL[committee.type]}
               {committee.doubleDelegation && " · " + t("marketing.doubleDelegation")}

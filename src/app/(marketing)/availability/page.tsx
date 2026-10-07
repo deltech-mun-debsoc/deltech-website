@@ -11,26 +11,12 @@ import { MatrixBoard, type MatrixCommittee } from "./_components/matrix-board"
 
 export const revalidate = 0
 
-function MatrixHero({ totalAvailable, exact }: { totalAvailable: number; exact: boolean }) {
+function Heading({ totalAvailable }: { totalAvailable: number }) {
   return (
-    <section className="relative overflow-hidden border-b border-border/70 bg-ink py-20 text-paper sm:py-28">
-      <div className="paper-grid absolute inset-0 opacity-[0.08]" aria-hidden />
-      <div className="section-shell relative grid gap-10 lg:grid-cols-[1fr_0.42fr] lg:items-end">
-        <div>
-          <p className="eyebrow text-gold-300">{t("marketing.availabilityEyebrow")}</p>
-          <h1 className="mt-6 text-3xl font-semibold tracking-tight sm:text-4xl">{t("marketing.availabilityTitle")}</h1>
-          <p className="body-large mt-8 max-w-2xl text-paper/70">
-            {exact ? t("marketing.availabilityBody") : t("marketing.availabilityCountsBody")}
-          </p>
-        </div>
-        <div className="border-l border-paper/20 pl-7">
-          <p className="font-mono text-[5rem] font-semibold leading-none tabular-nums text-gold-300 sm:text-[7rem]">
-            {totalAvailable}
-          </p>
-          <p className="mt-4 text-base text-paper/70">{t("marketing.portfoliosStillOpen")}</p>
-        </div>
-      </div>
-    </section>
+    <header>
+      <h1 className="text-3xl font-semibold">{t("marketing.availabilityTitle")}</h1>
+      <p className="mt-2 text-lg text-muted-foreground">{t("marketing.openPortfoliosCount", { n: totalAvailable })}</p>
+    </header>
   )
 }
 
@@ -64,17 +50,15 @@ export default async function AvailabilityPage() {
     }))
 
     return (
-      <div>
-        <MatrixHero totalAvailable={totalAvailable} exact={false} />
-        <section className="py-16 sm:py-24">
-          <div className="section-shell">
-            {initial.length === 0 ? (
-              <p className="border-y border-border py-16 text-lg text-muted-foreground">{t("empty.noCommittees")}</p>
-            ) : (
-              <AvailabilityBoard initial={initial} />
-            )}
-          </div>
-        </section>
+      <div className="section-shell py-12 sm:py-16">
+        <Heading totalAvailable={totalAvailable} />
+        <div className="mt-10">
+          {initial.length === 0 ? (
+            <p className="text-lg text-muted-foreground">{t("empty.noCommittees")}</p>
+          ) : (
+            <AvailabilityBoard initial={initial} />
+          )}
+        </div>
       </div>
     )
   }
@@ -100,17 +84,15 @@ export default async function AvailabilityPage() {
   }))
 
   return (
-    <div>
-      <MatrixHero totalAvailable={totalAvailable} exact />
-      <section className="py-16 sm:py-24">
-        <div className="section-shell">
-          {matrix.length === 0 ? (
-            <p className="border-y border-border py-16 text-lg text-muted-foreground">{t("empty.noCommittees")}</p>
-          ) : (
-            <MatrixBoard paymentsRequired={deriveEventState(content).paymentsRequired} committees={matrix} />
-          )}
-        </div>
-      </section>
+    <div className="section-shell py-12 sm:py-16">
+      <Heading totalAvailable={totalAvailable} />
+      <div className="mt-10">
+        {matrix.length === 0 ? (
+          <p className="text-lg text-muted-foreground">{t("empty.noCommittees")}</p>
+        ) : (
+          <MatrixBoard paymentsRequired={deriveEventState(content).paymentsRequired} committees={matrix} />
+        )}
+      </div>
     </div>
   )
 }

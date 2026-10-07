@@ -1,11 +1,10 @@
 import { prisma } from "@/lib/prisma"
-import { FadeUp } from "../_components/motion"
 import { t } from "@/content/strings"
 import { TeamDirectory, type PublicTeamMember } from "./_components/team-directory"
 
 export const metadata = {
   title: "Team · DelTech MUN",
-  description: "The people behind DelTech MUN.",
+  description: "The DelTech MUN secretariat and councils.",
 }
 
 export const revalidate = 0
@@ -38,33 +37,15 @@ export default async function TeamPage() {
   }))
 
   return (
-    <div>
-      <section className="relative overflow-hidden border-b border-border/70 py-20 sm:py-28">
-        <div className="paper-grid absolute inset-0 opacity-70" aria-hidden />
-        <div className="section-shell relative grid gap-12 lg:grid-cols-[1fr_0.42fr] lg:items-end">
-          <FadeUp>
-            <p className="eyebrow">{t("marketing.teamEyebrow")}</p>
-            <h1 className="headline mt-6">{t("marketing.teamTitle")}</h1>
-            <p className="body-large mt-8 max-w-2xl text-muted-foreground">{t("marketing.teamBody")}</p>
-          </FadeUp>
-          <div className="border-l border-foreground/20 pl-7">
-            <p className="font-mono text-[5rem] font-semibold leading-none tabular-nums text-primary sm:text-[7rem]">
-              {members.length}
-            </p>
-            <p className="mt-4 text-base text-muted-foreground">{t("marketing.activeTeam")}</p>
-          </div>
-        </div>
-      </section>
-
-      <section className="py-20 sm:py-28">
-        <div className="section-shell">
-          {members.length === 0 ? (
-            <p className="border-y border-border py-16 text-lg text-muted-foreground">{t("marketing.teamEmpty")}</p>
-          ) : (
-            <TeamDirectory members={publicMembers} />
-          )}
-        </div>
-      </section>
+    <div className="section-shell py-12 sm:py-16">
+      <h1 className="headline">{t("marketing.teamTitle")}</h1>
+      <div className="mt-10">
+        {members.length === 0 ? (
+          <p className="text-lg text-muted-foreground">{t("marketing.teamEmpty")}</p>
+        ) : (
+          <TeamDirectory members={publicMembers} />
+        )}
+      </div>
     </div>
   )
 }

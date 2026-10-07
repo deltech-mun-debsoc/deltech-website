@@ -2,7 +2,7 @@ import { formatDateLong } from "@/lib/datetime"
 import type { Metadata } from "next"
 import { notFound } from "next/navigation"
 import Link from "next/link"
-import { Clock, ChevronLeft } from "lucide-react"
+import { ChevronLeft } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { prisma } from "@/lib/prisma"
 import { TiptapContent } from "@/lib/tiptap-renderer"
@@ -18,7 +18,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   })
   if (!post) return { title: "Not Found" }
   return {
-    title: `${post.title} · ${STRINGS.brand.name} Blog`,
+    title: `${post.title} · The Dispatch`,
     description: post.subtitle ?? undefined,
     openGraph: post.coverImage ? { images: [{ url: post.coverImage }] } : undefined,
   }
@@ -45,45 +45,32 @@ export default async function BlogArticlePage({ params }: Props) {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="section-shell pt-10">
-        <Link
-          href="/blog"
-          className="ink-link inline-flex items-center gap-2 text-sm font-semibold"
-        >
+      <header className="mx-auto max-w-[760px] px-4 pb-10 pt-8 sm:px-6 sm:pt-10">
+        <Link href="/blog" className="inline-flex items-center gap-1 text-sm font-medium text-muted-foreground hover:text-foreground">
           <ChevronLeft className="size-4" />
           {t("marketing.allDispatches")}
         </Link>
-      </div>
-
-      <header className="section-shell grid gap-10 border-b border-foreground/20 py-14 lg:grid-cols-[1fr_0.38fr] lg:items-end lg:py-20">
-        <div>
-          {post.tags.length > 0 && <p className="eyebrow">{post.tags.slice(0, 3).join(" · ")}</p>}
-          <h1 className="headline mt-5 max-w-[24ch]">{post.title}</h1>
-          {post.subtitle && <p className="body-large mt-7 max-w-3xl text-muted-foreground">{post.subtitle}</p>}
-        </div>
-        <div className="border-l border-foreground/20 pl-6 text-sm leading-relaxed text-muted-foreground">
-          <p className="font-semibold text-foreground">{post.author.name ?? t("marketing.anonymousAuthor")}</p>
-          {post.publishedAt && (
-            <time className="mt-2 block" dateTime={post.publishedAt.toISOString()}>
-              {formatDateLong(post.publishedAt)}
-            </time>
-          )}
-          {post.readMin && <p className="mt-2 flex items-center gap-2"><Clock className="size-4" /> {t("blog.readMin", { n: post.readMin })}</p>}
-        </div>
+        <h1 className="headline mt-8">{post.title}</h1>
+        {post.subtitle && <p className="mt-4 max-w-3xl text-xl leading-relaxed text-muted-foreground">{post.subtitle}</p>}
+        <p className="mt-6 text-sm text-muted-foreground">
+          <span className="font-semibold text-foreground">{post.author.name ?? t("marketing.anonymousAuthor")}</span>
+          {post.publishedAt && <> · <time dateTime={post.publishedAt.toISOString()}>{formatDateLong(post.publishedAt)}</time></>}
+          {post.readMin && <> · {t("blog.readMin", { n: post.readMin })}</>}
+        </p>
       </header>
 
       {post.coverImage && (
-        <div className="section-shell mt-10">
+        <div className="section-shell">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={post.coverImage}
             alt={post.title}
-            className="max-h-[680px] w-full border border-foreground/15 object-cover"
+            className="max-h-[680px] w-full rounded-lg object-cover"
           />
         </div>
       )}
 
-      <article className="mx-auto max-w-[760px] px-6 py-14 sm:py-20">
+      <article className="mx-auto max-w-[760px] px-4 py-12 sm:px-6 sm:py-16">
         <TiptapContent json={post.contentJson} className="blog-prose" />
         {post.tags.length > 0 && (
           <div className="mt-14 flex flex-wrap gap-2 border-t border-border pt-7">
