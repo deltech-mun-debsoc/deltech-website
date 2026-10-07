@@ -73,7 +73,7 @@ export function Header({ sections, registrationOpen }: { sections: Content["publ
             href={registrationOpen ? "/register" : "/register/closed"}
             className={cn(buttonVariants({ size: "sm" }), "hidden px-5 lg:inline-flex")}
           >
-            {registrationOpen ? t("nav.register") : "Registration status"}
+            {registrationOpen ? t("nav.register") : t("marketing.registrationStatus")}
           </Link>}
 
           {/* Mobile menu toggle */}
@@ -127,7 +127,7 @@ export function Header({ sections, registrationOpen }: { sections: Content["publ
                 onClick={() => setOpen(false)}
                 className={cn(buttonVariants({ size: "lg" }), "mt-8 w-full")}
               >
-                {registrationOpen ? t("nav.register") : "Registration status"}
+                {registrationOpen ? t("nav.register") : t("marketing.registrationStatus")}
               </Link>}
               <a
                 href={DOCS_URL}
