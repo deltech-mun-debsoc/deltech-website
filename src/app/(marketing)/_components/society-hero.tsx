@@ -1,32 +1,26 @@
-import { ArrowDownRight } from "lucide-react"
+import Link from "next/link"
+import Image from "next/image"
+import { ArrowRight } from "lucide-react"
 import { t } from "@/content/strings"
+import { buttonVariants } from "@/components/ui/button"
+import cohort from "@/photos/cohort.webp"
 
-export function SocietyHero({ members, dispatches }: { members: number; dispatches: number }) {
-  return <section className="relative min-h-[calc(100svh-5rem)] border-b border-foreground/20">
-    <div className="paper-grid absolute inset-0 opacity-60" aria-hidden />
-    <div className="section-shell relative grid min-h-[calc(100svh-5rem)] lg:grid-cols-[minmax(0,1fr)_15rem]">
-      <div className="flex flex-col justify-center py-16 lg:pr-16">
-        <div className="flex flex-wrap items-center gap-4">
-          <span className="eyebrow">{t("brand.university")}</span>
-          <span className="h-px w-16 bg-gold-500" aria-hidden />
-          <span className="text-sm font-semibold text-muted-foreground">{t("marketing.societyHeroKicker")}</span>
+// Shown between events: who the society is, and a way to meet it.
+export function SocietyHero({ showTeam }: { showTeam: boolean }) {
+  return (
+    <section className="border-b border-border/70">
+      <div className="section-shell grid gap-10 py-12 sm:py-16 lg:grid-cols-[1fr_1.05fr] lg:items-center lg:gap-16">
+        <div>
+          <h1 className="headline">{t("brand.name")}</h1>
+          <p className="mt-5 max-w-xl text-lg leading-relaxed text-muted-foreground">{t("marketing.societyHeroBody")}</p>
+          {showTeam && (
+            <Link href="/team" className={buttonVariants({ size: "lg", variant: "outline", className: "mt-8" })}>
+              {t("marketing.meetTheTeam")}<ArrowRight />
+            </Link>
+          )}
         </div>
-        <h1 className="mt-10 max-w-[11ch] font-display text-[clamp(3.75rem,10vw,9.5rem)] font-[560] leading-[0.92] tracking-[-0.035em] [font-variation-settings:'opsz'_96]">
-          {t("marketing.societyHeroTitleA")}<br /><span className="text-primary">{t("marketing.societyHeroTitleB")}</span>
-        </h1>
-        <div className="mt-12 grid gap-8 border-t border-foreground/25 pt-7 md:grid-cols-[1fr_auto] md:items-end">
-          <p className="max-w-2xl text-xl leading-relaxed text-muted-foreground sm:text-2xl">{t("marketing.societyHeroBody")}</p>
-          <a href="#society-work" className="inline-flex size-16 items-center justify-center rounded-full border border-foreground/30 transition-colors hover:bg-ink hover:text-paper" aria-label={t("marketing.societyHeroCta")}><ArrowDownRight className="size-7" /></a>
-        </div>
+        <Image src={cohort} alt={t("marketing.gallery.altCohort")} placeholder="blur" priority sizes="(min-width: 1024px) 38rem, 100vw" className="aspect-[3/2] w-full rounded-lg object-cover" />
       </div>
-      <aside className="hidden border-l border-foreground/20 lg:flex lg:flex-col lg:justify-between lg:py-10">
-        <p className="px-7 text-sm font-semibold text-muted-foreground">{t("marketing.societyHeroKicker")}</p>
-        <p className="origin-center rotate-180 px-7 font-display text-[5.2rem] leading-none text-primary [writing-mode:vertical-rl]" aria-hidden>DELTECH</p>
-        <div className="grid grid-cols-2 border-t border-foreground/20">
-          <div className="p-5"><p className="font-display text-3xl tabular-nums">{members}</p><p className="mt-1 text-sm text-muted-foreground">{t("marketing.statTeam")}</p></div>
-          <div className="border-l border-foreground/20 p-5"><p className="font-display text-3xl tabular-nums">{dispatches}</p><p className="mt-1 text-sm text-muted-foreground">{t("marketing.statArticles")}</p></div>
-        </div>
-      </aside>
-    </div>
-  </section>
+    </section>
+  )
 }

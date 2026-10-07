@@ -20,7 +20,7 @@ export function SetupChecklist({ items }: { items: ChecklistItem[] }) {
         <div>
           <p className="data-label text-gold-700">Operating readiness</p>
           <h2 className="mt-3 font-heading text-3xl">Finish the operating setup</h2>
-          <p className="mt-2 text-base text-muted-foreground">{doneCount} of {items.length} checks complete. The list adapts to society, flagship, and free Intra modes.</p>
+          <p className="mt-2 text-base text-muted-foreground">{doneCount} of {items.length} checks complete.</p>
         </div>
         <p className="font-mono text-4xl font-semibold tabular-nums text-primary">{progress}%</p>
       </div>

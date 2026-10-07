@@ -22,7 +22,7 @@ export function Footer({ contacts, conferenceDates, venue, societyLocation, soci
       <div className="section-shell py-16 sm:py-20">
         <div className="grid gap-12 lg:grid-cols-[1.4fr_0.7fr_0.8fr_1fr]">
           <div>
-            <BrandLogo tone="white" className="w-36 sm:w-40" />
+            <BrandLogo tone="white" className="w-24" />
             <p className="mt-6 max-w-sm text-base leading-relaxed text-paper/70">
               {t("brand.tagline")}
             </p>
@@ -64,7 +64,7 @@ export function Footer({ contacts, conferenceDates, venue, societyLocation, soci
             <ul className="space-y-3 text-[0.9375rem]">
               {sections.registration && <li>
                 <Link href={registrationOpen ? "/register" : "/register/closed"} className="text-paper/70 transition-colors hover:text-paper">
-                  {registrationOpen ? t("nav.register") : "Registration status"}
+                  {registrationOpen ? t("nav.register") : t("marketing.registrationStatus")}
                 </Link>
               </li>}
               {sections.quiz && <li>
@@ -81,7 +81,7 @@ export function Footer({ contacts, conferenceDates, venue, societyLocation, soci
           </div>
 
           <div>
-            <p className="data-label mb-5 text-gold-300">{showActiveEvent ? activeEventName || t("marketing.footerBrief") : "Society contact"}</p>
+            <p className="data-label mb-5 text-gold-300">{showActiveEvent ? activeEventName || t("marketing.footerBrief") : t("marketing.societyContact")}</p>
             {showActiveEvent && <>
             <p className="text-[0.9375rem] text-paper/70">
               {conferenceDates || t("marketing.datesPending")}
@@ -90,7 +90,7 @@ export function Footer({ contacts, conferenceDates, venue, societyLocation, soci
               {venue || t("marketing.venuePending")}
             </p>
             </>}
-            {showActiveEvent && <p className="data-label mt-6 border-t border-paper/15 pt-5 text-gold-300">Society contact</p>}
+            {showActiveEvent && <p className="data-label mt-6 border-t border-paper/15 pt-5 text-gold-300">{t("marketing.societyContact")}</p>}
             <address className="mt-3 not-italic text-[0.9375rem] text-paper/70">
               <p>{societyLocation}</p>
               <a className="mt-1 inline-block hover:text-gold-300" href={`mailto:${societyEmail}`}>
