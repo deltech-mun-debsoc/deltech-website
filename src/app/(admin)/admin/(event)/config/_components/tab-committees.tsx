@@ -31,9 +31,9 @@ import { createCommittee, updateCommittee, deleteCommittee } from "../actions"
 import type { ClientCommittee } from "../_lib/types"
 
 const MATRIX_TYPE_ITEMS = [
-  { value: "STANDARD", label: "Country matrix" },
-  { value: "CRISIS", label: "People / specialized" },
-  { value: "PRESS", label: "Press corps" },
+  { value: "STANDARD", label: "Standard (countries)" },
+  { value: "CRISIS", label: "Crisis (people)" },
+  { value: "PRESS", label: "International Press" },
 ]
 
 const schema = z.object({
@@ -195,7 +195,7 @@ export function TabCommittees({ committees }: Props) {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border/60">
-              {["Name", "Seat label", "Type", "Double delegation", "Active", "Order", ""].map((h) => (
+              {["Name", "Group column", "Type", "Double delegation", "Active", "Order", ""].map((h) => (
                 <th
                   key={h}
                   className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground"
@@ -323,17 +323,17 @@ export function TabCommittees({ committees }: Props) {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label className="text-xs">Classification label</Label>
+                <Label className="text-xs">Group column</Label>
                 <Input
                   {...form.register("portfolioTagLabel")}
-                  placeholder="Participation, Party, Region, Faction…"
+                  placeholder="Party, Region, Bloc…"
                 />
                 <p className="text-xs text-muted-foreground">
-                  For example: Participation, Party, or Membership
+                  What the matrix calls each portfolio&apos;s group.
                 </p>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">Matrix type</Label>
+                <Label className="text-xs">Committee type</Label>
                 <Controller
                   control={form.control}
                   name="type"
@@ -341,9 +341,9 @@ export function TabCommittees({ committees }: Props) {
                     <Select items={MATRIX_TYPE_ITEMS} value={field.value} onValueChange={(v) => field.onChange(v)}>
                       <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="STANDARD">Country matrix</SelectItem>
-                        <SelectItem value="CRISIS">People / specialized</SelectItem>
-                        <SelectItem value="PRESS">Press corps</SelectItem>
+                        <SelectItem value="STANDARD">Standard (countries)</SelectItem>
+                        <SelectItem value="CRISIS">Crisis (people)</SelectItem>
+                        <SelectItem value="PRESS">International Press</SelectItem>
                       </SelectContent>
                     </Select>
                   )}
