@@ -22,7 +22,7 @@ export function Footer({ contacts, conferenceDates, venue, societyLocation, soci
       <div className="section-shell py-16 sm:py-20">
         <div className="grid gap-12 lg:grid-cols-[1.4fr_0.7fr_0.8fr_1fr]">
           <div>
-            <BrandLogo tone="white" className="w-36 sm:w-40" />
+            <BrandLogo tone="white" className="w-24" />
             <p className="mt-6 max-w-sm text-base leading-relaxed text-paper/70">
               {t("brand.tagline")}
             </p>

@@ -71,7 +71,7 @@ export default async function LandingPage() {
           <div className="grid gap-12 lg:grid-cols-[0.9fr_1.1fr] lg:gap-20">
             <div>
               <p className="eyebrow">{eventState.showEventHero ? t("marketing.societyBehindEvent") : t("marketing.societyHowItWorks")}</p>
-              <h2 className="display-section mt-5 max-w-[11ch]">{t("marketing.societyWorkTitle")}</h2>
+              <h2 className="mt-5 text-3xl font-semibold tracking-tight sm:text-4xl">{t("marketing.societyWorkTitle")}</h2>
               <p className="body-large mt-7 max-w-xl text-muted-foreground">{t("marketing.societyWorkBody")}</p>
             </div>
             <ol className="border-t border-foreground/20">
@@ -99,7 +99,7 @@ export default async function LandingPage() {
         <div className="section-shell">
           <div className="grid gap-8 border-b border-foreground/20 pb-12 lg:grid-cols-[1fr_0.8fr]">
             <div>
-              <h2 className="display-section max-w-[11ch]">{t("marketing.committeesTitle")}</h2>
+              <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">{t("marketing.committeesTitle")}</h2>
             </div>
             <p className="body-large self-end text-muted-foreground">
               {content.agendasBlurb || t("marketing.committeesBody")}
@@ -142,7 +142,7 @@ export default async function LandingPage() {
         <div className="paper-grid absolute inset-0 opacity-15" aria-hidden />
         <div className="section-shell relative grid gap-12 lg:grid-cols-[1.1fr_0.9fr] lg:items-end">
           <div>
-            <h2 className="display-section max-w-[10ch]">{t("marketing.matrixTitle")}</h2>
+            <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">{t("marketing.matrixTitle")}</h2>
           </div>
           <div>
             <p className="body-large text-primary-foreground/75">{t("marketing.matrixBody")}</p>
@@ -169,7 +169,7 @@ export default async function LandingPage() {
         <section className="border-b border-border/70 py-24 sm:py-32">
           <div className="section-shell grid gap-12 lg:grid-cols-[0.9fr_1.1fr]">
             <div>
-              <h2 className="display-section max-w-[9ch]">{t("marketing.awardsTitle")}</h2>
+              <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">{t("marketing.awardsTitle")}</h2>
             </div>
             <div className="border-t border-foreground/20">
               {content.awards.map((award, index) => (
@@ -188,7 +188,7 @@ export default async function LandingPage() {
           <div className="section-shell">
             <FadeUp className="grid gap-8 lg:grid-cols-[1fr_0.8fr]">
               <div>
-                <h2 className="display-section max-w-[10ch]">{t("marketing.contactsTitle")}</h2>
+                <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">{t("marketing.contactsTitle")}</h2>
               </div>
               <p className="body-large self-end text-muted-foreground">{t("marketing.contactsBody")}</p>
             </FadeUp>
@@ -213,7 +213,7 @@ export default async function LandingPage() {
 
       <section className="noise-wash py-24 text-center sm:py-36">
         <div className="section-shell">
-          <h2 className="display-section mx-auto max-w-[12ch]">{t("marketing.finalTitle")}</h2>
+          <h2 className="mx-auto text-3xl font-semibold tracking-tight sm:text-4xl">{t("marketing.finalTitle")}</h2>
           <div className="mt-10 flex flex-wrap justify-center gap-3">
             {content.publicSections.registration && <Link href={ctaHref} className={buttonVariants({ size: "lg" })}>
               {eventState.acceptsRegistrations ? content.landingHero.ctaLabel : t("marketing.registrationStatus")}

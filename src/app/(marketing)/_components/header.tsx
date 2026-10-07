@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { DOCS_URL } from "@/lib/app-url";
 import { t } from "@/content/strings";
 import { ThemeToggle } from "./theme-toggle";
-import { BrandEmblem } from "@/components/brand-logo";
+import { BrandMark } from "@/components/brand-logo";
 import type { Content } from "@/content/contentSchema";
 
 export function Header({ sections, registrationOpen }: { sections: Content["publicSections"]; registrationOpen: boolean }) {
@@ -36,15 +36,10 @@ export function Header({ sections, registrationOpen }: { sections: Content["publ
   return (
     <>
     <header className="sticky top-0 z-50 w-full border-b border-border/70 bg-background/90 backdrop-blur-xl">
-      <div className="section-shell flex h-20 items-center justify-between gap-5">
-        <Link href="/" className="flex items-center gap-3 text-foreground">
-          <BrandEmblem className="w-12" priority />
-          <span>
-            <span className="block text-lg font-semibold leading-none">{t("brand.name")}</span>
-            <span className="mt-1 hidden text-xs text-muted-foreground sm:block">
-              {t("brand.university")}
-            </span>
-          </span>
+      <div className="section-shell flex h-16 items-center justify-between gap-5">
+        <Link href="/" className="flex items-center gap-2.5 text-foreground">
+          <BrandMark />
+          <span className="text-lg font-semibold">{t("brand.name")}</span>
         </Link>
 
         <nav aria-label={t("nav.home")} className="hidden items-center gap-7 lg:flex">
@@ -107,7 +102,7 @@ export function Header({ sections, registrationOpen }: { sections: Content["publ
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.18 }}
-            className="fixed inset-x-0 bottom-0 top-20 z-40 overflow-y-auto border-t border-border bg-background lg:hidden"
+            className="fixed inset-x-0 bottom-0 top-16 z-40 overflow-y-auto border-t border-border bg-background lg:hidden"
           >
             <div className="flex min-h-full flex-col px-4 py-6">
               <ul className="divide-y divide-border/70 border-y border-border/70">

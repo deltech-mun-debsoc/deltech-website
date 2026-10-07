@@ -154,7 +154,7 @@ export function ConferenceCarousel() {
         <div className="grid gap-8 lg:grid-cols-[1fr_0.8fr] lg:items-end">
           <div>
             <p className="eyebrow">{t("marketing.gallery.eyebrow")}</p>
-            <h2 className="display-section mt-3">{t("marketing.gallery.title")}</h2>
+            <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">{t("marketing.gallery.title")}</h2>
           </div>
           <p className="body-large text-muted-foreground">{t("marketing.gallery.body")}</p>
         </div>

@@ -4,7 +4,7 @@ import Link from "next/link"
 import { motion, useReducedMotion } from "framer-motion"
 import { ArrowLeft } from "lucide-react"
 import { t } from "@/content/strings"
-import { BrandEmblem } from "@/components/brand-logo"
+import { BrandMark } from "@/components/brand-logo"
 
 // The sign-in family: sign-in, sign-up, check-your-email and the
 // account page. A dark stage with one headline, and a cream form panel.
@@ -43,7 +43,7 @@ export function AuthStage({
             className="flex w-fit items-center gap-3 rounded-md text-sm font-medium text-white/70 outline-none transition-colors hover:text-white focus-visible:ring-3 focus-visible:ring-white/60"
           >
             <ArrowLeft className="size-4" aria-hidden />
-            <BrandEmblem tone="white" className="w-9" priority />
+            <BrandMark className="h-6 text-white" />
             <span>{t("auth.backHome")}</span>
           </Link>
           <div className="relative z-10 lg:py-0">

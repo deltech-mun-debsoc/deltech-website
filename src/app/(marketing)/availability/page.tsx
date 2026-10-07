@@ -18,7 +18,7 @@ function MatrixHero({ totalAvailable, exact }: { totalAvailable: number; exact: 
       <div className="section-shell relative grid gap-10 lg:grid-cols-[1fr_0.42fr] lg:items-end">
         <div>
           <p className="eyebrow text-gold-300">{t("marketing.availabilityEyebrow")}</p>
-          <h1 className="display-section mt-6 max-w-[11ch]">{t("marketing.availabilityTitle")}</h1>
+          <h1 className="mt-6 text-3xl font-semibold tracking-tight sm:text-4xl">{t("marketing.availabilityTitle")}</h1>
           <p className="body-large mt-8 max-w-2xl text-paper/70">
             {exact ? t("marketing.availabilityBody") : t("marketing.availabilityCountsBody")}
           </p>

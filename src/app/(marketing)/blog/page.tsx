@@ -48,7 +48,7 @@ export default async function BlogIndexPage() {
         <div className="section-shell grid gap-10 lg:grid-cols-[1fr_0.55fr] lg:items-end">
           <div>
             <p className="eyebrow">{t("marketing.dispatchEyebrow")}</p>
-            <h1 className="display-hero mt-6">{t("marketing.dispatchTitle")}</h1>
+            <h1 className="headline mt-6">{t("marketing.dispatchTitle")}</h1>
           </div>
           <p className="body-large text-muted-foreground">{t("marketing.dispatchBody")}</p>
         </div>
@@ -58,7 +58,7 @@ export default async function BlogIndexPage() {
         <div className="section-shell">
           {posts.length === 0 ? (
             <div className="border-y border-border py-16">
-              <h2 className="display-section">{t("marketing.dispatchEmpty")}</h2>
+              <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">{t("marketing.dispatchEmpty")}</h2>
               <p className="body-large mt-5 max-w-2xl text-muted-foreground">{t("marketing.dispatchEmptyBody")}</p>
               <Link href="/signin?callbackUrl=/write" className={cn(buttonVariants({ variant: "outline", size: "lg" }), "mt-8")}>{t("marketing.dispatchEmptyCta")}</Link>
             </div>
@@ -73,7 +73,7 @@ export default async function BlogIndexPage() {
                 )}
                 <div className={featured.coverImage ? "lg:pl-6" : "max-w-5xl"}>
                   <p className="eyebrow">{t("marketing.latestDispatch")}</p>
-                  <h2 className={cn("display-section mt-5 transition-colors group-hover:text-primary", !featured.coverImage && "max-w-[18ch] sm:text-[clamp(3rem,6.5vw,6rem)]")}>{featured.title}</h2>
+                  <h2 className={cn("mt-5 text-2xl font-semibold sm:text-3xl transition-colors group-hover:text-primary", !featured.coverImage && "max-w-[28ch]")}>{featured.title}</h2>
                   {featured.subtitle && <p className="body-large mt-6 line-clamp-3 max-w-3xl text-muted-foreground">{featured.subtitle}</p>}
                   <p className="mt-7 text-sm text-muted-foreground">{metaLine(featured)}</p>
                   <span className="mt-8 inline-flex items-center gap-2 font-semibold text-primary">

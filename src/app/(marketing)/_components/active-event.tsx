@@ -20,7 +20,7 @@ export function ActiveEvent({ content }: { content: Content }) {
     <div className="section-shell relative grid gap-12 py-20 sm:py-32 lg:grid-cols-[1fr_0.62fr] lg:items-end">
       <div>
         <p className="eyebrow text-gold-300">{content.activeEventLabel || kind}</p>
-        <h1 className="display-hero mt-7 max-w-[10ch]">{content.activeEventName}</h1>
+        <h1 className="headline mt-7 max-w-[18ch]">{content.activeEventName}</h1>
         <p className="mt-8 max-w-xl text-xl leading-relaxed text-paper/75">{eventBrief}</p>
       </div>
       <div className="border-t border-paper/25 pt-7">
