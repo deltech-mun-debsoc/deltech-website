@@ -22,21 +22,21 @@ export default async function AccountPage() {
   const hasPassword = !!user.passwordHash
 
   return (
-    <AuthStage marker={t("auth.accountMarker")} headline={[t("auth.accountHeadline1"), t("auth.accountHeadline2")]}>
-      <h2 className="font-heading text-4xl leading-tight">{t("account.title")}</h2>
-      <p className="mt-2 text-base text-black/65">{user.email}</p>
+    <AuthStage>
+      <h1 className="text-2xl font-semibold">{t("account.title")}</h1>
+      <p className="mt-1 text-base text-muted-foreground">{user.email}</p>
 
-      <h3 className="mt-7 border-t border-black/15 pt-6 font-sans text-lg font-semibold">
+      <h2 className="mt-7 border-t border-border pt-6 text-lg font-semibold">
         {hasPassword ? t("account.changePasswordTitle") : t("account.setPasswordTitle")}
-      </h3>
-      <p className="mt-1 mb-6 text-sm leading-relaxed text-black/65">
+      </h2>
+      <p className="mt-1 mb-6 text-sm leading-relaxed text-muted-foreground">
         {hasPassword ? t("account.changePasswordNote") : t("account.setPasswordNote")}
       </p>
 
       <PasswordForm hasPassword={hasPassword} />
 
-      <p className="mt-7 border-t border-black/15 pt-5 text-sm">
-        <Link href={roleHome(user.role)} className="font-semibold text-teal-800 underline underline-offset-4">
+      <p className="mt-8 border-t border-border pt-5 text-sm">
+        <Link href={roleHome(user.role)} className="font-semibold underline underline-offset-4">
           {t("account.backLink")}
         </Link>
       </p>

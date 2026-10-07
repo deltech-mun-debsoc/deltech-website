@@ -9,6 +9,10 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { requestMagicLink, signInWithPassword } from "../actions";
 
+// The selected method is a filled primary chip in both themes, not a faint lift
+// off the track, so which form is showing is never in doubt.
+const TRIGGER = "h-full rounded-md text-sm font-semibold data-active:bg-primary data-active:text-primary-foreground data-active:shadow-sm dark:data-active:border-transparent dark:data-active:bg-primary dark:data-active:text-primary-foreground"
+
 export function SignInForm({
   defaultTab = "magic",
   callbackUrl = "",
@@ -38,11 +42,11 @@ export function SignInForm({
           which a plain h-* cannot override, so the track stayed 32px while the
           triggers were 44px. Override the same variant so track and triggers
           share one height. */}
-      <TabsList className="grid w-full grid-cols-2 rounded-lg bg-muted p-1 group-data-horizontal/tabs:h-12">
-        <TabsTrigger value="magic" className="h-full rounded-md text-sm font-semibold data-active:shadow-sm">
+      <TabsList className="grid w-full grid-cols-2 rounded-lg border border-border bg-muted p-1 group-data-horizontal/tabs:h-11">
+        <TabsTrigger value="magic" className={TRIGGER}>
           {t("auth.magicLinkTab")}
         </TabsTrigger>
-        <TabsTrigger value="password" className="h-full rounded-md text-sm font-semibold data-active:shadow-sm">
+        <TabsTrigger value="password" className={TRIGGER}>
           {t("auth.passwordTab")}
         </TabsTrigger>
       </TabsList>
@@ -139,11 +143,6 @@ export function SignInForm({
             {t("auth.forgotPassword")}
           </button>
 
-          {/* Invited staff have no passwordHash at all, so the generic
-              "invalid email or password" is actively misleading for them.
-              Stated up front rather than as an error, which would leak
-              whether a given address has an account. */}
-          <p className="text-sm leading-relaxed text-muted-foreground">{t("auth.noPasswordYetHint")}</p>
         </form>
       </TabsContent>
     </Tabs>

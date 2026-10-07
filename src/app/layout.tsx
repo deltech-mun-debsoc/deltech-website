@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Fraunces } from "next/font/google";
+import { Geist, Geist_Mono, Spectral } from "next/font/google";
 import { Providers } from "@/components/providers";
 import { STRINGS } from "@/content/strings";
 import { PreviewRibbon } from "@/components/preview-ribbon";
@@ -16,12 +16,12 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-// Editorial display serif, variable optical size so the same family holds up
-// from 96px hero headlines down to 18px card titles.
-const fraunces = Fraunces({
+// Serif for the one editorial headline a public page may carry, and for article
+// bodies. Everything else, headings included, is Geist.
+const spectral = Spectral({
   variable: "--font-display",
   subsets: ["latin"],
-  axes: ["opsz"],
+  weight: ["400", "600"],
   style: ["normal", "italic"],
 });
 
@@ -35,7 +35,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${geistSans.variable} ${geistMono.variable} ${fraunces.variable} h-full antialiased`}
+      className={`${geistSans.variable} ${geistMono.variable} ${spectral.variable} h-full antialiased`}
     >
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />

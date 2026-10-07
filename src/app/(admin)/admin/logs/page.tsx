@@ -54,7 +54,6 @@ export default async function LogsPage(props: {
       <PageHeader
         eyebrow="System"
         title="Activity log"
-        description="Every change, approval, and send by admins and maintainers."
       />
 
       {/* GET-form filters, no client state needed */}

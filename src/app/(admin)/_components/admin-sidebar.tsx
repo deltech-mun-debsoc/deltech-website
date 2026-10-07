@@ -1,7 +1,7 @@
 "use client"
 
 import Link from "next/link"
-import { BrandEmblem } from "@/components/brand-logo"
+import { BrandMark } from "@/components/brand-logo"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { t } from "@/content/strings"
@@ -25,7 +25,7 @@ export function AdminSidebar({ user }: { user: SidebarUser }) {
       {/* Brand */}
       <div className="border-b border-sidebar-border px-6 py-6">
         <Link href="/admin" className="flex items-center gap-3 text-sidebar-foreground">
-          <BrandEmblem className="w-10" />
+          <BrandMark className="h-6" />
           <span className="text-lg font-semibold leading-tight">{t("brand.name")}</span>
         </Link>
       </div>

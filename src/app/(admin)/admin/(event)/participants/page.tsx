@@ -86,7 +86,7 @@ export default async function ParticipantsPage({
       <PageHeader
         eyebrow="Delegates"
         title="Accounts"
-        description="Accounts that signed up to register. Each row is joined to its application where one exists. Roles are not editable here: a participant who needs staff access should be given it under Staff & roles."
+        description="To give someone staff access, use Staff & roles."
       >
         <Link
           href="/admin/registrations"

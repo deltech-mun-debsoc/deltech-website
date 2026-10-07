@@ -1,12 +1,9 @@
-"use client"
-
-import { useRef } from "react"
-import { ArrowLeft, ArrowRight } from "lucide-react"
+import { t } from "@/content/strings"
 
 const TEAM_LEVELS = [
-  { value: "AC", label: "Administrative Council", note: "Direction & stewardship" },
-  { value: "SC", label: "Senior Council", note: "Strategy & execution" },
-  { value: "JC", label: "Junior Council", note: "Ideas & on-ground action" },
+  { value: "AC", label: "Administrative Council" },
+  { value: "SC", label: "Senior Council" },
+  { value: "JC", label: "Junior Council" },
 ] as const
 
 type TeamLevel = (typeof TEAM_LEVELS)[number]["value"]
@@ -38,144 +35,61 @@ export type PublicTeamMember = {
   socials: { instagram?: string; linkedin?: string }
 }
 
-function MemberCard({ member, index }: { member: PublicTeamMember; index: number }) {
+const SOCIAL = "flex size-8 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+
+function MemberCard({ member }: { member: PublicTeamMember }) {
   const initials = member.name.split(" ").slice(0, 2).map((word) => word[0]).join("")
 
   return (
-    <article className="group relative w-[min(78vw,19rem)] shrink-0 snap-start overflow-hidden border border-foreground/20 bg-ink text-paper shadow-[0_12px_36px_-28px_rgba(56,40,17,0.65)] transition-[transform,border-color,box-shadow] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] transform-gpu will-change-transform hover:-translate-y-1 hover:border-gold-500/70 hover:shadow-[0_24px_52px_-22px_rgba(151,108,35,0.52)] motion-reduce:transform-none sm:w-72 lg:w-80">
+    <li>
       {member.photoUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={member.photoUrl}
-          alt={member.name}
-          className="aspect-[4/5] w-full object-cover object-[center_28%] saturate-[0.98] transition-[filter] duration-500 ease-out group-hover:saturate-[1.08]"
-          loading="lazy"
-        />
+        <img src={member.photoUrl} alt={member.name} loading="lazy" className="aspect-[4/5] w-full rounded-lg bg-muted object-cover object-[center_28%]" />
       ) : (
-        // No photo on file: a monogram on the same ink as the card in both
-        // themes, sitting above the name block rather than behind it.
-        <div aria-hidden className="relative flex aspect-[4/5] items-start bg-ink px-6 pt-10">
-          <div className="paper-grid absolute inset-0 opacity-[0.07]" />
-          <span className="display relative text-[7rem] leading-none text-gold-300/90">{initials}</span>
-        </div>
+        <div aria-hidden className="flex aspect-[4/5] items-center justify-center rounded-lg bg-muted text-4xl font-semibold text-muted-foreground">{initials}</div>
       )}
-
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-stone-950/95 via-stone-950/5 to-amber-950/10 transition-colors duration-500 group-hover:from-stone-950/90 group-hover:to-gold-700/20" />
-      <div className="pointer-events-none absolute inset-y-0 -left-1/2 w-1/3 -skew-x-12 bg-gradient-to-r from-transparent via-gold-300/30 to-transparent opacity-0 blur-sm transition-all duration-700 ease-out group-hover:left-[115%] group-hover:opacity-100 motion-reduce:hidden" />
-      <span className="absolute left-4 top-4 border border-white/30 bg-black/25 px-2.5 py-1 font-mono text-[0.65rem] font-bold tabular-nums text-white backdrop-blur-md">
-        {String(index + 1).padStart(2, "0")}
-      </span>
-
-      {(member.socials.instagram || member.socials.linkedin) && (
-        <div className="absolute right-4 top-4 flex gap-2">
-          {member.socials.instagram && (
-            <a
-              href={member.socials.instagram}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label={`${member.name} on Instagram`}
-              className="flex size-9 items-center justify-center rounded-full border border-white/35 bg-black/30 text-white backdrop-blur-md transition hover:scale-105 hover:bg-white hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-            >
-              <InstagramMark />
-            </a>
-          )}
-          {member.socials.linkedin && (
-            <a
-              href={member.socials.linkedin}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label={`${member.name} on LinkedIn`}
-              className="flex size-9 items-center justify-center rounded-full border border-white/35 bg-black/30 text-white backdrop-blur-md transition hover:scale-105 hover:bg-white hover:text-black focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
-            >
-              <LinkedInMark />
-            </a>
-          )}
+      <div className="mt-3 flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <h3 className="font-semibold leading-snug">{member.name}</h3>
+          <p className="text-sm text-muted-foreground">{member.designation}</p>
         </div>
-      )}
-
-      <div className="absolute inset-x-0 bottom-0 p-5 text-white sm:p-6">
-        <p className="text-[0.65rem] font-bold text-white/70 transition-colors duration-500 group-hover:text-gold-300">{member.designation}</p>
-        <h3 className="mt-2 font-heading text-3xl leading-[0.9] sm:text-4xl">{member.name}</h3>
-        <span className="mt-4 block h-px w-10 bg-gold-300 transition-[width] duration-700 ease-out group-hover:w-full motion-reduce:transition-none" />
-      </div>
-    </article>
-  )
-}
-
-function CouncilRail({ level, members }: { level: (typeof TEAM_LEVELS)[number]; members: PublicTeamMember[] }) {
-  const railRef = useRef<HTMLDivElement>(null)
-
-  function move(direction: -1 | 1) {
-    railRef.current?.scrollBy({ left: direction * Math.min(railRef.current.clientWidth * 0.85, 1050), behavior: "smooth" })
-  }
-
-  if (members.length === 0) return null
-
-  return (
-    <section aria-labelledby={`team-${level.value.toLowerCase()}`}>
-      <div className="mb-6 flex items-end justify-between gap-5 border-b border-foreground/25 pb-5">
-        <div className="flex min-w-0 items-end gap-4 sm:gap-6">
-          <span className="font-mono text-3xl font-bold text-primary sm:text-5xl">{level.value}</span>
-          <div className="min-w-0">
-            <h2 id={`team-${level.value.toLowerCase()}`} className="font-heading text-3xl leading-none sm:text-5xl">
-              {level.label}
-            </h2>
-            <p className="mt-2 hidden text-sm text-muted-foreground sm:block">{level.note}</p>
-          </div>
-          <span className="mb-0.5 rounded-full border border-foreground/25 px-2 py-1 font-mono text-[0.65rem] tabular-nums sm:mb-1">
-            {String(members.length).padStart(2, "0")}
-          </span>
-        </div>
-
-        {members.length > 4 && (
-          <div className="hidden shrink-0 gap-2 sm:flex">
-            <button
-              type="button"
-              onClick={() => move(-1)}
-              aria-label={`Scroll ${level.label} backward`}
-              className="flex size-11 items-center justify-center border border-foreground/30 transition hover:bg-ink hover:text-paper focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <ArrowLeft className="size-4" />
-            </button>
-            <button
-              type="button"
-              onClick={() => move(1)}
-              aria-label={`Scroll ${level.label} forward`}
-              className="flex size-11 items-center justify-center border border-foreground/30 transition hover:bg-ink hover:text-paper focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <ArrowRight className="size-4" />
-            </button>
+        {(member.socials.instagram || member.socials.linkedin) && (
+          <div className="-mr-1.5 flex shrink-0">
+            {member.socials.instagram && (
+              <a href={member.socials.instagram} target="_blank" rel="noopener noreferrer" aria-label={t("marketing.instagramLabel", { name: member.name })} className={SOCIAL}>
+                <InstagramMark />
+              </a>
+            )}
+            {member.socials.linkedin && (
+              <a href={member.socials.linkedin} target="_blank" rel="noopener noreferrer" aria-label={t("marketing.linkedinLabel", { name: member.name })} className={SOCIAL}>
+                <LinkedInMark />
+              </a>
+            )}
           </div>
         )}
       </div>
-
-      <div
-        ref={railRef}
-        className="-mx-5 flex snap-x snap-mandatory gap-4 overflow-x-auto px-5 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:-mx-8 sm:gap-5 sm:px-8 lg:mx-0 lg:px-0"
-      >
-        {members.map((member, index) => (
-          <MemberCard key={member.id} member={member} index={index} />
-        ))}
-      </div>
-      {members.length > 2 && (
-        <p className="mt-3 font-mono text-[0.65rem] text-muted-foreground sm:hidden">
-          Swipe to meet the council →
-        </p>
-      )}
-    </section>
+    </li>
   )
 }
 
 export function TeamDirectory({ members }: { members: PublicTeamMember[] }) {
   return (
-    <div className="space-y-16 sm:space-y-24">
-      {TEAM_LEVELS.map((level) => (
-        <CouncilRail
-          key={level.value}
-          level={level}
-          members={members.filter((member) => member.level === level.value)}
-        />
-      ))}
+    <div className="space-y-14">
+      {TEAM_LEVELS.map((level) => {
+        const people = members.filter((member) => member.level === level.value)
+        if (people.length === 0) return null
+        return (
+          <section key={level.value} aria-labelledby={`team-${level.value.toLowerCase()}`}>
+            <h2 id={`team-${level.value.toLowerCase()}`} className="text-xl font-semibold">{level.label}</h2>
+            {/* A large council gets smaller cards so a phone is not one long scroll. */}
+            <ul className={people.length > 8
+              ? "mt-5 grid grid-cols-3 gap-x-3 gap-y-6 sm:grid-cols-4 sm:gap-x-5 lg:grid-cols-6"
+              : "mt-5 grid grid-cols-2 gap-x-4 gap-y-8 sm:grid-cols-3 sm:gap-x-6 lg:grid-cols-4"}>
+              {people.map((member) => <MemberCard key={member.id} member={member} />)}
+            </ul>
+          </section>
+        )
+      })}
     </div>
   )
 }
