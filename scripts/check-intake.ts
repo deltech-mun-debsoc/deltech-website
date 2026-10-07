@@ -1,6 +1,6 @@
 // Smallest runnable check for the intake normalizers: npx tsx scripts/check-intake.ts
 import assert from "node:assert"
-import { normalizeEmail, normalizePhone, normalizeName, matchCommittee, resolveCommittee, aliasCollision } from "../src/lib/intake"
+import { normalizeEmail, normalizePhone, normalizeName, matchCommittee, resolveCommittee, aliasCollision, mergeAiRow } from "../src/lib/intake"
 
 assert.equal(normalizeEmail(" Ritu.Sharma@GMIAL.com "), "ritu.sharma@gmail.com")
 assert.equal(normalizeEmail("a b@yahooo.co.in"), "ab@yahoo.co.in")
@@ -57,3 +57,20 @@ assert.equal(aliasCollision({ id: "1", name: "UNGA-DISEC", slug: "unga-disec", a
 assert.match(aliasCollision({ name: "New", aliases: ["Lok-Sabha"] }, committees) ?? "", /already names Lok Sabha/)
 
 console.log("intake normalizer checks passed (incl. ambiguous aliases and near spellings)")
+
+// ── Cross-delegation cleanup: the AI suggests a committee, never settles one ──
+{
+  const refs = [
+    { id: "1", name: "UNGA-DISEC", slug: "unga-disec", aliases: [] as string[] },
+    { id: "2", name: "UNHRC", slug: "unhrc", aliases: [] as string[] },
+  ]
+  const before = { fullName: "A", email: "a@x.in", committee: "Disarmament cmte", committee2: "UNHRC", portfolio: "India" }
+  const merged = mergeAiRow(before, { committee: "UNGA-DISEC", committee2: null, portfolio: null }, refs)
+  assert.equal(merged.committee, "Disarmament cmte", "the original answer stays; the AI does not settle it")
+  assert.equal(merged._suggest?.committee, "UNGA-DISEC", "the AI's reading is offered as a suggestion")
+  assert.equal(merged.committee2, "UNHRC", "a null from the AI never erases a matched committee")
+  assert.equal(merged.portfolio, "India")
+  const invented = mergeAiRow(before, { committee: "Security Council" }, refs)
+  assert.equal(invented._suggest, undefined, "a committee that is not ours is not even suggested")
+}
+console.log("cross-delegation cleanup checks passed")
