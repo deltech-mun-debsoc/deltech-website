@@ -6,7 +6,6 @@ import { ArrowLeft, ArrowRight } from "lucide-react"
 import { t } from "@/content/strings"
 import { cn } from "@/lib/utils"
 import assembly from "@/photos/assembly.webp"
-import hall from "@/photos/hall.webp"
 import floor from "@/photos/floor.webp"
 import address from "@/photos/address.webp"
 import rostrum from "@/photos/rostrum.webp"
@@ -39,7 +38,6 @@ interface Slide {
 // before any one face does, then in to the people, then back out to everyone.
 const SLIDES: Slide[] = [
   { src: assembly, altKey: "marketing.gallery.altAssembly", captionKey: "marketing.gallery.capAssembly" },
-  { src: hall, altKey: "marketing.gallery.altHall", captionKey: "marketing.gallery.capHall" },
   { src: floor, altKey: "marketing.gallery.altFloor", captionKey: "marketing.gallery.capFloor" },
   { src: address, altKey: "marketing.gallery.altAddress", captionKey: "marketing.gallery.capAddress" },
   { src: rostrum, altKey: "marketing.gallery.altRostrum", captionKey: "marketing.gallery.capRostrum" },
@@ -146,25 +144,19 @@ export function ConferenceCarousel() {
 
   return (
     <section
-      className="border-b border-border/70 py-24 sm:py-32"
+      className="border-b border-border/70 py-16 sm:py-20"
       aria-roledescription={t("marketing.gallery.roleCarousel")}
       aria-label={t("marketing.gallery.title")}
     >
       <div className="section-shell">
-        <div className="grid gap-8 lg:grid-cols-[1fr_0.8fr] lg:items-end">
-          <div>
-            <p className="eyebrow">{t("marketing.gallery.eyebrow")}</p>
-            <h2 className="mt-3 text-3xl font-semibold tracking-tight sm:text-4xl">{t("marketing.gallery.title")}</h2>
-          </div>
-          <p className="body-large text-muted-foreground">{t("marketing.gallery.body")}</p>
-        </div>
+        <h2 className="text-2xl font-semibold sm:text-3xl">{t("marketing.gallery.title")}</h2>
       </div>
 
       {/* The track breaks out of the shell so the next frame peeks in from the
           edge: that peek is what tells a reader there is more without a caption
           saying so. */}
       <div
-        className="relative mt-12"
+        className="relative mt-8"
         onPointerEnter={() => setPaused(true)}
         onPointerLeave={() => setPaused(false)}
         onFocusCapture={() => setPaused(true)}
@@ -188,7 +180,7 @@ export function ConferenceCarousel() {
               aria-roledescription={t("marketing.gallery.roleSlide")}
               aria-label={t("marketing.gallery.slideCount", { current: i + 1, total: SLIDES.length })}
             >
-              <figure className="group relative aspect-[3/2] overflow-hidden bg-foreground/5">
+              <figure className="group relative aspect-[3/2] overflow-hidden rounded-lg bg-foreground/5">
                 <Image
                   src={slide.src}
                   alt={t(slide.altKey as Parameters<typeof t>[0])}
@@ -204,11 +196,8 @@ export function ConferenceCarousel() {
                     i === index ? "scale-100 grayscale-0" : "scale-[1.04] grayscale",
                   )}
                 />
-                <figcaption className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-5 pt-16 sm:p-7 sm:pt-24">
-                  <span className="data-label text-[0.6875rem] text-white/70">
-                    {t("marketing.gallery.slideCount", { current: i + 1, total: SLIDES.length })}
-                  </span>
-                  <p className="mt-1.5 font-heading text-2xl text-white sm:text-3xl">
+                <figcaption className="pointer-events-none absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-5 pt-16 sm:p-6 sm:pt-20">
+                  <p className="text-base font-medium text-white sm:text-lg">
                     {t(slide.captionKey as Parameters<typeof t>[0])}
                   </p>
                 </figcaption>
