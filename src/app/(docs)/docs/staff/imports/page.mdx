@@ -24,9 +24,11 @@ its delegates come from the [Google Form](/docs/staff/sheets) and must be DTU st
 3. **Preview.** See exactly what will be created, row by row, before anything is
    written. Mapping mistakes are visible here, which is the entire point of the step.
 
-4. **Import.** Commit the clean rows. Delegates whose preferred seat is open are allotted
-   as **drafts** and are not emailed. Email them from [Allotment](/docs/staff/allotment)
-   when ready; the Google Form webhook works the same way.
+4. **Import.** Everyone imported is **accepted, with nothing to pay**. Anyone whose first
+   free choice is open gets it as a **draft** seat and is not emailed; the rest show as
+   **Accepted, needs a seat**. The result ends with what to do next: review the rows
+   that need fixing, view the imported delegates, or assign the remaining seats on
+   [Allotment](/docs/staff/allotment).
 </Steps>
 
 If an imported delegate's details are wrong (a mistyped email that bounced, say), click
@@ -47,10 +49,12 @@ year, so mapping it once is worth it.
 ## The AI helpers
 
 Two of them: one suggests which spreadsheet column is which field, and one cleans messy
-rows, for example normalising inconsistent institution names.
+rows, for example normalising inconsistent institution names. What it changed is written
+under the name in the preview.
 
-Both are suggestions. Read the preview. The AI is good at obvious columns and confidently
-wrong about ambiguous ones.
+A committee answer that names none of ours is never settled by the AI. The preview shows
+the original answer in amber with "Did they mean …? Use it", and the row stays out of
+the import until someone picks a committee or clears the answer.
 
 ## Quarantine
 
@@ -66,11 +70,13 @@ quarantine is a delegate who thinks they are registered and is not.
 The email address is the identity. A row whose email already exists is rejected rather
 than creating a second record for the same person.
 
-## Cross delegations
+## Partner sheets
 
-Under Delegates → Cross delegations, the linked-sheets card lets a delegation submit through a Google Form, arriving live
-rather than as a file you have to chase. See
-[Google Forms and Sheets](/docs/staff/sheets).
+A delegation that keeps its own Google Sheet can be connected under **Partner sheets**
+instead of sending files. It is read every night: rows it can read are accepted, and
+anything unclear (a broken row, a committee nobody can match) waits under Rows that need
+fixing. **Review now** puts the sheet through the same review as an uploaded file. The
+card shows when it was last read and what came of it.
 
 ## After importing
 
