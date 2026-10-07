@@ -6,24 +6,22 @@ import { ArrowLeft } from "lucide-react"
 import { t } from "@/content/strings"
 import { BrandEmblem } from "@/components/brand-logo"
 
-// The sign-in family: sign-in, staff sign-in, sign-up, check-your-email and the
+// The sign-in family: sign-in, sign-up, check-your-email and the
 // account page. A dark stage with one headline, and a cream form panel.
 // On a phone the stage collapses to a few lines so the form starts high.
 export function AuthStage({
-  kind = "delegate",
   marker,
   headline,
   intro,
   children,
 }: {
-  kind?: "delegate" | "staff"
   marker: string
   headline: [string, string]
   intro?: string
   children: React.ReactNode
 }) {
   const reduce = useReducedMotion()
-  const accent = kind === "staff" ? "#f4c86a" : "#2dd4bf"
+  const accent = "#2dd4bf"
 
   return (
     <main className="overscroll-dark relative min-h-svh overflow-hidden bg-[#060a09] text-white">
