@@ -104,7 +104,7 @@ export const STRINGS = {
       capDelegation: "The secretariat",
     },
     committeeTypes: {
-      standard: "Committee",
+      standard: "Standard",
       crisis: "Crisis",
       press: "International Press",
     },
@@ -557,7 +557,6 @@ export const STRINGS = {
     },
     overview: {
       title: "My desk",
-      description: "Your active sessions and anything that still needs doing.",
       liveSessions: "Live now",
       upcoming: "Your sessions",
       noSessions: "No sessions need your attention right now.",
@@ -623,8 +622,6 @@ export const STRINGS = {
     groups: {
       titleGd: "Group discussions",
       titlePi: "Interviews",
-      descriptionGd: "Create panels, run the timer, and record every evaluator's score.",
-      descriptionPi: "Interview candidates with their full GD record in front of you.",
       newGroup: "New group",
       newPanel: "New interview",
       empty: "No groups yet.",
@@ -753,7 +750,6 @@ saving: "Saving…",
     },
     candidates: {
       title: "Candidates",
-      description: "Everyone in this recruitment cycle, and where they stand.",
       searchPlaceholder: "Name, email, branch…",
       stageFilter: "Stage",
       resultFilter: "Result",
@@ -808,8 +804,7 @@ saving: "Saving…",
     },
     responses: {
       title: "Form responses",
-      description:
-        "Pull the Google Form response sheet, check what will change, then import. Re-importing the same sheet does nothing.",
+      description: "Re-importing the same sheet does nothing.",
       sourcesTitle: "Sheet sources",
       noSources: "No sheet is configured for this cycle yet.",
       noSourcesReadOnly:
@@ -853,8 +848,6 @@ saving: "Saving…",
     },
     control: {
       title: "Recruitment control",
-      description:
-        "Create and configure recruitment cycles, assign the council, and watch progress. The GD and interview screens live in the recruitment area.",
       openArea: "Open recruitment area",
       cyclesTitle: "Cycles",
       noCycles: "No recruitment cycle has been created yet.",
@@ -922,7 +915,6 @@ saving: "Saving…",
     },
     audit: {
       title: "Audit trail",
-      description: "Every recruitment action, including the ones that were refused.",
       empty: "No audit events match.",
       eventTypeFilter: "Event",
       outcomeFilter: "Outcome",
@@ -1418,7 +1410,7 @@ saving: "Saving…",
     description:
       "Open a session for an online committee, then mark each seat. Quorum is one third of the seats, and debate cannot open until the count clears it.",
     pickCommittee: "Choose a committee",
-    noCommittees: "No online or hybrid committees yet. Set a committee's format on the Matrix and committees screen.",
+    noCommittees: "No online or hybrid committees yet. Set a committee's format under Committees & matrix.",
     noSeats: "This committee has no portfolios yet, so there is nothing to call.",
     openSession: "Open roll call",
     closeSession: "Close session",

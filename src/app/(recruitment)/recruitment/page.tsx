@@ -30,7 +30,6 @@ export default async function RecruitmentOverviewPage() {
       <RecruitmentPageHeader
         eyebrow={cycle.name}
         title={t("recruitment.overview.title")}
-        description={t("recruitment.overview.description")}
       />
 
       <section className="space-y-3">

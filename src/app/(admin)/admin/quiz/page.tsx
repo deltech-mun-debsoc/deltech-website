@@ -36,7 +36,7 @@ export default async function AdminQuizPage(props: { searchParams: Promise<{ vie
 
   return (
     <div className="space-y-8">
-      <PageHeader eyebrow="Live studio" title="Quiz control room" description="Build the show, rehearse the sequence, then put the audience live." />
+      <PageHeader title="Quizzes" />
 
       <section className="grid overflow-hidden border border-foreground/15 bg-ink text-paper lg:grid-cols-[1.2fr_0.8fr]">
         <div className="p-7 sm:p-9">

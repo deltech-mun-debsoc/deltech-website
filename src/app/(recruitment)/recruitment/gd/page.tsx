@@ -54,7 +54,6 @@ export default async function GdGroupsPage() {
       <RecruitmentPageHeader
         eyebrow={cycle.name}
         title={t("recruitment.groups.titleGd")}
-        description={t("recruitment.groups.descriptionGd")}
       >
         {canCreate && (
           <CreateGroupDialog
