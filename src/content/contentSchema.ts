@@ -35,7 +35,7 @@ export const ContentSchema = z.object({
   registrationFormUrl: z.string().default(""),
   registrationClosedMessage: z
     .string()
-    .default("Registrations are currently closed. Check back soon."),
+    .default(""),
   conferenceDates: z.string().default(""),
   venue: z.string().default(""),
   societyLocation: z.string().default("Delhi Technological University"),

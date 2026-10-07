@@ -19,10 +19,10 @@ export default async function RegisterSuccessPage(props: {
 
   if (!delegate) {
     return (
-      <div className="section-shell max-w-3xl py-20 sm:py-28">
-        <h1 className="text-3xl font-semibold tracking-tight sm:text-4xl">{t("register.success.noTokenTitle")}</h1>
-        <p className="body-large mt-6 text-muted-foreground">{t("register.success.noTokenBody")}</p>
-        <Link href="/register" className={cn(buttonVariants({ size: "lg" }), "mt-9")}>
+      <div className="section-shell max-w-2xl py-16 sm:py-24">
+        <h1 className="text-3xl font-semibold">{t("register.success.noTokenTitle")}</h1>
+        <p className="mt-3 text-lg leading-relaxed text-muted-foreground">{t("register.success.noTokenBody")}</p>
+        <Link href="/register" className={cn(buttonVariants({ size: "lg" }), "mt-8")}>
           {t("register.success.registerCta")}
         </Link>
       </div>
@@ -33,27 +33,23 @@ export default async function RegisterSuccessPage(props: {
   // Free because the event charges nothing, not because of what it is called.
   const isFree = !deriveEventState(content).paymentsRequired
   return (
-    <div className="noise-wash grid min-h-[calc(100svh-5rem)] place-items-center px-4 py-20 text-center">
-      <div className="section-shell">
-        <CheckCircle2 className="mx-auto mb-6 size-14 text-primary" aria-hidden />
-        <p className="eyebrow">{t("marketing.registrationSuccessEyebrow")}</p>
-        <h1 className="mt-6 text-3xl font-semibold tracking-tight sm:text-4xl">{t("register.success.title")}</h1>
-        <p className="body-large mx-auto mt-6 max-w-2xl text-muted-foreground">
-          {isFree ? t("marketing.freeRegistrationReceived") : t("register.success.message")}
-        </p>
-        <div className="mx-auto mt-9 max-w-xl border-y border-border bg-card/70 p-6 text-left">
-          <p className="data-label text-primary">{t("register.success.trackTitle")}</p>
-          <Link
-            href={`/status/${delegate.publicToken}`}
-            className="mt-3 block break-all font-mono text-base font-semibold text-primary underline underline-offset-4"
-          >
-            /status/{delegate.publicToken}
-          </Link>
-          <p className="mt-3 text-sm text-muted-foreground">{t("register.success.trackNote")}</p>
-        </div>
-        <Link href="/" className={cn(buttonVariants({ variant: "outline", size: "lg" }), "mt-9")}>
-          {t("nav.home")}
+    <div className="section-shell max-w-2xl py-16 sm:py-24">
+      <h1 className="flex items-center gap-3 text-3xl font-semibold">
+        <CheckCircle2 className="size-8 shrink-0 text-primary" aria-hidden />
+        {t("register.success.title")}
+      </h1>
+      <p className="mt-3 text-lg leading-relaxed text-muted-foreground">
+        {isFree ? t("marketing.freeRegistrationReceived") : t("register.success.message")}
+      </p>
+      <div className="mt-8 rounded-lg border border-border p-5">
+        <p className="font-semibold">{t("register.success.trackTitle")}</p>
+        <Link
+          href={`/status/${delegate.publicToken}`}
+          className="mt-2 block break-all font-mono text-sm text-primary underline underline-offset-4"
+        >
+          /status/{delegate.publicToken}
         </Link>
+        <p className="mt-2 text-sm text-muted-foreground">{t("register.success.trackNote")}</p>
       </div>
     </div>
   )
