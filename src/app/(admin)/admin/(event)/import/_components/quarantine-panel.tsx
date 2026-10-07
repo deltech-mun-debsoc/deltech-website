@@ -8,6 +8,7 @@ import { RotateCcw, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { unresolvedCommittees } from "@/lib/schemas/import"
 import { retryQuarantined, dismissQuarantined, type QuarantineRecord } from "../actions"
 import { readableRowError, type MappedRow } from "@/lib/schemas/import"
 
@@ -21,12 +22,13 @@ const SOURCE_LABEL: Record<string, string> = {
 
 interface Props {
   rows: QuarantineRecord[]
+  committeeNames: string[]
 }
 
 // Rows any intake channel (wizard, Google Form webhook, cron sync) couldn't
 // turn into a Delegate. Fix inline, retry, or dismiss, nothing is ever
 // silently dropped upstream.
-export function QuarantinePanel({ rows }: Props) {
+export function QuarantinePanel({ rows, committeeNames }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [edits, setEdits] = useState<Record<string, Partial<MappedRow>>>({})
@@ -93,6 +95,23 @@ export function QuarantinePanel({ rows }: Props) {
                 defaultValue={r.raw.whatsapp ?? ""}
                 onChange={(e) => setField(r.id, "whatsapp", e.target.value)}
               />
+              {/* A committee answer that names none of ours: a person says which
+                  one they meant, or leaves it empty. */}
+              {unresolvedCommittees(r.raw, committeeNames).map((f) => (
+                <select
+                  key={f}
+                  aria-label={`Committee meant by ${r.raw[f]}`}
+                  className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+                  defaultValue={r.raw[f]}
+                  onChange={(e) => setField(r.id, f, e.target.value)}
+                >
+                  <option value={r.raw[f]} disabled>{`"${r.raw[f]}" means…`}</option>
+                  {committeeNames.map((n) => (
+                    <option key={n} value={n}>{n}</option>
+                  ))}
+                  <option value="">Leave it empty</option>
+                </select>
+              ))}
               <div className="ml-auto flex gap-1">
                 <Button
                   size="sm"

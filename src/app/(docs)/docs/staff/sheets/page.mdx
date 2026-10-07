@@ -47,8 +47,9 @@ create duplicates, because the email is still the identity.
 Allotment and payment state is pushed **out** to a Google Sheet, so people who live in
 a spreadsheet can see the current state without an admin account.
 
-Configured by an admin in [fees and payment setup](/docs/staff/fees) as the sheet sync
-URL. It runs on allotment and on payment confirmation.
+Connected by an admin under **Allotment, Google Sheet copy**, with the Apps Script
+link. The same panel has **Copy every seat again**, which replays every seat (freed ones
+included) and says how many the sheet refused. It runs on allotment and on payment confirmation.
 
 <Callout type="warning">
 The mirror is one-way. Editing the Google Sheet does **not** change the platform. It is

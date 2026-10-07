@@ -22,11 +22,33 @@ export function readableRowError(error: string): string {
   const m = /^(\w+): (.*)$/.exec(error)
   if (!m) return error
   const label = IMPORT_FIELDS.find((f) => f.key === m[1])?.label ?? m[1]
-  const message = m[2] === "Required" ? "missing" : m[2] === "did not resolve" ? "no committee by that name" : m[2]
+  const unresolved = /^did not resolve(?: \((.*)\))?$/.exec(m[2])
+  const message =
+    m[2] === "Required"
+      ? "missing"
+      : unresolved
+        ? `${unresolved[1] ? `"${unresolved[1]}"` : "the answer"} is not one of our committees; choose which one they meant`
+        : m[2]
   return `${label}: ${message}`
 }
 
 export type ColumnMapping = Partial<Record<ImportFieldKey, string>>
+
+// How committee answers are compared everywhere: case, spaces and punctuation
+// do not make a different committee. Client-safe, so the review can tell which
+// answers still need a person.
+export function committeeKey(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, "")
+}
+
+export type CommitteeField = "committee" | "committee2" | "committee3"
+export const COMMITTEE_FIELDS: CommitteeField[] = ["committee", "committee2", "committee3"]
+
+// Committee answers in a row that name none of these committees exactly.
+export function unresolvedCommittees(row: MappedRow, committeeNames: string[]): CommitteeField[] {
+  const known = new Set(committeeNames.map(committeeKey))
+  return COMMITTEE_FIELDS.filter((f) => row[f]?.trim() && !known.has(committeeKey(row[f]!)))
+}
 
 export const mappedRowSchema = z.object({
   fullName:    z.string().min(2, "Name must be at least 2 characters"),
@@ -50,6 +72,10 @@ export interface ValidatedRow {
   mapped: MappedRow
   errors: string[]
   aiNote?: string
+  // The AI's reading of committee answers nothing matched, for a person to accept.
+  suggest?: Partial<Record<CommitteeField, string>>
+  // Flagged as a non-data row (a title, a totals line).
+  skip?: boolean
 }
 
 export function applyMapping(
@@ -87,4 +113,25 @@ export function validateRow(
   const result = mappedRowSchema.safeParse(mapped)
   const errors = result.success ? [] : result.error.issues.map((i) => i.message)
   return { index, raw, mapped, errors }
+}
+
+// The review's rows from the cleaning pass. One place, so the automatic and the
+// manual mapping paths both keep the flags (a non-data row stays skipped; an AI
+// committee reading stays a suggestion).
+export function validatedFromCleaned(
+  cleaned: (MappedRow & { _note?: string; _skip?: boolean; _suggest?: Partial<Record<CommitteeField, string>> })[],
+  rawRows: Record<string, string>[],
+): ValidatedRow[] {
+  return cleaned.map(({ _note, _skip, _suggest, ...mapped }, i) => {
+    const parse = mappedRowSchema.safeParse(mapped)
+    return {
+      index: i,
+      raw: rawRows[i],
+      mapped,
+      errors: parse.success ? [] : parse.error.issues.map((e) => e.message),
+      aiNote: _note,
+      ...(_suggest ? { suggest: _suggest } : {}),
+      ...(_skip ? { skip: true } : {}),
+    }
+  })
 }

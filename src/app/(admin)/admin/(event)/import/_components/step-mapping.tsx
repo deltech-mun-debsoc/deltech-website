@@ -14,6 +14,7 @@ import {
   applyMapping,
   type ColumnMapping,
   type ValidatedRow,
+  validatedFromCleaned,
 } from "@/lib/schemas/import"
 
 import type { ImportPresetRecord } from "../actions"
@@ -98,11 +99,7 @@ export function StepMapping({
           return { index: i, raw: r, mapped, errors }
         })
       } else {
-        validated = cleanResult.cleaned.map(({ _note, _skip, ...mapped }, i) => {
-          const parse  = mappedRowSchema.safeParse(mapped)
-          const errors = parse.success ? [] : parse.error.issues.map((e) => e.message)
-          return { index: i, raw: rawRows[i], mapped, errors, aiNote: _note }
-        })
+        validated = validatedFromCleaned(cleanResult.cleaned, rawRows)
         const noteCount = cleanResult.cleaned.filter((c) => c._note).length
         if (noteCount > 0) toast.info(`AI normalised ${noteCount} row${noteCount !== 1 ? "s" : ""}.`)
       }

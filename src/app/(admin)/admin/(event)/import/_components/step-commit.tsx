@@ -1,131 +1,103 @@
 "use client"
 
 import { useState, useTransition } from "react"
-import { CheckCircle2, XCircle, Users, Kanban } from "lucide-react"
+import { XCircle } from "lucide-react"
 import Link from "next/link"
 import { Button, buttonVariants } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
 import { toast } from "sonner"
-import type { ValidatedRow } from "@/lib/schemas/import"
+import { unresolvedCommittees, type ValidatedRow } from "@/lib/schemas/import"
 import type { CommitResult } from "../actions"
 import { commitImport } from "../actions"
 
 interface Props {
-  validated: ValidatedRow[]
-  skipped:   Set<number>
-  onBack:    () => void
-  onDone:    (result: CommitResult) => void
+  validated:      ValidatedRow[]
+  skipped:        Set<number>
+  committeeNames: string[]
+  onBack:         () => void
 }
 
-export function StepCommit({ validated, skipped, onBack, onDone }: Props) {
+// Ends on what to do next, not on "Import complete": the organiser should not
+// have to go back into the wizard to find out what is left.
+export function StepCommit({ validated, skipped, committeeNames, onBack }: Props) {
   const [result,  setResult]   = useState<CommitResult | null>(null)
   const [pending, startCommit] = useTransition()
 
-  const importRows    = validated.filter((r) => !skipped.has(r.index) && r.errors.length === 0)
-  const withAllotment = importRows.filter((r) => r.mapped.committee && r.mapped.portfolio).length
+  const importRows = validated.filter(
+    (r) => !skipped.has(r.index) && r.errors.length === 0 && unresolvedCommittees(r.mapped, committeeNames).length === 0,
+  )
 
   const handleCommit = () => {
     startCommit(async () => {
-      const res = await commitImport({
-        rows:        importRows.map((r) => r.mapped),
-        skippedRows: [],
-      })
+      const res = await commitImport({ rows: importRows.map((r) => r.mapped), skippedRows: [] })
       setResult(res)
-      if (res.created > 0) {
-        toast.success(`Imported ${res.created} delegate${res.created !== 1 ? "s" : ""}${res.allotted > 0 ? `, ${res.allotted} allotted as drafts` : ""}.`)
-      } else {
-        toast.error("No delegates were created.")
-      }
+      if (res.created === 0) toast.error("No delegates were created.")
     })
   }
 
   if (result) {
+    const needSeat = result.created - result.allotted
     return (
-      <div className="rounded-xl border border-border bg-card p-8 space-y-6">
-        <p className="text-base font-semibold text-foreground">Import results</p>
-
-        <div className="grid grid-cols-4 gap-4">
-          <div className="rounded-lg bg-green-50 border border-green-200 p-4 text-center dark:bg-green-950/30 dark:border-green-800">
-            <p className="text-2xl font-bold text-green-700 dark:text-green-400">{result.created}</p>
-            <p className="text-xs text-green-600 dark:text-green-500 mt-1">Imported</p>
-          </div>
-          <div className="rounded-lg bg-primary/5 border border-primary/20 p-4 text-center">
-            <p className="text-2xl font-bold text-primary">{result.allotted}</p>
-            <p className="text-xs text-primary/70 mt-1">Allotted as drafts</p>
-          </div>
-          <div className="rounded-lg bg-muted border border-border p-4 text-center">
-            <p className="text-2xl font-bold text-muted-foreground">{result.skipped}</p>
-            <p className="text-xs text-muted-foreground mt-1">Skipped (duplicate)</p>
-          </div>
-          <div className="rounded-lg bg-amber-50 border border-amber-200 p-4 text-center dark:bg-amber-950/30 dark:border-amber-800">
-            <p className="text-2xl font-bold text-amber-700 dark:text-amber-400">{result.quarantined}</p>
-            <p className="text-xs text-amber-600 dark:text-amber-500 mt-1">Need fixing</p>
-          </div>
+      <div className="editorial-card space-y-6 p-8">
+        <div className="space-y-1">
+          <p className="font-heading text-xl">{`${result.created} accepted`}</p>
+          <p className="text-sm text-muted-foreground">
+            {[
+              result.allotted > 0 && `${result.allotted} got a draft seat from their choices`,
+              needSeat > 0 && `${needSeat} need a seat`,
+              result.skipped > 0 && `${result.skipped} were already registered`,
+              result.quarantined > 0 && `${result.quarantined} need fixing`,
+            ]
+              .filter(Boolean)
+              .join(" · ")}
+          </p>
         </div>
 
         {result.errors.length > 0 && (
-          <div className="space-y-2">
-            <p className="text-xs font-semibold text-destructive">Errors</p>
-            <div className="overflow-auto max-h-48 rounded-lg border border-destructive/30 bg-destructive/5">
-              {result.errors.map((e, i) => (
-                <div key={i} className="flex gap-3 px-4 py-2 border-b border-destructive/10 last:border-0">
-                  <XCircle className="size-4 shrink-0 text-destructive mt-0.5" />
-                  <div>
-                    <span className="text-xs font-medium text-foreground">{e.email}</span>
-                    <span className="text-xs text-muted-foreground"> · {e.reason}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
+          <div className="max-h-48 overflow-auto rounded-lg border border-border">
+            {result.errors.map((e, i) => (
+              <div key={i} className="flex gap-3 border-b border-border/60 px-4 py-2 last:border-0">
+                <XCircle className="mt-0.5 size-4 shrink-0 text-destructive" />
+                <p className="text-xs">
+                  <span className="font-medium">{e.email}</span>
+                  <span className="text-muted-foreground">{` · ${e.reason}`}</span>
+                </p>
+              </div>
+            ))}
           </div>
         )}
 
-        <div className="flex gap-2">
-          {result.allotted > 0 && (
-            <Link href="/admin/allotment" className={cn(buttonVariants({ variant: "outline" }), "flex-1")}>
-              {`Email the ${result.allotted} drafts`}
+        <div className="flex flex-wrap gap-2">
+          {result.quarantined > 0 && (
+            <Link href="/admin/import#quarantine" className={buttonVariants({ variant: "outline" })}>
+              Review exceptions
             </Link>
           )}
-          <Button className="flex-1" onClick={() => result && onDone(result)}>Done</Button>
+          <Link href="/admin/registrations?source=CROSS_DEL" className={buttonVariants({ variant: "outline" })}>
+            View imported delegates
+          </Link>
+          {(needSeat > 0 || result.allotted > 0) && (
+            <Link href="/admin/allotment" className={buttonVariants()}>
+              {needSeat > 0 ? "Assign remaining seats" : "Email the draft seats"}
+            </Link>
+          )}
         </div>
       </div>
     )
   }
 
+  const withChoice = importRows.filter((r) => r.mapped.committee && r.mapped.portfolio).length
   return (
-    <div className="rounded-xl border border-border bg-card p-6 space-y-6">
-      {/* Summary */}
-      <div className="space-y-3">
-        <p className="text-xs font-semibold text-muted-foreground">Ready to import</p>
-        <div className="flex flex-wrap gap-4">
-          <div className="flex items-center gap-2 text-sm">
-            <Users className="size-4 text-primary" />
-            <span className="font-medium">{importRows.length}</span>
-            <span className="text-muted-foreground">delegates</span>
-          </div>
-          {withAllotment > 0 && (
-            <div className="flex items-center gap-2 text-sm">
-              <Kanban className="size-4 text-primary" />
-              <span className="font-medium">{withAllotment}</span>
-              <span className="text-muted-foreground">will be allotted as drafts (best available preference), emailed from Allotment</span>
-            </div>
-          )}
-        </div>
-
-        <div className="rounded-lg border border-border bg-muted/30 px-4 py-3">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="size-4 text-green-600" />
-            <p className="text-sm font-medium text-foreground">All delegates will be marked Confirmed</p>
-          </div>
-          <p className="mt-1 text-xs text-muted-foreground pl-6">
-            Cross-delegation imports are always confirmed immediately, no payment requests sent.
-          </p>
-        </div>
+    <div className="editorial-card space-y-6 p-6">
+      <div className="space-y-2 text-sm">
+        <p className="font-medium">{`${importRows.length} delegates will be accepted, with nothing to pay.`}</p>
+        <p className="text-muted-foreground">
+          {withChoice > 0
+            ? `Anyone whose first free choice is open gets it as a draft seat (${withChoice} gave a choice); nobody is emailed. The rest wait as "Accepted, needs a seat".`
+            : `They wait as "Accepted, needs a seat" until you give them one on Allotment. Nobody is emailed.`}
+        </p>
       </div>
-
-      {/* Navigation */}
       <div className="flex items-center justify-between pt-2">
-        <Button variant="ghost" onClick={onBack} disabled={pending}>← Back</Button>
+        <Button variant="ghost" onClick={onBack} disabled={pending}>Back</Button>
         <Button onClick={handleCommit} disabled={pending || importRows.length === 0}>
           {pending ? "Importing…" : `Import ${importRows.length} delegates`}
         </Button>

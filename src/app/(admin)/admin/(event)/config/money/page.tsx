@@ -57,7 +57,6 @@ export default async function MoneySettingsPage() {
             refundPolicy={content.refundPolicy}
             whatsappCommunityUrl={content.whatsappCommunityUrl}
             secretariatEmail={content.secretariatEmail}
-            sheetSyncUrl={content.sheetSyncUrl}
           />
         </div>
       ) : (

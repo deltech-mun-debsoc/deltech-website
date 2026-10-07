@@ -3,7 +3,6 @@ import { requireStaff } from "@/lib/authz"
 import { currentEventScope } from "@/lib/event"
 import { TabCommittees } from "../_components/tab-committees"
 import { TabPortfolios } from "../_components/tab-portfolios"
-import { ResyncMatrixCard } from "../_components/resync-matrix-card"
 
 export default async function CommitteesSettingsPage() {
   await requireStaff()
@@ -53,7 +52,6 @@ export default async function CommitteesSettingsPage() {
         <TabPortfolios committees={serialized} />
       </section>
 
-      <ResyncMatrixCard />
     </div>
   )
 }

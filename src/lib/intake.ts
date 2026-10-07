@@ -1,6 +1,6 @@
 import { cache } from "react"
 import { prisma } from "@/lib/prisma"
-import { mappedRowSchema, type MappedRow } from "@/lib/schemas/import"
+import { COMMITTEE_FIELDS, committeeKey, mappedRowSchema, type CommitteeField, type MappedRow } from "@/lib/schemas/import"
 import type { Source, Prisma } from "@/generated/prisma/client"
 import { currentEventScope, requireActiveEvent } from "@/lib/event"
 
@@ -68,9 +68,7 @@ export type CommitteeResolution =
   | { kind: "ambiguous"; candidates: CommitteeRef[] }
   | { kind: "none"; suggestions: CommitteeRef[] }
 
-export function committeeKey(s: string): string {
-  return s.toLowerCase().replace(/[^a-z0-9]+/g, "")
-}
+export { committeeKey }
 
 function editDistance(a: string, b: string): number {
   if (Math.abs(a.length - b.length) > 2) return 3
@@ -124,6 +122,45 @@ export function aliasCollision(
     if (clash) return `"${label}" already names ${clash.name}. Each name or alias can point to one committee only.`
   }
   return null
+}
+
+// A cross-delegation row after cleaning. _suggest is the AI's reading of a
+// committee answer nothing else could match: shown beside the original answer for
+// a person to accept, never written into the row by itself.
+export type CleanedRow = MappedRow & { _note?: string; _skip?: boolean; _suggest?: Partial<Record<CommitteeField, string>> }
+
+// Folds the AI's cleanup into a deterministically cleaned row. Committee answers
+// stay exactly as they were: a committee the AI names becomes a suggestion only
+// when it is one of ours and the answer matched nothing. A null from the AI
+// never erases anything.
+export function mergeAiRow(
+  before: CleanedRow,
+  r: Partial<Record<keyof MappedRow | "_note", string | null>> & { _skip?: boolean | null },
+  committees: CommitteeRef[],
+): CleanedRow {
+  const suggest: Partial<Record<CommitteeField, string>> = {}
+  for (const f of COMMITTEE_FIELDS) {
+    const text = before[f]
+    const said = r[f]
+    const named = said ? committees.find((c) => c.name.toLowerCase() === said.trim().toLowerCase()) : undefined
+    if (text && named && !matchCommittee(text, committees)) suggest[f] = named.name
+  }
+  return {
+    fullName: r.fullName || before.fullName,
+    email: r.email || before.email,
+    whatsapp: r.whatsapp ?? before.whatsapp,
+    institution: r.institution ?? before.institution,
+    committee: before.committee,
+    portfolio: r.portfolio ?? before.portfolio,
+    committee2: before.committee2,
+    portfolio2: r.portfolio2 ?? before.portfolio2,
+    committee3: before.committee3,
+    portfolio3: r.portfolio3 ?? before.portfolio3,
+    note: r.note ?? before.note,
+    _note: [before._note, r._note].filter(Boolean).join(", ") || undefined,
+    _skip: r._skip === true || before._skip,
+    ...(Object.keys(suggest).length ? { _suggest: suggest } : {}),
+  }
 }
 
 export interface NormalizedRow {
@@ -247,19 +284,33 @@ export async function createDelegateFromRow(
   opts: { sourceNote?: string; allottedBy?: string; presetName?: string } = {},
 ): Promise<CreateRowResult> {
   const committees = await getCommitteeRefs()
-  const { row } = normalizeRow(input, committees)
+  const { row, unresolved } = normalizeRow(input, committees)
 
   const parsed = mappedRowSchema.safeParse(row)
-  if (!parsed.success) {
-    const errors = parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`)
-    const q = await prisma.quarantinedRow.create({
-      data: {
-        source,
-        presetName: opts.presetName,
-        raw: row as unknown as Prisma.InputJsonValue,
-        errors,
-      },
+  // A committee answer that names none of ours (or more than one) waits for a
+  // person instead of being dropped: the choice would be lost, and a cross
+  // delegate would be accepted without the seat they asked for.
+  const errors = [
+    ...(parsed.success ? [] : parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`)),
+    ...unresolved.map((name) => `committee: did not resolve (${name})`),
+  ]
+  if (errors.length > 0) {
+    // The same bad row from a nightly re-read is one entry, not one per night.
+    const already = await prisma.quarantinedRow.findFirst({
+      where: { source, resolvedAt: null, raw: { equals: row as unknown as Prisma.InputJsonValue } },
+      select: { id: true },
     })
+    const q =
+      already ??
+      (await prisma.quarantinedRow.create({
+        data: {
+          source,
+          presetName: opts.presetName,
+          raw: row as unknown as Prisma.InputJsonValue,
+          errors,
+        },
+        select: { id: true },
+      }))
     return { ok: false, reason: "invalid", errors, quarantinedId: q.id }
   }
 
