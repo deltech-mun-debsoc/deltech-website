@@ -36,10 +36,13 @@ export default function QuizJoinPage() {
   }
 
   return (
-    <div className="flex min-h-[calc(100svh-4rem)] justify-center px-4 pb-16 pt-12 sm:items-center sm:pt-0">
-      <form onSubmit={handleSubmit} noValidate className="w-full max-w-sm sm:-mt-16">
-        <h1 className="text-2xl font-semibold">{t("quiz.joinTitle")}</h1>
-        <label htmlFor="room-code" className="mt-6 block text-sm font-medium">{t("quiz.joinCodeLabel")}</label>
+    <div className="relative flex min-h-[calc(100svh-4rem)] justify-center overflow-hidden bg-ink px-4 pb-16 pt-10 text-paper sm:items-center sm:pt-0">
+      <div className="paper-grid absolute inset-0 opacity-[0.08]" aria-hidden />
+      <form onSubmit={handleSubmit} noValidate className="theme-light relative w-full max-w-md border border-white/15 bg-[#f3eee2] p-6 text-[#111614] shadow-[8px_8px_0_#c8a25a] [&_input]:bg-white sm:p-10 sm:shadow-[14px_14px_0_#c8a25a]">
+        <p className="text-sm font-medium text-teal-800">DelTech MUN quiz</p>
+        <h1 className="mt-3 font-display text-4xl font-normal leading-tight">{t("quiz.joinTitle")}</h1>
+        <p className="mt-3 text-sm text-black/65">Enter the six-digit code on the host’s screen.</p>
+        <label htmlFor="room-code" className="mt-8 block text-sm font-semibold">{t("quiz.joinCodeLabel")}</label>
         <Input
           id="room-code"
           value={code}

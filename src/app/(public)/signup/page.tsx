@@ -13,8 +13,8 @@ export default async function SignupPage() {
   if (target) redirect(target);
 
   return (
-    <AuthStage>
-      <h1 className="text-2xl font-semibold">{t("auth.signUpTitle")}</h1>
+    <AuthStage marker="Delegate account">
+      <h1 className="font-display text-4xl font-normal leading-tight">{t("auth.signUpTitle")}</h1>
       <p className="mt-2 text-base text-muted-foreground">{t("auth.signUpDescription")}</p>
       <div className="mt-6">
         <SignupForm />

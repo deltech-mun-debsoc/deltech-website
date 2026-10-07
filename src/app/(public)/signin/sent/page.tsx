@@ -13,10 +13,10 @@ export default async function CheckEmailPage(props: {
   const sent = type === "email";
 
   return (
-    <AuthStage>
+    <AuthStage marker="Email sign-in">
       {sent ? (
         <>
-          <h1 className="text-2xl font-semibold">{t("auth.checkEmailTitle")}</h1>
+          <h1 className="font-display text-4xl font-normal leading-tight">{t("auth.checkEmailTitle")}</h1>
           <p className="mt-2 text-base leading-relaxed text-muted-foreground">{t("auth.checkEmailMessage")}</p>
           <Link href="/signin" className={buttonVariants({ variant: "outline", className: "mt-6 h-11 w-full border-foreground/25 text-base" })}>
             {t("auth.requestAnother")}
@@ -31,7 +31,7 @@ export default async function CheckEmailPage(props: {
         </>
       ) : (
         <>
-          <h1 className="text-2xl font-semibold">{t("auth.directSentTitle")}</h1>
+          <h1 className="font-display text-4xl font-normal leading-tight">{t("auth.directSentTitle")}</h1>
           <p className="mt-2 text-base leading-relaxed text-muted-foreground">{t("auth.directSentBody")}</p>
           <Link href="/signin" className={buttonVariants({ className: "mt-6 h-11 w-full text-base" })}>
             {t("auth.goToSignIn")}

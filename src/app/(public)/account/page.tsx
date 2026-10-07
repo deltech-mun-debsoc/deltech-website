@@ -22,8 +22,8 @@ export default async function AccountPage() {
   const hasPassword = !!user.passwordHash
 
   return (
-    <AuthStage>
-      <h1 className="text-2xl font-semibold">{t("account.title")}</h1>
+    <AuthStage marker="Your account">
+      <h1 className="font-display text-4xl font-normal leading-tight">{t("account.title")}</h1>
       <p className="mt-1 text-base text-muted-foreground">{user.email}</p>
 
       <h2 className="mt-7 border-t border-border pt-6 text-lg font-semibold">

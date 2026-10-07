@@ -19,9 +19,9 @@ type Props = {
 export function Footer({ contacts, conferenceDates, venue, societyLocation, societyEmail, sections, activeEventName, registrationOpen, showActiveEvent }: Props) {
   return (
     <footer className="mt-auto border-t border-border/70 bg-ink text-paper">
-      <div className="section-shell py-16 sm:py-20">
-        <div className="grid gap-12 lg:grid-cols-[1.4fr_0.7fr_0.8fr_1fr]">
-          <div>
+      <div className="section-shell py-12 sm:py-20">
+        <div className="grid grid-cols-2 gap-x-6 gap-y-10 lg:grid-cols-[1.4fr_0.7fr_0.8fr_1fr] lg:gap-12">
+          <div className="col-span-2 lg:col-span-1">
             <BrandLogo tone="white" className="w-24" />
             <p className="mt-6 max-w-sm text-base leading-relaxed text-paper/70">
               {t("brand.tagline")}
@@ -80,7 +80,7 @@ export function Footer({ contacts, conferenceDates, venue, societyLocation, soci
             </ul>
           </div>
 
-          <div>
+          <div className="col-span-2 lg:col-span-1">
             <p className="data-label mb-5 text-gold-300">{showActiveEvent ? activeEventName || t("marketing.footerBrief") : t("marketing.societyContact")}</p>
             {showActiveEvent && <>
             <p className="text-[0.9375rem] text-paper/70">
@@ -115,7 +115,7 @@ export function Footer({ contacts, conferenceDates, venue, societyLocation, soci
           </div>
         </div>
 
-        <div className="mt-14 flex flex-wrap items-center justify-between gap-3 border-t border-paper/15 pt-6 text-sm text-paper/60">
+        <div className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-paper/15 pt-6 text-sm text-paper/60 lg:mt-14">
           <span>{t("brand.name")}</span>
           <span>{t("marketing.footerLocation")}</span>
         </div>
