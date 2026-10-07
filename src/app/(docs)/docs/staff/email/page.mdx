@@ -1,6 +1,6 @@
 export const metadata = {
   title: "Email delivery",
-  description: "Which messages the platform sends, how to spot a failure and how to resend.",
+  description: "Which messages the platform sends, how to spot a failure and how to send the current version.",
 }
 
 Every message the platform sends is logged, whether it succeeded or failed.
@@ -8,24 +8,39 @@ Every message the platform sends is logged, whether it succeeded or failed.
 ## The principle
 
 **A failed email never fails the action.** If the allotment email bounces, the delegate
-is still allotted. The failure is recorded with its error and can be resent.
+is still allotted. The failure is recorded with its error.
 
 This is deliberate: an email provider having a bad minute should not stop a conference
 running. It does mean nobody finds out about failures unless somebody looks.
 
 ## Where failures surface
 
-**On the admin overview**, as a card showing the eight most recent failures. Check it
-daily; it is there so you do not have to go looking.
+**On the admin overview**, as a card of emails that went wrong and were not put right
+since. A failure that was later sent successfully drops off. Check it daily.
 
 **On the delegate**, in the drawer at
-[the registrations desk](/docs/staff/registrations), which lists every message sent to
-that person with its outcome.
+[the registrations desk](/docs/staff/registrations). Its Emails section is a read-only
+history: every message, the address it went to, and what happened. The heading counts
+outcomes separately ("4 sent · 1 bounced").
 
-## Resending
+What each outcome means:
 
-From the delegate drawer, against the specific failed message. This is the fix for "I
-never got my allotment email" and it takes about five seconds.
+- **accepted by the email service**: handed over; nothing more is known yet.
+- **delivered**: the delegate's mail server took it. Shown only once the provider
+  reports deliveries.
+- **delayed**, **bounced**, **marked as spam**, **did not send**: as they say.
+
+## Sending something now
+
+The actions sit in the box at the top of the delegate's record, and appear only when
+they apply: **Send current seat details**, **Send current payment link**, **Retry
+registration notice**. Each builds the email from what is true now (their seat, their
+link, their address), shows who it goes to, and asks once before sending. It is not a
+copy of an old email.
+
+If their address bounced or marked us as spam, the box offers **Fix the address** and
+WhatsApp instead. Sending to that address again does nothing useful and harms the
+sending account.
 
 ## The messages
 
@@ -42,7 +57,8 @@ In rough order of frequency: a typo in the address, an institutional mail server
 rejecting it, a full mailbox, and provider problems. The recorded error usually says
 which.
 
-A typo is fixable: correct the address on the delegate record, then resend.
+A typo is fixable: correct the address on the delegate record, then send the current
+version from the top of their record.
 
 ## Bounces and spam complaints
 
@@ -51,7 +67,7 @@ it, tries to deliver, and tells us minutes later that the address does not exist
 that the person pressed "this is spam". Both land back in the platform automatically.
 
 - **Hard bounce** (no such address): the address is marked bounced. Outreach never
-  mails it again. The delegate's email history shows *bounced, address suppressed*.
+  mails it again. The delegate's email history shows *bounced* on the email it was about.
 - **Spam complaint**: that contact is unsubscribed immediately and never mailed again.
 - **Delayed** (a full mailbox or a busy server): recorded, nothing suppressed. The
   provider keeps trying.
@@ -59,7 +75,8 @@ that the person pressed "this is spam". Both land back in the platform automatic
 This is not optional housekeeping. Repeatedly mailing dead addresses is what gets a
 sending account throttled or suspended, taking allotment and payment mail down with it.
 If a delegate says they never got their mail and their history shows a bounce, correct
-the address on their record and resend: fixing the address clears the way again.
+the address on their record and send again from the top of their record: fixing the
+address clears the way. Payment reminders also skip a bounced address until it is fixed.
 
 ## Staging
 

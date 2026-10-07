@@ -393,12 +393,12 @@ async function main() {
     "sendAllotmentEmail must refuse a second send before it reaches loggedSend",
   )
 
-  // The resend button is a person deciding to send it again, so it has to be able
-  // to override the guard. If it stops forcing, Resend silently does nothing.
+  // "Send current seat details" is a person deciding to send it, so it has to be
+  // able to override the guard. If it stops forcing, it silently does nothing.
   assert.match(
     src,
-    /allotment: \(id, to\) => sendAllotmentEmail\(id, \{ force: true, onlyTo: to \}\)/,
-    "the resend path must force, or pressing Resend would quietly do nothing",
+    /sendAllotmentEmail\(delegateId, \{ force: true, onlyTo: target \}\)/,
+    "the send-now path must force, or pressing it would quietly do nothing",
   )
 }
 
