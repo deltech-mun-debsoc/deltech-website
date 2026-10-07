@@ -60,7 +60,7 @@ export default async function BlogIndexPage() {
             <div className="border-y border-border py-16">
               <h2 className="display-section">{t("marketing.dispatchEmpty")}</h2>
               <p className="body-large mt-5 max-w-2xl text-muted-foreground">{t("marketing.dispatchEmptyBody")}</p>
-              <Link href="/signin/staff?callbackUrl=/write" className={cn(buttonVariants({ variant: "outline", size: "lg" }), "mt-8")}>{t("marketing.dispatchEmptyCta")}</Link>
+              <Link href="/signin?callbackUrl=/write" className={cn(buttonVariants({ variant: "outline", size: "lg" }), "mt-8")}>{t("marketing.dispatchEmptyCta")}</Link>
             </div>
           ) : (
             <div>

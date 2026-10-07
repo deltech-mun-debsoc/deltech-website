@@ -88,11 +88,8 @@ const read = (p: string) => readFileSync(p, "utf8")
   // whichever error type Auth.js adds next.
   assert.match(banner, /\?\?\s*"auth\.errorConfiguration"/, "an unknown error type still needs a message")
 
-  // Both doors: an invited maintainer hits the identical wall at /signin/staff.
-  for (const page of [
-    "src/app/(public)/signin/page.tsx",
-    "src/app/(public)/signin/staff/page.tsx",
-  ]) {
+  // The one door. /signin/staff forwards ?error= to it (check-auth-page-guards).
+  for (const page of ["src/app/(public)/signin/page.tsx"]) {
     const src = read(page)
     assert.match(src, /error\?: string/, `${page} must accept ?error= in searchParams`)
     assert.match(src, /<AuthErrorBanner error=\{error\}/, `${page} must render the error, not swallow it`)

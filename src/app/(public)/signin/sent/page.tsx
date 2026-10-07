@@ -14,8 +14,8 @@ export default async function CheckEmailPage(props: {
 
   return (
     <AuthStage
-      marker={t("auth.delegateMarker")}
-      headline={sent ? [t("auth.sentHeadline1"), t("auth.sentHeadline2")] : [t("auth.delegateHeadline1"), t("auth.delegateHeadline2")]}
+      marker={t("auth.signInMarker")}
+      headline={sent ? [t("auth.sentHeadline1"), t("auth.sentHeadline2")] : [t("auth.signInHeadline1"), t("auth.signInHeadline2")]}
     >
       {sent ? (
         <>
