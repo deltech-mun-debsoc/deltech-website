@@ -108,15 +108,17 @@ export interface QueueRunResult {
   capped: boolean
 }
 
-export async function processMailQueue(now: Date = new Date()): Promise<QueueRunResult> {
+// `campaignId` limits the sending to one campaign ("send the next batch now"
+// on its page); the scheduled tick runs everything.
+export async function processMailQueue(now: Date = new Date(), campaignId?: string): Promise<QueueRunResult> {
   const prOn = await prMailEnabled()
-  const started = await startDueCampaigns(now, prOn)
+  const started = campaignId ? 0 : await startDueCampaigns(now, prOn)
 
   const since = new Date(now.getTime() - 24 * 60 * 60 * 1000)
   const sentToday = await prisma.mailRecipient.count({ where: { status: "SENT", sentAt: { gte: since } } })
   const budget = Math.max(0, Math.min(PER_RUN, dailyCap() - sentToday))
 
-  const { sent, failed } = await sendPending(budget, now, prOn)
+  const { sent, failed } = await sendPending(budget, now, prOn, campaignId)
   const finished = await finishCampaigns(now)
   return { started, sent, failed, finished, capped: budget === 0 }
 }
@@ -178,19 +180,21 @@ async function startDueCampaigns(now: Date, prOn: boolean): Promise<number> {
   return started
 }
 
-async function sendPending(budget: number, now: Date, prOn: boolean): Promise<{ sent: number; failed: number }> {
-  // A recipient claimed by a run that never finished is marked failed, not put
-  // back in the queue. The provider may already have accepted it, and sending a
-  // second copy is worse than a failure somebody can see and resend by hand.
+async function sendPending(budget: number, now: Date, prOn: boolean, campaignId?: string): Promise<{ sent: number; failed: number }> {
+  // A recipient claimed by a run that never finished is UNCERTAIN, not failed
+  // and not back in the queue: the provider may already have accepted it, and a
+  // second copy is worse than a person checking first. The campaign's failure
+  // review asks that person to confirm before it can be retried.
   await prisma.mailRecipient.updateMany({
     where: { status: "SENDING", claimedAt: { lt: new Date(now.getTime() - STALE_CLAIM_MS) } },
-    data: { status: "FAILED", error: "Interrupted before the provider confirmed it. Not retried, to avoid sending twice." },
+    data: { status: "UNCERTAIN", error: "Interrupted after it was handed to the email service; it may have arrived." },
   })
   if (budget <= 0) return { sent: 0, failed: 0 }
 
   const pending = await prisma.mailRecipient.findMany({
     where: {
       status: "PENDING",
+      ...(campaignId ? { campaignId } : {}),
       campaign: { state: "SENDING", ...(prOn ? {} : { audience: "DELEGATES" }) },
     },
     orderBy: { id: "asc" },

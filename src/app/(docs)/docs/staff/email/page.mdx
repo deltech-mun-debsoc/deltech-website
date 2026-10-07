@@ -78,6 +78,22 @@ If a delegate says they never got their mail and their history shows a bounce, c
 the address on their record and send again from the top of their record: fixing the
 address clears the way. Payment reminders also skip a bounced address until it is fixed.
 
+## Mail to many delegates (Mail tab)
+
+- **Who gets it.** The count is who matches *now*. A scheduled mail picks its final list
+  when it starts sending; tick **Use these N people** when scheduling to fix the list to
+  today's matches instead.
+- **The daily limit.** A large mail that hits the provider's daily limit says how many are
+  waiting and roughly when more can go. **Send the next batch now** appears only while
+  this mail has people waiting and the limit has room, and sends this mail only.
+- **Failures.** A mail that reached most people reads **Completed with N failures**, never
+  just "sent". **Review failures** lists each person with the cause and one safe action:
+  a temporary failure can be retried; a bounce needs the address fixed first (the retry
+  then goes to the new address); a send interrupted part way may have arrived, so it is
+  only retried once you tick that you checked with them. **Retry failed recipients** sends
+  to those people only, so nobody who got it can get it twice. **Duplicate as a new
+  draft** is different: it goes to everyone again.
+
 ## Staging
 
 On a preview deployment every outgoing message is redirected to a single address and its

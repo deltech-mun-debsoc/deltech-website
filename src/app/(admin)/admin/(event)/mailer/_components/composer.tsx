@@ -120,6 +120,9 @@ export function Composer({
   const [ctaUrl, setCtaUrl] = useState(campaign?.ctaUrl ?? "")
   const [scheduleLocal, setScheduleLocal] = useState("")
   const [confirmOpen, setConfirmOpen] = useState(false)
+  // Scheduled mail goes to whoever matches when it starts, unless the organiser
+  // fixes the list to the people who match now.
+  const [snapshot, setSnapshot] = useState(false)
   const [preview, setPreview] = useState<{ count: number; html: string; sampleTo: string | null; unfilled: string[]; dailyCap: number; noEvent: boolean } | null>(null)
 
   const handPicked = delegateFilters.delegateIds.length
@@ -186,7 +189,7 @@ export function Composer({
     save((id) =>
       startTransition(async () => {
         const when = scheduleLocal ? new Date(scheduleLocal).toISOString() : null
-        const r = await scheduleCampaign(id, when)
+        const r = await scheduleCampaign(id, when, { snapshot: !!when && snapshot })
         setConfirmOpen(false)
         if (!r.success) {
           toast.error(r.error)
@@ -366,7 +369,7 @@ export function Composer({
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
           <span className="font-medium">
-            {preview ? `${preview.count} ${preview.count === 1 ? "recipient" : "recipients"}` : "Counting"}
+            {preview ? `${preview.count} ${preview.count === 1 ? "matches" : "match"} now` : "Counting"}
             {preview?.sampleTo && <span className="font-normal text-muted-foreground">{` · previewed as ${preview.sampleTo}`}</span>}
           </span>
           {preview && <span className="text-xs text-muted-foreground">{`Up to ${preview.dailyCap} a day, the rest continue automatically`}</span>}
@@ -388,8 +391,20 @@ export function Composer({
         title={scheduleLocal ? "Schedule this mail?" : "Send this mail now?"}
         description={
           scheduleLocal
-            ? `It goes out at the chosen time to whoever matches then. ${preview?.count ?? 0} ${(preview?.count ?? 0) === 1 ? "matches" : "match"} right now.`
-            : `${preview?.count ?? 0} ${(preview?.count ?? 0) === 1 ? "person" : "people"} will get it. A sent mail cannot be recalled.`
+            ? (
+                <span className="space-y-3">
+                  <span className="block">
+                    {`${preview?.count ?? 0} ${(preview?.count ?? 0) === 1 ? "matches" : "match"} now; the final list is picked when it starts sending.`}
+                  </span>
+                  {audience === "DELEGATES" && handPicked === 0 && (preview?.count ?? 0) > 0 && (
+                    <label className="flex items-center gap-2 text-sm text-foreground">
+                      <input type="checkbox" checked={snapshot} onChange={(e) => setSnapshot(e.target.checked)} />
+                      {`Use these ${preview?.count ?? 0} people instead`}
+                    </label>
+                  )}
+                </span>
+              )
+            : `${preview?.count ?? 0} ${(preview?.count ?? 0) === 1 ? "person matches" : "people match"} now and will get it. A sent mail cannot be recalled.`
         }
         confirmLabel={scheduleLocal ? "Schedule" : "Send now"}
         pending={pending}

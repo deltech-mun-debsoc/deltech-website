@@ -16,6 +16,7 @@ import {
   STAGE_SHORTCUTS,
 } from "../src/lib/mailer/audience"
 import { MAIL_PRESETS, presetFor } from "../src/lib/mailer/presets"
+import { campaignStateLabel, dailyLimitNote, recoveryFor } from "../src/lib/mailer/recovery"
 
 // ── Merge fields ────────────────────────────────────────────────────────────
 {
@@ -130,7 +131,7 @@ import { MAIL_PRESETS, presetFor } from "../src/lib/mailer/presets"
   )
   assert.match(queue, /updateMany\(\{\s*where: \{ id: campaign\.id, state: "SCHEDULED" \}/, "a campaign must be claimed before its recipients are resolved")
   const stale = queue.slice(queue.indexOf('status: "SENDING", claimedAt: { lt:'))
-  assert.match(stale.slice(0, 300), /data: \{ status: "FAILED"/, "an interrupted send must fail, never go back to PENDING and risk a second copy")
+  assert.match(stale.slice(0, 300), /data: \{ status: "UNCERTAIN"/, "an interrupted send is uncertain, never back to PENDING and a second copy")
 
   // Event mail and PR outreach share a table; neither list may show the other.
   const list = readFileSync("src/app/(admin)/admin/(event)/mailer/_components/campaign-list.tsx", "utf8")
@@ -197,6 +198,44 @@ import { MAIL_PRESETS, presetFor } from "../src/lib/mailer/presets"
   assert.match(queue, /=== "ses" \? 14 : 2/, "SES allows 14 messages a second on this account")
   assert.match(queue, /=== "ses" \? 45_000 : 90/, "the daily cap must leave headroom under the 50,000 quota")
   assert.match(queue, /minBatchMs - elapsed/, "batches must wait out the remainder of their rate window")
+}
+
+// ── A campaign with failures is not called "Sent" ───────────────────────────
+{
+  assert.equal(campaignStateLabel("SENT", { SENT: 20, FAILED: 2 }), "Completed with 2 failures")
+  assert.equal(campaignStateLabel("SENT", { SENT: 20, FAILED: 1, UNCERTAIN: 1 }), "Completed with 1 failure and 1 to check")
+  assert.equal(campaignStateLabel("SENT", { SENT: 22 }), "Completed")
+  assert.equal(campaignStateLabel("CANCELLED", { SENT: 3 }), "Stopped part way")
+}
+
+// ── Each failed recipient gets the one safe action ──────────────────────────
+{
+  const failed = (error: string) => ({ status: "FAILED", email: "a@x.in", error })
+  assert.equal(recoveryFor(failed("Throttling: rate exceeded")).kind, "retry", "a transient failure can be retried")
+  assert.equal(recoveryFor(failed("Bounced: 550 no such user"), "a@x.in").kind, "fix-address", "a bounce is fixed, not retried")
+  const fixed = recoveryFor(failed("Bounced: 550 no such user"), "A.New@x.in")
+  assert.equal(fixed.kind, "retry", "once the delegate's address changes, the retry goes there")
+  assert.equal(fixed.kind === "retry" && fixed.newEmail, "a.new@x.in")
+  assert.equal(recoveryFor(failed("Marked as spam: abuse"), "a@x.in").kind, "fix-address")
+  assert.equal(recoveryFor({ status: "UNCERTAIN", email: "a@x.in", error: "Interrupted" }).kind, "check", "an interrupted send may have arrived")
+  assert.equal(recoveryFor({ status: "SENT", email: "a@x.in", error: null }).kind, "none", "someone who got it is never offered a retry")
+}
+
+// ── The daily limit is said, with when it frees up ──────────────────────────
+{
+  assert.equal(dailyLimitNote({ sentLast24h: 10, cap: 90, pending: 5, oldestInWindow: null }), null, "room left: nothing to say")
+  assert.equal(dailyLimitNote({ sentLast24h: 90, cap: 90, pending: 0, oldestInWindow: null }), null, "nothing waiting: nothing to say")
+  assert.match(dailyLimitNote({ sentLast24h: 90, cap: 90, pending: 40, oldestInWindow: new Date("2026-10-07T04:30:00Z") }) ?? "", /^40 waiting for the daily sending limit \(90 a day\); more can go from about 10:00 am/)
+}
+
+// ── Recovery wiring ──────────────────────────────────────────────────────────
+{
+  const queue = readFileSync("src/lib/mailer/queue.ts", "utf8")
+  assert.match(queue, /status: "UNCERTAIN", error: "Interrupted/, "an interrupted send is uncertain, not failed")
+  const actions = readFileSync("src/app/(admin)/admin/(event)/mailer/actions.ts", "utf8")
+  assert.match(actions, /status: \{ in: \["FAILED", "UNCERTAIN"\] \}/, "a retry only ever moves recipients who were not reached")
+  assert.match(actions, /action\.kind === "check" && confirmed\.has\(r\.id\)/, "an uncertain send is retried only when a person says they checked")
+  assert.match(actions, /processMailQueue\(new Date\(\), campaignId\)/, "the batch button sends this campaign only")
 }
 
 console.log("mailer checks passed (merge fields, unsubscribe tokens, audiences, frequency cap, presets, PR gate, claims, one-click unsubscribe)")

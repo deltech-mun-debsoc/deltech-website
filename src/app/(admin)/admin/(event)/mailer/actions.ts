@@ -22,6 +22,7 @@ import { paragraphs, renderMerge, unfilledFields, type MergeVars } from "@/lib/m
 import { presetFor, type PresetDraft } from "@/lib/mailer/presets"
 import { buildDelegateWhere, type FilterParams } from "@/app/(admin)/admin/(event)/registrations/_lib/build-where"
 import { baseMergeVars, dailyCap, PR_MAIL_SETTING, prMailEnabled, processMailQueue, recipientMergeVars } from "@/lib/mailer/queue"
+import { recoveryFor } from "@/lib/mailer/recovery"
 
 export interface CampaignInput {
   id?: string
@@ -210,7 +211,9 @@ export async function sendTestMail(input: CampaignInput): Promise<Result<{ to: s
 // Sending is ADMIN only. A mail to every delegate cannot be recalled, so the
 // last step belongs to the people who answer for it; any staff member can still
 // draft, preview and test.
-export async function scheduleCampaign(id: string, whenIso: string | null): Promise<Result> {
+// `snapshot`: send to exactly the people who match now ("Use these 23 people")
+// rather than whoever matches when sending starts.
+export async function scheduleCampaign(id: string, whenIso: string | null, opts: { snapshot?: boolean } = {}): Promise<Result> {
   const session = await requireAdmin()
   const campaign = await prisma.mailCampaign.findUnique({ where: { id } })
   if (!campaign || campaign.state !== "DRAFT") return { success: false, error: "Only a draft can be sent." }
@@ -239,15 +242,26 @@ export async function scheduleCampaign(id: string, whenIso: string | null): Prom
   if (count === 0 && when.getTime() <= Date.now()) return { success: false, error: "Nobody matches these filters." }
 
   const event = campaign.audience === "DELEGATES" ? await getActiveEvent() : null
+  let filters: object | undefined
+  if (opts.snapshot && campaign.audience === "DELEGATES" && event) {
+    const ids = await prisma.delegate.findMany({
+      where: buildDelegateAudienceWhere(parseDelegateAudience(campaign.filters), { eventId: event.id }),
+      select: { id: true },
+      take: 5001,
+    })
+    if (ids.length > 5000) return { success: false, error: "Too many people to fix the list; let it be picked when sending starts." }
+    filters = parseDelegateAudience({ delegateIds: ids.map((d) => d.id) }) as object
+  }
   const updated = await prisma.mailCampaign.updateMany({
     where: { id, state: "DRAFT" },
-    data: { state: "SCHEDULED", scheduledAt: when, eventId: event?.id ?? null },
+    data: { state: "SCHEDULED", scheduledAt: when, eventId: event?.id ?? null, ...(filters ? { filters } : {}) },
   })
   if (updated.count !== 1) return { success: false, error: "This mail changed while you were looking at it. Reload and try again." }
 
   await audit(session.user?.email ?? "unknown", "mailer.schedule", "MailCampaign", id, {
     audience: campaign.audience,
     recipientsNow: count,
+    snapshot: !!filters,
     scheduledAt: when.toISOString(),
   })
   // Start at once if it is due; the two-minute tick is the backstop, and picks
@@ -295,13 +309,69 @@ export async function duplicateCampaign(id: string): Promise<Result<{ id: string
   return { success: true, id: copy.id }
 }
 
-// For a campaign held back by the daily cap: send what the window allows now
-// instead of waiting for the next tick.
-export async function runQueueNow(): Promise<Result<{ sent: number; capped: boolean }>> {
+// Send this campaign's next batch now instead of waiting for the two-minute
+// tick. Only this campaign: it used to run the whole queue.
+export async function runQueueNow(campaignId: string): Promise<Result<{ sent: number; capped: boolean }>> {
   await requireAdmin()
-  const r = await processMailQueue()
+  const r = await processMailQueue(new Date(), campaignId)
   revalidateMail()
   return { success: true, sent: r.sent, capped: r.capped }
+}
+
+// Send again to the recipients it did not reach, and only them: the unique
+// (campaign, email) row means nobody who got it can get it twice.
+//
+// Each recipient must be safe to retry: a transient failure, or a bounce whose
+// delegate address has since been fixed (the retry goes to the new address).
+// An interrupted send may have arrived, so it is only retried when the person
+// pressing the button says they checked (`checked`).
+export async function retryFailedRecipients(
+  campaignId: string,
+  recipientIds: string[],
+  checked: string[] = [],
+): Promise<Result<{ queued: number; refused: number }>> {
+  const session = await requireAdmin()
+  const campaign = await prisma.mailCampaign.findUnique({ where: { id: campaignId }, select: { state: true } })
+  if (!campaign || !["SENT", "SENDING"].includes(campaign.state)) return { success: false, error: "Only a sent mail's failures can be retried." }
+
+  const rows = await prisma.mailRecipient.findMany({
+    where: { campaignId, id: { in: recipientIds.slice(0, 5000) } },
+    select: { id: true, email: true, status: true, error: true, delegateId: true },
+  })
+  const current = new Map(
+    (await prisma.delegate.findMany({ where: { id: { in: rows.map((r) => r.delegateId).filter((x): x is string => !!x) } }, select: { id: true, email: true } })).map(
+      (d) => [d.id, d.email],
+    ),
+  )
+  const confirmed = new Set(checked)
+  let queued = 0
+  let refused = 0
+  for (const r of rows) {
+    const action = recoveryFor(r, r.delegateId ? current.get(r.delegateId) : null)
+    const ok = action.kind === "retry" || (action.kind === "check" && confirmed.has(r.id))
+    if (!ok) {
+      refused++
+      continue
+    }
+    const email = action.kind === "retry" && action.newEmail ? action.newEmail : r.email
+    // The fixed address may already be a recipient of this mail (it got it).
+    if (email !== r.email && (await prisma.mailRecipient.findUnique({ where: { campaignId_email: { campaignId, email } } }))) {
+      refused++
+      continue
+    }
+    const moved = await prisma.mailRecipient.updateMany({
+      where: { id: r.id, status: { in: ["FAILED", "UNCERTAIN"] } },
+      data: { status: "PENDING", email, error: null, claimedAt: null, providerMessageId: null },
+    })
+    queued += moved.count
+  }
+  if (queued > 0) {
+    await prisma.mailCampaign.updateMany({ where: { id: campaignId, state: "SENT" }, data: { state: "SENDING", finishedAt: null } })
+    after(() => processMailQueue(new Date(), campaignId).then(() => undefined))
+  }
+  await audit(session.user?.email ?? "unknown", "mailer.retry", "MailCampaign", campaignId, { queued, refused })
+  revalidateMail()
+  return { success: true, queued, refused }
 }
 
 // A draft to delegates picked on the delegate list: a few ticked rows, one
