@@ -13,15 +13,15 @@ export default async function SignupPage() {
   if (target) redirect(target);
 
   return (
-    <AuthStage marker={t("auth.signUpMarker")} headline={[t("auth.signUpHeadline1"), t("auth.signUpHeadline2")]} intro={t("auth.delegateIntro")}>
-      <h2 className="font-heading text-4xl leading-tight">{t("auth.signUpTitle")}</h2>
-      <p className="mt-3 text-base leading-relaxed text-black/65">{t("auth.signUpDescription")}</p>
-      <div className="mt-7">
+    <AuthStage>
+      <h1 className="text-2xl font-semibold">{t("auth.signUpTitle")}</h1>
+      <p className="mt-2 text-base text-muted-foreground">{t("auth.signUpDescription")}</p>
+      <div className="mt-6">
         <SignupForm />
       </div>
-      <p className="mt-7 border-t border-black/15 pt-5 text-sm text-black/65">
+      <p className="mt-8 border-t border-border pt-5 text-sm text-muted-foreground">
         {t("auth.alreadyHaveAccount")}{" "}
-        <Link href="/signin" className="font-semibold text-teal-800 underline underline-offset-4">
+        <Link href="/signin" className="font-semibold text-foreground underline underline-offset-4">
           {t("auth.signInLinkText")}
         </Link>
       </p>
