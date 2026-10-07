@@ -23,7 +23,6 @@ interface Props {
   refundPolicy: string
   whatsappCommunityUrl: string
   secretariatEmail: string
-  sheetSyncUrl: string
 }
 
 const PROVIDERS = {
@@ -63,7 +62,6 @@ export function TabPayments(props: Props) {
   const [refundPolicy, setRefundPolicy] = useState(props.refundPolicy)
   const [communityUrl, setCommunityUrl] = useState(props.whatsappCommunityUrl)
   const [secretariatEmail, setSecretariatEmail] = useState(props.secretariatEmail)
-  const [syncUrl, setSyncUrl] = useState(props.sheetSyncUrl)
 
   function save() {
     if (provider === "static_link" && !staticLink.trim()) {
@@ -85,7 +83,6 @@ export function TabPayments(props: Props) {
         refundPolicy: refundPolicy.trim(),
         whatsappCommunityUrl: communityUrl.trim(),
         secretariatEmail: secretariatEmail.trim(),
-        sheetSyncUrl: syncUrl.trim(),
       })
       if (!result.success) {
         toast.error(result.error ?? "Failed to save.")
@@ -158,12 +155,6 @@ export function TabPayments(props: Props) {
             </Field>
           </div>
         </div>
-      </section>
-
-      <section className="max-w-xl border-t border-border pt-6">
-        <Field label="Sheet mirror (Apps Script URL)" hint="Optional. Mirrors allotment and payment changes.">
-          <Input value={syncUrl} onChange={(event) => setSyncUrl(event.target.value)} placeholder="https://script.google.com/macros/s/…/exec" />
-        </Field>
       </section>
 
       <div className="sticky bottom-5 z-10 flex flex-col gap-4 border border-border bg-background/95 p-5 shadow-xl backdrop-blur sm:flex-row sm:items-center">

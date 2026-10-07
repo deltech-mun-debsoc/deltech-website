@@ -2,12 +2,13 @@ import { prisma } from "@/lib/prisma"
 import { currentEventScope, getActiveEvent, getEventCapabilities } from "@/lib/event"
 import { requireStaff } from "@/lib/authz"
 import { AllotmentBoard } from "./_components/allotment-board"
+import { SheetCopyPanel } from "./_components/sheet-copy-panel"
 import { PageHeader } from "@/app/(admin)/_components/page-header"
 import { getContent } from "@/lib/settings"
 import { deriveEventState } from "@/lib/event-state"
 
 export default async function AllotmentPage(props: { searchParams: Promise<{ delegate?: string }> }) {
-  await requireStaff()
+  const session = await requireStaff()
   const { delegate: focusDelegateId } = await props.searchParams
 
   const scope = await currentEventScope()
@@ -108,6 +109,7 @@ export default async function AllotmentPage(props: { searchParams: Promise<{ del
         fees={fees}
         paymentsRequired={paymentsRequired}
       />
+      <SheetCopyPanel url={content.sheetSyncUrl} isAdmin={(session.user as { role?: string }).role === "ADMIN"} />
     </div>
   )
 }

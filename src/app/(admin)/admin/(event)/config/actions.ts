@@ -66,41 +66,43 @@ export async function saveContent(
   }
 }
 
-// Replay every allotted cell's current state to the public Google Sheet.
-// syncSheetCell is best-effort per cell (fire-and-forget, self-heals on next
-// state change), so a mirror that's down for a while silently drifts, this
-// is the manual "reconcile now" for when it comes back.
+// Replay every seat's current state to the Google Sheet copy, freed seats
+// included: a seat taken back while the copy was unreachable used to stay
+// "allotted" there for good. Counts what the sheet refused, so a wrong secret
+// or a dead URL is reported instead of called a success.
 // ponytail: sequential to avoid hammering the single Apps Script endpoint;
 // parallelize in chunks only if a very large room makes this too slow.
-export async function resyncMatrix(): Promise<{ success: boolean; synced?: number; error?: string }> {
+export async function resyncMatrix(): Promise<{ success: boolean; synced?: number; failed?: number; error?: string }> {
   const session = await requireStaff()
   const content = await getContent()
   if (!content.sheetSyncUrl) {
-    return { success: false, error: "No sheet sync URL configured (set it in Setup, under Fees & payments)." }
+    return { success: false, error: "No Google Sheet copy is connected. Add its Apps Script link first." }
   }
 
-  const allotted = await prisma.portfolio.findMany({
-    where: { status: "ALLOTTED", allotment: { isNot: null }, committee: await currentEventScope() },
+  const seats = await prisma.portfolio.findMany({
+    where: { committee: await currentEventScope() },
     select: {
       name: true,
+      status: true,
       committee: { select: { name: true } },
       allotment: { select: { delegate: { select: { status: true } } } },
     },
   })
 
-  for (const p of allotted) {
-    if (!p.allotment) continue
-    await syncSheetCell({
+  let synced = 0
+  let failed = 0
+  for (const p of seats) {
+    const ok = await syncSheetCell({
       committee: p.committee.name,
       portfolio: p.name,
-      state: p.allotment.delegate.status === "CONFIRMED" ? "paid" : "allotted",
+      state: !p.allotment ? "available" : p.allotment.delegate.status === "CONFIRMED" ? "paid" : "allotted",
     })
+    if (ok) synced++
+    else failed++
   }
 
-  await audit(session.user?.email ?? "unknown", "matrix.resync", "Setting", undefined, {
-    synced: allotted.length,
-  })
-  return { success: true, synced: allotted.length }
+  await audit(session.user?.email ?? "unknown", "matrix.resync", "Setting", undefined, { synced, failed })
+  return { success: true, synced, failed }
 }
 
 const EventSettingsSchema = z.object({

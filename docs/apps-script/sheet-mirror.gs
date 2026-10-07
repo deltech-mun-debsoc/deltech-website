@@ -3,14 +3,17 @@
 //
 //   white  = available
 //   amber  = allotted, payment pending
-//   green  = paid / confirmed
+//   green  = confirmed (paid, free, or a cross delegation with nothing to pay)
+//
+// The website is the seat list. This sheet is a read-only copy for people
+// without an account: editing it changes nothing on the website.
 //
 // Install (one time):
 //   1. Create the Google Sheet you want to share publicly.
 //   2. Extensions → Apps Script → paste this file → set SECRET below.
 //   3. Deploy → New deployment → type "Web app" →
 //      Execute as: Me · Who has access: Anyone → Deploy.
-//   4. Copy the web app URL into /admin/config → Payments tab → Sheet mirror URL.
+//   4. Copy the web app URL into Allotment → Google Sheet copy (admin only).
 //   5. Set the same SECRET value as SHEET_SYNC_SECRET in the AWS app environment.
 //
 // Each committee gets its own tab, rows are appended as portfolios first sync.
@@ -22,7 +25,7 @@ var SECRET = "PASTE_SHEET_SYNC_SECRET";
 var COLORS = {
   available: "#ffffff",
   allotted: "#fff2cc", // amber — allotted, not paid
-  paid: "#d9ead3",     // green — paid / confirmed
+  paid: "#d9ead3",     // green — confirmed (the wire value stays "paid")
 };
 
 function doPost(e) {
@@ -51,7 +54,7 @@ function doPost(e) {
     row = sh.getLastRow();
   }
 
-  var label = d.state === "paid" ? "Paid" : d.state === "allotted" ? "Allotted (payment pending)" : "Available";
+  var label = d.state === "paid" ? "Confirmed" : d.state === "allotted" ? "Allotted" : "Available";
   sh.getRange(row, 2).setValue(label);
   sh.getRange(row, 1, 1, 2).setBackground(COLORS[d.state] || "#ffffff");
 
