@@ -16,7 +16,7 @@ export function CheckinQR({ checkinUrl }: Props) {
       <p className="text-xs font-semibold text-primary">
         {t("checkin.qrHeading")}
       </p>
-      <div className="relative bg-white p-5 shadow-[10px_10px_0_#0f766e]">
+      <div className="relative rounded-lg border border-border bg-white p-5">
         <QRCodeSVG value={checkinUrl} size={200} level="H" />
       </div>
       <p className="text-sm text-muted-foreground">{t("checkin.qrCaption")}</p>

@@ -133,7 +133,6 @@ export default async function CandidatesPage({
       <RecruitmentPageHeader
         eyebrow={cycle.name}
         title={t("recruitment.candidates.title")}
-        description={t("recruitment.candidates.description")}
       >
         <SelectionActions
           cycleId={cycle.id}

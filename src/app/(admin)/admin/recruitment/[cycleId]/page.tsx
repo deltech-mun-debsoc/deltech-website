@@ -67,7 +67,7 @@ export default async function CycleConfigPage({
 
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow={t("recruitment.control.title")} title={cycle.name} description={cycle.slug}>
+      <PageHeader eyebrow={t("recruitment.control.title")} title={cycle.name}>
         <Link
           href="/admin/recruitment"
           className={cn(buttonVariants({ variant: "outline", size: "sm" }))}

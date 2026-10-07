@@ -34,7 +34,7 @@ export default async function MoneySettingsPage() {
       <div className="editorial-card p-7">
         <h2 className="font-heading text-2xl">Fees</h2>
         <p className="mt-2 text-base text-muted-foreground">
-          Amounts by committee type, allotments always read from this table.
+          Allotments charge the amount set here for the committee type.
         </p>
         <div className="rule my-5" />
         <TabFees fees={serializedFees} />
@@ -44,7 +44,7 @@ export default async function MoneySettingsPage() {
         <div className="editorial-card p-7">
           <h2 className="font-heading text-2xl">Payment and email control</h2>
           <p className="mt-2 text-base text-muted-foreground">
-            Configure exactly who the QR pays, what delegates are told, and where confirmed delegates go next. Admin only.
+            Admin only.
           </p>
           <div className="rule my-5" />
           <TabPayments

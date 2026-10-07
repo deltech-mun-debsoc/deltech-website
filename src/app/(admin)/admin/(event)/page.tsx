@@ -277,7 +277,7 @@ export default async function AdminOverviewPage() {
         )}
       </section>
 
-      {bySource.length > 1 && (
+      {event.kind !== "INTRA_MUN" && bySource.length > 1 && (
         <details className="group editorial-card p-6">
           <summary className="flex cursor-pointer list-none items-center gap-2 font-medium [&::-webkit-details-marker]:hidden">
             Where delegates came from

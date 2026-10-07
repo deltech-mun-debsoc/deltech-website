@@ -174,7 +174,8 @@ export async function saveEventSettings(input: EventSettingsInput): Promise<{ su
       conferenceDates: v.dates,
       venue: v.venue,
       registrationFormUrl: v.formUrl,
-      registrationClosedMessage: v.closedMessage || content.registrationClosedMessage,
+      // Empty is a real choice: the closed page then shows no message.
+      registrationClosedMessage: v.closedMessage,
       landingHero: { ...content.landingHero, subtitle: v.brief, ctaLabel: v.ctaLabel || content.landingHero.ctaLabel },
     })
     await audit(session.user?.email ?? "unknown", "event.settings", "Event", event.id, { before, after })
