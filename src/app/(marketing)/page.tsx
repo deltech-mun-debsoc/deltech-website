@@ -4,9 +4,7 @@ import { getContent } from "@/lib/settings";
 import { prisma } from "@/lib/prisma"
 import { currentEventScope } from "@/lib/event";
 import { t } from "@/content/strings";
-import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { FadeUp } from "./_components/motion";
 import { SocietyHero } from "./_components/society-hero";
 import { ActiveEvent } from "./_components/active-event";
 import { ConferenceCarousel } from "./_components/conference-carousel";
@@ -18,8 +16,15 @@ const TYPE_LABEL: Record<string, string> = {
   PRESS: t("marketing.committeeTypes.press"),
 };
 
+const ACTIVITIES = [
+  { title: "marketing.activityWorkshops", body: "marketing.activityWorkshopsBody", href: null },
+  { title: "marketing.activityIntra", body: "marketing.activityIntraBody", href: null },
+  { title: "marketing.activityConference", body: "marketing.activityConferenceBody", href: null },
+  { title: "marketing.activityDispatch", body: "marketing.activityDispatchBody", href: "/blog" },
+] as const;
+
 export default async function LandingPage() {
-  const [content, committees, portfolioCounts, memberCount, postCount] = await Promise.all([
+  const [content, committees, portfolioCounts] = await Promise.all([
     getContent(),
     prisma.committee.findMany({
       where: { isActive: true, ...(await currentEventScope()) },
@@ -39,8 +44,6 @@ export default async function LandingPage() {
       where: { committee: await currentEventScope() },
       _count: { _all: true },
     }),
-    prisma.member.count({ where: { isActive: true } }),
-    prisma.post.count({ where: { status: "PUBLISHED" } }),
   ]);
 
   const openByCommittee = new Map<string, number>();
@@ -48,182 +51,100 @@ export default async function LandingPage() {
     if (g.status !== "AVAILABLE") continue;
     openByCommittee.set(g.committeeId, (openByCommittee.get(g.committeeId) ?? 0) + g._count._all);
   }
-  const openPortfolioCount = [...openByCommittee.values()].reduce((a, b) => a + b, 0);
   const eventState = deriveEventState(content);
-  const ctaHref = eventState.acceptsRegistrations ? "/register" : "/register/closed";
+  const sections = content.publicSections;
+  const showCommittees = eventState.showEventHero && sections.committees && committees.length > 0;
 
   return (
     <div className="overflow-hidden">
       {eventState.showEventHero ? (
-        <ActiveEvent content={content} />
+        <ActiveEvent content={content} acceptsRegistrations={eventState.acceptsRegistrations} />
       ) : (
-        <SocietyHero members={memberCount} dispatches={postCount} />
+        <SocietyHero showTeam={sections.team} />
       )}
 
-      <div className="overflow-hidden border-b border-border/70 bg-ink py-3 text-paper">
-        <p className="w-max whitespace-nowrap font-mono text-sm font-semibold uppercase tracking-[0.16em]">
-          {t("marketing.principles")} · {t("marketing.principles")}
-        </p>
-      </div>
-
-      <section id="society-work" className="border-b border-border/70 py-24 sm:py-32">
+      {showCommittees && <section className="border-b border-border/70 py-16 sm:py-20">
         <div className="section-shell">
-          <div className="grid gap-12 lg:grid-cols-[0.9fr_1.1fr] lg:gap-20">
-            <div>
-              <p className="eyebrow">{eventState.showEventHero ? t("marketing.societyBehindEvent") : t("marketing.societyHowItWorks")}</p>
-              <h2 className="display-section mt-5 max-w-[11ch]">{t("marketing.societyWorkTitle")}</h2>
-              <p className="body-large mt-7 max-w-xl text-muted-foreground">{t("marketing.societyWorkBody")}</p>
-            </div>
-            <ol className="border-t border-foreground/20">
-              {([
-                ["marketing.societyWorkLearn", "marketing.societyWorkLearnBody"],
-                ["marketing.societyWorkPractise", "marketing.societyWorkPractiseBody"],
-                ["marketing.societyWorkBuild", "marketing.societyWorkBuildBody"],
-              ] as const).map(([title, body], index) => (
-                <li key={title} className="grid gap-4 border-b border-foreground/20 py-7 sm:grid-cols-[4rem_1fr] sm:py-9">
-                  <span className="font-mono text-sm font-semibold text-primary">0{index + 1}</span>
-                  <div>
-                    <h3 className="font-heading text-3xl">{t(title)}</h3>
-                    <p className="mt-2 max-w-xl text-base leading-relaxed text-muted-foreground">{t(body)}</p>
-                  </div>
-                </li>
-              ))}
-            </ol>
+          <div className="flex flex-wrap items-baseline justify-between gap-4">
+            <h2 className="text-2xl font-semibold sm:text-3xl">{t("marketing.committeesTitle")}</h2>
+            {sections.matrix && <Link href="/availability" className="inline-flex items-center gap-1.5 font-medium text-primary hover:underline">
+              {t("marketing.viewMatrix")}<ArrowRight className="size-4" />
+            </Link>}
           </div>
+          <ul className="mt-8 divide-y divide-border border-y border-border">
+            {committees.map((committee) => {
+              const open = openByCommittee.get(committee.id) ?? 0;
+              return (
+                <li key={committee.id} className="grid gap-2 py-5 sm:grid-cols-[14rem_1fr_auto] sm:items-baseline sm:gap-8">
+                  <div>
+                    <h3 className="text-lg font-semibold">{committee.name}</h3>
+                    <p className="text-sm text-muted-foreground">
+                      {TYPE_LABEL[committee.type]}
+                      {committee.doubleDelegation ? " · " + t("marketing.doubleDelegation") : ""}
+                    </p>
+                  </div>
+                  <p className="text-base leading-relaxed text-muted-foreground">
+                    {committee.agenda || t("marketing.committeeBriefPending")}
+                  </p>
+                  {sections.matrix && <p className={cn("text-sm font-semibold tabular-nums", open > 0 ? "text-primary" : "text-muted-foreground")}>
+                    {open > 0 ? t("marketing.openCount", { n: open }) : t("marketing.statusFull")}
+                  </p>}
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      </section>}
+
+      <section className="border-b border-border/70 py-16 sm:py-20">
+        <div className="section-shell">
+          <h2 className="text-2xl font-semibold sm:text-3xl">{t("marketing.activitiesTitle")}</h2>
+          <ul className="mt-8 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
+            {ACTIVITIES.filter((a) => a.href !== "/blog" || sections.dispatch).map((a) => (
+              <li key={a.title} className="border-t border-border pt-5">
+                <h3 className="text-lg font-semibold">
+                  {a.href ? <Link href={a.href} className="hover:underline">{t(a.title)}</Link> : t(a.title)}
+                </h3>
+                <p className="mt-2 text-base leading-relaxed text-muted-foreground">{t(a.body)}</p>
+              </li>
+            ))}
+          </ul>
         </div>
       </section>
 
       <ConferenceCarousel />
 
-      {content.publicSections.committees && <section className="py-24 sm:py-32">
-        <div className="section-shell">
-          <div className="grid gap-8 border-b border-foreground/20 pb-12 lg:grid-cols-[1fr_0.8fr]">
-            <div>
-              <h2 className="display-section max-w-[11ch]">{t("marketing.committeesTitle")}</h2>
-            </div>
-            <p className="body-large self-end text-muted-foreground">
-              {content.agendasBlurb || t("marketing.committeesBody")}
-            </p>
-          </div>
-
-          <div>
-            {committees.map((committee) => {
-              const open = openByCommittee.get(committee.id) ?? 0;
-              return (
-                <Link
-                  key={committee.id}
-                  href="/availability"
-                  className="group grid gap-4 border-b border-foreground/20 py-8 transition-colors hover:bg-primary/[0.045] sm:grid-cols-[0.9fr_1.2fr_auto] sm:items-center sm:gap-8 sm:px-3"
-                >
-                  <div>
-                    <h3 className="font-heading text-3xl transition-transform duration-300 group-hover:translate-x-1 md:text-4xl">
-                      {committee.name}
-                    </h3>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      {TYPE_LABEL[committee.type]}
-                      {committee.doubleDelegation ? " · " + t("marketing.doubleDelegation") : ""}
-                    </p>
-                  </div>
-                  <p className="max-w-lg text-base leading-relaxed text-muted-foreground">
-                    {committee.agenda || t("marketing.committeeBriefPending")}
-                  </p>
-                  <div className={cn("flex items-center gap-2 text-sm font-semibold tabular-nums sm:justify-end", open > 0 ? "text-primary" : "text-destructive")}>
-                    {open > 0 ? open + " " + t("marketing.openLabel") : t("marketing.statusFull")}
-                    <ArrowRight className="size-5 transition-transform group-hover:translate-x-1" />
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-      </section>}
-
-      {content.publicSections.matrix && <section className="relative overflow-hidden bg-primary py-24 text-primary-foreground sm:py-32">
-        <div className="paper-grid absolute inset-0 opacity-15" aria-hidden />
-        <div className="section-shell relative grid gap-12 lg:grid-cols-[1.1fr_0.9fr] lg:items-end">
-          <div>
-            <h2 className="display-section max-w-[10ch]">{t("marketing.matrixTitle")}</h2>
-          </div>
-          <div>
-            <p className="body-large text-primary-foreground/75">{t("marketing.matrixBody")}</p>
-            <div className="mt-9 flex flex-wrap items-center gap-6">
-              <Link
-                href="/availability"
-                className={cn(
-                  buttonVariants({ variant: "secondary", size: "lg" }),
-                  "bg-background text-foreground hover:bg-background/90",
-                )}
-              >
-                {t("marketing.matrixCta")}
-              </Link>
-              <p className="flex items-baseline gap-3">
-                <span className="font-mono text-6xl font-semibold leading-none tabular-nums">{openPortfolioCount}</span>
-                <span className="text-base text-primary-foreground/80">{t("marketing.openPortfolios")}</span>
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>}
-
-      {content.publicSections.activeEvent && content.awards.length > 0 && (
-        <section className="border-b border-border/70 py-24 sm:py-32">
-          <div className="section-shell grid gap-12 lg:grid-cols-[0.9fr_1.1fr]">
-            <div>
-              <h2 className="display-section max-w-[9ch]">{t("marketing.awardsTitle")}</h2>
-            </div>
-            <div className="border-t border-foreground/20">
-              {content.awards.map((award, index) => (
-                <div key={award} className="flex items-center gap-5 border-b border-foreground/20 py-6">
-                  <span className="font-mono text-sm text-gold-700 dark:text-gold-300">0{index + 1}</span>
-                  <p className="font-heading text-2xl">{award}</p>
-                </div>
+      {sections.activeEvent && content.awards.length > 0 && (
+        <section className="border-b border-border/70 py-16 sm:py-20">
+          <div className="section-shell">
+            <h2 className="text-2xl font-semibold sm:text-3xl">{t("marketing.awardsTitle")}</h2>
+            <ul className="mt-6 flex flex-wrap gap-3">
+              {content.awards.map((award) => (
+                <li key={award} className="rounded-full border border-border px-4 py-2 text-base">{award}</li>
               ))}
-            </div>
+            </ul>
           </div>
         </section>
       )}
 
       {content.queryContacts.length > 0 && (
-        <section className="border-b border-border/70 py-24 sm:py-32">
+        <section className="py-16 sm:py-20">
           <div className="section-shell">
-            <FadeUp className="grid gap-8 lg:grid-cols-[1fr_0.8fr]">
-              <div>
-                <h2 className="display-section max-w-[10ch]">{t("marketing.contactsTitle")}</h2>
-              </div>
-              <p className="body-large self-end text-muted-foreground">{t("marketing.contactsBody")}</p>
-            </FadeUp>
-            <div className="mt-12 grid border-t border-foreground/20 sm:grid-cols-2 lg:grid-cols-3">
+            <h2 className="text-2xl font-semibold sm:text-3xl">{t("marketing.contactsTitle")}</h2>
+            <ul className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
               {content.queryContacts.map((contact) => (
-                <a
-                  key={contact.phone}
-                  href={"tel:" + contact.phone}
-                  className="group border-b border-foreground/20 py-7 sm:border-r sm:px-6 sm:first:pl-0"
-                >
-                  <p className="data-label text-muted-foreground">{contact.role}</p>
-                  <p className="mt-3 font-heading text-2xl">{contact.name}</p>
-                  <p className="mt-2 font-mono text-sm tabular-nums text-primary group-hover:underline">
+                <li key={contact.phone}>
+                  <p className="font-semibold">{contact.name}</p>
+                  <p className="text-sm text-muted-foreground">{contact.role}</p>
+                  <a href={"tel:" + contact.phone} className="mt-1 inline-block font-mono text-sm tabular-nums text-primary hover:underline">
                     {contact.phone}
-                  </p>
-                </a>
+                  </a>
+                </li>
               ))}
-            </div>
+            </ul>
           </div>
         </section>
       )}
-
-      <section className="noise-wash py-24 text-center sm:py-36">
-        <div className="section-shell">
-          <h2 className="display-section mx-auto max-w-[12ch]">{t("marketing.finalTitle")}</h2>
-          <div className="mt-10 flex flex-wrap justify-center gap-3">
-            {content.publicSections.registration && <Link href={ctaHref} className={buttonVariants({ size: "lg" })}>
-              {eventState.acceptsRegistrations ? content.landingHero.ctaLabel : t("marketing.registrationStatus")}
-            </Link>}
-            <Link href={content.publicSections.dispatch ? "/blog" : "/team"} className={buttonVariants({ variant: "outline", size: "lg" })}>
-              {t("marketing.readDispatch")}
-            </Link>
-          </div>
-        </div>
-      </section>
     </div>
   );
 }

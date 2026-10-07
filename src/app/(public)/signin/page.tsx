@@ -20,20 +20,17 @@ export default async function SignInPage(props: {
   if (target) redirect(target)
 
   return (
-    <AuthStage marker={t("auth.delegateMarker")} headline={[t("auth.delegateHeadline1"), t("auth.delegateHeadline2")]} intro={t("auth.delegateIntro")}>
-      <h2 className="font-heading text-4xl leading-tight">{t("auth.signInTitle")}</h2>
-      {created && <p role="status" className="mt-5 border-l-4 border-teal-700 bg-teal-50 px-4 py-3 text-sm font-semibold text-teal-900">{t("auth.accountCreated")}</p>}
+    <AuthStage>
+      <h1 className="text-2xl font-semibold">{t("auth.signInTitle")}</h1>
+      {created && <p role="status" className="mt-5 rounded-lg border border-primary/30 bg-primary/10 px-4 py-3 text-sm font-medium">{t("auth.accountCreated")}</p>}
       <AuthErrorBanner error={error} />
-      <div className="mt-7">
+      <div className="mt-6">
         <SignInForm callbackUrl={callbackUrl} />
       </div>
-      <div className="mt-7 flex flex-col gap-3 border-t border-black/15 pt-5 text-sm sm:flex-row sm:items-center sm:justify-between">
-        <p className="text-black/65">
-          {t("auth.newDelegate")}{" "}
-          <Link href="/signup" className="font-semibold text-teal-800 underline underline-offset-4">{t("auth.signUpLinkText")}</Link>
-        </p>
-        <Link href="/signin/staff" className="text-black/65 underline underline-offset-4 hover:text-black">{t("auth.staffLink")}</Link>
-      </div>
+      <p className="mt-8 border-t border-border pt-5 text-sm text-muted-foreground">
+        {t("auth.newDelegate")}{" "}
+        <Link href="/signup" className="font-semibold text-foreground underline underline-offset-4">{t("auth.signUpLinkText")}</Link>
+      </p>
     </AuthStage>
   )
 }

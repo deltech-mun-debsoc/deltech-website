@@ -1,6 +1,6 @@
 import Link from "next/link";
-import { MailCheck } from "lucide-react";
 import { t } from "@/content/strings";
+import { buttonVariants } from "@/components/ui/button";
 import { AuthStage } from "@/components/auth-stage";
 
 // Reached two ways: Auth.js after sending a link (?provider=resend&type=email),
@@ -13,35 +13,27 @@ export default async function CheckEmailPage(props: {
   const sent = type === "email";
 
   return (
-    <AuthStage
-      marker={t("auth.delegateMarker")}
-      headline={sent ? [t("auth.sentHeadline1"), t("auth.sentHeadline2")] : [t("auth.delegateHeadline1"), t("auth.delegateHeadline2")]}
-    >
+    <AuthStage>
       {sent ? (
         <>
-          <MailCheck className="size-8 text-teal-700" aria-hidden />
-          <h2 className="mt-5 font-heading text-4xl leading-tight">{t("auth.checkEmailTitle")}</h2>
-          <p className="mt-3 text-base leading-relaxed text-black/65">{t("auth.checkEmailMessage")}</p>
-          <ul className="mt-7 space-y-3 border-t border-black/15 pt-5 text-sm leading-relaxed text-black/65">
-            <li>{t("auth.checkEmailExpiry")}</li>
-            {/* An address with no account lands here too, so that a typo is not
-                answered with "Something went wrong" and is not confirmed either.
-                That only works if the page admits nothing may be coming. */}
-            <li>{t("auth.checkEmailNoAccount")}</li>
-            <li>
-              {t("auth.checkSpam")}{" "}
-              <Link href="/signin" className="font-semibold text-teal-800 underline underline-offset-4">
-                {t("auth.requestAnother")}
-              </Link>
-              .
-            </li>
-          </ul>
+          <h1 className="text-2xl font-semibold">{t("auth.checkEmailTitle")}</h1>
+          <p className="mt-2 text-base leading-relaxed text-muted-foreground">{t("auth.checkEmailMessage")}</p>
+          <Link href="/signin" className={buttonVariants({ variant: "outline", className: "mt-6 h-11 w-full border-foreground/25 text-base" })}>
+            {t("auth.requestAnother")}
+          </Link>
+          {/* An address with no account lands here too, so that a typo is not
+              answered with "Something went wrong" and is not confirmed either.
+              That only works if the page admits nothing may be coming. */}
+          <details className="mt-6 border-t border-border pt-4 text-sm text-muted-foreground">
+            <summary className="cursor-pointer font-medium text-foreground">{t("auth.didNotArrive")}</summary>
+            <p className="mt-2 leading-relaxed">{t("auth.checkEmailNoAccount")}</p>
+          </details>
         </>
       ) : (
         <>
-          <h2 className="font-heading text-4xl leading-tight">{t("auth.directSentTitle")}</h2>
-          <p className="mt-3 text-base leading-relaxed text-black/65">{t("auth.directSentBody")}</p>
-          <Link href="/signin" className="mt-7 inline-flex h-11 items-center bg-[#111614] px-5 text-sm font-semibold text-white hover:bg-teal-800">
+          <h1 className="text-2xl font-semibold">{t("auth.directSentTitle")}</h1>
+          <p className="mt-2 text-base leading-relaxed text-muted-foreground">{t("auth.directSentBody")}</p>
+          <Link href="/signin" className={buttonVariants({ className: "mt-6 h-11 w-full text-base" })}>
             {t("auth.goToSignIn")}
           </Link>
         </>

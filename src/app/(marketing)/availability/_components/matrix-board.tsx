@@ -1,7 +1,6 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { motion, useReducedMotion } from "framer-motion"
 import { useVisiblePoll } from "@/lib/use-visible-poll"
 import { t } from "@/content/strings"
 
@@ -59,7 +58,6 @@ export function MatrixBoard({
   paymentsRequired?: boolean
 }) {
   const router = useRouter()
-  const reduce = useReducedMotion()
 
   // The server recomputes every cell's state, so a refresh is the whole update:
   // simpler and safer than client-side cell math. Polled: seats change a few
@@ -68,7 +66,7 @@ export function MatrixBoard({
 
   return (
     <div>
-      <div className="mb-8 flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-foreground/20 pb-5">
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-3 border-b border-border pb-5">
         {LEGEND_STATES.map((l) => (
           <span
             key={l.state}
@@ -80,20 +78,16 @@ export function MatrixBoard({
         ))}
       </div>
 
-      {committees.map((committee, ci) => {
+      {committees.map((committee) => {
         const openCount = committee.portfolios.filter((p) => p.state === "available").length
         return (
-          <motion.section
+          <section
             key={committee.id}
-            initial={reduce ? false : { opacity: 0, y: 16 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true, margin: "-40px" }}
-            transition={{ duration: 0.4, delay: Math.min(ci * 0.05, 0.3), ease: "easeOut" }}
-            className="grid border-b border-foreground/20 py-8 lg:grid-cols-[0.72fr_1.28fr] lg:gap-10 lg:py-10"
+            className="grid border-b border-border py-8 lg:grid-cols-[0.72fr_1.28fr] lg:gap-10"
           >
             <div>
               <div>
-                <h2 className="text-3xl leading-none md:text-4xl">{committee.name}</h2>
+                <h2 className="text-xl font-semibold">{committee.name}</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
                   {TYPE_LABEL[committee.type]}
                   {committee.doubleDelegation && " · " + t("marketing.doubleDelegation")}
@@ -103,18 +97,15 @@ export function MatrixBoard({
                 )}
               </div>
               <span
-                className={`mt-4 inline-flex text-sm font-semibold tabular-nums ${openCount === 0 ? "text-destructive" : "text-primary"}`}
+                className={`mt-3 inline-flex text-sm font-semibold tabular-nums ${openCount === 0 ? "text-muted-foreground" : "text-primary"}`}
               >
-                {openCount === 0 ? t("marketing.statusFull") : openCount + " " + t("marketing.openLabel")}
+                {openCount === 0 ? t("marketing.statusFull") : t("marketing.openCount", { n: openCount })}
               </span>
             </div>
 
             <div className="mt-9 lg:mt-0">
               {committee.portfolios.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-border p-6">
-                  <p className="text-lg font-semibold">{t("marketing.matrixComingSoon")}</p>
-                  <p className="mt-2 text-base text-muted-foreground">{t("marketing.matrixComingSoonBody")}</p>
-                </div>
+                <p className="rounded-lg border border-dashed border-border p-5 text-base text-muted-foreground">{t("marketing.matrixComingSoon")}</p>
               ) : (
                 <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                 {committee.portfolios.map((p) => (
@@ -132,7 +123,7 @@ export function MatrixBoard({
               </div>
               )}
             </div>
-          </motion.section>
+          </section>
         )
       })}
     </div>

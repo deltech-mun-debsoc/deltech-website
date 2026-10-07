@@ -377,7 +377,7 @@ export function DelegateDrawer({ delegate, committees, intra = false, onClose, o
                         {intra && d.rollNumber && <Row label="Roll number">{d.rollNumber}</Row>}
                         {!intra && d.needsAccommodation && <Row label="Accommodation">{d.outsideNcr ? "Needed, from outside NCR" : "Needed"}</Row>}
                         {d.reference && <Row label="Heard about us">{d.reference}</Row>}
-                        <Row label="Came from">{d.source === "SELF" ? "Website form" : d.source === "MANUAL" ? "Added by staff" : d.source === "CROSS_DEL" ? "Cross delegation" : d.source.toLowerCase()}</Row>
+                        {!intra && <Row label="Came from">{d.source === "SELF" ? "Website form" : d.source === "MANUAL" ? "Added by staff" : d.source === "CROSS_DEL" ? "Cross delegation" : d.source.toLowerCase()}</Row>}
                       </div>
                       {d.munExperience && (
                         <div className="mt-3 rounded-lg bg-muted/40 p-3">

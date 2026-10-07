@@ -81,7 +81,6 @@ export default async function AdminRecruitmentPage() {
       <PageHeader
         eyebrow={t("recruitment.brand")}
         title={t("recruitment.control.title")}
-        description={t("recruitment.control.description")}
       >
         <Link
           href="/recruitment"

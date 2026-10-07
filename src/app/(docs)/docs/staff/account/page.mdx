@@ -1,6 +1,6 @@
 export const metadata = {
   title: "Getting your staff account",
-  description: "How invites work and why staff sign in through a different door.",
+  description: "How invites work and how staff sign in.",
 }
 
 Staff accounts are created by invitation. There is no public route to one.
@@ -8,15 +8,16 @@ Staff accounts are created by invitation. There is no public route to one.
 ## Being invited
 
 An admin adds your email at `/admin/users` and picks your role. You get a **staff
-invite** email pointing at `/signin/staff`.
+invite** email pointing at `/signin`.
 
-## The staff door
+## Signing in
 
-`/signin/staff` is the same sign-in mechanism as the delegate door, with the magic
-link tab first, because a freshly invited account has no password yet.
+Staff and delegates use the same page, `/signin`. Your role decides where you land
+afterwards. A freshly invited account has no password yet, so use the email link
+the first time. The old `/signin/staff` address forwards to `/signin`.
 
 <Steps>
-1. Open `/signin/staff` and request a magic link with your invited address.
+1. Open `/signin` and request a magic link with your invited address.
 
 2. Click the link in your email. You are signed in and sent to your role's home page.
 
