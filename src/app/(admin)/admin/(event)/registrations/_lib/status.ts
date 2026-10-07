@@ -40,7 +40,7 @@ export const EMAIL_LABEL: Record<string, string> = {
   "payment-confirmed": "Payment confirmed",
   "payment-reminder": "Payment reminder",
   "magic-link": "Sign-in link",
-  "payment-link": "Payment link",
+  "ses-event": "Delivery report",
   "staff-invite": "Staff invite",
 }
 
@@ -48,4 +48,57 @@ export const EMAIL_LABEL: Record<string, string> = {
 // DTU), the college otherwise.
 export function delegateLine(d: { rollNumber: string | null; isDtu: boolean; institution: string }) {
   return d.rollNumber ?? (d.isDtu ? "DTU" : d.institution)
+}
+
+// What an email log row's status means, said plainly. SENT is only "the email
+// service accepted it"; DELIVERED is the receiving server taking it.
+export const EMAIL_STATUS: Record<string, { label: string; tone: "ok" | "wait" | "bad" }> = {
+  DELIVERED: { label: "delivered", tone: "ok" },
+  SENT: { label: "accepted by the email service", tone: "ok" },
+  DEFERRED: { label: "delayed by their mail server", tone: "wait" },
+  BOUNCED: { label: "bounced", tone: "bad" },
+  COMPLAINED: { label: "marked as spam", tone: "bad" },
+  FAILED: { label: "did not send", tone: "bad" },
+}
+
+export function emailLabel(template: string): string {
+  if (template.startsWith("mailer:")) return "Mail to delegates"
+  return EMAIL_LABEL[template] ?? template
+}
+
+// The Emails heading and whether it needs attention. Counts each outcome
+// separately ("4 sent · 1 bounced") instead of calling every row "sent", and
+// alerts only when the LATEST attempt of a kind of email went wrong: a failure
+// that was later sent successfully is history, not a problem.
+export function emailSummary(logs: { template: string; status: string; sentAt: string }[]) {
+  const counts: Record<string, number> = {}
+  for (const l of logs) {
+    const key = l.status === "DELIVERED" ? "SENT" : l.status
+    counts[key] = (counts[key] ?? 0) + 1
+  }
+  const order: [string, string][] = [
+    ["SENT", "sent"],
+    ["DEFERRED", "delayed"],
+    ["FAILED", "failed"],
+    ["BOUNCED", "bounced"],
+    ["COMPLAINED", "marked as spam"],
+  ]
+  const hint = order.filter(([k]) => counts[k]).map(([k, word]) => `${counts[k]} ${word}`).join(" · ")
+  const latest = new Map<string, string>()
+  for (const l of [...logs].sort((a, b) => a.sentAt.localeCompare(b.sentAt))) {
+    if (l.template === "ses-event") continue
+    latest.set(l.template, l.status)
+  }
+  const alert = [...latest.values()].some((s) => EMAIL_STATUS[s]?.tone === "bad")
+  return { hint: hint || "none yet", alert }
+}
+
+// Whether email to this address is pointless until it changes: its latest
+// outcome was a bounce or a spam complaint.
+export function addressBlockedIn(logs: { toEmail: string; status: string; sentAt: string }[], email: string): "BOUNCED" | "COMPLAINED" | null {
+  const mine = logs
+    .filter((l) => l.toEmail.trim().toLowerCase() === email.trim().toLowerCase() && l.status !== "DEFERRED")
+    .sort((a, b) => b.sentAt.localeCompare(a.sentAt))
+  const s = mine[0]?.status
+  return s === "BOUNCED" || s === "COMPLAINED" ? s : null
 }

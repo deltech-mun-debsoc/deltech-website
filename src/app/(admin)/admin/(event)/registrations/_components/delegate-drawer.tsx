@@ -3,7 +3,7 @@
 import { formatDate } from "@/lib/datetime"
 import { useState, useEffect, useCallback, useTransition } from "react"
 import Link from "next/link"
-import { X, Edit2, CheckCircle, RefreshCw, Gift, Clock, Link2, Mail, ChevronDown, Armchair, AlertCircle } from "lucide-react"
+import { X, Edit2, CheckCircle, Gift, Clock, Link2, Mail, ChevronDown, Armchair, AlertCircle, Send } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { draftMailForDelegates } from "../../mailer/actions"
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose } from "@/components/ui/drawer"
@@ -11,11 +11,11 @@ import { Button, buttonVariants } from "@/components/ui/button"
 import { toast } from "sonner"
 import { cn } from "@/lib/utils"
 import type { SerializedDelegate, EmailLogEntry } from "../_lib/types"
-import { stageOf, EMAIL_LABEL } from "../_lib/status"
+import { stageOf, emailLabel, emailSummary, addressBlockedIn, EMAIL_STATUS } from "../_lib/status"
 import { DelegateEditForm } from "./delegate-edit-form"
 import {
   markPaidOffline,
-  resendEmail,
+  sendNoticeNow,
   compDelegate,
   cancelDelegate,
   waitlistDelegate,
@@ -94,8 +94,9 @@ export function DelegateDrawer({ delegate, committees, intra = false, onClose, o
   const router = useRouter()
   const [editing, setEditing] = useState(false)
   const [isPending, startTransition] = useTransition()
-  const [resendTarget, setResendTarget] = useState<EmailLogEntry | null>(null)
-  const [resending, setResending] = useState(false)
+  // The notice being confirmed before it is sent (see the top box).
+  const [noticeTarget, setNoticeTarget] = useState<"registration" | "allotment" | "payment" | null>(null)
+  const [sendingNotice, setSendingNotice] = useState(false)
   const [cancelOpen, setCancelOpen] = useState(false)
   const [emailLogs, setEmailLogs] = useState<EmailLogEntry[] | null>(null)
   const [contacts, setContacts] = useState<ContactEntry[] | null>(null)
@@ -169,18 +170,18 @@ export function DelegateDrawer({ delegate, committees, intra = false, onClose, o
     })
   }
 
-  const confirmResend = () => {
-    if (!resendTarget) return
-    setResending(true)
-    resendEmail(resendTarget.id)
+  const confirmNotice = () => {
+    if (!noticeTarget || !delegate) return
+    setSendingNotice(true)
+    sendNoticeNow(delegate.id, noticeTarget)
       .then((res) => {
         if (res.success) {
-          toast.success("Email sent again.")
-          setResendTarget(null)
+          toast.success("Sent.")
+          setNoticeTarget(null)
           loadLogs()
-        } else toast.error(res.error ?? "Could not send it again.")
+        } else toast.error(res.error ?? "It did not send.")
       })
-      .finally(() => setResending(false))
+      .finally(() => setSendingNotice(false))
   }
 
   const committeeName = (id: string | null) => (id ? committees.find((c) => c.id === id)?.name ?? "Unknown committee" : null)
@@ -193,10 +194,24 @@ export function DelegateDrawer({ delegate, committees, intra = false, onClose, o
 
   const d = delegate
   const meta = d ? stageOf(d) : null
-  // Bounces and spam complaints are failures too: they are why an address stops working.
-  const failedEmails = emailLogs?.filter((l) => l.status !== "SENT").length ?? 0
-  const followUpDue = !!d?.nextFollowUpAt && new Date(d.nextFollowUpAt) <= new Date()
   const seat = d?.allotment ? `${committeeName(d.allotment.committeeId)} · ${d.allotment.portfolio.name}` : null
+  const mail = emailLogs ? emailSummary(emailLogs) : null
+  const blocked = d && emailLogs ? addressBlockedIn(emailLogs, d.email) : null
+  // What can be sent now, from the delegate's current state. Each builds the
+  // current version, so none is called "send again".
+  const lastRegistration = emailLogs?.find((l) => l.template === "registration-received")
+  const notices = d
+    ? ([
+        lastRegistration && EMAIL_STATUS[lastRegistration.status]?.tone === "bad" && lastRegistration.status === "FAILED"
+          ? { key: "registration", label: "Retry registration notice", about: "That their registration was received." }
+          : null,
+        d.allotment?.emailSentAt ? { key: "allotment", label: "Send current seat details", about: `Their seat now: ${seat ?? ""}.` } : null,
+        d.payment && ["PENDING", "SENT"].includes(d.payment.status) && d.payment.paymentLink
+          ? { key: "payment", label: "Send current payment link", about: `The link to pay ₹${d.payment.amountInr.toLocaleString("en-IN")}.` }
+          : null,
+      ].filter(Boolean) as { key: "registration" | "allotment" | "payment"; label: string; about: string }[])
+    : []
+  const followUpDue = !!d?.nextFollowUpAt && new Date(d.nextFollowUpAt) <= new Date()
   const unpaid = d?.payment && ["PENDING", "SENT", "FAILED"].includes(d.payment.status)
   const choices = d
     ? [
@@ -345,6 +360,54 @@ export function DelegateDrawer({ delegate, committees, intra = false, onClose, o
                         <p className="font-medium">Removed from the event</p>
                         <p className="mt-1 text-sm text-muted-foreground">Their seat, if they had one, went back on the board.</p>
                       </>
+                    )}
+                    {/* Email them now: the current version, to the current address. A
+                        bounced or spam-flagged address is fixed first, not retried. */}
+                    {blocked ? (
+                      <div className="mt-4 space-y-2 border-t border-border/60 pt-4 text-sm">
+                        <p className="flex items-center gap-2 font-medium text-destructive">
+                          <AlertCircle className="size-4" />
+                          {blocked === "BOUNCED" ? `${d.email} bounced.` : `${d.email} marked our email as spam.`}
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          <Button size="sm" variant="outline" onClick={() => setEditing(true)}>Fix the address</Button>
+                          <a
+                            href={`https://wa.me/${d.whatsapp.replace(/\D/g, "")}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={buttonVariants({ size: "sm", variant: "ghost" })}
+                          >
+                            Message on WhatsApp
+                          </a>
+                        </div>
+                      </div>
+                    ) : notices.length > 0 && (
+                      <div className="mt-4 space-y-2 border-t border-border/60 pt-4 text-sm">
+                        {noticeTarget ? (
+                          <>
+                            <p>
+                              <span className="font-medium">{`To ${d.email}: `}</span>
+                              {notices.find((n) => n.key === noticeTarget)?.about}
+                            </p>
+                            <div className="flex gap-2">
+                              <Button size="sm" disabled={sendingNotice} onClick={confirmNotice}>
+                                <Send className="size-3.5" /> {sendingNotice ? "Sending…" : "Send it"}
+                              </Button>
+                              <Button size="sm" variant="ghost" disabled={sendingNotice} onClick={() => setNoticeTarget(null)}>
+                                Cancel
+                              </Button>
+                            </div>
+                          </>
+                        ) : (
+                          <div className="flex flex-wrap gap-2">
+                            {notices.map((n) => (
+                              <Button key={n.key} size="sm" variant="ghost" onClick={() => setNoticeTarget(n.key)}>
+                                <Mail className="size-3.5" /> {n.label}
+                              </Button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
                     )}
                     {followUpDue && (
                       <p className="mt-4 flex items-center gap-2 text-sm font-medium text-amber-700 dark:text-amber-300">
@@ -496,53 +559,30 @@ export function DelegateDrawer({ delegate, committees, intra = false, onClose, o
                       </div>
                     </Section>
 
-                    <Section
-                      title="Emails"
-                      hint={emailLogs === null ? undefined : failedEmails > 0 ? `${failedEmails} failed` : emailLogs.length === 0 ? "none yet" : `${emailLogs.length} sent`}
-                      alert={failedEmails > 0}
-                      defaultOpen={failedEmails > 0}
-                    >
+                    <Section title="Emails" hint={mail?.hint} alert={mail?.alert} defaultOpen={mail?.alert}>
                       {emailLogs && emailLogs.length > 0 ? (
                         <ul className="space-y-1">
-                          {emailLogs.map((log) => (
-                            <li key={log.id} className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-muted/40">
-                              <span className={cn("size-2 shrink-0 rounded-full", log.status === "SENT" ? "bg-emerald-500" : "bg-red-500")} />
-                              <div className="min-w-0 flex-1">
-                                <p className="truncate">{EMAIL_LABEL[log.template] ?? log.template}</p>
-                                <p className="text-xs text-muted-foreground">
-                                  {formatDate(log.sentAt)}
-                                  {log.status !== "SENT" && (
-                                    <span className="text-destructive">
-                                      {log.status === "BOUNCED"
-                                        ? " · bounced, address suppressed"
-                                        : log.status === "COMPLAINED"
-                                          ? " · marked as spam"
-                                          : log.status === "DEFERRED"
-                                            ? " · delayed by their mail server"
-                                            : " · did not send"}
-                                    </span>
+                          {emailLogs.map((log) => {
+                            const st = EMAIL_STATUS[log.status] ?? { label: log.status.toLowerCase(), tone: "bad" as const }
+                            return (
+                              <li key={log.id} className="flex items-start gap-3 rounded-lg px-2 py-2">
+                                <span
+                                  className={cn(
+                                    "mt-1.5 size-2 shrink-0 rounded-full",
+                                    st.tone === "ok" ? "bg-emerald-500" : st.tone === "wait" ? "bg-amber-500" : "bg-red-500",
                                   )}
-                                </p>
-                              </div>
-                              {/* Confirmed in place: a dialog opened from inside this
-                                  drawer lands behind its focus trap. */}
-                              {resendTarget?.id === log.id ? (
-                                <span className="flex items-center gap-1">
-                                  <span className="text-xs text-muted-foreground">Send again?</span>
-                                  <Button variant="ghost" size="sm" className="text-xs" disabled={resending} onClick={() => setResendTarget(null)}>
-                                    Cancel
-                                  </Button>
-                                  <Button size="sm" className="text-xs" disabled={resending} onClick={confirmResend}>
-                                    {resending ? "Sending…" : "Send"}
-                                  </Button>
-                                </span>
-                              ) : (
-                                <Button variant="ghost" size="sm" className="text-xs" onClick={() => setResendTarget(log)}>
-                                  <RefreshCw className="size-3.5" /> Send again
-                                </Button>
-                              )}
-                            </li>
-                          ))}
+                                />
+                                <div className="min-w-0 flex-1">
+                                  <p className="truncate">{emailLabel(log.template)}</p>
+                                  <p className="text-xs text-muted-foreground">
+                                    {`${formatDate(log.sentAt)} · ${log.toEmail} · `}
+                                    <span className={st.tone === "bad" ? "text-destructive" : ""}>{st.label}</span>
+                                  </p>
+                                  {st.tone === "bad" && log.error && <p className="truncate text-xs text-muted-foreground">{log.error.replace(/\s*\[ses:[^\]]+\]$/, "")}</p>}
+                                </div>
+                              </li>
+                            )
+                          })}
                         </ul>
                       ) : (
                         <p className="text-muted-foreground">{emailLogs === null ? "Loading…" : "Nothing sent yet."}</p>

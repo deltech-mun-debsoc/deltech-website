@@ -5,7 +5,7 @@ import { requireStaff, requireAdmin } from "@/lib/authz"
 import { audit } from "@/lib/audit"
 import { getActiveProvider } from "@/lib/payments"
 import { delegateInclude, serializeDelegate, type SerializedDelegate, type EmailLogEntry } from "./_lib/types"
-import { sendAllotmentEmail, sendPaymentConfirmed, resendByLogId, sendRegistrationEmails } from "@/lib/resend"
+import { sendAllotmentEmail, sendPaymentConfirmed, sendDelegateNotice, noticeForTemplate, sendRegistrationEmails, type DelegateNotice } from "@/lib/resend"
 import { syncSheetCell, syncSheetForDelegate } from "@/lib/sheet-sync"
 import { detailedChangeMeta } from "@/lib/audit-change"
 import { revalidatePath } from "next/cache"
@@ -494,21 +494,42 @@ export async function getDelegateEmailLogs(delegateId: string): Promise<EmailLog
     where: { delegateId },
     orderBy: { sentAt: "desc" },
     take: 50,
-    select: { id: true, template: true, status: true, error: true, sentAt: true },
+    select: { id: true, template: true, toEmail: true, status: true, error: true, sentAt: true },
   })
   return logs.map((l) => ({ ...l, sentAt: l.sentAt.toISOString() }))
 }
 
+// Retry a failed notice from the dashboard. Builds it from the delegate's
+// current seat and address (the old log's address may since have been fixed,
+// which used to make this send nothing and still report success).
 export async function resendEmail(
   logId: string,
 ): Promise<{ success: boolean; error?: string }> {
   const session = await requireStaff()
   try {
-    await resendByLogId(logId)
-    await audit(session.user?.email ?? "unknown", "email.resend", "EmailLog", logId)
+    const log = await prisma.emailLog.findUniqueOrThrow({ where: { id: logId } })
+    const notice = noticeForTemplate(log.template)
+    if (!notice || !log.delegateId) throw new Error("This one can't be sent again from here.")
+    await sendDelegateNotice(log.delegateId, notice, log.toEmail)
+    await audit(session.user?.email ?? "unknown", "email.resend", "EmailLog", logId, { notice })
     return { success: true }
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Resend failed." }
+    return { success: false, error: err instanceof Error ? err.message : "It did not send." }
+  }
+}
+
+// From the delegate's record: send them the current version of one notice now.
+export async function sendNoticeNow(
+  delegateId: string,
+  notice: DelegateNotice,
+): Promise<{ success: boolean; error?: string }> {
+  const session = await requireStaff()
+  try {
+    await sendDelegateNotice(delegateId, notice)
+    await audit(session.user?.email ?? "unknown", "email.notice", "Delegate", delegateId, { notice })
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "It did not send." }
   }
 }
 
