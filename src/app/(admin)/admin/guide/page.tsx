@@ -7,6 +7,7 @@ import {
   ShieldCheck,
 } from "lucide-react"
 import { requireStaff } from "@/lib/authz"
+import { getEventCapabilities } from "@/lib/event"
 import { PageHeader } from "../../_components/page-header"
 
 const LAUNCH_SEQUENCE = [
@@ -41,6 +42,8 @@ const PERMISSIONS = [
 export default async function OperatorGuidePage() {
   const session = await requireStaff()
   const role = (session.user as { role?: string }).role ?? "MAINTAINER"
+  const caps = await getEventCapabilities()
+  const dailyWork = DAILY_WORK.filter((item) => item.href !== "/admin/import" || caps.crossDelegations)
 
   return (
     <div className="space-y-12 pb-12">
@@ -80,7 +83,7 @@ export default async function OperatorGuidePage() {
         <p className="data-label text-primary">02 · Daily desk</p>
         <h2 className="mt-3 font-heading text-4xl">Daily work</h2>
         <div className="mt-8 grid border-l border-t border-foreground/20 md:grid-cols-2">
-          {DAILY_WORK.map((item, index) => (
+          {dailyWork.map((item, index) => (
             <Link key={item.title} href={item.href} className="group min-h-56 border-b border-r border-foreground/20 p-7 transition-colors hover:bg-primary/[0.045]">
               <span className="font-mono text-sm font-semibold text-primary">0{index + 1}</span>
               <h3 className="mt-8 font-heading text-3xl">{item.title}</h3>

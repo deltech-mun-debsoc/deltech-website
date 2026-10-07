@@ -10,7 +10,7 @@ import { syncSheetCell, syncSheetForDelegate } from "@/lib/sheet-sync"
 import { detailedChangeMeta } from "@/lib/audit-change"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
-import { getActiveEvent } from "@/lib/event"
+import { getActiveEvent, getEventCapabilities } from "@/lib/event"
 import { DTU_INSTITUTION } from "@/lib/schemas/register"
 
 export interface DelegateEditData {
@@ -151,7 +151,7 @@ export async function addDelegate(
 
   const event = await getActiveEvent()
   if (!event) return { success: false, error: "Start an event in Setup first." }
-  const intra = event.kind === "INTRA_MUN"
+  const intra = (await getEventCapabilities()).intra
   if (intra && !v.rollNumber) return { success: false, error: "Enter their DTU roll number." }
   const isDtu = intra || v.isDtu
   const institution = isDtu ? DTU_INSTITUTION : v.institution
@@ -404,6 +404,8 @@ export async function regeneratePaymentLink(
   delegateId: string,
 ): Promise<{ success: boolean; error?: string; warning?: string; delegate?: SerializedDelegate }> {
   const session = await requireStaff()
+  // The button is only shown for a paid event; this is the guard.
+  if (!(await getEventCapabilities()).payments) return { success: false, error: "This event is free, so there is nothing to charge." }
   try {
     const delegate = await prisma.delegate.findUniqueOrThrow({
       where: { id: delegateId },

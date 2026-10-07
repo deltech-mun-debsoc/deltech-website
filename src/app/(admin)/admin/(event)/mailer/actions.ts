@@ -329,9 +329,12 @@ export async function draftMailForDelegates(input: { ids?: string[]; filters?: F
   if (picked.length === 0) return { success: false, error: "Nobody to mail: no delegate in this event matches." }
   if (picked.length > MAX_PICKED) return { success: false, error: `Pick at most ${MAX_PICKED} delegates for one mail.` }
 
-  // One person who still owes money is almost always being chased for it.
+  // One person who still owes money is almost always being chased for it. A free
+  // event has nobody to chase.
   const presetKey =
-    picked.length === 1 && (picked[0].status === "ALLOTTED" || picked[0].status === "PAYMENT_SENT") ? "payment-nudge" : "custom"
+    event.paymentsEnabled && picked.length === 1 && (picked[0].status === "ALLOTTED" || picked[0].status === "PAYMENT_SENT")
+      ? "payment-nudge"
+      : "custom"
   const draft = await presetDraft(presetKey)
 
   const created = await prisma.mailCampaign.create({

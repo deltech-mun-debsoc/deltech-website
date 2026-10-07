@@ -17,6 +17,7 @@ import { SeatPicker } from "./seat-picker"
 import { DelegateDrawer } from "../../registrations/_components/delegate-drawer"
 import { getDelegateForDrawer } from "../../registrations/actions"
 import type { SerializedDelegate as DrawerDelegate } from "../../registrations/_lib/types"
+import { delegateLine } from "../../registrations/_lib/status"
 import { useAllotmentLive } from "../_lib/use-allotment-live"
 import type { CommitteeType, PortfolioStatus } from "@/generated/prisma/client"
 
@@ -59,6 +60,8 @@ export interface SerializedCommittee {
 
 export interface SerializedDelegate {
   id: string
+  // REGISTERED, or CONFIRMED: accepted with nothing to pay, no seat yet.
+  status: string
   fullName: string
   email: string
   institution: string
@@ -108,10 +111,6 @@ const EXPERIENCE_ITEMS = [
   { value: "yes", label: "Experienced" },
   { value: "no", label: "First-timers" },
 ]
-
-export function delegateLine(d: Pick<SerializedDelegate, "rollNumber" | "isDtu" | "institution">) {
-  return d.rollNumber ?? (d.isDtu ? "DTU" : d.institution)
-}
 
 export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, eventId, focusDelegateId, intra }: Props) {
   const router = useRouter()
@@ -357,7 +356,8 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, 
                       delegate={d}
                       committees={committees}
                       fees={fees}
-                      paymentsRequired={paymentsRequired}
+                      // Someone already accepted owes nothing for the seat.
+                      paymentsRequired={paymentsRequired && d.status === "REGISTERED"}
                       onAllotted={handleAllotted}
                       onGone={done}
                     />

@@ -57,8 +57,14 @@ export function buildDelegateWhere(params: FilterParams, now: Date = new Date())
 
   if (andConditions.length > 0) where.AND = andConditions
 
-  if (params.status && VALID_STATUSES.has(params.status)) {
+  if (params.status === "NEEDS_SEAT") {
+    // Accepted with nothing to pay, but no seat: see stageOf.
+    where.status = "CONFIRMED"
+    where.allotment = { is: null }
+  } else if (params.status && VALID_STATUSES.has(params.status)) {
     where.status = params.status as AppStatus
+    // "Confirmed" means a seat to sit in; the seatless ones are NEEDS_SEAT.
+    if (params.status === "CONFIRMED") where.allotment = { isNot: null }
   }
 
   if (params.source && VALID_SOURCES.has(params.source)) {

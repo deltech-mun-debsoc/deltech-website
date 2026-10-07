@@ -20,7 +20,7 @@ import type { SerializedDelegate } from "../_lib/types"
 import type { SortField } from "../_lib/build-where"
 import { draftMailForDelegates } from "../../mailer/actions"
 import { DelegateDrawer } from "./delegate-drawer"
-import { statusMeta } from "../_lib/status"
+import { NEEDS_SEAT, stageOf, statusMeta } from "../_lib/status"
 
 interface Committee { id: string; name: string; slug: string }
 
@@ -44,12 +44,14 @@ interface Props {
   committees: Committee[]
   total: number
   filters: Filters
-  // Intra MUN: every delegate is a DTU student, so college, DTU, accommodation
-  // and source say nothing; the roll number does.
-  intra?: boolean
+  // What this event offers (eventCapabilities). An Intra MUN: every delegate is
+  // a DTU student, so college, DTU, accommodation and source say nothing; the roll
+  // number does. A free event has no payment stages to filter or chase.
+  caps: { intra: boolean; payments: boolean; crossDelegations: boolean }
 }
 
-const STATUS_OPTIONS = ["REGISTERED", "ALLOTTED", "PAYMENT_SENT", "CONFIRMED", "CANCELLED", "WAITLISTED"]
+const STATUS_OPTIONS = ["REGISTERED", "ALLOTTED", "PAYMENT_SENT", "CONFIRMED", NEEDS_SEAT, "CANCELLED", "WAITLISTED"]
+const PAYMENT_STAGES = new Set(["ALLOTTED", "PAYMENT_SENT"])
 const SOURCE_OPTIONS = ["SELF", "CROSS_DEL", "SPONSORED", "INTERNAL", "MANUAL"]
 
 const SOURCE_LABEL: Record<string, string> = {
@@ -101,7 +103,12 @@ function SortHeader({ label, field, currentSort, currentDir, onSort }: {
   )
 }
 
-export function RegistrationsClient({ delegates, committees, total, filters, intra = false }: Props) {
+export function RegistrationsClient({ delegates, committees, total, filters, caps }: Props) {
+  const intra = caps.intra
+  const statusOptions = STATUS_OPTIONS.filter(
+    (s) => (caps.payments || !PAYMENT_STAGES.has(s)) && (s !== NEEDS_SEAT || caps.crossDelegations),
+  )
+  const followUpItems = caps.payments ? FOLLOW_UP_ITEMS : FOLLOW_UP_ITEMS.filter((i) => i.value !== "never")
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [drafting, startDrafting] = useTransition()
@@ -130,7 +137,7 @@ export function RegistrationsClient({ delegates, committees, total, filters, int
   }
 
   const statusItems = useMemo(
-    () => [{ value: "", label: "Every stage" }, ...STATUS_OPTIONS.map((s) => ({ value: s, label: statusMeta(s).label }))],
+    () => [{ value: "", label: "Every stage" }, ...statusOptions.map((s) => ({ value: s, label: statusMeta(s).label }))],
     []
   )
   const sourceItems = useMemo(
@@ -232,7 +239,7 @@ export function RegistrationsClient({ delegates, committees, total, filters, int
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="">Every stage</SelectItem>
-              {STATUS_OPTIONS.map((s) => (
+              {statusOptions.map((s) => (
                 <SelectItem key={s} value={s}>
                   <span className={cn("size-2 rounded-full", statusMeta(s).dot)} />
                   {statusMeta(s).label}
@@ -295,14 +302,14 @@ export function RegistrationsClient({ delegates, committees, total, filters, int
 
         {moreOpen && (
           <div className="flex flex-wrap items-center gap-2 rounded-lg bg-muted/40 p-2">
-            <Select items={FOLLOW_UP_ITEMS} value={filters.followUp || undefined} onValueChange={(v) => navigate({ followUp: v || "" })}>
+            <Select items={followUpItems} value={filters.followUp || undefined} onValueChange={(v) => navigate({ followUp: v || "" })}>
               <SelectTrigger size="sm" className="w-44">
                 <SelectValue placeholder="Any follow-up" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="">Any follow-up</SelectItem>
                 <SelectItem value="due">Follow-up due</SelectItem>
-                <SelectItem value="never">Unpaid, never called</SelectItem>
+                {caps.payments && <SelectItem value="never">Unpaid, never called</SelectItem>}
               </SelectContent>
             </Select>
             <Select items={QUERY_ITEMS} value={filters.query || undefined} onValueChange={(v) => navigate({ query: v || "" })}>
@@ -438,9 +445,9 @@ export function RegistrationsClient({ delegates, committees, total, filters, int
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    <span className={cn("inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium", statusMeta(d.status).pill)}>
-                      <span className={cn("size-1.5 rounded-full", statusMeta(d.status).dot)} />
-                      {statusMeta(d.status).label}
+                    <span className={cn("inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium", stageOf(d).pill)}>
+                      <span className={cn("size-1.5 rounded-full", stageOf(d).dot)} />
+                      {stageOf(d).label}
                     </span>
                   </td>
                   {!intra && (<>

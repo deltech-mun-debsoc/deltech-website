@@ -10,7 +10,7 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { t } from "@/content/strings";
 import { getContent } from "@/lib/settings";
-import { STATUS_LABEL, STATUS_VARIANT, PAY_STATUS_LABEL } from "@/lib/status-labels";
+import { STATUS_LABEL, STATUS_VARIANT, PAY_STATUS_LABEL, delegateFacingStatus } from "@/lib/status-labels";
 import { deriveEventState } from "@/lib/event-state";
 import { publicPaymentLink } from "@/lib/payments/public-link";
 import { mySeats } from "@/lib/committee/viewer";
@@ -52,7 +52,7 @@ export default async function DashboardPage() {
   const draft = !!delegate?.allotment && !delegate.allotment.emailSentAt;
   const allotment = draft ? null : delegate?.allotment;
   const payment = draft ? null : delegate?.payment;
-  const status = draft ? "REGISTERED" : delegate?.status;
+  const status = delegate ? delegateFacingStatus(delegate.status, delegate.allotment) : undefined;
   // Only an online seat has a chat to open, and only a verified account gets one.
   const onlineSeats = await mySeats();
   const needsPayment =

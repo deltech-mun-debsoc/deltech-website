@@ -175,6 +175,15 @@ export function EventSettings({
             onChange={(next) => set("paymentsEnabled", next)}
             locked={!canManagePayments}
           />
+          {!intra && (
+            <Toggle
+              id="event-cross-delegations"
+              title="Cross delegations"
+              body="Colleges send delegates in bulk, from a file or a linked sheet."
+              checked={v.crossDelegationsEnabled}
+              onChange={(next) => set("crossDelegationsEnabled", next)}
+            />
+          )}
         </div>
       </section>
 
