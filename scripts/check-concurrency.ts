@@ -64,6 +64,18 @@ const read = (p: string) => readFileSync(p, "utf8")
     "the claim must be checked before a pay link is made",
   )
   assert.match(release, /data: \{ emailSentAt: null \}/, "a failed release must return the claim")
+
+  // Emailing everyone again claims on the emailSentAt it read, so two presses
+  // send once, never touches a draft, and gives the old time back on failure.
+  const resend = src.slice(src.indexOf("export async function resendAllotmentEmails"), src.indexOf("export async function revokeAllotment"))
+  assert.match(resend, /emailSentAt: \{ lt: /, "a resend must skip drafts and anyone just emailed")
+  assert.match(resend, /where: \{ delegateId, emailSentAt \}/, "a resend must claim on the value it read")
+  assert.ok(
+    resend.indexOf("claim.count === 0") < resend.indexOf("sendAllotmentEmail("),
+    "the resend claim must be checked before the email goes",
+  )
+  assert.match(resend, /data: \{ emailSentAt \}/, "a failed resend must return the claim")
+  assert.doesNotMatch(resend, /createPaymentLink|status: "PAYMENT_SENT"|status: "CONFIRMED"/, "a resend must not change what anyone owes")
 }
 
 // Only the seat picker knows whether it took the hold, so only it may release

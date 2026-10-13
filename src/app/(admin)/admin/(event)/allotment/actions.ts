@@ -9,6 +9,7 @@ import { sendAllotmentEmail } from "@/lib/resend"
 import { syncSheetCell, syncSheetForDelegate } from "@/lib/sheet-sync"
 import { getContent } from "@/lib/settings"
 import { deriveEventState } from "@/lib/event-state"
+import { currentEventScope } from "@/lib/event"
 
 function isPrismaP2002(err: unknown): boolean {
   // Prisma unique constraint violation
@@ -295,6 +296,58 @@ export async function emailAllotments(
       })
     }
   }
+  return { sent, failed }
+}
+
+// ── resendAllotmentEmails ──────────────────────────────────────────────────────
+// Sends the allotment email again to everyone already told, for when the email
+// itself changed. Drafts are left alone: they go out through emailAllotments.
+// On a paid event anyone whose payment is settled is skipped, because the email
+// carries the pay button.
+//
+// Each delegate is claimed by moving emailSentAt on from the value just read, so
+// two staff pressing this at once send one email, not two. Anyone emailed in the
+// last ten minutes is left out, which covers a second press while the first run
+// is still going. A failed send puts the old time back, so a retry picks them up.
+const RESEND_COOLDOWN_MS = 10 * 60 * 1000
+
+export async function resendAllotmentEmails(): Promise<{ sent: number; failed: { name: string; reason: string }[] }> {
+  const session = await requireStaff()
+  const adminEmail = session.user?.email ?? "admin"
+  const paymentsEnabled = deriveEventState(await getContent()).paymentsRequired
+  const scope = await currentEventScope()
+
+  const due = await prisma.allotment.findMany({
+    where: {
+      emailSentAt: { lt: new Date(Date.now() - RESEND_COOLDOWN_MS) },
+      delegate: {
+        ...scope,
+        ...(paymentsEnabled ? { NOT: { payment: { status: { in: ["PAID", "OFFLINE", "COMPED"] } } } } : {}),
+      },
+    },
+    orderBy: { allottedAt: "asc" },
+    select: { delegateId: true, emailSentAt: true, delegate: { select: { fullName: true } } },
+  })
+
+  let sent = 0
+  const failed: { name: string; reason: string }[] = []
+  // Sequential on purpose: the mail transport is rate limited.
+  for (const { delegateId, emailSentAt, delegate } of due) {
+    const claim = await prisma.allotment.updateMany({
+      where: { delegateId, emailSentAt },
+      data: { emailSentAt: new Date() },
+    })
+    if (claim.count === 0) continue
+    try {
+      await sendAllotmentEmail(delegateId, { force: true })
+      sent++
+    } catch (err) {
+      await prisma.allotment.updateMany({ where: { delegateId }, data: { emailSentAt } })
+      console.error("[resendAllotmentEmails]", delegateId, err)
+      failed.push({ name: delegate.fullName, reason: "the email did not send" })
+    }
+  }
+  await audit(adminEmail, "allotment.resendAll", "Event", scope.eventId, { sent, failed: failed.length })
   return { sent, failed }
 }
 
