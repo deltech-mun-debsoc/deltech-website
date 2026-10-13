@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
+import { Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -12,7 +13,7 @@ import { MERGE_FIELDS } from "@/lib/mailer/merge"
 import { MAIL_PRESETS } from "@/lib/mailer/presets"
 import { STAGE_SHORTCUTS } from "@/lib/mailer/audience"
 import { statusMeta } from "../../registrations/_lib/status"
-import { presetDraft, previewMail, saveCampaign, scheduleCampaign, sendTestMail, type CampaignInput } from "../actions"
+import { draftMailWithAI, presetDraft, previewMail, saveCampaign, scheduleCampaign, sendTestMail, type CampaignInput } from "../actions"
 
 const STATUSES = ["REGISTERED", "ALLOTTED", "PAYMENT_SENT", "CONFIRMED", "WAITLISTED", "CANCELLED"] as const
 // Stages that only exist when the event charges delegates.
@@ -165,6 +166,25 @@ export function Composer({
       setCtaUrl(d.ctaUrl ?? "")
     })
 
+  // The organiser says what the mail must cover and the model writes it into the
+  // fields below, where it is edited, previewed and sent like any other.
+  const [notes, setNotes] = useState("")
+  const [drafting, startDraft] = useTransition()
+  const draftFromNotes = () =>
+    startDraft(async () => {
+      const r = await draftMailWithAI(audience, notes)
+      if (!r.success) {
+        toast.error(r.error)
+        return
+      }
+      setPreset("custom")
+      setSubject(r.draft.subject)
+      setBody(r.draft.body)
+      setCtaLabel(r.draft.ctaLabel ?? "")
+      setCtaUrl(r.draft.ctaUrl ?? "")
+      toast.success("Drafted. Read it through before sending.")
+    })
+
   const save = (then?: (id: string) => void) =>
     startTransition(async () => {
       const r = await saveCampaign(input())
@@ -315,6 +335,24 @@ export function Composer({
             {presets.map((p) => (
               <Chip key={p.key} on={preset === p.key} onClick={() => applyPreset(p.key)}>{p.label}</Chip>
             ))}
+          </div>
+        </section>
+
+        <section className="space-y-2">
+          <Label htmlFor="mail-notes">Or have it written for you</Label>
+          <Textarea
+            id="mail-notes"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={3}
+            maxLength={4000}
+            placeholder={`What the mail must cover: the news, any date, time, place and links.`}
+          />
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <Button variant="outline" size="sm" disabled={pending || drafting || notes.trim().length < 10} onClick={draftFromNotes}>
+              <Sparkles /> {drafting ? "Writing…" : "Write the mail"}
+            </Button>
+            <p className="text-[11px] text-muted-foreground">{`Replaces the subject, message and button below. Your notes go to the AI provider, so leave delegates' personal details out.`}</p>
           </div>
         </section>
 
