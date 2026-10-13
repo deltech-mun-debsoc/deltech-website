@@ -3,14 +3,15 @@
 import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { Mail, Search, Undo2 } from "lucide-react"
+import { Mail, MoreHorizontal, Search, Undo2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { emailAllotments, revokeAllotment } from "../actions"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { emailAllotments, resendAllotmentEmails, revokeAllotment } from "../actions"
 import { committeeDemand, delegateChoices, ORDINAL } from "../_lib/balance"
 import { experienceScore } from "../_lib/experience"
 import { SeatPicker } from "./seat-picker"
@@ -194,6 +195,26 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, 
       setPicked(new Set())
     }
   }
+  const emailed = seated.length - unsent.length
+  const [confirmResend, setConfirmResend] = useState(false)
+  const resendAll = async () => {
+    setSending("resend")
+    try {
+      const { sent, failed } = await resendAllotmentEmails()
+      if (sent) toast.success(`Emailed ${sent} ${sent === 1 ? "delegate" : "delegates"} again.`)
+      else if (failed.length === 0) toast.info("Nobody to email again. Anyone emailed in the last ten minutes is skipped.")
+      if (failed.length > 0) {
+        const names = failed.slice(0, 3).map((f) => f.name).join(", ")
+        toast.error(`${failed.length} did not send (${names}${failed.length > 3 ? ", …" : ""}). Email everyone again in ten minutes to retry only these.`, { duration: 15000 })
+      }
+      refreshAndNotify()
+    } catch {
+      toast.error("Could not reach the server. Try again.")
+    } finally {
+      setSending(null)
+      setConfirmResend(false)
+    }
+  }
   const seatedShown = seated.filter(({ portfolio: p, committee: c }) =>
     matches([p.allotment!.delegate.fullName, p.allotment!.delegate.email, p.name, c.name]),
   )
@@ -371,7 +392,25 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, 
         <section className="editorial-card overflow-hidden">
           <header className="flex items-baseline justify-between border-b border-border/60 px-4 py-3">
             <h2 className="font-heading text-lg">Seated</h2>
-            <span className="text-sm tabular-nums text-muted-foreground">{seated.length}</span>
+            <div className="flex items-center gap-1 self-center">
+              <span className="text-sm tabular-nums text-muted-foreground">{seated.length}</span>
+              {emailed > 0 && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    disabled={!!sending}
+                    aria-label="More allotment email actions"
+                    className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+                  >
+                    <MoreHorizontal className="size-4" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-52">
+                    <DropdownMenuItem className="gap-2" onClick={() => setConfirmResend(true)}>
+                      <Mail className="size-3.5" /> Email everyone again…
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
           </header>
           {unsent.length > 0 && (
             <div className="flex items-center justify-between gap-3 border-b border-border/60 bg-amber-500/5 px-4 py-2.5 text-sm">
@@ -459,6 +498,20 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, 
         confirmLabel={`Email ${selected.length || unsent.length}`}
         pending={sending === "all"}
         onConfirm={() => void send(selected.length > 0 ? selected : [...unsentIds], "all")}
+      />
+
+      <ConfirmDialog
+        open={confirmResend}
+        onOpenChange={(next) => !next && setConfirmResend(false)}
+        title="Email everyone again?"
+        description={
+          paymentsRequired
+            ? `Up to ${emailed} ${emailed === 1 ? "delegate" : "delegates"} already emailed get the allotment email a second time, with their payment link. Anyone who has paid is skipped, and so are drafts.`
+            : `${emailed} ${emailed === 1 ? "delegate" : "delegates"} already emailed ${emailed === 1 ? "gets" : "get"} the allotment email a second time. Drafts are not sent.`
+        }
+        confirmLabel="Email everyone again"
+        pending={sending === "resend"}
+        onConfirm={() => void resendAll()}
       />
 
       <ConfirmDialog
