@@ -18,7 +18,9 @@ import {
   parseContactAudience,
   parseDelegateAudience,
 } from "@/lib/mailer/audience"
-import { paragraphs, renderMerge, unfilledFields, type MergeVars } from "@/lib/mailer/merge"
+import { ctaUrlOk, paragraphs, renderMerge, unfilledFields, type MergeVars } from "@/lib/mailer/merge"
+import { DRAFT_NOTES_MAX, DRAFT_NOTES_MIN, draftPrompt, parseDraft } from "@/lib/mailer/ai-draft"
+import { AIRateLimitError, callAI } from "@/lib/ai"
 import { presetFor, type PresetDraft } from "@/lib/mailer/presets"
 import { buildDelegateWhere, type FilterParams } from "@/app/(admin)/admin/(event)/registrations/_lib/build-where"
 import { baseMergeVars, dailyCap, PR_MAIL_SETTING, prMailEnabled, processMailQueue, recipientMergeVars } from "@/lib/mailer/queue"
@@ -51,7 +53,7 @@ function validate(input: CampaignInput): string | null {
   const url = input.ctaUrl?.trim() ?? ""
   if (label.length > 60) return "Keep the button label short."
   if (!!label !== !!url) return "A button needs both a label and a link."
-  if (url && !/^https:\/\/\S+$/.test(url) && !/^\{(statusLink|registerLink|whatsapp)\}$/.test(url)) {
+  if (url && !ctaUrlOk(url)) {
     return "The button link must start with https://, or be {statusLink} or {registerLink}."
   }
   return null
@@ -105,6 +107,32 @@ export async function presetDraft(key: string): Promise<PresetDraft> {
     paymentDeadline: content.paymentDeadline,
     daysToGo,
   })
+}
+
+// A first draft written by the model from the organiser's notes. It fills the
+// composer and nothing else: saving, testing and sending are the same steps as
+// for a mail typed by hand.
+export async function draftMailWithAI(
+  audience: CampaignInput["audience"],
+  notes: string,
+): Promise<Result<{ draft: PresetDraft }>> {
+  await requireStaff()
+  if (audience !== "DELEGATES" && audience !== "CONTACTS") return { success: false, error: "Choose who this goes to." }
+  const text = typeof notes === "string" ? notes.trim() : ""
+  if (text.length < DRAFT_NOTES_MIN) return { success: false, error: "Say what the mail should cover first." }
+  if (text.length > DRAFT_NOTES_MAX) return { success: false, error: "Keep the notes shorter. The mail itself can be longer." }
+  const content = await getContent()
+  try {
+    const draft = parseDraft(
+      await callAI<unknown>(draftPrompt({ notes: text, audience, eventName: content.activeEventName || content.landingHero.title })),
+    )
+    if (!draft) return { success: false, error: "The draft came back unusable. Try again." }
+    return { success: true, draft }
+  } catch (err) {
+    if (err instanceof AIRateLimitError) return { success: false, error: "The AI is busy right now. Try again in a few minutes." }
+    console.error("[draftMailWithAI]", err)
+    return { success: false, error: "Could not draft the mail. Try again, or write it by hand." }
+  }
 }
 
 // Recipient count, a rendered preview for the first of them, and any merge
