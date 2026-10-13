@@ -17,6 +17,7 @@ import {
 } from "../src/lib/mailer/audience"
 import { MAIL_PRESETS, presetFor } from "../src/lib/mailer/presets"
 import { campaignStateLabel, dailyLimitNote, recoveryFor } from "../src/lib/mailer/recovery"
+import { draftFields, draftPrompt, parseDraft } from "../src/lib/mailer/ai-draft"
 
 // ── Merge fields ────────────────────────────────────────────────────────────
 {
@@ -238,4 +239,34 @@ import { campaignStateLabel, dailyLimitNote, recoveryFor } from "../src/lib/mail
   assert.match(actions, /processMailQueue\(new Date\(\), campaignId\)/, "the batch button sends this campaign only")
 }
 
-console.log("mailer checks passed (merge fields, unsubscribe tokens, audiences, frequency cap, presets, PR gate, claims, one-click unsubscribe)")
+// ── AI drafts ────────────────────────────────────────────────────────────────
+{
+  // A reply is only text for the composer: markup is stripped, a bad button is
+  // dropped, and anything unusable is refused, not half-applied.
+  assert.deepEqual(
+    parseDraft({ subject: " New  **links** ", body: "Hi {firstName},\r\n\r\n## Groups\n* **Join** here \u2014 today", ctaLabel: "Open group", ctaUrl: "https://chat.example.com/x" }),
+    { subject: "New links", body: "Hi {firstName},\n\nGroups\n- Join here, today", ctaLabel: "Open group", ctaUrl: "https://chat.example.com/x" },
+  )
+  assert.deepEqual(parseDraft({ subject: "S", body: "B", ctaLabel: "Go", ctaUrl: "javascript:alert(1)" }), { subject: "S", body: "B" }, "a button the composer would refuse is dropped")
+  assert.deepEqual(parseDraft({ subject: "S", body: "B", ctaLabel: "", ctaUrl: "{statusLink}" }), { subject: "S", body: "B" }, "a button needs a label")
+  assert.deepEqual(parseDraft({ subject: "S", body: "B", ctaLabel: "Your page", ctaUrl: "{statusLink}" }), { subject: "S", body: "B", ctaLabel: "Your page", ctaUrl: "{statusLink}" })
+  assert.equal(parseDraft({ subject: "S", body: "   " }), null, "an empty body is not a draft")
+  assert.equal(parseDraft({ subject: "S" }), null)
+  assert.equal(parseDraft("Hi there"), null)
+
+  // Outreach contacts have no seat or delegate page, so the model is never
+  // offered a field that would reach them unfilled.
+  assert.deepEqual(draftFields("CONTACTS").map((f) => f.key), ["name", "firstName", "event", "dates", "venue", "registerLink"])
+  const contacts = draftPrompt({ notes: "Registrations open Friday", audience: "CONTACTS", eventName: "Test MUN" })
+  assert.doesNotMatch(contacts, /\{statusLink\}|\{committee\}|\{whatsapp\}/)
+  const delegates = draftPrompt({ notes: "Registrations open Friday", audience: "DELEGATES", eventName: "Test MUN" })
+  assert.match(delegates, /\{statusLink\} or \{registerLink\} or \{whatsapp\}/)
+  assert.match(delegates, /Registrations open Friday/)
+
+  const actions = readFileSync("src/app/(admin)/admin/(event)/mailer/actions.ts", "utf8")
+  const draft = actions.slice(actions.indexOf("export async function draftMailWithAI"), actions.indexOf("export async function previewMail"))
+  assert.match(draft, /await requireStaff\(\)/, "drafting is staff only")
+  assert.doesNotMatch(draft, /prisma\.|sendMailerEmail|processMailQueue/, "a draft must not save or send anything")
+}
+
+console.log("mailer checks passed (merge fields, AI drafts, unsubscribe tokens, audiences, frequency cap, presets, PR gate, claims, one-click unsubscribe)")
