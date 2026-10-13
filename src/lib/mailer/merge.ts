@@ -42,6 +42,11 @@ export function unfilledFields(text: string, vars: MergeVars): string[] {
   return [...missing]
 }
 
+// What a button may link to: an https address, or a field that merges into one.
+export function ctaUrlOk(url: string): boolean {
+  return /^https:\/\/\S+$/.test(url) || /^\{(statusLink|registerLink|whatsapp)\}$/.test(url)
+}
+
 export function firstName(fullName: string): string {
   return fullName.trim().split(/\s+/)[0] ?? ""
 }
