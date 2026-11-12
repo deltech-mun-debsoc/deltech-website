@@ -77,7 +77,7 @@ export function LogsClient({
       <div className="editorial-card overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
-            <tr className="border-b border-border text-left text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+            <tr className="border-b border-border text-left text-xs font-semibold text-muted-foreground">
               <th className="px-4 py-3">When</th>
               <th className="px-4 py-3">Actor</th>
               <th className="px-4 py-3">Action</th>
@@ -142,7 +142,7 @@ export function LogsClient({
         <DrawerContent className="flex overflow-hidden sm:max-w-xl">
           <DrawerHeader className="flex-row items-start justify-between border-b border-border">
             <div>
-              <p className="font-mono text-xs uppercase tracking-wider text-muted-foreground">Activity detail</p>
+              <p className="font-mono text-xs text-muted-foreground">Activity detail</p>
               <DrawerTitle className="mt-2 text-2xl">
                 {selected ? actionLabel(selected.action) : "Activity"}
               </DrawerTitle>
@@ -155,10 +155,10 @@ export function LogsClient({
           {selected && (
             <div className="flex-1 space-y-7 overflow-y-auto p-5">
               <dl className="grid grid-cols-2 gap-5 border-b border-border pb-6 text-sm">
-                <div><dt className="text-xs uppercase tracking-wider text-muted-foreground">Actor</dt><dd className="mt-1 font-medium">{selected.actorEmail}</dd></div>
-                <div><dt className="text-xs uppercase tracking-wider text-muted-foreground">Time</dt><dd className="mt-1 font-medium">{formatDateTime(selected.at)}</dd></div>
-                <div><dt className="text-xs uppercase tracking-wider text-muted-foreground">Entity</dt><dd className="mt-1 font-medium">{selected.entity}</dd></div>
-                <div><dt className="text-xs uppercase tracking-wider text-muted-foreground">Record</dt><dd className="mt-1 break-all font-mono text-xs">{selected.entityId ?? "Multiple records"}</dd></div>
+                <div><dt className="text-xs text-muted-foreground">Actor</dt><dd className="mt-1 font-medium">{selected.actorEmail}</dd></div>
+                <div><dt className="text-xs text-muted-foreground">Time</dt><dd className="mt-1 font-medium">{formatDateTime(selected.at)}</dd></div>
+                <div><dt className="text-xs text-muted-foreground">Entity</dt><dd className="mt-1 font-medium">{selected.entity}</dd></div>
+                <div><dt className="text-xs text-muted-foreground">Record</dt><dd className="mt-1 break-all font-mono text-xs">{selected.entityId ?? "Multiple records"}</dd></div>
               </dl>
 
               {change ? (

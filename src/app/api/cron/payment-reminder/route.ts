@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { prisma } from "@/lib/prisma"
 import { currentEventScope } from "@/lib/event"
-import { sendPaymentReminder } from "@/lib/resend"
+import { addressBlocked, sendPaymentReminder } from "@/lib/resend"
 import { getContent } from "@/lib/settings"
 import { deriveEventState } from "@/lib/event-state"
 
@@ -90,15 +90,20 @@ export async function GET(req: NextRequest) {
         },
       },
     },
-    select: { id: true },
+    select: { id: true, email: true },
     take: DAILY_CAP,
   })
+  // An address that bounced or flagged us as spam is not chased by email; staff
+  // see it on the dashboard and fix it or call. Checked against the CURRENT
+  // address, so fixing it resumes reminders.
+  const reachable: typeof candidates = []
+  for (const c of candidates) if (!(await addressBlocked(c.email))) reachable.push(c)
 
   let sent = 0
   let failed = 0
 
-  for (let i = 0; i < candidates.length; i += CONCURRENCY) {
-    const batch = candidates.slice(i, i + CONCURRENCY)
+  for (let i = 0; i < reachable.length; i += CONCURRENCY) {
+    const batch = reachable.slice(i, i + CONCURRENCY)
     const results = await Promise.allSettled(batch.map(({ id }) => sendPaymentReminder(id)))
     for (const r of results) {
       if (r.status === "fulfilled") sent++
@@ -106,5 +111,5 @@ export async function GET(req: NextRequest) {
     }
   }
 
-  return NextResponse.json({ sent, failed, total: candidates.length })
+  return NextResponse.json({ sent, failed, total: reachable.length, unreachable: candidates.length - reachable.length })
 }

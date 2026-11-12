@@ -216,7 +216,7 @@ export function WriteEditor({ post }: { post: PostProps }) {
           value={title}
           rows={1}
           placeholder="Title"
-          className="w-full resize-none overflow-hidden border-0 bg-transparent font-serif text-[2.25rem] font-bold leading-tight text-gray-900 placeholder:text-gray-200 focus:outline-none"
+          className="w-full resize-none overflow-hidden border-0 bg-transparent font-serif text-[2.25rem] font-normal leading-tight text-gray-900 placeholder:text-gray-200 focus:outline-none"
           onChange={(e) => { setTitle(e.target.value); handleMarkDirty() }}
           onInput={(e) => autoGrow(e.currentTarget)}
         />

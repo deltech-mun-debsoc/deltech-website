@@ -20,7 +20,7 @@ export function RecruitmentPageHeader({
             {eyebrow}
           </p>
         )}
-        <h1 className="display mt-1 text-2xl leading-tight sm:text-3xl">{title}</h1>
+        <h1 className="mt-1 text-2xl leading-tight sm:text-3xl">{title}</h1>
         {description && (
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground">{description}</p>
         )}

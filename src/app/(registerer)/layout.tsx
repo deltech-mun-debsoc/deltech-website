@@ -11,5 +11,5 @@ export default async function RegistererLayout({ children }: { children: React.R
   if (!session) redirect("/signin");
   if (role !== "REGISTERER") redirect(roleHome(role));
 
-  return <>{children}</>;
+  return <div className="app-shell">{children}</div>;
 }

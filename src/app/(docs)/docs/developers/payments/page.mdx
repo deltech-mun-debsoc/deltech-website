@@ -21,13 +21,14 @@ received, which is an operational cost worth stating out loud when configuring o
 
 ## When a payment is created
 
-Only during allotment, and only when `paymentsRequired` is true. In `INTRA_MUN` mode no
-payment row is created at all and the delegate is confirmed immediately. See
+When a draft allotment is emailed (`emailAllotments`), and only when `paymentsRequired` is
+true. Allotting alone creates no payment. Without payments no payment row is created and the
+delegate is confirmed when the allotment is emailed. See
 [settings and content](/docs/developers/settings).
 
 The amount comes from the `Fee` table, keyed on the allotted committee's type and the
-delegate's DTU flag. It is resolved **at allotment**, so later fee edits do not reprice
-existing payments.
+delegate's DTU flag. It is resolved **when the allotment is emailed**, so later fee edits do
+not reprice existing payments.
 
 ## The Razorpay webhook
 

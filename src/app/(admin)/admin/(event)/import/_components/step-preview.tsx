@@ -5,8 +5,8 @@ import { CheckCircle2, XCircle, AlertCircle, Pencil, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Badge } from "@/components/ui/badge"
-import type { ValidatedRow, MappedRow } from "@/lib/schemas/import"
-import { mappedRowSchema } from "@/lib/schemas/import"
+import type { ValidatedRow, MappedRow, CommitteeField } from "@/lib/schemas/import"
+import { mappedRowSchema, unresolvedCommittees } from "@/lib/schemas/import"
 
 // ── Editable cell ────────────────────────────────────────────────────────────
 
@@ -108,9 +108,44 @@ interface Props {
 
 // ── Component ────────────────────────────────────────────────────────────────
 
+// A committee answer that names none of ours, with the AI's reading (if any)
+// offered as a suggestion. Nothing is applied until someone presses it.
+function CommitteeAnswer({
+  row,
+  field,
+  unresolved,
+  onRowUpdate,
+}: {
+  row: ValidatedRow
+  field: CommitteeField
+  unresolved: boolean
+  onRowUpdate: (index: number, field: keyof MappedRow, value: string) => void
+}) {
+  const suggestion = row.suggest?.[field]
+  return (
+    <div className="space-y-0.5">
+      <EditableCell
+        value={row.mapped[field]}
+        onSave={(v) => onRowUpdate(row.index, field, v)}
+        className={unresolved ? "text-amber-700 dark:text-amber-300" : ""}
+      />
+      {unresolved && suggestion && (
+        <button
+          className="text-left text-[10px] text-primary underline-offset-2 hover:underline"
+          onClick={() => onRowUpdate(row.index, field, suggestion)}
+        >
+          {`Did they mean ${suggestion}? Use it`}
+        </button>
+      )}
+      {unresolved && !suggestion && <p className="text-[10px] text-amber-700 dark:text-amber-300">Not one of our committees</p>}
+    </div>
+  )
+}
+
 export function StepPreview({
   validated,
   skipped,
+  committeeNames,
   onSkipChange,
   onRowUpdate,
   onBack,
@@ -136,10 +171,12 @@ export function StepPreview({
 
   const show = (group: ColGroup) => !hidden.has(group)
 
+  const undecided = (r: ValidatedRow) => unresolvedCommittees(r.mapped, committeeNames)
   const validCount   = validated.filter((r) => {
     const errors = revalidateErrors(r)
-    return errors.length === 0 && !skipped.has(r.index)
+    return errors.length === 0 && undecided(r).length === 0 && !skipped.has(r.index)
   }).length
+  const decideCount  = validated.filter((r) => revalidateErrors(r).length === 0 && undecided(r).length > 0 && !skipped.has(r.index)).length
   const errorCount   = validated.filter((r) => {
     const errors = revalidateErrors(r)
     return errors.length > 0 && !skipped.has(r.index)
@@ -163,6 +200,13 @@ export function StepPreview({
           <span className="font-medium text-foreground">{validCount}</span>
           <span className="text-muted-foreground">valid</span>
         </div>
+        {decideCount > 0 && (
+          <div className="flex items-center gap-1.5 text-sm">
+            <AlertCircle className="size-4 text-amber-600" />
+            <span className="font-medium text-foreground">{decideCount}</span>
+            <span className="text-muted-foreground">need a committee chosen</span>
+          </div>
+        )}
         {errorCount > 0 && (
           <div className="flex items-center gap-1.5 text-sm">
             <XCircle className="size-4 text-destructive" />
@@ -254,6 +298,7 @@ export function StepPreview({
               const isSkipped = skipped.has(row.index)
               const errors    = revalidateErrors(row)
               const hasErrors = errors.length > 0
+              const open      = undecided(row)
               return (
                 <tr
                   key={row.index}
@@ -270,20 +315,12 @@ export function StepPreview({
 
                   {/* Full name, not deletable */}
                   <td className="px-3 py-2 min-w-[120px]">
-                    <div className="flex items-center gap-1">
-                      <EditableCell
-                        value={row.mapped.fullName}
-                        onSave={(v) => onRowUpdate(row.index, "fullName", v)}
-                      />
-                      {row.aiNote && (
-                        <span
-                          title={`AI: ${row.aiNote}`}
-                          className="shrink-0 cursor-help rounded px-1 py-px text-[9px] font-semibold bg-primary/10 text-primary"
-                        >
-                          AI
-                        </span>
-                      )}
-                    </div>
+                    <EditableCell
+                      value={row.mapped.fullName}
+                      onSave={(v) => onRowUpdate(row.index, "fullName", v)}
+                    />
+                    {/* What cleaning changed, in the open rather than a tooltip. */}
+                    {row.aiNote && <p className="text-[10px] text-muted-foreground">{`Changed: ${row.aiNote}`}</p>}
                   </td>
 
                   {/* Email, not deletable */}
@@ -315,10 +352,7 @@ export function StepPreview({
                   {show("pref1") && (
                     <td className="px-3 py-2 min-w-[140px]">
                       <div className="space-y-0.5">
-                        <EditableCell
-                          value={row.mapped.committee}
-                          onSave={(v) => onRowUpdate(row.index, "committee", v)}
-                        />
+                        <CommitteeAnswer row={row} field="committee" unresolved={open.includes("committee")} onRowUpdate={onRowUpdate} />
                         <EditableCell
                           value={row.mapped.portfolio}
                           onSave={(v) => onRowUpdate(row.index, "portfolio", v)}
@@ -331,10 +365,7 @@ export function StepPreview({
                   {show("pref2") && (
                     <td className="px-3 py-2 min-w-[140px]">
                       <div className="space-y-0.5">
-                        <EditableCell
-                          value={row.mapped.committee2}
-                          onSave={(v) => onRowUpdate(row.index, "committee2", v)}
-                        />
+                        <CommitteeAnswer row={row} field="committee2" unresolved={open.includes("committee2")} onRowUpdate={onRowUpdate} />
                         <EditableCell
                           value={row.mapped.portfolio2}
                           onSave={(v) => onRowUpdate(row.index, "portfolio2", v)}
@@ -347,10 +378,7 @@ export function StepPreview({
                   {show("pref3") && (
                     <td className="px-3 py-2 min-w-[140px]">
                       <div className="space-y-0.5">
-                        <EditableCell
-                          value={row.mapped.committee3}
-                          onSave={(v) => onRowUpdate(row.index, "committee3", v)}
-                        />
+                        <CommitteeAnswer row={row} field="committee3" unresolved={open.includes("committee3")} onRowUpdate={onRowUpdate} />
                         <EditableCell
                           value={row.mapped.portfolio3}
                           onSave={(v) => onRowUpdate(row.index, "portfolio3", v)}
@@ -372,6 +400,8 @@ export function StepPreview({
                   <td className="px-3 py-2">
                     {isSkipped ? (
                       <Badge variant="outline" className="text-[10px]">skip</Badge>
+                    ) : !hasErrors && open.length > 0 ? (
+                      <p className="text-[10px] text-amber-700 dark:text-amber-300">Choose a committee</p>
                     ) : hasErrors ? (
                       <div className="space-y-0.5">
                         {errors.map((e, i) => (

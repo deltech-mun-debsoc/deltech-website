@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils";
 import { DOCS_URL } from "@/lib/app-url";
 import { t } from "@/content/strings";
 import { ThemeToggle } from "./theme-toggle";
+import { BrandMark } from "@/components/brand-logo";
 import type { Content } from "@/content/contentSchema";
 
 export function Header({ sections, registrationOpen }: { sections: Content["publicSections"]; registrationOpen: boolean }) {
@@ -35,17 +36,10 @@ export function Header({ sections, registrationOpen }: { sections: Content["publ
   return (
     <>
     <header className="sticky top-0 z-50 w-full border-b border-border/70 bg-background/90 backdrop-blur-xl">
-      <div className="section-shell flex h-20 items-center justify-between gap-5">
-        <Link href="/" className="group flex items-center gap-3 text-foreground">
-          <span className="display flex size-10 items-center justify-center rounded-full border border-foreground/25 text-xl transition-transform duration-300 group-hover:-rotate-6">
-            D
-          </span>
-          <span>
-            <span className="display block text-xl leading-none">{t("brand.name")}</span>
-            <span className="mt-1 hidden text-[0.6875rem] font-semibold uppercase tracking-[0.15em] text-muted-foreground sm:block">
-              Delhi Technological University
-            </span>
-          </span>
+      <div className="section-shell flex h-16 items-center justify-between gap-5">
+        <Link href="/" className="flex items-center gap-2.5 text-foreground">
+          <BrandMark />
+          <span className="text-lg font-semibold">{t("brand.name")}</span>
         </Link>
 
         <nav aria-label={t("nav.home")} className="hidden items-center gap-7 lg:flex">
@@ -53,6 +47,7 @@ export function Header({ sections, registrationOpen }: { sections: Content["publ
             <Link
               key={href}
               href={href}
+              aria-current={pathname === href ? "page" : undefined}
               className={cn(
                 "border-b-2 pb-1 text-[0.9375rem] font-semibold transition-colors",
                 pathname === href
@@ -78,7 +73,7 @@ export function Header({ sections, registrationOpen }: { sections: Content["publ
             href={registrationOpen ? "/register" : "/register/closed"}
             className={cn(buttonVariants({ size: "sm" }), "hidden px-5 lg:inline-flex")}
           >
-            {registrationOpen ? t("nav.register") : "Registration status"}
+            {registrationOpen ? t("nav.register") : t("marketing.registrationStatus")}
           </Link>}
 
           {/* Mobile menu toggle */}
@@ -107,25 +102,22 @@ export function Header({ sections, registrationOpen }: { sections: Content["publ
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.18 }}
-            className="fixed inset-x-0 bottom-0 top-20 z-40 overflow-y-auto border-t border-border bg-background lg:hidden"
+            className="fixed inset-x-0 bottom-0 top-16 z-40 overflow-y-auto border-t border-border bg-background lg:hidden"
           >
-            <div className="paper-grid flex min-h-full flex-col px-4 py-8">
-              <p className="eyebrow mb-5">Society index</p>
+            <div className="flex min-h-full flex-col px-4 py-6">
               <ul className="divide-y divide-border/70 border-y border-border/70">
-                {navLinks.map(({ href, label }, index) => (
+                {navLinks.map(({ href, label }) => (
                   <li key={href}>
                     <Link
                       href={href}
                       onClick={() => setOpen(false)}
+                      aria-current={pathname === href ? "page" : undefined}
                       className={cn(
-                        "flex items-center justify-between py-5 text-2xl font-heading transition-colors",
+                        "flex items-center py-4 text-lg font-semibold transition-colors",
                         pathname === href ? "text-primary" : "text-foreground",
                       )}
                     >
-                      <span>{label}</span>
-                      <span className="font-mono text-xs text-muted-foreground">
-                        0{index + 1}
-                      </span>
+                      {label}
                     </Link>
                   </li>
                 ))}
@@ -135,7 +127,7 @@ export function Header({ sections, registrationOpen }: { sections: Content["publ
                 onClick={() => setOpen(false)}
                 className={cn(buttonVariants({ size: "lg" }), "mt-8 w-full")}
               >
-                {registrationOpen ? t("nav.register") : "Registration status"}
+                {registrationOpen ? t("nav.register") : t("marketing.registrationStatus")}
               </Link>}
               <a
                 href={DOCS_URL}
@@ -145,9 +137,6 @@ export function Header({ sections, registrationOpen }: { sections: Content["publ
                 <BookOpen aria-hidden="true" />
                 {t("nav.docs")}
               </a>
-              <p className="mt-auto pt-12 text-sm leading-relaxed text-muted-foreground">
-                {t("brand.tagline")}
-              </p>
             </div>
           </motion.nav>
         )}

@@ -20,7 +20,7 @@ every 30 minutes  -> health check of both sites and both databases
 | `check.yml` | Pull request, manual | `npm ci`, `npm run check`, `npm run build`. Dummy database URLs; never connects. |
 | `deploy.yml` | Push to `staging` or `main`, manual rollback | Builds the image, ships it over SSH, switches the container, verifies HTTPS and the database. |
 | `health.yml` | Minutes 17 and 47 of every hour, manual | Calls `/api/health` on both hosts and checks environment and database. |
-| `staging-migrate.yml` | Schema change pushed to `staging`, manual | `prisma migrate deploy` through an SSH tunnel to the staging box. |
+| `staging-migrate.yml` | Schema change pushed to `staging`, manual | `prisma migrate deploy` through an SSH tunnel to staging's Postgres (port 5433 on the shared box). |
 | `staging-seed.yml` | Manual, requires typing `RESET` | Wipes and reseeds staging. |
 | `cron.yml` | Daily schedules, manual | Calls the production cron routes. See [cron jobs](/docs/developers/cron). |
 

@@ -133,18 +133,18 @@ export function QuestionScreen({
 
       <div className="relative flex min-h-20 items-center gap-6 border-b px-8 py-3" style={{ borderColor: surface.border }}>
         <div>
-          <span className="flex items-center gap-2 font-mono text-xs font-black uppercase tracking-[0.22em] opacity-55">
+          <span className="flex items-center gap-2 font-mono text-xs font-black opacity-55">
             <span className="size-2 animate-pulse" style={{ background: revealed ? "#22c55e" : theme.accentColor }} />
             {t(revealed ? "quiz.answerReveal" : "quiz.liveQuestion")}
           </span>
-          <span className="mt-1 block font-mono text-sm font-bold uppercase tracking-[0.16em]">
+          <span className="mt-1 block font-mono text-sm font-bold">
             {t("quiz.slideProgress", { n: slideIndex + 1, total: slideCount })}
           </span>
         </div>
         <span className="flex-1" />
         <div className="text-right">
           <span className="block font-heading text-3xl leading-none tabular-nums">{voteCount}</span>
-          <span className="font-mono text-[0.65rem] font-black uppercase tracking-[0.16em] opacity-50">
+          <span className="font-mono text-[0.65rem] font-black opacity-50">
             {t("quiz.responsesIn", { count: voteCount })} · {t("quiz.playersInRoom", { count: participantCount ?? "?" })}
           </span>
         </div>
@@ -181,13 +181,13 @@ export function QuestionScreen({
         className="relative flex min-h-20 items-center gap-3 border-t px-8 py-3"
         style={{ borderColor: surface.border }}
       >
-        <span className="mr-2 hidden font-mono text-[0.65rem] font-black uppercase tracking-[0.18em] opacity-40 xl:block">
+        <span className="mr-2 hidden font-mono text-[0.65rem] font-black opacity-40 xl:block">
           {t("quiz.hostControls")}
         </span>
         <button
           onClick={onPrev}
           disabled={slideIndex === 0 || busy}
-          className="border px-4 py-2.5 font-mono text-xs font-black uppercase tracking-[0.1em] transition-opacity disabled:opacity-30 hover:opacity-80"
+          className="border px-4 py-2.5 font-mono text-xs font-black transition-opacity disabled:opacity-30 hover:opacity-80"
           style={{ borderColor: theme.accentColor, color: theme.accentColor }}
         >
           {t("quiz.prevSlide")}
@@ -197,7 +197,7 @@ export function QuestionScreen({
           <button
             onClick={onLock}
             disabled={busy}
-            className="flex items-center gap-2 px-4 py-2.5 font-mono text-xs font-black uppercase tracking-[0.1em] transition-opacity hover:opacity-90"
+            className="flex items-center gap-2 px-4 py-2.5 font-mono text-xs font-black transition-opacity hover:opacity-90"
             style={{ background: "#f59e0b", color: readableOn("#f59e0b") }}
           >
             <Lock className="size-3" /> {t("quiz.lockVoting")}
@@ -208,7 +208,7 @@ export function QuestionScreen({
           <button
             onClick={onUnlock}
             disabled={busy}
-            className="flex items-center gap-2 border px-4 py-2.5 font-mono text-xs font-black uppercase tracking-[0.1em] transition-opacity hover:opacity-80"
+            className="flex items-center gap-2 border px-4 py-2.5 font-mono text-xs font-black transition-opacity hover:opacity-80"
             style={{ borderColor: theme.accentColor, color: theme.accentColor }}
           >
             <Unlock className="size-3" /> {t("quiz.unlockVoting")}
@@ -222,7 +222,7 @@ export function QuestionScreen({
           <button
             onClick={onReveal}
             disabled={busy}
-            className="flex items-center gap-2 px-4 py-2.5 font-mono text-xs font-black uppercase tracking-[0.1em] transition-transform hover:-translate-y-0.5"
+            className="flex items-center gap-2 px-4 py-2.5 font-mono text-xs font-black transition-transform hover:-translate-y-0.5"
             style={{ background: "#22c55e", color: readableOn("#22c55e") }}
           >
             <Eye className="size-3" /> {t("quiz.revealResults")}
@@ -233,7 +233,7 @@ export function QuestionScreen({
           <button
             onClick={onLeaderboard}
             disabled={busy}
-            className="flex items-center gap-2 border px-4 py-2.5 font-mono text-xs font-black uppercase tracking-[0.1em] transition-opacity hover:opacity-80"
+            className="flex items-center gap-2 border px-4 py-2.5 font-mono text-xs font-black transition-opacity hover:opacity-80"
             style={{ borderColor: theme.accentColor, color: theme.accentColor }}
           >
             <Trophy className="size-3" /> {t("quiz.leaderboard")}
@@ -246,7 +246,7 @@ export function QuestionScreen({
           <button
             onClick={onNext}
             disabled={busy}
-            className="flex items-center gap-2 px-7 py-3 font-mono text-sm font-black uppercase tracking-[0.1em] transition-transform hover:-translate-y-0.5"
+            className="flex items-center gap-2 px-7 py-3 font-mono text-sm font-black transition-transform hover:-translate-y-0.5"
             style={{ background: theme.accentColor, color: readableOn(theme.accentColor) }}
           >
             {t("quiz.nextSlide")} <ChevronRight className="size-4" />

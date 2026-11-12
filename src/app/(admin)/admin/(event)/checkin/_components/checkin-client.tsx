@@ -166,7 +166,7 @@ export function CheckinClient({ delegates, filters, capped, showPayment = true }
                 t("admin.table.headerActions"),
               ].map((label) => (
                 <th key={label} className="px-4 py-3 text-left">
-                  <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  <span className="text-xs font-semibold text-muted-foreground">
                     {label}
                   </span>
                 </th>

@@ -3,6 +3,7 @@
 import { useEffect, useState, useTransition } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
+import { Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -11,10 +12,21 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { MERGE_FIELDS } from "@/lib/mailer/merge"
 import { MAIL_PRESETS } from "@/lib/mailer/presets"
 import { STAGE_SHORTCUTS } from "@/lib/mailer/audience"
-import { presetDraft, previewMail, saveCampaign, scheduleCampaign, sendTestMail, type CampaignInput } from "../actions"
+import { statusMeta } from "../../registrations/_lib/status"
+import { draftMailWithAI, presetDraft, previewMail, saveCampaign, scheduleCampaign, sendTestMail, type CampaignInput } from "../actions"
 
 const STATUSES = ["REGISTERED", "ALLOTTED", "PAYMENT_SENT", "CONFIRMED", "WAITLISTED", "CANCELLED"] as const
+// Stages that only exist when the event charges delegates.
+const PAYMENT_STAGES = new Set<string>(["ALLOTTED", "PAYMENT_SENT"])
 const PAYMENTS = ["PENDING", "SENT", "PAID", "FAILED", "COMPED", "OFFLINE"] as const
+const PAYMENT_LABEL: Record<(typeof PAYMENTS)[number], string> = {
+  PENDING: "Not sent yet",
+  SENT: "Link sent",
+  PAID: "Paid online",
+  FAILED: "Payment failed",
+  COMPED: "Free seat",
+  OFFLINE: "Paid offline",
+}
 type Tri = "any" | "yes" | "no"
 type Audience = "DELEGATES" | "CONTACTS"
 
@@ -80,6 +92,7 @@ export function Composer({
   tags = [],
   prOn = false,
   isAdmin,
+  caps = { payments: true, intra: false },
 }: {
   audience: Audience
   campaign?: ComposerCampaign
@@ -87,6 +100,9 @@ export function Composer({
   tags?: string[]
   prOn?: boolean
   isAdmin: boolean
+  // What this event offers: a free event has no payment stages to mail, and an
+  // Intra MUN has no colleges or accommodation to filter by.
+  caps?: { payments: boolean; intra: boolean }
 }) {
   const router = useRouter()
   const base = audience === "CONTACTS" ? "/admin/outreach" : "/admin/mailer"
@@ -94,6 +110,7 @@ export function Composer({
   const [delegateFilters, setDelegateFilters] = useState<DelegateFilters>(
     audience === "DELEGATES" && campaign ? { ...EMPTY_DELEGATE, ...(campaign.filters as Partial<DelegateFilters>) } : EMPTY_DELEGATE,
   )
+  const [moreFilters, setMoreFilters] = useState(false)
   const [contactTags, setContactTags] = useState<string[]>(
     audience === "CONTACTS" && campaign ? ((campaign.filters as { tags?: string[] })?.tags ?? []) : [],
   )
@@ -104,6 +121,9 @@ export function Composer({
   const [ctaUrl, setCtaUrl] = useState(campaign?.ctaUrl ?? "")
   const [scheduleLocal, setScheduleLocal] = useState("")
   const [confirmOpen, setConfirmOpen] = useState(false)
+  // Scheduled mail goes to whoever matches when it starts, unless the organiser
+  // fixes the list to the people who match now.
+  const [snapshot, setSnapshot] = useState(false)
   const [preview, setPreview] = useState<{ count: number; html: string; sampleTo: string | null; unfilled: string[]; dailyCap: number; noEvent: boolean } | null>(null)
 
   const handPicked = delegateFilters.delegateIds.length
@@ -146,6 +166,25 @@ export function Composer({
       setCtaUrl(d.ctaUrl ?? "")
     })
 
+  // The organiser says what the mail must cover and the model writes it into the
+  // fields below, where it is edited, previewed and sent like any other.
+  const [notes, setNotes] = useState("")
+  const [drafting, startDraft] = useTransition()
+  const draftFromNotes = () =>
+    startDraft(async () => {
+      const r = await draftMailWithAI(audience, notes)
+      if (!r.success) {
+        toast.error(r.error)
+        return
+      }
+      setPreset("custom")
+      setSubject(r.draft.subject)
+      setBody(r.draft.body)
+      setCtaLabel(r.draft.ctaLabel ?? "")
+      setCtaUrl(r.draft.ctaUrl ?? "")
+      toast.success("Drafted. Read it through before sending.")
+    })
+
   const save = (then?: (id: string) => void) =>
     startTransition(async () => {
       const r = await saveCampaign(input())
@@ -170,7 +209,7 @@ export function Composer({
     save((id) =>
       startTransition(async () => {
         const when = scheduleLocal ? new Date(scheduleLocal).toISOString() : null
-        const r = await scheduleCampaign(id, when)
+        const r = await scheduleCampaign(id, when, { snapshot: !!when && snapshot })
         setConfirmOpen(false)
         if (!r.success) {
           toast.error(r.error)
@@ -182,9 +221,22 @@ export function Composer({
       }),
     )
 
-  const presets = MAIL_PRESETS.filter((p) => p.audience === "ANY" || p.audience === audience)
+  const presets = MAIL_PRESETS.filter((p) => (p.audience === "ANY" || p.audience === audience) && (caps.payments || !p.needsPayments))
+  const stages = STAGE_SHORTCUTS.filter((s) => caps.payments || !s.needsPayments)
   const shortcutOn = (filters: Partial<DelegateFilters>) =>
     JSON.stringify({ ...EMPTY_DELEGATE, ...filters }) === JSON.stringify(delegateFilters)
+  // The finer filters overlap the stages, so they stay folded away unless one is
+  // set by hand: an active filter is never hidden.
+  const stageOn = stages.some((s) => shortcutOn(s.filters as Partial<DelegateFilters>))
+  const finerSet =
+    !stageOn &&
+    (delegateFilters.statuses.length > 0 ||
+      delegateFilters.paymentStatuses.length > 0 ||
+      delegateFilters.allotted !== "any" ||
+      delegateFilters.isDtu !== "any" ||
+      delegateFilters.needsAccommodation !== "any" ||
+      delegateFilters.checkedIn !== "any")
+  const showFiner = moreFilters || finerSet
 
   return (
     <div className="grid gap-8 xl:grid-cols-[1fr_1fr]">
@@ -204,21 +256,12 @@ export function Composer({
             <div className="space-y-3 rounded-lg border border-border p-4">
               <div className="flex flex-wrap items-center gap-1.5 text-xs">
                 <span className="w-28 text-muted-foreground">Stage</span>
-                {STAGE_SHORTCUTS.map((s) => (
+                {stages.map((s) => (
                   <Chip key={s.key} on={shortcutOn(s.filters as Partial<DelegateFilters>)} onClick={() => setDelegateFilters({ ...EMPTY_DELEGATE, ...(s.filters as Partial<DelegateFilters>) })}>
                     {s.label}
                   </Chip>
                 ))}
               </div>
-              <div className="flex flex-wrap items-center gap-1.5 text-xs">
-                <span className="w-28 text-muted-foreground">Status</span>
-                {STATUSES.map((s) => (
-                  <Chip key={s} on={delegateFilters.statuses.includes(s)} onClick={() => setDelegateFilters({ ...delegateFilters, statuses: toggle(delegateFilters.statuses, s) })}>
-                    {s.toLowerCase().replace("_", " ")}
-                  </Chip>
-                ))}
-              </div>
-              <p className="text-[11px] text-muted-foreground">No status chosen means everyone except cancelled delegates. To mail particular people, tick them on the delegate list.</p>
               <div className="flex flex-wrap items-center gap-1.5 text-xs">
                 <span className="w-28 text-muted-foreground">Committee</span>
                 {committees.map((c) => (
@@ -227,18 +270,45 @@ export function Composer({
                   </Chip>
                 ))}
               </div>
+              <p className="text-[11px] text-muted-foreground">No filter means everyone except removed delegates. To pick people, tick them on the delegate list.</p>
+              {!showFiner ? (
+                <button
+                  type="button"
+                  onClick={() => setMoreFilters(true)}
+                  className="text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground"
+                >
+                  More filters
+                </button>
+              ) : (
+              <>
+              <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                <span className="w-28 text-muted-foreground">Status</span>
+                {STATUSES.filter((s) => caps.payments || !PAYMENT_STAGES.has(s)).map((s) => (
+                  <Chip key={s} on={delegateFilters.statuses.includes(s)} onClick={() => setDelegateFilters({ ...delegateFilters, statuses: toggle(delegateFilters.statuses, s) })}>
+                    {statusMeta(s).label}
+                  </Chip>
+                ))}
+              </div>
+              {caps.payments && (
               <div className="flex flex-wrap items-center gap-1.5 text-xs">
                 <span className="w-28 text-muted-foreground">Payment</span>
                 {PAYMENTS.map((s) => (
                   <Chip key={s} on={delegateFilters.paymentStatuses.includes(s)} onClick={() => setDelegateFilters({ ...delegateFilters, paymentStatuses: toggle(delegateFilters.paymentStatuses, s) })}>
-                    {s.toLowerCase()}
+                    {PAYMENT_LABEL[s]}
                   </Chip>
                 ))}
               </div>
+              )}
               <TriPick label="Allotted" value={delegateFilters.allotted} onChange={(v) => setDelegateFilters({ ...delegateFilters, allotted: v })} />
-              <TriPick label="DTU" value={delegateFilters.isDtu} onChange={(v) => setDelegateFilters({ ...delegateFilters, isDtu: v })} />
-              <TriPick label="Accommodation" value={delegateFilters.needsAccommodation} onChange={(v) => setDelegateFilters({ ...delegateFilters, needsAccommodation: v })} />
+              {!caps.intra && (
+                <>
+                  <TriPick label="DTU" value={delegateFilters.isDtu} onChange={(v) => setDelegateFilters({ ...delegateFilters, isDtu: v })} />
+                  <TriPick label="Accommodation" value={delegateFilters.needsAccommodation} onChange={(v) => setDelegateFilters({ ...delegateFilters, needsAccommodation: v })} />
+                </>
+              )}
               <TriPick label="Checked in" value={delegateFilters.checkedIn} onChange={(v) => setDelegateFilters({ ...delegateFilters, checkedIn: v })} />
+              </>
+              )}
             </div>
           ) : (
             <div className="space-y-3 rounded-lg border border-border p-4">
@@ -265,6 +335,24 @@ export function Composer({
             {presets.map((p) => (
               <Chip key={p.key} on={preset === p.key} onClick={() => applyPreset(p.key)}>{p.label}</Chip>
             ))}
+          </div>
+        </section>
+
+        <section className="space-y-2">
+          <Label htmlFor="mail-notes">Or have it written for you</Label>
+          <Textarea
+            id="mail-notes"
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            rows={3}
+            maxLength={4000}
+            placeholder={`What the mail must cover: the news, any date, time, place and links.`}
+          />
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <Button variant="outline" size="sm" disabled={pending || drafting || notes.trim().length < 10} onClick={draftFromNotes}>
+              <Sparkles /> {drafting ? "Writing…" : "Write the mail"}
+            </Button>
+            <p className="text-[11px] text-muted-foreground">{`Replaces the subject, message and button below. Your notes go to the AI provider, so leave delegates' personal details out.`}</p>
           </div>
         </section>
 
@@ -319,7 +407,7 @@ export function Composer({
       <div className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
           <span className="font-medium">
-            {preview ? `${preview.count} ${preview.count === 1 ? "recipient" : "recipients"}` : "Counting"}
+            {preview ? `${preview.count} ${preview.count === 1 ? "matches" : "match"} now` : "Counting"}
             {preview?.sampleTo && <span className="font-normal text-muted-foreground">{` · previewed as ${preview.sampleTo}`}</span>}
           </span>
           {preview && <span className="text-xs text-muted-foreground">{`Up to ${preview.dailyCap} a day, the rest continue automatically`}</span>}
@@ -341,8 +429,20 @@ export function Composer({
         title={scheduleLocal ? "Schedule this mail?" : "Send this mail now?"}
         description={
           scheduleLocal
-            ? `It goes out at the chosen time to whoever matches then. ${preview?.count ?? 0} ${(preview?.count ?? 0) === 1 ? "matches" : "match"} right now.`
-            : `${preview?.count ?? 0} ${(preview?.count ?? 0) === 1 ? "person" : "people"} will get it. A sent mail cannot be recalled.`
+            ? (
+                <span className="space-y-3">
+                  <span className="block">
+                    {`${preview?.count ?? 0} ${(preview?.count ?? 0) === 1 ? "matches" : "match"} now; the final list is picked when it starts sending.`}
+                  </span>
+                  {audience === "DELEGATES" && handPicked === 0 && (preview?.count ?? 0) > 0 && (
+                    <label className="flex items-center gap-2 text-sm text-foreground">
+                      <input type="checkbox" checked={snapshot} onChange={(e) => setSnapshot(e.target.checked)} />
+                      {`Use these ${preview?.count ?? 0} people instead`}
+                    </label>
+                  )}
+                </span>
+              )
+            : `${preview?.count ?? 0} ${(preview?.count ?? 0) === 1 ? "person matches" : "people match"} now and will get it. A sent mail cannot be recalled.`
         }
         confirmLabel={scheduleLocal ? "Schedule" : "Send now"}
         pending={pending}

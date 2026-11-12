@@ -12,6 +12,7 @@ import { pickValues, reversibleSettingsMeta } from "@/lib/audit-change"
 import { fetchSheetRows, SheetFetchError } from "@/lib/sheet-fetch"
 import { portfoliosFromSheetRows, type PortfolioEntry } from "@/lib/portfolio-sheet"
 import { deriveCsvUrl } from "@/lib/gsheet-url"
+import { aliasCollision } from "@/lib/intake"
 import { closeEvent, createEvent, currentEventScope, getActiveEvent, reopenEvent, requireActiveEvent } from "@/lib/event"
 import type { EventState } from "@/generated/prisma/client"
 
@@ -38,6 +39,11 @@ export async function saveContent(
   if (Object.keys(partial).some((k) => PAYMENT_KEYS.has(k))) {
     return { success: false, error: "Payment settings must be saved via the payment card (admin only)." }
   }
+  // Linked partner sheets admit delegates every night; they go through
+  // savePartnerSheets, which checks the event takes them.
+  if ("sheetPullSources" in partial) {
+    return { success: false, error: "Linked sheets are saved from Cross delegations." }
+  }
   try {
     const before = await getContent()
     await setContent(partial)
@@ -60,41 +66,43 @@ export async function saveContent(
   }
 }
 
-// Replay every allotted cell's current state to the public Google Sheet.
-// syncSheetCell is best-effort per cell (fire-and-forget, self-heals on next
-// state change), so a mirror that's down for a while silently drifts, this
-// is the manual "reconcile now" for when it comes back.
+// Replay every seat's current state to the Google Sheet copy, freed seats
+// included: a seat taken back while the copy was unreachable used to stay
+// "allotted" there for good. Counts what the sheet refused, so a wrong secret
+// or a dead URL is reported instead of called a success.
 // ponytail: sequential to avoid hammering the single Apps Script endpoint;
 // parallelize in chunks only if a very large room makes this too slow.
-export async function resyncMatrix(): Promise<{ success: boolean; synced?: number; error?: string }> {
+export async function resyncMatrix(): Promise<{ success: boolean; synced?: number; failed?: number; error?: string }> {
   const session = await requireStaff()
   const content = await getContent()
   if (!content.sheetSyncUrl) {
-    return { success: false, error: "No sheet sync URL configured (set it in Setup, under Fees & payments)." }
+    return { success: false, error: "No Google Sheet copy is connected. Add its Apps Script link first." }
   }
 
-  const allotted = await prisma.portfolio.findMany({
-    where: { status: "ALLOTTED", allotment: { isNot: null }, committee: await currentEventScope() },
+  const seats = await prisma.portfolio.findMany({
+    where: { committee: await currentEventScope() },
     select: {
       name: true,
+      status: true,
       committee: { select: { name: true } },
       allotment: { select: { delegate: { select: { status: true } } } },
     },
   })
 
-  for (const p of allotted) {
-    if (!p.allotment) continue
-    await syncSheetCell({
+  let synced = 0
+  let failed = 0
+  for (const p of seats) {
+    const ok = await syncSheetCell({
       committee: p.committee.name,
       portfolio: p.name,
-      state: p.allotment.delegate.status === "CONFIRMED" ? "paid" : "allotted",
+      state: !p.allotment ? "available" : p.allotment.delegate.status === "CONFIRMED" ? "paid" : "allotted",
     })
+    if (ok) synced++
+    else failed++
   }
 
-  await audit(session.user?.email ?? "unknown", "matrix.resync", "Setting", undefined, {
-    synced: allotted.length,
-  })
-  return { success: true, synced: allotted.length }
+  await audit(session.user?.email ?? "unknown", "matrix.resync", "Setting", undefined, { synced, failed })
+  return { success: true, synced, failed }
 }
 
 const EventSettingsSchema = z.object({
@@ -104,6 +112,7 @@ const EventSettingsSchema = z.object({
   registrationOpen: z.boolean(),
   paymentsEnabled: z.boolean(),
   matrixPublic: z.boolean(),
+  crossDelegationsEnabled: z.boolean(),
   label: z.string().trim().max(120),
   brief: z.string().trim().max(300),
   dates: z.string().trim().max(80),
@@ -144,8 +153,18 @@ export async function saveEventSettings(input: EventSettingsInput): Promise<{ su
     registrationOpen: event.registrationOpen,
     paymentsEnabled: event.paymentsEnabled,
     matrixPublic: event.matrixPublic,
+    crossDelegationsEnabled: event.crossDelegationsEnabled,
   }
-  const after = { name: v.name, kind: v.kind, state, registrationOpen: v.registrationOpen, paymentsEnabled, matrixPublic: v.matrixPublic }
+  const after = {
+    name: v.name,
+    kind: v.kind,
+    state,
+    registrationOpen: v.registrationOpen,
+    paymentsEnabled,
+    matrixPublic: v.matrixPublic,
+    // An Intra MUN never takes them, whatever the switch said before the kind changed.
+    crossDelegationsEnabled: v.kind !== "INTRA_MUN" && v.crossDelegationsEnabled,
+  }
 
   try {
     const content = await getContent()
@@ -155,7 +174,8 @@ export async function saveEventSettings(input: EventSettingsInput): Promise<{ su
       conferenceDates: v.dates,
       venue: v.venue,
       registrationFormUrl: v.formUrl,
-      registrationClosedMessage: v.closedMessage || content.registrationClosedMessage,
+      // Empty is a real choice: the closed page then shows no message.
+      registrationClosedMessage: v.closedMessage,
       landingHero: { ...content.landingHero, subtitle: v.brief, ctaLabel: v.ctaLabel || content.landingHero.ctaLabel },
     })
     await audit(session.user?.email ?? "unknown", "event.settings", "Event", event.id, { before, after })
@@ -224,6 +244,52 @@ export async function setRegistrationOpen(
 }
 
 // ── Committees ─────────────────────────────────────────────────────────────────
+// The group link goes into delegates' mail, so only a plain https URL is kept.
+// Empty clears it.
+function groupLinkOrError(raw: string | null | undefined): { value: string | null } | { error: string } {
+  const v = raw?.trim()
+  if (!v) return { value: null }
+  try {
+    const url = new URL(v)
+    if (url.protocol !== "https:") return { error: "Group link must start with https://" }
+    return { value: url.toString() }
+  } catch {
+    return { error: "Group link is not a valid URL." }
+  }
+}
+
+// One name or alias, one committee, within an event. Two committees answering to
+// the same alias made every Form answer naming it ambiguous.
+async function aliasClash(
+  committee: { id?: string; name: string; slug: string; aliases?: string[] },
+  eventId: string,
+): Promise<string | null> {
+  const others = await prisma.committee.findMany({
+    where: { eventId, ...(committee.id ? { id: { not: committee.id } } : {}) },
+    select: { id: true, name: true, slug: true, aliases: true },
+  })
+  return aliasCollision({ ...committee, aliases: committee.aliases ?? [] }, others)
+}
+
+// From the import review: "save 'DISEC' as another name for UNGA-DISEC", so the
+// same answer resolves by itself next time.
+export async function addCommitteeAlias(committeeId: string, alias: string): Promise<{ success: boolean; error?: string }> {
+  const session = await requireStaff()
+  const clean = alias.trim()
+  if (!clean || clean.length > 80) return { success: false, error: "That name is empty or too long." }
+  const committee = await prisma.committee.findUnique({
+    where: { id: committeeId },
+    select: { id: true, name: true, slug: true, aliases: true, eventId: true },
+  })
+  if (!committee) return { success: false, error: "That committee no longer exists." }
+  const aliases = committee.aliases.some((a) => a.trim().toLowerCase() === clean.toLowerCase()) ? committee.aliases : [...committee.aliases, clean]
+  const clash = await aliasClash({ ...committee, aliases }, committee.eventId)
+  if (clash) return { success: false, error: clash }
+  await prisma.committee.update({ where: { id: committeeId }, data: { aliases } })
+  await audit(session.user?.email ?? "unknown", "committee.alias", "Committee", committeeId, { alias: clean })
+  return { success: true }
+}
+
 export async function createCommittee(data: {
   name: string
   slug: string
@@ -234,14 +300,19 @@ export async function createCommittee(data: {
   aliases?: string[]
   portfolioTagLabel?: string
   matrixBrief?: string
+  groupLink?: string | null
 }): Promise<{ success: boolean; error?: string }> {
   const session = await requireStaff()
+  const link = groupLinkOrError(data.groupLink)
+  if ("error" in link) return { success: false, error: link.error }
   try {
     // A committee belongs to the event it is being built for. Without a running
     // event there is nothing to attach it to, so this refuses rather than
     // creating an orphan that no screen would ever list.
     const event = await requireActiveEvent()
-    const committee = await prisma.committee.create({ data: { ...data, eventId: event.id } })
+    const clash = await aliasClash({ ...data }, event.id)
+    if (clash) return { success: false, error: clash }
+    const committee = await prisma.committee.create({ data: { ...data, groupLink: link.value, eventId: event.id } })
     await audit(session.user?.email ?? "unknown", "committee.create", "Committee", committee.id, {
       name: data.name,
     })
@@ -264,11 +335,17 @@ export async function updateCommittee(
     aliases?: string[]
     portfolioTagLabel?: string
     matrixBrief?: string
+    groupLink?: string | null
   },
 ): Promise<{ success: boolean; error?: string }> {
   const session = await requireStaff()
+  const link = groupLinkOrError(data.groupLink)
+  if ("error" in link) return { success: false, error: link.error }
   try {
-    await prisma.committee.update({ where: { id }, data })
+    const current = await prisma.committee.findUnique({ where: { id }, select: { eventId: true } })
+    const clash = current ? await aliasClash({ id, ...data }, current.eventId) : null
+    if (clash) return { success: false, error: clash }
+    await prisma.committee.update({ where: { id }, data: { ...data, groupLink: link.value } })
     await audit(session.user?.email ?? "unknown", "committee.update", "Committee", id)
     return { success: true }
   } catch {

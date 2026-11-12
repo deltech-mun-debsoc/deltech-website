@@ -1,13 +1,14 @@
 import { prisma } from "@/lib/prisma"
-import { currentEventScope, getActiveEvent } from "@/lib/event"
+import { currentEventScope, getActiveEvent, getEventCapabilities } from "@/lib/event"
 import { requireStaff } from "@/lib/authz"
 import { AllotmentBoard } from "./_components/allotment-board"
+import { SheetCopyPanel } from "./_components/sheet-copy-panel"
 import { PageHeader } from "@/app/(admin)/_components/page-header"
 import { getContent } from "@/lib/settings"
 import { deriveEventState } from "@/lib/event-state"
 
 export default async function AllotmentPage(props: { searchParams: Promise<{ delegate?: string }> }) {
-  await requireStaff()
+  const session = await requireStaff()
   const { delegate: focusDelegateId } = await props.searchParams
 
   const scope = await currentEventScope()
@@ -39,10 +40,12 @@ export default async function AllotmentPage(props: { searchParams: Promise<{ del
       },
     }),
     prisma.delegate.findMany({
-      where: { status: "REGISTERED", ...scope },
+      // CONFIRMED without a seat: accepted with nothing to pay, still to be placed.
+      where: { status: { in: ["REGISTERED", "CONFIRMED"] }, allotment: null, ...scope },
       orderBy: { createdAt: "asc" },
       select: {
         id: true,
+        status: true,
         fullName: true,
         email: true,
         institution: true,
@@ -87,22 +90,26 @@ export default async function AllotmentPage(props: { searchParams: Promise<{ del
     })),
   }))
 
+  const [event, caps] = await Promise.all([getActiveEvent(), getEventCapabilities()])
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Allotment"
         description={paymentsRequired
-          ? "Pick a waiting delegate and give them a seat. They are emailed a payment link straight away."
-          : "Pick a waiting delegate and give them a seat. They are confirmed and emailed straight away."}
+          ? "Allotments are drafts until emailed. Emailing sends the seat and a payment link."
+          : "Allotments are drafts until emailed. Emailing sends the seat and confirms the delegate."}
       />
       <AllotmentBoard
         focusDelegateId={focusDelegateId ?? null}
-        eventId={(await getActiveEvent())?.id ?? null}
+        eventId={event?.id ?? null}
+        intra={caps.intra}
         committees={serializedCommittees}
         delegates={serializedDelegates}
         fees={fees}
         paymentsRequired={paymentsRequired}
       />
+      <SheetCopyPanel url={content.sheetSyncUrl} isAdmin={(session.user as { role?: string }).role === "ADMIN"} />
     </div>
   )
 }

@@ -23,7 +23,7 @@ export function AuthErrorBanner({ error }: { error?: string }) {
   return (
     <div
       role="alert"
-      className="mt-5 border-l-4 border-red-700 bg-red-50 px-4 py-3 text-sm font-semibold text-red-900"
+      className="mt-5 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm font-medium text-foreground"
     >
       {t(key)}
     </div>

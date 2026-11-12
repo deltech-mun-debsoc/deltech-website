@@ -30,6 +30,12 @@ import {
 import { createCommittee, updateCommittee, deleteCommittee } from "../actions"
 import type { ClientCommittee } from "../_lib/types"
 
+const MATRIX_TYPE_ITEMS = [
+  { value: "STANDARD", label: "Standard (countries)" },
+  { value: "CRISIS", label: "Crisis (people)" },
+  { value: "PRESS", label: "International Press" },
+]
+
 const schema = z.object({
   name: z.string().min(2, "Required"),
   slug: z
@@ -44,6 +50,7 @@ const schema = z.object({
   aliasesText: z.string(),
   portfolioTagLabel: z.string(),
   matrixBrief: z.string(),
+  groupLink: z.string().trim().refine((v) => v === "" || /^https:\/\/\S+$/.test(v), "Must start with https://"),
 })
 
 type FormValues = z.infer<typeof schema>
@@ -78,6 +85,7 @@ export function TabCommittees({ committees }: Props) {
       aliasesText: "",
       portfolioTagLabel: "",
       matrixBrief: "",
+      groupLink: "",
     },
     resolver: zodResolver(schema) as never,
   })
@@ -104,6 +112,7 @@ export function TabCommittees({ committees }: Props) {
       aliasesText: "",
       portfolioTagLabel: "",
       matrixBrief: "",
+      groupLink: "",
     })
     setDialogOpen(true)
   }
@@ -121,6 +130,7 @@ export function TabCommittees({ committees }: Props) {
       aliasesText: c.aliases.join(", "),
       portfolioTagLabel: c.portfolioTagLabel ?? "",
       matrixBrief: c.matrixBrief ?? "",
+      groupLink: c.groupLink ?? "",
     })
     setDialogOpen(true)
   }
@@ -141,6 +151,7 @@ export function TabCommittees({ committees }: Props) {
           .filter(Boolean),
         portfolioTagLabel: data.portfolioTagLabel || undefined,
         matrixBrief: data.matrixBrief || undefined,
+        groupLink: data.groupLink || null,
       }
 
       const result = editTarget
@@ -184,10 +195,10 @@ export function TabCommittees({ committees }: Props) {
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border/60">
-              {["Name", "Seat label", "Type", "Double delegation", "Active", "Order", ""].map((h) => (
+              {["Name", "Group column", "Type", "Double delegation", "Active", "Order", ""].map((h) => (
                 <th
                   key={h}
-                  className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground"
+                  className="px-4 py-3 text-left text-xs font-semibold text-muted-foreground"
                 >
                   {h}
                 </th>
@@ -208,7 +219,7 @@ export function TabCommittees({ committees }: Props) {
                   <td className="px-4 py-3 text-sm text-muted-foreground">{c.portfolioTagLabel || "Not set"}</td>
                   <td className="px-4 py-3">
                     <Badge variant="secondary" className="text-xs">
-                      {c.type}
+                      {MATRIX_TYPE_ITEMS.find((i) => i.value === c.type)?.label ?? c.type}
                     </Badge>
                   </td>
                   <td className="px-4 py-3 text-center text-xs">
@@ -288,6 +299,18 @@ export function TabCommittees({ committees }: Props) {
             </div>
 
             <div className="space-y-1.5">
+              <Label className="text-xs">WhatsApp group link</Label>
+              <Input {...form.register("groupLink")} type="url" placeholder="https://chat.whatsapp.com/…" />
+              {form.formState.errors.groupLink ? (
+                <p className="text-xs text-destructive">{form.formState.errors.groupLink.message}</p>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Free event: sent with the allotment. Paid event: sent once payment is confirmed.
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
               <Label className="text-xs">Aliases (comma-separated, for imports)</Label>
               <Input
                 {...form.register("aliasesText")}
@@ -300,27 +323,27 @@ export function TabCommittees({ committees }: Props) {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <Label className="text-xs">Classification label</Label>
+                <Label className="text-xs">Group column</Label>
                 <Input
                   {...form.register("portfolioTagLabel")}
-                  placeholder="Participation, Party, Region, Faction…"
+                  placeholder="Party, Region, Bloc…"
                 />
                 <p className="text-xs text-muted-foreground">
-                  For example: Participation, Party, or Membership
+                  What the matrix calls each portfolio&apos;s group.
                 </p>
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">Matrix type</Label>
+                <Label className="text-xs">Committee type</Label>
                 <Controller
                   control={form.control}
                   name="type"
                   render={({ field }) => (
-                    <Select value={field.value} onValueChange={(v) => field.onChange(v)}>
+                    <Select items={MATRIX_TYPE_ITEMS} value={field.value} onValueChange={(v) => field.onChange(v)}>
                       <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="STANDARD">Country matrix</SelectItem>
-                        <SelectItem value="CRISIS">People / specialized</SelectItem>
-                        <SelectItem value="PRESS">Press corps</SelectItem>
+                        <SelectItem value="STANDARD">Standard (countries)</SelectItem>
+                        <SelectItem value="CRISIS">Crisis (people)</SelectItem>
+                        <SelectItem value="PRESS">International Press</SelectItem>
                       </SelectContent>
                     </Select>
                   )}

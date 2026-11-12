@@ -3,8 +3,10 @@
 import { z } from "zod"
 import { callAI, AIRateLimitError } from "@/lib/ai"
 import { requireStaff } from "@/lib/authz"
-import { getCommitteeRefs, normalizeRow } from "@/lib/intake"
+import { CapabilityError, requireCapability } from "@/lib/event"
+import { getCommitteeRefs, mergeAiRow, normalizeRow } from "@/lib/intake"
 import type { ColumnMapping, MappedRow } from "@/lib/schemas/import"
+import type { CleanedRow } from "@/lib/intake"
 
 // ---------------------------------------------------------------------------
 // Suggest column mapping
@@ -15,6 +17,12 @@ export async function suggestMappingWithGemini(
   sampleRows: Record<string, string>[],
 ): Promise<{ success: boolean; mapping?: ColumnMapping; error?: string; rateLimited?: boolean }> {
   await requireStaff()
+  try {
+    await requireCapability("crossDelegations")
+  } catch (err) {
+    if (err instanceof CapabilityError) return { success: false, error: err.message }
+    throw err
+  }
 
   const prompt = `You are helping import delegate data for a Model United Nations (MUN) conference.
 
@@ -75,7 +83,7 @@ Respond with a JSON object using exactly these keys (string value = the exact ma
 // Clean & normalise rows, deterministic pipeline first, AI only for leftovers
 // ---------------------------------------------------------------------------
 
-export type CleanedRow = MappedRow & { _note?: string; _skip?: boolean }
+export type { CleanedRow }
 
 // Junk rows the deterministic pass can already catch (header repeats etc.)
 const JUNK_NAME = /^(name|full ?name|delegate ?name|participant|sr\.? ?no\.?|s\.? ?no\.?|#|total|count)$/i
@@ -102,6 +110,12 @@ export async function cleanImportRowsWithGemini(
   _committeeNames: string[],
 ): Promise<{ success: boolean; cleaned?: CleanedRow[]; error?: string; rateLimited?: boolean }> {
   await requireStaff()
+  try {
+    await requireCapability("crossDelegations")
+  } catch (err) {
+    if (err instanceof CapabilityError) return { success: false, error: err.message }
+    throw err
+  }
   if (rows.length === 0) return { success: true, cleaned: [] }
 
   const committees = await getCommitteeRefs()
@@ -144,21 +158,7 @@ export async function cleanImportRowsWithGemini(
       const result = await cleanBatchWithAI(batchRows, committeeList)
       result.forEach((r, j) => {
         const i = batchIdx[j]
-        cleaned[i] = {
-          fullName: r.fullName || cleaned[i].fullName,
-          email: r.email || cleaned[i].email,
-          whatsapp: r.whatsapp ?? cleaned[i].whatsapp,
-          institution: r.institution ?? cleaned[i].institution,
-          committee: r.committee ?? undefined,
-          portfolio: r.portfolio ?? cleaned[i].portfolio,
-          committee2: r.committee2 ?? undefined,
-          portfolio2: r.portfolio2 ?? cleaned[i].portfolio2,
-          committee3: r.committee3 ?? undefined,
-          portfolio3: r.portfolio3 ?? cleaned[i].portfolio3,
-          note: r.note ?? cleaned[i].note,
-          _note: [cleaned[i]._note, r._note].filter(Boolean).join(", ") || undefined,
-          _skip: r._skip === true || cleaned[i]._skip,
-        }
+        cleaned[i] = mergeAiRow(cleaned[i], r, committees)
       })
     } catch (err) {
       if (err instanceof AIRateLimitError) {
@@ -199,7 +199,7 @@ whatsapp · Digits only, with India country code (91). Return null if value is "
 
 institution · Proper title case, trim. Return null if empty or "N/A".
 
-committee / committee2 / committee3 · Each: match to the closest entry from the valid committees list (case-insensitive, fuzzy). The returned value MUST be an exact string from the valid committees list, or null if no confident match, do not guess or invent.
+committee / committee2 / committee3 · Each: the entry from the valid committees list this answer most likely means. The returned value MUST be an exact string from the valid committees list, or null if unsure. A person confirms every one of these before it is used.
 
 portfolio / portfolio2 / portfolio3 · Each: standard proper-case country or character name. Expand only if unambiguous: "USA" → "United States of America", "UK" → "United Kingdom", "UAE" → "United Arab Emirates". Return null if empty.
 

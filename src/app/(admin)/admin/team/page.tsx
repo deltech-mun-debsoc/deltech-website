@@ -41,7 +41,7 @@ export default async function AdminTeamPage() {
       <PageHeader
         eyebrow="Content"
         title="Team"
-        description="Society members shown on the public /team page. Order controls display position."
+        description="Lower order numbers appear first on /team."
       />
       <TeamManager members={serialized} isAdmin={isAdmin} />
     </div>

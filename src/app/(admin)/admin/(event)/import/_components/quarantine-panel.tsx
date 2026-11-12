@@ -8,17 +8,27 @@ import { RotateCcw, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
+import { unresolvedCommittees } from "@/lib/schemas/import"
 import { retryQuarantined, dismissQuarantined, type QuarantineRecord } from "../actions"
-import type { MappedRow } from "@/lib/schemas/import"
+import { readableRowError, type MappedRow } from "@/lib/schemas/import"
+
+const SOURCE_LABEL: Record<string, string> = {
+  CROSS_DEL: "Cross delegation",
+  SELF: "Website",
+  SPONSORED: "Sponsored",
+  INTERNAL: "Internal",
+  MANUAL: "Added by hand",
+}
 
 interface Props {
   rows: QuarantineRecord[]
+  committeeNames: string[]
 }
 
 // Rows any intake channel (wizard, Google Form webhook, cron sync) couldn't
 // turn into a Delegate. Fix inline, retry, or dismiss, nothing is ever
 // silently dropped upstream.
-export function QuarantinePanel({ rows }: Props) {
+export function QuarantinePanel({ rows, committeeNames }: Props) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [edits, setEdits] = useState<Record<string, Partial<MappedRow>>>({})
@@ -51,10 +61,10 @@ export function QuarantinePanel({ rows }: Props) {
   return (
     <div className="space-y-3 rounded-xl border border-amber-300/60 bg-amber-50/50 p-4 dark:border-amber-800 dark:bg-amber-950/20">
       <div className="flex items-center gap-2">
-        <p className="text-sm font-semibold">Quarantine</p>
+        <p className="text-sm font-semibold">Rows that need fixing</p>
         <Badge variant="secondary" className="text-xs">{rows.length}</Badge>
         <p className="text-xs text-muted-foreground">
-          Rows that failed validation, fix and retry, or dismiss.
+          Fix and retry, or dismiss.
         </p>
       </div>
 
@@ -62,9 +72,9 @@ export function QuarantinePanel({ rows }: Props) {
         {rows.map((r) => (
           <div key={r.id} className="rounded-lg border border-border bg-card p-3">
             <div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-              <Badge variant="outline" className="text-[10px]">{r.source}</Badge>
+              <Badge variant="outline" className="text-[10px]">{SOURCE_LABEL[r.source] ?? r.source}</Badge>
               <span>{formatDateTime(r.createdAt)}</span>
-              <span className="text-destructive">{r.errors.join("; ")}</span>
+              <span className="text-destructive">{r.errors.map(readableRowError).join(" · ")}</span>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Input
@@ -85,6 +95,23 @@ export function QuarantinePanel({ rows }: Props) {
                 defaultValue={r.raw.whatsapp ?? ""}
                 onChange={(e) => setField(r.id, "whatsapp", e.target.value)}
               />
+              {/* A committee answer that names none of ours: a person says which
+                  one they meant, or leaves it empty. */}
+              {unresolvedCommittees(r.raw, committeeNames).map((f) => (
+                <select
+                  key={f}
+                  aria-label={`Committee meant by ${r.raw[f]}`}
+                  className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+                  defaultValue={r.raw[f]}
+                  onChange={(e) => setField(r.id, f, e.target.value)}
+                >
+                  <option value={r.raw[f]} disabled>{`"${r.raw[f]}" means…`}</option>
+                  {committeeNames.map((n) => (
+                    <option key={n} value={n}>{n}</option>
+                  ))}
+                  <option value="">Leave it empty</option>
+                </select>
+              ))}
               <div className="ml-auto flex gap-1">
                 <Button
                   size="sm"

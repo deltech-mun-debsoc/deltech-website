@@ -8,7 +8,7 @@ export default async function OutreachPage() {
   await requireStaff()
   return (
     <div className="space-y-6">
-      <PageHeader eyebrow="Society" title="PR outreach" description="Announcements to the opt-in outreach list, every few days while registration is open.">
+      <PageHeader eyebrow="Society" title="PR outreach" description="Sent only to people who opted in.">
         <Link href="/admin/outreach/new" className={buttonVariants()}>New outreach</Link>
       </PageHeader>
       <CampaignList audience="CONTACTS" />

@@ -1,16 +1,24 @@
 "use client"
 
-import { useMemo, useState } from "react"
+import { useEffect, useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { Search, Undo2 } from "lucide-react"
+import { Mail, MoreHorizontal, Search, Undo2 } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
-import { revokeAllotment } from "../actions"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { emailAllotments, resendAllotmentEmails, revokeAllotment } from "../actions"
 import { committeeDemand, delegateChoices, ORDINAL } from "../_lib/balance"
-import { AllotDialog } from "./allot-dialog"
+import { experienceScore } from "../_lib/experience"
+import { SeatPicker } from "./seat-picker"
+import { DelegateDrawer } from "../../registrations/_components/delegate-drawer"
+import { getDelegateForDrawer } from "../../registrations/actions"
+import type { SerializedDelegate as DrawerDelegate } from "../../registrations/_lib/types"
+import { delegateLine } from "../../registrations/_lib/status"
 import { useAllotmentLive } from "../_lib/use-allotment-live"
 import type { CommitteeType, PortfolioStatus } from "@/generated/prisma/client"
 
@@ -53,6 +61,8 @@ export interface SerializedCommittee {
 
 export interface SerializedDelegate {
   id: string
+  // REGISTERED, or CONFIRMED: accepted with nothing to pay, no seat yet.
+  status: string
   fullName: string
   email: string
   institution: string
@@ -88,13 +98,22 @@ interface Props {
   eventId: string | null
   // Opened straight from "Add and give a seat" on the delegate list.
   focusDelegateId: string | null
+  intra: boolean
 }
 
-export function delegateLine(d: Pick<SerializedDelegate, "rollNumber" | "isDtu" | "institution">) {
-  return d.rollNumber ?? (d.isDtu ? "DTU" : d.institution)
-}
+type Sort = "oldest" | "newest" | "experience"
+const SORT_ITEMS = [
+  { value: "oldest", label: "Registered first" },
+  { value: "newest", label: "Newest first" },
+  { value: "experience", label: "Most experience" },
+]
+const EXPERIENCE_ITEMS = [
+  { value: "any", label: "Any experience" },
+  { value: "yes", label: "Experienced" },
+  { value: "no", label: "First-timers" },
+]
 
-export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, eventId, focusDelegateId }: Props) {
+export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, eventId, focusDelegateId, intra }: Props) {
   const router = useRouter()
   const { notify } = useAllotmentLive(eventId)
   const refreshAndNotify = () => {
@@ -102,9 +121,16 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, 
     notify()
   }
   const [search, setSearch] = useState("")
-  const [seating, setSeating] = useState<SerializedDelegate | null>(
-    () => delegates.find((d) => d.id === focusDelegateId) ?? null,
-  )
+  // The same side panel as the Delegates page: full application, edit, emails.
+  const [drawer, setDrawer] = useState<DrawerDelegate | null>(null)
+  const openDrawer = (id: string) =>
+    getDelegateForDrawer(id)
+      .then((d) => (d ? setDrawer(d) : toast.error("That delegate is gone. Reload the page.")))
+      .catch(() => toast.error("Could not reach the server. Try again."))
+  // Arriving from "Add and give a seat": bring that delegate's row into view.
+  useEffect(() => {
+    if (focusDelegateId) document.getElementById(`waiting-${focusDelegateId}`)?.scrollIntoView({ block: "center" })
+  }, [focusDelegateId])
   const [revokeTarget, setRevokeTarget] = useState<{ portfolio: SerializedPortfolio; committee: SerializedCommittee } | null>(null)
   const [revoking, setRevoking] = useState(false)
 
@@ -112,23 +138,94 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, 
   const q = search.trim().toLowerCase()
   const matches = (fields: (string | null | undefined)[]) => !q || fields.some((f) => f?.toLowerCase().includes(q))
 
-  const waiting = delegates.filter((d) => matches([d.fullName, d.email, d.rollNumber, d.institution]))
+  const [committeeFilter, setCommitteeFilter] = useState("all")
+  const [experienceFilter, setExperienceFilter] = useState("any")
+  const [sort, setSort] = useState<Sort>("oldest")
+  const committeeFilterItems = [
+    { value: "all", label: "Any committee" },
+    ...committees.map((c) => ({ value: c.id, label: c.name })),
+    { value: "none", label: "No committee chosen" },
+  ]
+  const waiting = delegates
+    .filter((d) => matches([d.fullName, d.email, d.rollNumber, d.institution, d.munExperience]))
+    .filter((d) => {
+      const prefs = [d.pref1CommitteeId, d.pref2CommitteeId, d.pref3CommitteeId].filter(Boolean)
+      if (committeeFilter === "none") return prefs.length === 0
+      return committeeFilter === "all" || prefs.includes(committeeFilter)
+    })
+    .filter((d) => experienceFilter === "any" || (experienceScore(d.munExperience) > 0) === (experienceFilter === "yes"))
+    .sort((a, b) =>
+      sort === "experience"
+        ? experienceScore(b.munExperience) - experienceScore(a.munExperience) || a.createdAt.localeCompare(b.createdAt)
+        : sort === "newest"
+          ? b.createdAt.localeCompare(a.createdAt)
+          : a.createdAt.localeCompare(b.createdAt),
+    )
   const seated = committees
     .flatMap((c) => c.portfolios.filter((p) => p.allotment).map((p) => ({ portfolio: p, committee: c })))
     .sort((a, b) => b.portfolio.allotment!.allottedAt.localeCompare(a.portfolio.allotment!.allottedAt))
+  const unsent = seated.filter(({ portfolio: p }) => !p.allotment!.emailSentAt)
+  const [sending, setSending] = useState<string | null>(null)
+  // Ticked drafts (delegate ids). Pruned to drafts still unsent, so a row that
+  // was emailed or taken back since never stays selected.
+  const [picked, setPicked] = useState<Set<string>>(new Set())
+  const unsentIds = new Set(unsent.map(({ portfolio: p }) => p.allotment!.delegateId))
+  const selected = [...picked].filter((id) => unsentIds.has(id))
+  const toggle = (id: string) =>
+    setPicked((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  const [confirmSendAll, setConfirmSendAll] = useState(false)
+  const send = async (ids: string[], key: string) => {
+    setSending(key)
+    try {
+      const { sent, failed } = await emailAllotments(ids)
+      if (sent) toast.success(`Emailed ${sent} ${sent === 1 ? "delegate" : "delegates"}.`)
+      for (const f of failed) toast.error(`${f.name}: ${f.reason}`, { duration: 10000 })
+      refreshAndNotify()
+    } catch {
+      toast.error("Could not reach the server. Try again.")
+    } finally {
+      setSending(null)
+      setConfirmSendAll(false)
+      setPicked(new Set())
+    }
+  }
+  const emailed = seated.length - unsent.length
+  const [confirmResend, setConfirmResend] = useState(false)
+  const resendAll = async () => {
+    setSending("resend")
+    try {
+      const { sent, failed } = await resendAllotmentEmails()
+      if (sent) toast.success(`Emailed ${sent} ${sent === 1 ? "delegate" : "delegates"} again.`)
+      else if (failed.length === 0) toast.info("Nobody to email again. Anyone emailed in the last ten minutes is skipped.")
+      if (failed.length > 0) {
+        const names = failed.slice(0, 3).map((f) => f.name).join(", ")
+        toast.error(`${failed.length} did not send (${names}${failed.length > 3 ? ", …" : ""}). Email everyone again in ten minutes to retry only these.`, { duration: 15000 })
+      }
+      refreshAndNotify()
+    } catch {
+      toast.error("Could not reach the server. Try again.")
+    } finally {
+      setSending(null)
+      setConfirmResend(false)
+    }
+  }
   const seatedShown = seated.filter(({ portfolio: p, committee: c }) =>
     matches([p.allotment!.delegate.fullName, p.allotment!.delegate.email, p.name, c.name]),
   )
 
-  const closeDialog = () => {
-    setSeating(null)
+  const done = () => {
     if (focusDelegateId) router.replace("/admin/allotment", { scroll: false })
     refreshAndNotify()
   }
 
   const handleAllotted = (name: string, seat: string, hadWarning?: boolean) => {
-    closeDialog()
-    if (!hadWarning) toast.success(`${name} is seated as ${seat}.`)
+    done()
+    if (!hadWarning) toast.success(`${name} · ${seat} saved as a draft. Email when ready.`)
   }
 
   const handleRevoke = async () => {
@@ -182,7 +279,7 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, 
                 <div className="h-full rounded-full bg-primary" style={{ width: `${total ? (taken / total) * 100 : 0}%` }} />
               </div>
               <p className={cn("mt-2 text-xs", crowded ? "font-medium text-amber-600 dark:text-amber-400" : "text-muted-foreground")}>
-                {`${open} open · ${firsts} waiting want it first`}
+                {`${open} open · ${firsts} first choices`}
               </p>
             </div>
           )
@@ -203,8 +300,30 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, 
         <section className="editorial-card overflow-hidden">
           <header className="flex items-baseline justify-between border-b border-border/60 px-4 py-3">
             <h2 className="font-heading text-lg">Waiting for a seat</h2>
-            <span className="text-sm tabular-nums text-muted-foreground">{delegates.length}</span>
+            <span className="text-sm tabular-nums text-muted-foreground">
+              {waiting.length === delegates.length ? delegates.length : `${waiting.length} of ${delegates.length}`}
+            </span>
           </header>
+          <div className="flex flex-wrap gap-2 border-b border-border/60 px-4 py-2.5">
+            <Select items={committeeFilterItems} value={committeeFilter} onValueChange={(v) => setCommitteeFilter(v ?? "all")}>
+              <SelectTrigger size="sm" className="w-44 text-sm" aria-label="Filter by chosen committee"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {committeeFilterItems.map((i) => <SelectItem key={i.value} value={i.value}>{i.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select items={EXPERIENCE_ITEMS} value={experienceFilter} onValueChange={(v) => setExperienceFilter(v ?? "any")}>
+              <SelectTrigger size="sm" className="w-40 text-sm" aria-label="Filter by experience"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {EXPERIENCE_ITEMS.map((i) => <SelectItem key={i.value} value={i.value}>{i.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select items={SORT_ITEMS} value={sort} onValueChange={(v) => setSort((v as Sort) ?? "oldest")}>
+              <SelectTrigger size="sm" className="ml-auto w-44 text-sm" aria-label="Sort"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {SORT_ITEMS.map((i) => <SelectItem key={i.value} value={i.value}>{i.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </div>
           {waiting.length === 0 ? (
             <p className="px-4 py-8 text-center text-sm text-muted-foreground">
               {delegates.length === 0 ? "Everyone who registered has a seat." : "No waiting delegate matches."}
@@ -214,13 +333,22 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, 
               {waiting.map((d) => {
                 const choices = delegateChoices(d, committees)
                 return (
-                  <li key={d.id} className="flex items-center gap-3 px-4 py-3">
+                  <li
+                    key={d.id}
+                    id={`waiting-${d.id}`}
+                    className={cn("flex flex-wrap items-center gap-3 px-4 py-3", d.id === focusDelegateId && "bg-primary/5 ring-1 ring-inset ring-primary/40")}
+                  >
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium">{d.fullName}</p>
+                      <button type="button" onClick={() => void openDrawer(d.id)} className="max-w-full truncate text-left font-medium hover:underline">
+                        {d.fullName}
+                      </button>
                       <p className="truncate text-xs text-muted-foreground">
                         {delegateLine(d)}
                         {d.coDelegate ? ` · with ${d.coDelegate.fullName}` : ""}
                       </p>
+                      {d.munExperience?.trim() && (
+                        <p className="truncate text-xs text-muted-foreground" title={d.munExperience}>{`Experience: ${d.munExperience}`}</p>
+                      )}
                       <div className="mt-1.5 flex flex-wrap gap-1.5">
                         {choices.length === 0 ? (
                           <span className="text-xs text-muted-foreground">No committee chosen</span>
@@ -245,9 +373,15 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, 
                         )}
                       </div>
                     </div>
-                    <Button size="sm" onClick={() => setSeating(d)}>
-                      Give a seat
-                    </Button>
+                    <SeatPicker
+                      delegate={d}
+                      committees={committees}
+                      fees={fees}
+                      // Someone already accepted owes nothing for the seat.
+                      paymentsRequired={paymentsRequired && d.status === "REGISTERED"}
+                      onAllotted={handleAllotted}
+                      onGone={done}
+                    />
                   </li>
                 )
               })}
@@ -258,8 +392,36 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, 
         <section className="editorial-card overflow-hidden">
           <header className="flex items-baseline justify-between border-b border-border/60 px-4 py-3">
             <h2 className="font-heading text-lg">Seated</h2>
-            <span className="text-sm tabular-nums text-muted-foreground">{seated.length}</span>
+            <div className="flex items-center gap-1 self-center">
+              <span className="text-sm tabular-nums text-muted-foreground">{seated.length}</span>
+              {emailed > 0 && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    disabled={!!sending}
+                    aria-label="More allotment email actions"
+                    className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:pointer-events-none disabled:opacity-40"
+                  >
+                    <MoreHorizontal className="size-4" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-52">
+                    <DropdownMenuItem className="gap-2" onClick={() => setConfirmResend(true)}>
+                      <Mail className="size-3.5" /> Email everyone again…
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
+            </div>
           </header>
+          {unsent.length > 0 && (
+            <div className="flex items-center justify-between gap-3 border-b border-border/60 bg-amber-500/5 px-4 py-2.5 text-sm">
+              <span className="text-muted-foreground">
+                {selected.length > 0 ? `${selected.length} of ${unsent.length} drafts ticked` : `${unsent.length} not emailed yet`}
+              </span>
+              <Button size="sm" disabled={!!sending} onClick={() => setConfirmSendAll(true)}>
+                <Mail /> {sending === "all" ? "Emailing…" : selected.length > 0 ? `Email ${selected.length} ticked` : `Email all ${unsent.length}`}
+              </Button>
+            </div>
+          )}
           {seatedShown.length === 0 ? (
             <p className="px-4 py-8 text-center text-sm text-muted-foreground">
               {seated.length === 0 ? "Nobody has a seat yet." : "No seated delegate matches."}
@@ -268,13 +430,40 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, 
             <ul className="divide-y divide-border/50">
               {seatedShown.map(({ portfolio: p, committee: c }) => (
                 <li key={p.id} className="flex items-center gap-3 px-4 py-2.5">
+                  {unsent.length > 0 && p.allotment!.emailSentAt && <span className="size-4 shrink-0" />}
+                  {!p.allotment!.emailSentAt && (
+                    <Checkbox
+                      checked={picked.has(p.allotment!.delegateId)}
+                      onCheckedChange={() => toggle(p.allotment!.delegateId)}
+                      aria-label={`Tick ${p.allotment!.delegate.fullName} to email`}
+                      disabled={!!sending}
+                    />
+                  )}
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{p.allotment!.delegate.fullName}</p>
+                    <p className="flex items-center gap-2 text-sm font-medium">
+                      <button type="button" onClick={() => void openDrawer(p.allotment!.delegateId)} className="truncate text-left hover:underline">
+                        {p.allotment!.delegate.fullName}
+                      </button>
+                      {!p.allotment!.emailSentAt && (
+                        <span className="shrink-0 rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-medium text-amber-700 dark:text-amber-300">Draft</span>
+                      )}
+                    </p>
                     <p className="truncate text-xs text-muted-foreground">
                       {`${c.name} · ${p.name}`}
                       {c.doubleDelegation && p.allotment!.delegate.coDelegate ? ` · with ${p.allotment!.delegate.coDelegate.fullName}` : ""}
                     </p>
                   </div>
+                  {!p.allotment!.emailSentAt && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="gap-1 text-xs"
+                      disabled={!!sending}
+                      onClick={() => void send([p.allotment!.delegateId], p.id)}
+                    >
+                      <Mail className="size-3.5" /> {sending === p.id ? "Emailing…" : "Email"}
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="sm"
@@ -290,16 +479,40 @@ export function AllotmentBoard({ committees, delegates, fees, paymentsRequired, 
         </section>
       </div>
 
-      {seating && (
-        <AllotDialog
-          delegate={seating}
-          committees={committees}
-          fees={fees}
-          paymentsRequired={paymentsRequired}
-          onClose={closeDialog}
-          onAllotted={handleAllotted}
-        />
-      )}
+      <DelegateDrawer
+        delegate={drawer}
+        committees={committees}
+        intra={intra}
+        onClose={() => setDrawer(null)}
+        onUpdated={(updated) => {
+          setDrawer(updated)
+          refreshAndNotify()
+        }}
+      />
+
+      <ConfirmDialog
+        open={confirmSendAll}
+        onOpenChange={(next) => !next && setConfirmSendAll(false)}
+        title={`Email ${selected.length || unsent.length} ${(selected.length || unsent.length) === 1 ? "allotment" : "allotments"}?`}
+        description={paymentsRequired ? "Each delegate gets their seat and a payment link." : "Each delegate gets their seat and is confirmed."}
+        confirmLabel={`Email ${selected.length || unsent.length}`}
+        pending={sending === "all"}
+        onConfirm={() => void send(selected.length > 0 ? selected : [...unsentIds], "all")}
+      />
+
+      <ConfirmDialog
+        open={confirmResend}
+        onOpenChange={(next) => !next && setConfirmResend(false)}
+        title="Email everyone again?"
+        description={
+          paymentsRequired
+            ? `Up to ${emailed} ${emailed === 1 ? "delegate" : "delegates"} already emailed get the allotment email a second time, with their payment link. Anyone who has paid is skipped, and so are drafts.`
+            : `${emailed} ${emailed === 1 ? "delegate" : "delegates"} already emailed ${emailed === 1 ? "gets" : "get"} the allotment email a second time. Drafts are not sent.`
+        }
+        confirmLabel="Email everyone again"
+        pending={sending === "resend"}
+        onConfirm={() => void resendAll()}
+      />
 
       <ConfirmDialog
         open={Boolean(revokeTarget)}

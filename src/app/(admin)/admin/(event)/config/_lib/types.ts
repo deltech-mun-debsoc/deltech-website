@@ -19,6 +19,7 @@ export interface ClientCommittee {
   aliases: string[]
   portfolioTagLabel: string | null
   matrixBrief: string | null
+  groupLink: string | null
   portfolios: ClientPortfolio[]
 }
 

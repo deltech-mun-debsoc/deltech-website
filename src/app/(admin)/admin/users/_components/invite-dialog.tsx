@@ -26,6 +26,12 @@ import { t } from "@/content/strings"
 import { inviteStaff } from "../actions"
 
 type Role = "ADMIN" | "MAINTAINER" | "AUTHOR" | "SUB_MAINTAINER"
+const ROLE_ITEMS = [
+  { value: "MAINTAINER", label: "Maintainer" },
+  { value: "ADMIN", label: "Admin" },
+  { value: "AUTHOR", label: "Author (blog only)" },
+  { value: "SUB_MAINTAINER", label: "Junior Council (recruitment only)" },
+]
 
 export function InviteDialog() {
   const router = useRouter()
@@ -76,7 +82,7 @@ export function InviteDialog() {
             </div>
             <div className="space-y-1.5">
               <Label className="text-xs">Role</Label>
-              <Select value={role} onValueChange={(v) => setRole(v as Role)}>
+              <Select items={ROLE_ITEMS} value={role} onValueChange={(v) => setRole(v as Role)}>
                 <SelectTrigger className="w-full">
                   <SelectValue />
                 </SelectTrigger>

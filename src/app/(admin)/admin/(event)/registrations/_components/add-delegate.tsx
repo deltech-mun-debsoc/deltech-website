@@ -20,11 +20,11 @@ import { toSelectItems } from "@/lib/utils"
 import { addDelegate } from "../actions"
 
 interface Props {
-  committees: { id: string; name: string }[]
+  committees: { id: string; name: string; portfolios: { id: string; name: string }[] }[]
   intra: boolean
 }
 
-const EMPTY = { fullName: "", email: "", whatsapp: "", rollNumber: "", institution: "", isDtu: false, pref1CommitteeId: "", pref1Portfolio: "" }
+const EMPTY = { fullName: "", email: "", whatsapp: "", rollNumber: "", institution: "", isDtu: false, pref1CommitteeId: "", pref1Portfolio: "", pref1PortfolioId: "" }
 
 export function AddDelegate({ committees, intra }: Props) {
   const router = useRouter()
@@ -33,6 +33,8 @@ export function AddDelegate({ committees, intra }: Props) {
   const [pending, startTransition] = useTransition()
   const set = <K extends keyof typeof EMPTY>(key: K, value: (typeof EMPTY)[K]) => setForm((f) => ({ ...f, [key]: value }))
   const committeeItems = [{ value: "", label: "Not decided" }, ...toSelectItems(committees, (c) => c.id, (c) => c.name)]
+  const seats = committees.find((c) => c.id === form.pref1CommitteeId)?.portfolios ?? []
+  const seatItems = [{ value: "", label: "Any seat" }, ...toSelectItems(seats, (p) => p.id, (p) => p.name)]
 
   // Both buttons submit the form, so the browser stops on an empty required field
   // and points at it before anything is sent, whichever button was pressed.
@@ -45,7 +47,8 @@ export function AddDelegate({ committees, intra }: Props) {
         toast.error(r.error)
         return
       }
-      toast.success(`${form.fullName} added. Their application link is on its way by email.`)
+      if (r.emailed) toast.success(`${form.fullName} added and emailed their application link.`)
+      else toast.warning(`${form.fullName} added, but the email did not send. Open them and resend it under Emails.`, { duration: 10000 })
       setForm(EMPTY)
       setOpen(false)
       if (thenSeat) router.push(`/admin/allotment?delegate=${r.id}`)
@@ -63,7 +66,7 @@ export function AddDelegate({ committees, intra }: Props) {
           <DialogHeader>
             <DialogTitle>Add a delegate</DialogTitle>
             <DialogDescription>
-              For someone registering on the spot, even while public registration is closed. Everything is needed unless it says optional.
+              Walk-in registration, works while public registration is closed. They are emailed their application link.
             </DialogDescription>
           </DialogHeader>
           <form className="space-y-5" onSubmit={onSubmit}>
@@ -80,7 +83,7 @@ export function AddDelegate({ committees, intra }: Props) {
             </div>
             {intra ? (
               <Field label="DTU roll number">
-                <Input value={form.rollNumber} onChange={(e) => set("rollNumber", e.target.value)} placeholder="2K23/CO/123" required />
+                <Input value={form.rollNumber} onChange={(e) => set("rollNumber", e.target.value)} placeholder="e.g. 25/CO/123" required />
               </Field>
             ) : (
               <div className="space-y-3">
@@ -100,7 +103,7 @@ export function AddDelegate({ committees, intra }: Props) {
             )}
             <div className="grid gap-5 sm:grid-cols-2">
               <Field label="Committee they want" optional>
-                <Select items={committeeItems} value={form.pref1CommitteeId || undefined} onValueChange={(v) => set("pref1CommitteeId", v ?? "")}>
+                <Select items={committeeItems} value={form.pref1CommitteeId || null} onValueChange={(v) => setForm((f) => ({ ...f, pref1CommitteeId: v ?? "", pref1Portfolio: "", pref1PortfolioId: "" }))}>
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Not decided" />
                   </SelectTrigger>
@@ -112,17 +115,30 @@ export function AddDelegate({ committees, intra }: Props) {
                 </Select>
               </Field>
               <Field label="Portfolio they want" optional>
-                <Input
-                  value={form.pref1Portfolio}
-                  onChange={(e) => set("pref1Portfolio", e.target.value)}
-                  disabled={!form.pref1CommitteeId}
-                  placeholder={form.pref1CommitteeId ? "e.g. India" : "Pick a committee first"}
-                />
+                {seats.length > 0 ? (
+                  <Select key={form.pref1CommitteeId} items={seatItems} value={form.pref1PortfolioId || null} onValueChange={(v) => set("pref1PortfolioId", v ?? "")}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Any seat" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {seatItems.map((p) => (
+                        <SelectItem key={p.value} value={p.value}>{p.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    value={form.pref1Portfolio}
+                    onChange={(e) => set("pref1Portfolio", e.target.value)}
+                    disabled={!form.pref1CommitteeId}
+                    placeholder={form.pref1CommitteeId ? "No open seats listed · type one" : "Pick a committee first"}
+                  />
+                )}
               </Field>
             </div>
             <DialogFooter>
               <Button type="submit" name="then" value="list" variant="outline" disabled={pending}>
-                Just add
+                Add, seat later
               </Button>
               <Button type="submit" name="then" value="seat" disabled={pending}>
                 {pending ? "Adding…" : "Add and give a seat"}

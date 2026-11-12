@@ -78,11 +78,15 @@ for (const route of [
   assert.match(src, /\/status\/\$\{delegate\.publicToken\}/, "and must offer a way onward")
 }
 
-// --- the import wizard's terminal screen leads somewhere ------------------
+// --- the import's result screen leads somewhere ---------------------------
+// It ends on the next actions, so nobody goes back into the wizard to find out
+// what is left: the exceptions, the imported delegates, the seats to assign.
 {
-  const src = read("src/app/(admin)/admin/(event)/import/_components/import-wizard.tsx")
-  assert.match(src, /href="\/admin\/registrations"/, "the done screen must link to the result")
+  const src = read("src/app/(admin)/admin/(event)/import/_components/step-commit.tsx")
+  assert.match(src, /href="\/admin\/registrations\?source=CROSS_DEL"/, "the result must link to the imported delegates")
   assert.match(src, /result\.quarantined > 0/, "quarantined rows must be surfaced, not just counted")
+  assert.match(src, /href="\/admin\/import#quarantine"/, "and reachable in one click")
+  assert.match(src, /Assign remaining seats/, "accepted delegates without a seat must lead to Allotment")
   assert.match(read("src/app/(admin)/admin/(event)/import/page.tsx"), /id="quarantine"/, "the anchor must exist")
 }
 
@@ -133,7 +137,7 @@ for (const route of [
 
   const publicTeam = read("src/app/(marketing)/team/_components/team-directory.tsx")
   assert.match(publicTeam, /TEAM_LEVELS\.map/, "the public roster must preserve council hierarchy")
-  assert.match(publicTeam, /snap-mandatory/, "large councils must use compact horizontal rails")
+  assert.match(publicTeam, /people\.length > 8/, "large councils must use a denser grid")
   assert.match(publicTeam, /Instagram/, "team cards must expose Instagram profiles")
   assert.match(publicTeam, /LinkedIn/, "team cards must expose LinkedIn profiles")
 

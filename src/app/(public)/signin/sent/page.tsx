@@ -1,37 +1,43 @@
 import Link from "next/link";
 import { t } from "@/content/strings";
+import { buttonVariants } from "@/components/ui/button";
+import { AuthStage } from "@/components/auth-stage";
 
-export default function CheckEmailPage() {
+// Reached two ways: Auth.js after sending a link (?provider=resend&type=email),
+// and the sign-in action when the address has no account, which uses the same
+// query on purpose. A bare visit has sent nothing, so it must not say it has.
+export default async function CheckEmailPage(props: {
+  searchParams: Promise<{ type?: string }>
+}) {
+  const { type } = await props.searchParams;
+  const sent = type === "email";
+
   return (
-    <div className="paper-grid flex min-h-svh items-center justify-center p-4">
-      <div className="w-full max-w-sm">
-        <div className="mb-10 text-center">
-          <Link href="/" className="display text-3xl text-foreground">
-            {t("brand.name")}
+    <AuthStage marker="Email sign-in">
+      {sent ? (
+        <>
+          <h1 className="font-display text-4xl font-normal leading-tight">{t("auth.checkEmailTitle")}</h1>
+          <p className="mt-2 text-base leading-relaxed text-muted-foreground">{t("auth.checkEmailMessage")}</p>
+          <Link href="/signin" className={buttonVariants({ variant: "outline", className: "mt-6 h-11 w-full border-foreground/25 text-base" })}>
+            {t("auth.requestAnother")}
           </Link>
-        </div>
-
-        <div className="editorial-card p-6 text-center sm:p-8">
-          <span aria-hidden className="text-2xl text-gold-500">
-            ✉
-          </span>
-          <h1 className="mt-3 font-heading text-2xl">{t("auth.checkEmailTitle")}</h1>
-          <p className="mt-2 text-sm text-muted-foreground">{t("auth.checkEmailMessage")}</p>
-          <div className="rule my-5" />
-          <p className="text-xs text-muted-foreground">{t("auth.checkEmailExpiry")}</p>
           {/* An address with no account lands here too, so that a typo is not
               answered with "Something went wrong" and is not confirmed either.
               That only works if the page admits nothing may be coming. */}
-          <p className="mt-2 text-xs text-muted-foreground">{t("auth.checkEmailNoAccount")}</p>
-          <p className="mt-4 text-xs text-muted-foreground">
-            Didn’t get it? Check spam, or{" "}
-            <Link href="/signin" className="font-medium text-teal-800 underline underline-offset-2">
-              request another link
-            </Link>
-            .
-          </p>
-        </div>
-      </div>
-    </div>
+          <details className="mt-6 border-t border-border pt-4 text-sm text-muted-foreground">
+            <summary className="cursor-pointer font-medium text-foreground">{t("auth.didNotArrive")}</summary>
+            <p className="mt-2 leading-relaxed">{t("auth.checkEmailNoAccount")}</p>
+          </details>
+        </>
+      ) : (
+        <>
+          <h1 className="font-display text-4xl font-normal leading-tight">{t("auth.directSentTitle")}</h1>
+          <p className="mt-2 text-base leading-relaxed text-muted-foreground">{t("auth.directSentBody")}</p>
+          <Link href="/signin" className={buttonVariants({ className: "mt-6 h-11 w-full text-base" })}>
+            {t("auth.goToSignIn")}
+          </Link>
+        </>
+      )}
+    </AuthStage>
   );
 }

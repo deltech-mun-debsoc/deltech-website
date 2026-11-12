@@ -76,6 +76,7 @@ export interface SerializedDelegate {
 export interface EmailLogEntry {
   id: string
   template: string
+  toEmail: string
   status: string
   error: string | null
   sentAt: string

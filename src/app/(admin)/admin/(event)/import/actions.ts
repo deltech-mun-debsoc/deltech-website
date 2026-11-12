@@ -5,9 +5,13 @@ import { prisma } from "@/lib/prisma"
 import { requireStaff, requireAdmin } from "@/lib/authz"
 import { audit } from "@/lib/audit"
 import { createDelegateFromRow } from "@/lib/intake"
-import { getContent } from "@/lib/settings"
+import { getContent, setContent } from "@/lib/settings"
+import { revalidatePath } from "next/cache"
 import { automaticIntakeAllowed } from "@/lib/event-state"
-import type { ColumnMapping, MappedRow } from "@/lib/schemas/import"
+import { CapabilityError, requireCapability } from "@/lib/event"
+import { deriveCsvUrl } from "@/lib/gsheet-url"
+import { fetchSheetRows, SheetFetchError } from "@/lib/sheet-fetch"
+import { readableRowError, type ColumnMapping, type MappedRow } from "@/lib/schemas/import"
 import { MAX_TABULAR_COLUMNS, MAX_TABULAR_ROWS, parseCsvRows } from "@/lib/tabular"
 
 // ---------------------------------------------------------------------------
@@ -22,8 +26,22 @@ export interface ParseResult {
   rowCount?: number
 }
 
+// Every step of this wizard asks first, so an event without cross delegations is
+// refused before a file is read or a token is spent, not after the review.
+async function crossDelegationRefusal(): Promise<string | null> {
+  try {
+    await requireCapability("crossDelegations")
+    return null
+  } catch (err) {
+    if (err instanceof CapabilityError) return err.message
+    throw err
+  }
+}
+
 export async function parseUpload(formData: FormData): Promise<ParseResult> {
   await requireStaff()
+  const refused = await crossDelegationRefusal()
+  if (refused) return { success: false, error: refused }
   try {
     const file = formData.get("file") as File | null
     if (!file) return { success: false, error: "No file provided." }
@@ -134,6 +152,8 @@ export async function deleteImportPreset(id: string): Promise<{ success: boolean
 
 export interface CommitResult {
   created:     number
+  // Of those created: how many got a draft seat from their choices. The rest
+  // are accepted with nothing to pay and wait for a seat on Allotment.
   allotted:    number
   skipped:     number
   quarantined: number
@@ -156,6 +176,17 @@ export async function commitImport(params: {
   const errors: CommitResult["errors"] = []
 
   const activeRows = rows.filter((_, i) => !skippedSet.has(i))
+
+  const refused = await crossDelegationRefusal()
+  if (refused) {
+    return {
+      created: 0,
+      allotted: 0,
+      skipped: 0,
+      quarantined: 0,
+      errors: [{ row: 0, email: "", reason: refused }],
+    }
+  }
 
   // This wizard marks every row CONFIRMED and auto-allots it. During the Intra
   // MUN that would seat people with no review, so it refuses, and says where
@@ -184,12 +215,8 @@ export async function commitImport(params: {
 
       if (result.ok) {
         created++
-        if (result.allotted) {
-          allotted++
-          void import("@/lib/resend")
-            .then(({ sendAllotmentEmail }) => sendAllotmentEmail(result.delegateId))
-            .catch(() => undefined)
-        }
+        // Auto-allotted seats are drafts: staff email them from Allotment.
+        if (result.allotted) allotted++
       } else if (result.reason === "duplicate") {
         skipped++
         errors.push({ row: i, email: row.email, reason: "Email already registered, skipped." })
@@ -198,7 +225,7 @@ export async function commitImport(params: {
         errors.push({
           row: i,
           email: row.email,
-          reason: `Quarantined for review: ${result.errors.join("; ")}`,
+          reason: `Needs fixing: ${result.errors.map(readableRowError).join(" · ")}`,
         })
       }
     } catch (err) {
@@ -252,6 +279,12 @@ export async function retryQuarantined(
   const session = await requireStaff()
   const q = await prisma.quarantinedRow.findUnique({ where: { id } })
   if (!q || q.resolvedAt) return { success: false, error: "Row not found or already resolved." }
+  // A cross-delegation row is confirmed and seated on creation, so it needs the
+  // same permission as the import that produced it.
+  if (q.source === "CROSS_DEL") {
+    const refused = await crossDelegationRefusal()
+    if (refused) return { success: false, error: refused }
+  }
 
   const result = await createDelegateFromRow(fixedRow, q.source as "SELF" | "CROSS_DEL", {
     allottedBy: `quarantine:${session.user?.email ?? "staff"}`,
@@ -260,7 +293,7 @@ export async function retryQuarantined(
   if (!result.ok) {
     return {
       success: false,
-      error: result.reason === "duplicate" ? "Email already registered." : result.errors.join("; "),
+      error: result.reason === "duplicate" ? "Email already registered." : result.errors.map(readableRowError).join(" · "),
     }
   }
   await prisma.quarantinedRow.update({ where: { id }, data: { resolvedAt: new Date() } })
@@ -273,4 +306,61 @@ export async function dismissQuarantined(id: string): Promise<{ success: boolean
   await prisma.quarantinedRow.update({ where: { id }, data: { resolvedAt: new Date() } })
   await audit(session.user?.email ?? "unknown", "quarantine.dismiss", "QuarantinedRow", id)
   return { success: true }
+}
+
+// ---------------------------------------------------------------------------
+// Linked partner sheets, pulled daily by /api/cron/gform-sync
+// ---------------------------------------------------------------------------
+
+export interface PartnerSheet {
+  presetName: string
+  csvUrl: string
+  source: "SELF" | "CROSS_DEL"
+}
+
+// Its own action rather than a generic content save, so a cross-delegation sheet
+// cannot be linked to an event that takes none, and a bad link or a preset that
+// does not exist is refused here instead of failing silently every night.
+export async function savePartnerSheets(next: PartnerSheet[]): Promise<{ success: boolean; error?: string }> {
+  const session = await requireStaff()
+  if (next.some((s) => s.source === "CROSS_DEL")) {
+    const refused = await crossDelegationRefusal()
+    if (refused) return { success: false, error: refused }
+  }
+  const presets = new Set((await prisma.importPreset.findMany({ select: { name: true } })).map((p) => p.name))
+  const clean: PartnerSheet[] = []
+  for (const s of next) {
+    const csvUrl = deriveCsvUrl(s.csvUrl)
+    if (!csvUrl) return { success: false, error: "That doesn't look like a Google Sheets link." }
+    if (!presets.has(s.presetName)) return { success: false, error: `There is no import preset called "${s.presetName}".` }
+    if (s.source !== "SELF" && s.source !== "CROSS_DEL") return { success: false, error: "Choose who these delegates are." }
+    clean.push({ presetName: s.presetName, csvUrl, source: s.source })
+  }
+  await setContent({ sheetPullSources: clean })
+  await audit(session.user?.email ?? "unknown", "partnerSheets.save", "Setting", "sheetPullSources", { count: clean.length })
+  revalidatePath("/admin/import")
+  return { success: true }
+}
+
+// "Review now" on a linked sheet: read it with its saved mapping and hand the
+// rows to the same review an uploaded file gets, instead of waiting for the
+// nightly pull to import whatever it finds.
+export async function readPartnerSheet(presetName: string): Promise<
+  | { success: true; headers: string[]; rows: Record<string, string>[]; mapping: ColumnMapping }
+  | { success: false; error: string }
+> {
+  await requireStaff()
+  const refused = await crossDelegationRefusal()
+  if (refused) return { success: false, error: refused }
+  const content = await getContent()
+  const source = content.sheetPullSources.find((s) => s.presetName === presetName)
+  const preset = await prisma.importPreset.findUnique({ where: { name: presetName } })
+  if (!source || !preset) return { success: false, error: "That linked sheet or its preset no longer exists." }
+  try {
+    const { headers, rows } = await fetchSheetRows(source.csvUrl)
+    const stringRows = rows.map((r) => Object.fromEntries(Object.entries(r).map(([k, v]) => [k, String(v ?? "").trim()])))
+    return { success: true, headers, rows: stringRows, mapping: preset.mapping as ColumnMapping }
+  } catch (err) {
+    return { success: false, error: err instanceof SheetFetchError ? err.message : "The sheet could not be read." }
+  }
 }

@@ -7,9 +7,9 @@ import { Separator } from "@/components/ui/separator"
 import { cn } from "@/lib/utils"
 import { buttonVariants } from "@/components/ui/button"
 import Link from "next/link"
-import { STRINGS } from "@/content/strings"
+import { BrandBar } from "@/components/auth-stage"
 import { getContent } from "@/lib/settings"
-import { STATUS_LABEL, STATUS_VARIANT, PAY_STATUS_LABEL } from "@/lib/status-labels"
+import { STATUS_LABEL, STATUS_VARIANT, PAY_STATUS_LABEL, delegateFacingStatus } from "@/lib/status-labels"
 import { CheckinQR } from "./_components/checkin-qr"
 import { APP_URL } from "@/lib/app-url"
 import { deriveEventState } from "@/lib/event-state"
@@ -20,7 +20,7 @@ import { publicPaymentLink } from "@/lib/payments/public-link"
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
-      <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{label}</p>
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
       <p className="mt-0.5 text-sm">{value ?? "-"}</p>
     </div>
   )
@@ -55,134 +55,113 @@ export default async function StatusPage(props: {
   const session = await auth()
   const isOwner = session?.user?.email?.toLowerCase() === delegate.email.toLowerCase()
 
-  const { payment, allotment } = delegate
+  // A draft allotment (not emailed yet) is staff-only: until it is sent the
+  // delegate sees no seat, no payment and the status they had before it.
+  const draft = !!delegate.allotment && !delegate.allotment.emailSentAt
+  const allotment = draft ? null : delegate.allotment
+  const payment = draft ? null : delegate.payment
+  const status = delegateFacingStatus(delegate.status, delegate.allotment)
   const needsPayment =
     paymentsRequired && payment && (payment.status === "PENDING" || payment.status === "SENT") && payment.paymentLink
   const payLink = payment?.paymentLink
     ? publicPaymentLink(payment.paymentLink, delegate.publicToken)
     : null
-  const isConfirmed = delegate.status === "CONFIRMED"
+  const isConfirmed = status === "CONFIRMED"
 
   return (
-    <div className="mx-auto max-w-lg px-4 py-12">
-      <div className="space-y-6 rounded-2xl border border-border bg-card p-6 shadow-sm">
-        {/* Header */}
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              {STRINGS.brand.name}. Application Status
-            </p>
-            <h1 className="mt-1 text-xl font-bold">{delegate.fullName}</h1>
-            <p className="text-sm text-muted-foreground">{delegate.email}</p>
-          </div>
-          <Badge variant={STATUS_VARIANT[delegate.status] ?? "secondary"}>
-            {STATUS_LABEL[delegate.status] ?? delegate.status}
-          </Badge>
-        </div>
-
-        <Separator />
-
-        {/* Allotment */}
-        {allotment ? (
-          <div className="space-y-3">
-            <p className="text-xs font-semibold uppercase tracking-wider text-primary">
-              Allotment
-            </p>
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Committee" value={allotment.portfolio.committee.name} />
-              <Field label="Portfolio" value={allotment.portfolio.name} />
-              {allotment.portfolio.committee.agenda && (
-                <div className="col-span-2">
-                  <Field label="Agenda" value={allotment.portfolio.committee.agenda} />
-                </div>
-              )}
+    <>
+      <BrandBar />
+      <div className="mx-auto w-full max-w-lg px-4 py-12">
+        <div className="space-y-6 rounded-2xl border border-border bg-card p-6 shadow-sm">
+          {/* Header */}
+          <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+            <div>
+              <h1 className="text-xl font-semibold">{delegate.fullName}</h1>
+              <p className="break-all text-sm text-muted-foreground">{delegate.email}</p>
             </div>
+            <Badge variant={STATUS_VARIANT[status] ?? "secondary"}>
+              {STATUS_LABEL[status] ?? status}
+            </Badge>
           </div>
-        ) : (
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-primary">
-              Allotment
-            </p>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Not yet allotted. The secretariat will email your committee and portfolio once
-              they have gone through the applications.
-            </p>
-          </div>
-        )}
 
-        <Separator />
+          <Separator />
 
-        {/* Payment */}
-        <div className="space-y-3">
-          <p className="text-xs font-semibold uppercase tracking-wider text-primary">{paymentsRequired ? "Payment" : "Event fee"}</p>
-          {paymentsRequired && payment ? (
-            <div className="space-y-4">
+          {/* Allotment */}
+          {allotment ? (
+            <div className="space-y-3">
+              <p className="text-sm font-semibold">
+                Allotment
+              </p>
               <div className="grid grid-cols-2 gap-3">
-                <Field
-                  label="Amount"
-                  value={`₹${payment.amountInr.toLocaleString("en-IN")}`}
-                />
-                <Field
-                  label="Status"
-                  value={PAY_STATUS_LABEL[payment.status] ?? payment.status}
-                />
-                {isConfirmed && payment.confirmedAt && (
-                  <Field
-                    label="Confirmed on"
-                    value={formatDate(payment.confirmedAt)}
-                  />
+                <Field label="Committee" value={allotment.portfolio.committee.name} />
+                <Field label="Portfolio" value={allotment.portfolio.name} />
+                {allotment.portfolio.committee.agenda && (
+                  <div className="col-span-2">
+                    <Field label="Agenda" value={allotment.portfolio.committee.agenda} />
+                  </div>
                 )}
               </div>
-
-              {needsPayment && (
-                <Link
-                  href={payLink!}
-                  className={cn(buttonVariants({ size: "lg" }), "w-full")}
-                >
-                  Pay Now · ₹{payment.amountInr.toLocaleString("en-IN")}
-                </Link>
-              )}
-
-              {isConfirmed && (
-                <div className="rounded-lg bg-muted/50 p-3 text-sm text-muted-foreground">
-                  ✓ Your registration is confirmed. See you at the conference!
-                </div>
-              )}
             </div>
           ) : (
-            <p className="text-sm text-muted-foreground">
-              {paymentsRequired
-                ? "Payment details will appear here once you have been allotted a committee."
-                : STRINGS.marketing.noPaymentRequired}
-            </p>
+            <div>
+              <p className="text-sm font-semibold">
+                Allotment
+              </p>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Not allotted yet. You will be emailed when you are.
+              </p>
+            </div>
+          )}
+
+          {paymentsRequired && (
+            <>
+              <Separator />
+              <div className="space-y-3">
+                <p className="text-sm font-semibold">Payment</p>
+                {payment ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field label="Amount" value={`₹${payment.amountInr.toLocaleString("en-IN")}`} />
+                      <Field label="Status" value={PAY_STATUS_LABEL[payment.status] ?? payment.status} />
+                      {isConfirmed && payment.confirmedAt && (
+                        <Field label="Confirmed on" value={formatDate(payment.confirmedAt)} />
+                      )}
+                    </div>
+                    {needsPayment && (
+                      <Link href={payLink!} className={cn(buttonVariants({ size: "lg" }), "w-full")}>
+                        Pay ₹{payment.amountInr.toLocaleString("en-IN")}
+                      </Link>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Shown after allotment.</p>
+                )}
+              </div>
+            </>
+          )}
+
+          {/* Check-in QR, only once the delegate is confirmed to attend */}
+          {isConfirmed && (
+            <>
+              <Separator />
+              <CheckinQR checkinUrl={`${APP_URL}/admin/checkin/${delegate.publicToken}`} />
+            </>
+          )}
+
+          {/* Login prompt for guests */}
+          {!isOwner && (
+            <>
+              <Separator />
+              <p className="text-center text-xs text-muted-foreground">
+                <Link href="/signin" className="text-primary underline-offset-2 hover:underline">
+                  Sign in
+                </Link>{" "}
+                with this email to see it any time.
+              </p>
+            </>
           )}
         </div>
-
-        {/* Check-in QR, only once the delegate is confirmed to attend */}
-        {isConfirmed && (
-          <>
-            <Separator />
-            <CheckinQR checkinUrl={`${APP_URL}/admin/checkin/${delegate.publicToken}`} />
-          </>
-        )}
-
-        {/* Login prompt for guests */}
-        {!isOwner && (
-          <>
-            <Separator />
-            <p className="text-center text-xs text-muted-foreground">
-              This link is unique to you, keep it safe.{" "}
-              <Link
-                href="/signin"
-                className="text-primary underline-offset-2 hover:underline"
-              >
-                Sign in
-              </Link>{" "}
-              to access your account.
-            </p>
-          </>
-        )}
       </div>
-    </div>
+    </>
   )
 }

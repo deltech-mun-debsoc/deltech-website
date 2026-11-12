@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma"
-import { currentEventScope, getActiveEvent } from "@/lib/event"
+import { currentEventScope, getActiveEvent, getEventCapabilities } from "@/lib/event"
 import { buildDelegateWhere, parseSortField } from "./_lib/build-where"
 import { delegateInclude, serializeDelegate } from "./_lib/types"
 import { RegistrationsClient } from "./_components/registrations-client"
@@ -57,13 +57,18 @@ export default async function RegistrationsPage(props: {
     prisma.committee.findMany({
       where: { isActive: true, ...scope },
       orderBy: { sortOrder: "asc" },
-      select: { id: true, name: true, slug: true },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        portfolios: { where: { status: "AVAILABLE" }, orderBy: [{ priority: "asc" }, { name: "asc" }], select: { id: true, name: true } },
+      },
     }),
   ])
 
   const delegates = delegatesRaw.map(serializeDelegate)
-  const event = await getActiveEvent()
-  const intra = event?.kind === "INTRA_MUN"
+  const [event, caps] = await Promise.all([getActiveEvent(), getEventCapabilities()])
+  const intra = caps.intra
 
   const filters = { q, committeeId, status, source, isDtu, needsAccommodation, followUp, query, page, perPage, sortBy, sortDir }
 
@@ -81,7 +86,7 @@ export default async function RegistrationsPage(props: {
         committees={committees}
         total={total}
         filters={filters}
-        intra={intra}
+        caps={caps}
       />
     </div>
   )

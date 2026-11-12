@@ -34,7 +34,7 @@ export function VizMCQ({ tally, config, theme, revealedIndices, layout = "BARS" 
             <div key={i} className="grid h-full min-w-0 grid-rows-[2.75rem_minmax(0,1fr)_3.5rem] items-center">
               <div className="text-center font-mono tabular-nums" style={{ color: theme.textColor }}>
                 <span className="text-xl font-black">{pct}%</span>
-                <span className="ml-2 text-[0.65rem] font-bold uppercase opacity-50">{counts[i] ?? 0}</span>
+                <span className="ml-2 text-[0.65rem] font-bold opacity-50">{counts[i] ?? 0}</span>
               </div>
               <div
                 className="relative mx-auto flex h-full min-h-0 w-3/4 max-w-28 items-end overflow-hidden border-b"

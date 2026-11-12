@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { prisma } from "@/lib/prisma"
-import { currentEventScope } from "@/lib/event"
+import { currentEventScope, getEventCapabilities } from "@/lib/event"
 import ExcelJS from "exceljs"
 import { safeSpreadsheetCell, stringifyRows } from "@/lib/tabular"
 import { buildDelegateWhere } from "@/app/(admin)/admin/(event)/registrations/_lib/build-where"
@@ -252,22 +252,33 @@ export async function GET(request: NextRequest) {
     include: { coDelegate: true },
   })
 
+  // An Intra MUN is all DTU students: the roll number identifies them, and
+  // college, accommodation and source are the same for everyone. Committees are
+  // written by name, which is what a person reading the sheet can use.
+  const [{ intra }, committees] = await Promise.all([
+    getEventCapabilities(),
+    prisma.committee.findMany({ where: scope, select: { id: true, name: true } }),
+  ])
+  const committeeName = new Map(committees.map((c) => [c.id, c.name]))
   const rows = delegates.map((d) => ({
     "Full Name": d.fullName,
     Email: d.email,
     WhatsApp: d.whatsapp,
     "Alt Phone": d.altPhone ?? "",
-    Institution: d.institution,
-    DTU: d.isDtu ? "Yes" : "No",
+    ...(intra ? { "Roll Number": d.rollNumber ?? "" } : { Institution: d.institution, DTU: d.isDtu ? "Yes" : "No" }),
     "MUN Experience": d.munExperience ?? "",
-    "Pref1 Committee ID": d.pref1CommitteeId ?? "",
+    "Pref1 Committee": d.pref1CommitteeId ? (committeeName.get(d.pref1CommitteeId) ?? "") : "",
     "Pref1 Portfolio": d.pref1Portfolio ?? "",
-    "Pref2 Committee ID": d.pref2CommitteeId ?? "",
+    "Pref2 Committee": d.pref2CommitteeId ? (committeeName.get(d.pref2CommitteeId) ?? "") : "",
     "Pref2 Portfolio": d.pref2Portfolio ?? "",
-    "Needs Accommodation": d.needsAccommodation ? "Yes" : "No",
-    "Outside NCR": d.outsideNcr ? "Yes" : "No",
+    ...(intra
+      ? {}
+      : {
+          "Needs Accommodation": d.needsAccommodation ? "Yes" : "No",
+          "Outside NCR": d.outsideNcr ? "Yes" : "No",
+        }),
     Status: d.status,
-    Source: d.source,
+    ...(intra ? {} : { Source: d.source }),
     Reference: d.reference ?? "",
     "Registered At": d.createdAt.toISOString(),
     "Co-delegate Name": d.coDelegate?.fullName ?? "",

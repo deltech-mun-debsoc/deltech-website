@@ -87,12 +87,13 @@ export async function recipientMergeVars(
     where: { id: delegateId },
     select: {
       publicToken: true,
-      allotment: { select: { portfolio: { select: { name: true, committee: { select: { name: true } } } } } },
+      allotment: { select: { emailSentAt: true, portfolio: { select: { name: true, committee: { select: { name: true } } } } } },
     },
   })
   if (!d) return vars
   vars.statusLink = `${APP_URL}/status/${d.publicToken}`
-  if (d.allotment) {
+  // A draft allotment is not merged in: the delegate has not been told yet.
+  if (d.allotment?.emailSentAt) {
     vars.portfolio = d.allotment.portfolio.name
     vars.committee = d.allotment.portfolio.committee.name
   }
@@ -107,15 +108,17 @@ export interface QueueRunResult {
   capped: boolean
 }
 
-export async function processMailQueue(now: Date = new Date()): Promise<QueueRunResult> {
+// `campaignId` limits the sending to one campaign ("send the next batch now"
+// on its page); the scheduled tick runs everything.
+export async function processMailQueue(now: Date = new Date(), campaignId?: string): Promise<QueueRunResult> {
   const prOn = await prMailEnabled()
-  const started = await startDueCampaigns(now, prOn)
+  const started = campaignId ? 0 : await startDueCampaigns(now, prOn)
 
   const since = new Date(now.getTime() - 24 * 60 * 60 * 1000)
   const sentToday = await prisma.mailRecipient.count({ where: { status: "SENT", sentAt: { gte: since } } })
   const budget = Math.max(0, Math.min(PER_RUN, dailyCap() - sentToday))
 
-  const { sent, failed } = await sendPending(budget, now, prOn)
+  const { sent, failed } = await sendPending(budget, now, prOn, campaignId)
   const finished = await finishCampaigns(now)
   return { started, sent, failed, finished, capped: budget === 0 }
 }
@@ -177,19 +180,21 @@ async function startDueCampaigns(now: Date, prOn: boolean): Promise<number> {
   return started
 }
 
-async function sendPending(budget: number, now: Date, prOn: boolean): Promise<{ sent: number; failed: number }> {
-  // A recipient claimed by a run that never finished is marked failed, not put
-  // back in the queue. The provider may already have accepted it, and sending a
-  // second copy is worse than a failure somebody can see and resend by hand.
+async function sendPending(budget: number, now: Date, prOn: boolean, campaignId?: string): Promise<{ sent: number; failed: number }> {
+  // A recipient claimed by a run that never finished is UNCERTAIN, not failed
+  // and not back in the queue: the provider may already have accepted it, and a
+  // second copy is worse than a person checking first. The campaign's failure
+  // review asks that person to confirm before it can be retried.
   await prisma.mailRecipient.updateMany({
     where: { status: "SENDING", claimedAt: { lt: new Date(now.getTime() - STALE_CLAIM_MS) } },
-    data: { status: "FAILED", error: "Interrupted before the provider confirmed it. Not retried, to avoid sending twice." },
+    data: { status: "UNCERTAIN", error: "Interrupted after it was handed to the email service; it may have arrived." },
   })
   if (budget <= 0) return { sent: 0, failed: 0 }
 
   const pending = await prisma.mailRecipient.findMany({
     where: {
       status: "PENDING",
+      ...(campaignId ? { campaignId } : {}),
       campaign: { state: "SENDING", ...(prOn ? {} : { audience: "DELEGATES" }) },
     },
     orderBy: { id: "asc" },
@@ -240,7 +245,7 @@ async function sendPending(budget: number, now: Date, prOn: boolean): Promise<{ 
           // so it is dropped for that recipient rather than sent broken.
           const button = ctaUrl && ctaLabel && !/\{[a-zA-Z]+\}/.test(ctaUrl) ? { ctaUrl, ctaLabel } : {}
 
-          await sendMailerEmail({
+          const messageId = await sendMailerEmail({
             campaignId: r.campaign.id,
             toEmail: r.email,
             delegateId: r.delegateId ?? undefined,
@@ -257,7 +262,10 @@ async function sendPending(budget: number, now: Date, prOn: boolean): Promise<{ 
             ...button,
           })
 
-          await prisma.mailRecipient.update({ where: { id: r.id }, data: { status: "SENT", sentAt: new Date(), error: null } })
+          await prisma.mailRecipient.update({
+            where: { id: r.id },
+            data: { status: "SENT", sentAt: new Date(), error: null, providerMessageId: messageId ?? null },
+          })
           if (r.contactId) {
             await prisma.mailContact.update({ where: { id: r.contactId }, data: { lastMailedAt: new Date() } })
           }

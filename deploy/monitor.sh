@@ -6,8 +6,11 @@
 # need the backup. This is the smallest thing that would have caught either.
 #
 # Cron:  30 2 * * *  /srv/mun/monitor.sh
+#
+# Staging shares the box as its own project, with no Caddy of its own:
+#   40 2 * * *  MUN_DIR=/home/deploy/mun-staging MUN_SERVICES="staging db" /srv/mun/monitor.sh
 set -eu
-cd /srv/mun
+cd "${MUN_DIR:-/srv/mun}"
 
 problems=""
 note() { problems="${problems}- $1\n"; }
@@ -37,7 +40,7 @@ used=$(df / | tail -1 | awk '{print $5}' | tr -d '%')
 [ "$used" -gt 80 ] && note "Disk is ${used}% full."
 
 # 3. Are the containers actually up?
-for svc in caddy app db; do
+for svc in ${MUN_SERVICES:-caddy app db}; do
   state=$(docker compose ps --format '{{.Service}} {{.State}}' | awk -v s="$svc" '$1==s {print $2}')
   [ "$state" = "running" ] || note "Container ${svc} is '${state:-missing}', not running."
 done

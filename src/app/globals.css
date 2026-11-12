@@ -24,7 +24,7 @@
   --font-mono: var(--font-geist-mono);
   --font-display: var(--font-display);
   --font-serif: var(--font-display);
-  --font-heading: var(--font-display);
+  --font-heading: var(--heading-face);
   --text-xs: 0.8125rem;
   --text-xs--line-height: 1.4;
   --text-sm: 0.9375rem;
@@ -259,8 +259,16 @@
   h2,
   h3,
   h4 {
-    font-family: var(--font-heading);
-    letter-spacing: -0.01em;
+    font-family: var(--heading-face);
+    font-weight: 600;
+  }
+  /* Headings are sans everywhere. A page that earns an editorial headline uses
+     .headline on that one element. */
+  :root {
+    --heading-face: var(--font-sans);
+  }
+  .app-shell {
+    display: contents;
   }
   table {
     font-variant-numeric: tabular-nums;
@@ -275,22 +283,21 @@
 
 /* ── Editorial utilities ─────────────────────────────────────────────────── */
 @layer components {
-  /* serif display headlines at large optical size */
-  .display {
+  /* The one serif headline a public page may carry. */
+  .headline {
     font-family: var(--font-display);
-    font-weight: 560;
-    letter-spacing: -0.02em;
-    font-variation-settings: "opsz" 72;
+    font-size: clamp(2.25rem, 4.5vw, 3.5rem);
+    font-weight: 400;
+    line-height: 1.12;
+    letter-spacing: -0.005em;
   }
-  /* small-caps kicker above headlines */
+  /* Small sentence-case label above a block. */
   .eyebrow {
     font-family: var(--font-sans);
-    font-size: 0.8125rem;
-    font-weight: 680;
-    line-height: 1.35;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--accent-foreground);
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.4;
+    color: var(--muted-foreground);
   }
   /* hairline rules */
   .rule {
@@ -373,93 +380,22 @@
     width: min(100% - 2rem, 76rem);
     margin-inline: auto;
   }
-  .display-hero {
-    font-family: var(--font-display);
-    font-size: clamp(4rem, 10vw, 9.5rem);
-    font-weight: 570;
-    font-variation-settings: "opsz" 96;
-    letter-spacing: -0.055em;
-    line-height: 0.84;
-  }
-  .display-section {
-    font-family: var(--font-display);
-    font-size: clamp(2.5rem, 6vw, 5.75rem);
-    font-weight: 560;
-    font-variation-settings: "opsz" 72;
-    letter-spacing: -0.04em;
-    line-height: 0.94;
-  }
-  .body-large {
-    font-size: clamp(1.125rem, 1.45vw, 1.375rem);
-    line-height: 1.6;
-  }
   .data-label {
-    font-family: var(--font-mono);
-    font-size: 0.8125rem;
-    font-weight: 650;
-    letter-spacing: 0.1em;
-    text-transform: uppercase;
+    font-family: var(--font-sans);
+    font-size: 0.875rem;
+    font-weight: 600;
+    line-height: 1.4;
   }
   /* A section heading, not a field label. `.data-label` was doing both jobs, which
      made an <h2> and the <dt> under it typographically identical, and its mono
      family silently overrode the heading font (components layer beats base). */
   .section-label {
     font-family: var(--font-sans);
-    font-size: 0.8125rem;
-    font-weight: 680;
-    line-height: 1.35;
-    letter-spacing: 0.12em;
-    text-transform: uppercase;
+    font-size: 0.875rem;
+    font-weight: 600;
+    line-height: 1.4;
     color: var(--muted-foreground);
   }
-  .diplomatic-surface {
-    background:
-      linear-gradient(135deg, color-mix(in oklch, var(--primary) 11%, transparent), transparent 42%),
-      linear-gradient(315deg, color-mix(in oklch, var(--gold-500) 10%, transparent), transparent 38%),
-      var(--card);
-    border: 1px solid color-mix(in oklch, var(--foreground) 16%, transparent);
-  }
-  .signal-dot {
-    display: inline-block;
-    width: 0.55rem;
-    height: 0.55rem;
-    border-radius: 999px;
-    background: var(--signal);
-    box-shadow: 0 0 0 0.28rem color-mix(in oklch, var(--signal) 16%, transparent);
-  }
-  .ink-link {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.55rem;
-    font-weight: 650;
-    text-decoration: none;
-  }
-  .ink-link::after {
-    content: "↗";
-    transition: transform 180ms ease;
-  }
-  .ink-link:hover::after {
-    transform: translate(0.16rem, -0.16rem);
-  }
-  .noise-wash {
-    background-image:
-      radial-gradient(circle at 16% 22%, color-mix(in oklch, var(--gold-500) 15%, transparent) 0 1px, transparent 1.5px),
-      radial-gradient(circle at 78% 68%, color-mix(in oklch, var(--primary) 14%, transparent) 0 1px, transparent 1.5px);
-    background-size: 19px 19px, 23px 23px;
-  }
-}
-
-@keyframes orbit-spin {
-  to { transform: rotate(360deg); }
-}
-
-@keyframes orbit-spin-reverse {
-  to { transform: rotate(-360deg); }
-}
-
-@keyframes signal-pulse {
-  0%, 100% { opacity: 0.45; transform: scale(0.92); }
-  50% { opacity: 1; transform: scale(1.08); }
 }
 
 @keyframes quiz-rank-enter {
@@ -519,25 +455,8 @@
   .quiz-urgent { animation: none; }
 }
 
-.orbit-spin {
-  animation: orbit-spin 32s linear infinite;
-}
-
-.orbit-spin-reverse {
-  animation: orbit-spin-reverse 44s linear infinite;
-}
-
-.signal-pulse {
-  animation: signal-pulse 2.8s ease-in-out infinite;
-}
-
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
-  .orbit-spin,
-  .orbit-spin-reverse,
-  .signal-pulse {
-    animation: none;
-  }
   .quiz-rank-enter,
   .quiz-result-pop {
     animation: none;
@@ -561,7 +480,7 @@
 }
 .write-canvas .ProseMirror h1 {
   font-size: 1.875rem;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.25;
   margin-top: 2rem;
   margin-bottom: 0.5rem;
@@ -569,7 +488,7 @@
 }
 .write-canvas .ProseMirror h2 {
   font-size: 1.375rem;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.3;
   margin-top: 1.75rem;
   margin-bottom: 0.5rem;
@@ -638,14 +557,14 @@
 }
 .blog-prose h1 {
   font-size: 1.875rem;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.25;
   margin: 2rem 0 0.5rem;
   font-family: var(--font-display), Georgia, "Times New Roman", serif;
 }
 .blog-prose h2 {
   font-size: 1.375rem;
-  font-weight: 700;
+  font-weight: 600;
   line-height: 1.3;
   margin: 1.75rem 0 0.5rem;
   font-family: var(--font-display), Georgia, "Times New Roman", serif;
@@ -742,8 +661,7 @@
    generous heading offsets for anchor links, and every table scrolls inside its
    own box rather than pushing the page sideways.
 
-   Headings stay on --font-heading (Fraunces). That is what keeps the docs
-   recognisably part of the product rather than a generic docs template.
+   Headings are sans, like every other interface heading.
 --------------------------------------------------------------------------- */
 .docs-prose {
   font-family: var(--font-sans);
@@ -757,13 +675,12 @@
 .docs-prose h2,
 .docs-prose h3,
 .docs-prose h4 {
-  font-family: var(--font-heading);
-  letter-spacing: -0.02em;
+  font-family: var(--font-sans);
   scroll-margin-top: 6rem;
 }
 .docs-prose h2 {
   font-size: 1.5rem;
-  font-weight: 560;
+  font-weight: 600;
   line-height: 1.25;
   margin-top: 2.75rem;
   padding-top: 1.75rem;
@@ -875,9 +792,7 @@
   background: color-mix(in oklch, var(--foreground) 4%, transparent);
   font-family: var(--font-sans);
   font-size: 0.8125rem;
-  font-weight: 650;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
+  font-weight: 600;
   color: var(--muted-foreground);
   text-align: left;
 }

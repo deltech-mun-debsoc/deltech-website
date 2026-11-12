@@ -1,3 +1,4 @@
+import { campaignStateLabel } from "@/lib/mailer/recovery"
 import Link from "next/link"
 import { prisma } from "@/lib/prisma"
 import { getActiveEvent } from "@/lib/event"
@@ -33,15 +34,19 @@ export async function CampaignList({ audience }: { audience: "DELEGATES" | "CONT
   return (
     <div className="overflow-x-auto rounded-lg border border-border">
       <table className="w-full text-sm">
-        <thead className="bg-muted/40 text-left text-xs uppercase tracking-wider text-muted-foreground">
+        <thead className="bg-muted/40 text-left text-xs text-muted-foreground">
           <tr><th className="px-3 py-2">Subject</th><th className="px-3 py-2">State</th><th className="px-3 py-2">Sent</th><th className="px-3 py-2">When</th></tr>
         </thead>
         <tbody>
           {campaigns.map((c) => (
             <tr key={c.id} className="border-t border-border/60">
               <td className="px-3 py-2"><Link href={`${base}/${c.id}`} className="font-medium hover:underline">{c.subject || "(no subject)"}</Link></td>
-              <td className="px-3 py-2"><Badge variant={STATE_VARIANT[c.state]}>{c.state.toLowerCase()}</Badge></td>
-              <td className="px-3 py-2 text-xs tabular-nums">{tally(c.id, "SENT")} sent{tally(c.id, "FAILED") ? ` · ${tally(c.id, "FAILED")} failed` : ""}</td>
+              <td className="px-3 py-2">
+                <Badge variant={tally(c.id, "FAILED") + tally(c.id, "UNCERTAIN") > 0 && c.state === "SENT" ? "destructive" : STATE_VARIANT[c.state]}>
+                  {campaignStateLabel(c.state, { FAILED: tally(c.id, "FAILED"), UNCERTAIN: tally(c.id, "UNCERTAIN"), SENT: tally(c.id, "SENT") })}
+                </Badge>
+              </td>
+              <td className="px-3 py-2 text-xs tabular-nums">{`${tally(c.id, "SENT")} sent`}</td>
               <td className="px-3 py-2 text-xs text-muted-foreground">{formatDate(c.finishedAt ?? c.scheduledAt ?? c.createdAt)}</td>
             </tr>
           ))}

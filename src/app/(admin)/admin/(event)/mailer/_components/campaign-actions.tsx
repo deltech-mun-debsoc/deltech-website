@@ -7,7 +7,20 @@ import { Button } from "@/components/ui/button"
 import { ConfirmDialog } from "@/components/ui/confirm-dialog"
 import { cancelCampaign, duplicateCampaign, runQueueNow } from "../actions"
 
-export function CampaignActions({ id, state, isAdmin, base }: { id: string; state: string; isAdmin: boolean; base: string }) {
+export function CampaignActions({
+  id,
+  state,
+  isAdmin,
+  base,
+  canSendBatch = false,
+}: {
+  id: string
+  state: string
+  isAdmin: boolean
+  base: string
+  // Only while this mail has people waiting and the daily limit has room.
+  canSendBatch?: boolean
+}) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [cancelOpen, setCancelOpen] = useState(false)
@@ -55,16 +68,16 @@ export function CampaignActions({ id, state, isAdmin, base }: { id: string; stat
           })
         }
       >
-        Duplicate as a new draft
+        {state === "DRAFT" ? "Duplicate" : "Duplicate as a new draft (goes to everyone again)"}
       </Button>
-      {isAdmin && state === "SENDING" && (
+      {isAdmin && canSendBatch && (
         <Button
           variant="outline"
           size="sm"
           disabled={pending}
           onClick={() =>
             startTransition(async () => {
-              const r = await runQueueNow()
+              const r = await runQueueNow(id)
               if (!r.success) toast.error(r.error)
               else toast.success(r.capped ? "Daily limit reached. The rest continue automatically." : `Sent ${r.sent} more.`)
               router.refresh()

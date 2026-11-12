@@ -362,7 +362,8 @@ export function planPreparedImport<T extends { email: string }>(
         outcome: "skip-duplicate",
         errors: [
           group?.byTimestamp
-            ? `Superseded by a later submission from ${p.candidate.email} (row ${(winnerRow?.index ?? 0) + 1}).`
+            ? // +2: the sheet's own row number (rows start at 1, row 1 is the header).
+              `Superseded by a later submission from ${p.candidate.email} (row ${(winnerRow?.index ?? 0) + 2}).`
             : `Duplicate of another row in this sheet (${p.candidate.email}).`,
         ],
       })

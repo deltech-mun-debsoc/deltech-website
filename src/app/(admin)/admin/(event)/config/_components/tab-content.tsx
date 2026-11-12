@@ -34,7 +34,7 @@ type FormValues = z.infer<typeof schema>
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="space-y-4">
-      <p className="text-xs font-semibold uppercase tracking-wider text-primary">{title}</p>
+      <p className="text-xs font-semibold text-primary">{title}</p>
       {children}
     </div>
   )

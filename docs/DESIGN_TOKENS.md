@@ -7,7 +7,11 @@ Use semantic utilities such as `bg-background`, `text-foreground`, `text-muted-f
 The main shared layout and type utilities are:
 
 - `section-shell` for the responsive page width;
-- `display-hero` and `display-section` for editorial display type;
+- `headline` for the one Spectral headline a public page may carry (home: event or society name; team; The Dispatch; an article title). Never on task pages such as sign-in, quiz join, registration or payment. No optical-size settings, no negative tracking beyond the class;
+- `font-heading` / plain `h1`-`h4` are Geist 600 everywhere;
 - `body-large` for prominent readable supporting copy;
-- `data-label` and `eyebrow` for operational labels;
-- `diplomatic-surface`, `paper-grid`, and `noise-wash` for the visual system.
+- `eyebrow` is a small sentence-case label. Use it where it adds information, not above every section;
+- `data-label` and `section-label` for ordinary labels, in sentence case. Do not add `uppercase` or wide `tracking-*` to labels, buttons, navigation, table headers or statuses;
+- `font-mono` only for identifiers, codes and numbers that need aligned digits.
+
+Brand assets live in `public/brand/` and are rendered through `BrandLogo` and `BrandEmblem` (`src/components/brand-logo.tsx`): full lockup and emblem-only, each in white, navy (#244278) and black, extracted from `deltech-mun-source.jpg` without redrawing. Use the emblem where space is small; never shrink the full lockup into an icon.

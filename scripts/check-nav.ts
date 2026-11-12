@@ -1,6 +1,6 @@
 // Runnable check for role-aware landing: npx tsx scripts/check-nav.ts
 import assert from "node:assert"
-import { roleHome, safeLanding } from "../src/lib/nav"
+import { roleCanAccess, roleHome, safeLanding } from "../src/lib/nav"
 
 // ── roleHome ─────────────────────────────────────────────────────────────────
 assert.equal(roleHome("ADMIN"), "/admin")
@@ -14,6 +14,14 @@ assert.equal(roleHome("REGISTERER"), "/dashboard")
 assert.equal(roleHome("SUB_MAINTAINER"), "/recruitment")
 assert.equal(roleHome(undefined), "/")
 assert.equal(roleHome("NONSENSE"), "/")
+
+// ── Loop guard: every role's home passes the proxy's own gate ───────────────
+// The proxy sends a signed-in visitor it refuses to roleHome(role). If that home
+// failed roleCanAccess for the same role, the proxy would refuse it too and
+// redirect forever.
+for (const role of ["ADMIN", "MAINTAINER", "MEMBER", "AUTHOR", "REGISTERER", "SUB_MAINTAINER", "NONSENSE", undefined]) {
+  assert.ok(roleCanAccess(roleHome(role), role), `roleHome(${role}) must be reachable by ${role}`)
+}
 
 // ── safeLanding: open-redirect rejection → role home ─────────────────────────
 assert.equal(safeLanding("//evil.com", "ADMIN"), "/admin")

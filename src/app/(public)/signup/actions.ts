@@ -16,16 +16,16 @@ function isUniqueViolation(err: unknown): boolean {
 export async function signupWithMagicLink(
   _prev: { error?: string } | null,
   formData: FormData,
-): Promise<{ error?: string }> {
+): Promise<{ error?: string; email?: string }> {
   const email = (formData.get("email") as string)?.trim().toLowerCase();
   if (!email) return { error: "errorDefault" };
 
   const limit = await rateLimit(RATE_LIMITS.signup, email);
-  if (!limit.ok) return { error: "tooManyRequests" };
+  if (!limit.ok) return { error: "tooManyRequests", email };
 
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
-    if (existing.role !== "REGISTERER") return { error: "nonDelegateAccount" };
+    if (existing.role !== "REGISTERER") return { error: "nonDelegateAccount", email };
     // Already a registerer, so just resend the link so they can sign in.
   } else {
     try {
@@ -43,8 +43,8 @@ export async function signupWithMagicLink(
     return {};
   } catch (err) {
     if ((err as { digest?: string }).digest?.startsWith("NEXT_REDIRECT")) throw err;
-    if (isAuthRateLimitError(err)) return { error: "tooManyRequests" };
-    if (err instanceof AuthError) return { error: "errorDefault" };
-    return { error: "errorDefault" };
+    if (isAuthRateLimitError(err)) return { error: "tooManyRequests", email };
+    if (err instanceof AuthError) return { error: "errorDefault", email };
+    return { error: "errorDefault", email };
   }
 }

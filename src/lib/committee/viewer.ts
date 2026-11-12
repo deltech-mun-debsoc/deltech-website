@@ -72,6 +72,8 @@ async function seatsFor(email: string): Promise<CommitteeSeat[]> {
   const match = { equals: email, mode: "insensitive" as const }
   const allotments = await prisma.allotment.findMany({
     where: {
+      // A draft allotment is not theirs yet; it becomes a seat once emailed.
+      emailSentAt: { not: null },
       delegate: {
         eventId: event.id,
         status: { not: "CANCELLED" },

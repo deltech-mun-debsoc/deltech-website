@@ -3,7 +3,25 @@ export const metadata = {
   description: "Live form intake, the nightly re-sync, and the sheet mirror.",
 }
 
-Three separate integrations, often confused with each other.
+Separate integrations, often confused with each other. Each has one job.
+
+## The Form response sheet (Delegates, Google Form)
+
+For an Intra MUN, registrations arrive in the Google Form's response sheet. Connect it
+once on **Delegates, Google Form**. When the site has a service account, share the sheet
+with the address it shows, as a Viewer: the sheet stays private. Without one, the sheet
+has to be open to anyone with the link, and the screen says so, because that exposes
+every name, phone and roll number in it.
+
+After that, the routine is two buttons. **Check new responses** reads the sheet and
+shows what would change. **Import reviewed responses** applies exactly that. If the
+sheet is edited or re-sorted in between, Import refuses and asks you to check again, so
+nothing is imported that nobody looked at. **Manage source** is only for changing the
+link or the columns; changing the link replaces the connection rather than adding a
+second one.
+
+A connection belongs to its event. Reusing the same Form for next year's event starts
+clean.
 
 ## 1. Live intake from a Google Form
 
@@ -29,8 +47,9 @@ create duplicates, because the email is still the identity.
 Allotment and payment state is pushed **out** to a Google Sheet, so people who live in
 a spreadsheet can see the current state without an admin account.
 
-Configured by an admin in [fees and payment setup](/docs/staff/fees) as the sheet sync
-URL. It runs on allotment and on payment confirmation.
+Connected by an admin under **Allotment, Google Sheet copy**, with the Apps Script
+link. The same panel has **Copy every seat again**, which replays every seat (freed ones
+included) and says how many the sheet refused. It runs on allotment and on payment confirmation.
 
 <Callout type="warning">
 The mirror is one-way. Editing the Google Sheet does **not** change the platform. It is

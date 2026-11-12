@@ -10,7 +10,7 @@ export default function AdminNotFound() {
   return (
     <div className="grid min-h-[60vh] place-items-center px-4">
       <div className="w-full max-w-md rounded-2xl border border-border bg-card p-8 text-center shadow-sm">
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+        <p className="text-xs font-semibold text-muted-foreground">
           Error / 404
         </p>
         <h1 className="mt-3 font-heading text-2xl">Not found</h1>

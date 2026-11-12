@@ -20,7 +20,7 @@ import type { SerializedDelegate } from "../_lib/types"
 import type { SortField } from "../_lib/build-where"
 import { draftMailForDelegates } from "../../mailer/actions"
 import { DelegateDrawer } from "./delegate-drawer"
-import { statusMeta } from "../_lib/status"
+import { NEEDS_SEAT, stageOf, statusMeta } from "../_lib/status"
 
 interface Committee { id: string; name: string; slug: string }
 
@@ -44,17 +44,24 @@ interface Props {
   committees: Committee[]
   total: number
   filters: Filters
-  // Intra MUN: every delegate is a DTU student, so college, DTU, accommodation
-  // and source say nothing; the roll number does.
-  intra?: boolean
+  // What this event offers (eventCapabilities). An Intra MUN: every delegate is
+  // a DTU student, so college, DTU, accommodation and source say nothing; the roll
+  // number does. A free event has no payment stages to filter or chase.
+  caps: { intra: boolean; payments: boolean; crossDelegations: boolean }
 }
 
-const STATUS_OPTIONS = ["REGISTERED", "ALLOTTED", "PAYMENT_SENT", "CONFIRMED", "CANCELLED", "WAITLISTED"]
+const STATUS_OPTIONS = ["REGISTERED", "ALLOTTED", "PAYMENT_SENT", "CONFIRMED", NEEDS_SEAT, "CANCELLED", "WAITLISTED"]
+const PAYMENT_STAGES = new Set(["ALLOTTED", "PAYMENT_SENT"])
 const SOURCE_OPTIONS = ["SELF", "CROSS_DEL", "SPONSORED", "INTERNAL", "MANUAL"]
 
 const SOURCE_LABEL: Record<string, string> = {
   SELF: "Self", CROSS_DEL: "Cross-del", SPONSORED: "Sponsored", INTERNAL: "Internal", MANUAL: "Manual",
 }
+
+const FOLLOW_UP_ITEMS = [{ value: "", label: "Any follow-up" }, { value: "due", label: "Follow-up due" }, { value: "never", label: "Unpaid, never called" }]
+const QUERY_ITEMS = [{ value: "", label: "Any question" }, { value: "open", label: "Unanswered question" }]
+const DTU_ITEMS = [{ value: "", label: "DTU or not" }, { value: "true", label: "DTU only" }, { value: "false", label: "Not DTU" }]
+const ACCOMMODATION_ITEMS = [{ value: "", label: "Any accommodation" }, { value: "true", label: "Needs accommodation" }, { value: "false", label: "No accommodation" }]
 
 const FILTER_KEYS = ["q", "committeeId", "status", "source", "isDtu", "needsAccommodation", "followUp", "query"] as const
 
@@ -84,7 +91,7 @@ function SortHeader({ label, field, currentSort, currentDir, onSort }: {
   return (
     <button
       onClick={() => onSort(field, nextDir)}
-      className="flex items-center gap-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground"
+      className="flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground"
     >
       {label}
       {active ? (
@@ -96,7 +103,12 @@ function SortHeader({ label, field, currentSort, currentDir, onSort }: {
   )
 }
 
-export function RegistrationsClient({ delegates, committees, total, filters, intra = false }: Props) {
+export function RegistrationsClient({ delegates, committees, total, filters, caps }: Props) {
+  const intra = caps.intra
+  const statusOptions = STATUS_OPTIONS.filter(
+    (s) => (caps.payments || !PAYMENT_STAGES.has(s)) && (s !== NEEDS_SEAT || caps.crossDelegations),
+  )
+  const followUpItems = caps.payments ? FOLLOW_UP_ITEMS : FOLLOW_UP_ITEMS.filter((i) => i.value !== "never")
   const router = useRouter()
   const [, startTransition] = useTransition()
   const [drafting, startDrafting] = useTransition()
@@ -124,6 +136,14 @@ export function RegistrationsClient({ delegates, committees, total, filters, int
     }
   }
 
+  const statusItems = useMemo(
+    () => [{ value: "", label: "Every stage" }, ...statusOptions.map((s) => ({ value: s, label: statusMeta(s).label }))],
+    []
+  )
+  const sourceItems = useMemo(
+    () => [{ value: "", label: "Any source" }, ...SOURCE_OPTIONS.map((s) => ({ value: s, label: SOURCE_LABEL[s] }))],
+    []
+  )
   const committeeItems = useMemo(
     () => [{ value: "", label: "All committees" }, ...toSelectItems(committees, (c) => c.id, (c) => c.name)],
     [committees]
@@ -213,13 +233,13 @@ export function RegistrationsClient({ delegates, committees, total, filters, int
             />
           </form>
 
-          <Select value={filters.status || undefined} onValueChange={(v) => navigate({ status: v || "" })}>
+          <Select items={statusItems} value={filters.status || undefined} onValueChange={(v) => navigate({ status: v || "" })}>
             <SelectTrigger size="sm" className="w-40">
               <SelectValue placeholder="Every stage" />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="">Every stage</SelectItem>
-              {STATUS_OPTIONS.map((s) => (
+              {statusOptions.map((s) => (
                 <SelectItem key={s} value={s}>
                   <span className={cn("size-2 rounded-full", statusMeta(s).dot)} />
                   {statusMeta(s).label}
@@ -282,17 +302,17 @@ export function RegistrationsClient({ delegates, committees, total, filters, int
 
         {moreOpen && (
           <div className="flex flex-wrap items-center gap-2 rounded-lg bg-muted/40 p-2">
-            <Select value={filters.followUp || undefined} onValueChange={(v) => navigate({ followUp: v || "" })}>
+            <Select items={followUpItems} value={filters.followUp || undefined} onValueChange={(v) => navigate({ followUp: v || "" })}>
               <SelectTrigger size="sm" className="w-44">
                 <SelectValue placeholder="Any follow-up" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="">Any follow-up</SelectItem>
                 <SelectItem value="due">Follow-up due</SelectItem>
-                <SelectItem value="never">Unpaid, never called</SelectItem>
+                {caps.payments && <SelectItem value="never">Unpaid, never called</SelectItem>}
               </SelectContent>
             </Select>
-            <Select value={filters.query || undefined} onValueChange={(v) => navigate({ query: v || "" })}>
+            <Select items={QUERY_ITEMS} value={filters.query || undefined} onValueChange={(v) => navigate({ query: v || "" })}>
               <SelectTrigger size="sm" className="w-48">
                 <SelectValue placeholder="Any question" />
               </SelectTrigger>
@@ -303,7 +323,7 @@ export function RegistrationsClient({ delegates, committees, total, filters, int
             </Select>
             {!intra && (
               <>
-                <Select value={filters.source || undefined} onValueChange={(v) => navigate({ source: v || "" })}>
+                <Select items={sourceItems} value={filters.source || undefined} onValueChange={(v) => navigate({ source: v || "" })}>
                   <SelectTrigger size="sm" className="w-40">
                     <SelectValue placeholder="Any source" />
                   </SelectTrigger>
@@ -314,7 +334,7 @@ export function RegistrationsClient({ delegates, committees, total, filters, int
                     ))}
                   </SelectContent>
                 </Select>
-                <Select value={filters.isDtu || undefined} onValueChange={(v) => navigate({ isDtu: v || "" })}>
+                <Select items={DTU_ITEMS} value={filters.isDtu || undefined} onValueChange={(v) => navigate({ isDtu: v || "" })}>
                   <SelectTrigger size="sm" className="w-36">
                     <SelectValue placeholder="DTU or not" />
                   </SelectTrigger>
@@ -324,7 +344,7 @@ export function RegistrationsClient({ delegates, committees, total, filters, int
                     <SelectItem value="false">Not DTU</SelectItem>
                   </SelectContent>
                 </Select>
-                <Select value={filters.needsAccommodation || undefined} onValueChange={(v) => navigate({ needsAccommodation: v || "" })}>
+                <Select items={ACCOMMODATION_ITEMS} value={filters.needsAccommodation || undefined} onValueChange={(v) => navigate({ needsAccommodation: v || "" })}>
                   <SelectTrigger size="sm" className="w-44">
                     <SelectValue placeholder="Any accommodation" />
                   </SelectTrigger>
@@ -377,7 +397,7 @@ export function RegistrationsClient({ delegates, committees, total, filters, int
                       onSort={handleSort}
                     />
                   ) : (
-                    <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                    <span className="text-xs font-semibold text-muted-foreground">
                       {label}
                     </span>
                   )}
@@ -417,7 +437,7 @@ export function RegistrationsClient({ delegates, committees, total, filters, int
                   </td>
                   <td className="max-w-60 px-4 py-3">
                     {d.allotment ? (
-                      <span className="block truncate font-medium text-card-foreground">{`${committeeMap.get(d.allotment.committeeId) ?? ""} · ${d.allotment.portfolio.name}`}</span>
+                      <span className="block truncate font-medium text-card-foreground">{`${committeeMap.get(d.allotment.committeeId) ?? ""} · ${d.allotment.portfolio.name}${d.allotment.emailSentAt ? "" : " · draft"}`}</span>
                     ) : d.pref1CommitteeId ? (
                       <span className="block truncate text-muted-foreground">{`Wants ${committeeMap.get(d.pref1CommitteeId) ?? "-"}${d.pref1Portfolio ? ` · ${d.pref1Portfolio}` : ""}`}</span>
                     ) : (
@@ -425,9 +445,9 @@ export function RegistrationsClient({ delegates, committees, total, filters, int
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    <span className={cn("inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium", statusMeta(d.status).pill)}>
-                      <span className={cn("size-1.5 rounded-full", statusMeta(d.status).dot)} />
-                      {statusMeta(d.status).label}
+                    <span className={cn("inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium", stageOf(d).pill)}>
+                      <span className={cn("size-1.5 rounded-full", stageOf(d).dot)} />
+                      {stageOf(d).label}
                     </span>
                   </td>
                   {!intra && (<>

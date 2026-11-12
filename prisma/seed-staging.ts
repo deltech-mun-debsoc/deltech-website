@@ -214,8 +214,8 @@ async function main() {
   // committees, matrix, recruitment, and Event Control can all be exercised.
   const testSettings: Array<{ key: string; value: Prisma.InputJsonValue }> = [
     { key: "eventMode", value: "CONFERENCE" },
-    { key: "activeEventName", value: "DelTech MUN Test Conference" },
-    { key: "activeEventLabel", value: "Test environment" },
+    { key: "activeEventName", value: "DelTech MUN 2026" },
+    { key: "activeEventLabel", value: "Flagship conference" },
     { key: "paymentsEnabled", value: true },
     {
       key: "publicSections",
@@ -231,22 +231,22 @@ async function main() {
       },
     },
     { key: "registrationOpen", value: true },
-    { key: "registrationClosedMessage", value: "Test registration is currently closed." },
+    { key: "registrationClosedMessage", value: "" },
     { key: "conferenceDates", value: "10 to 11 October 2026" },
     { key: "venue", value: "Delhi Technological University, Rohini" },
     {
       key: "landingHero",
       value: {
-        title: "DelTech MUN Test Conference",
-        subtitle: "A safe environment for testing the complete delegate and organiser journey.",
-        ctaLabel: "Test registration",
+        title: "DelTech MUN 2026",
+        subtitle: "",
+        ctaLabel: "Register",
       },
     },
-    { key: "agendasBlurb", value: "Test every committee format with deterministic seeded data." },
+    { key: "agendasBlurb", value: "" },
     { key: "awards", value: ["Best Delegate", "High Commendation", "Special Mention"] },
     {
       key: "queryContacts",
-      value: [{ name: "Test Secretariat", role: "Testing support", phone: "919000000000" }],
+      value: [{ name: "Riya Sharma", role: "Delegate affairs", phone: "919000000000" }],
     },
     // Razorpay needs live-or-test API keys present in the environment. Staging
     // deliberately does not carry the production keys, and RazorpayProvider
@@ -257,8 +257,8 @@ async function main() {
     // razorpay from /admin/config at any time once test keys exist -- no deploy.
     { key: "paymentProvider", value: "upi_qr" },
     { key: "matrixPublic", value: true },
-    { key: "accommodationNote", value: "Fixture: accommodation requested for selected delegates." },
-    { key: "blogIntro", value: "Seeded dispatches covering every editorial state." },
+    { key: "accommodationNote", value: "Accommodation is arranged for outstation delegates who ask for it." },
+    { key: "blogIntro", value: "" },
 
     // These two decide which Google Sheet the app talks to, and they live in the
     // DATABASE rather than the environment -- so they ride along into any staging
@@ -335,7 +335,7 @@ async function main() {
   await prisma.event.update({
     where: { id: seedEventId },
     data: {
-      name: "DelTech MUN Test Conference",
+      name: "DelTech MUN 2026",
       state: "OPEN",
       registrationOpen: true,
       paymentsEnabled: true,
@@ -1106,14 +1106,16 @@ async function main() {
   await prisma.member.createMany({
     data: [
       {
-        name: "Test Secretary-General",
+        name: "Aarav Mehta",
         designation: "Secretary-General",
+        level: "AC",
         order: 1,
         socials: { linkedin: "https://www.linkedin.com" },
       },
       {
-        name: "Test Director-General",
+        name: "Ishita Rao",
         designation: "Director-General",
+        level: "AC",
         order: 2,
         socials: { instagram: "https://www.instagram.com" },
       },
@@ -1179,7 +1181,7 @@ async function main() {
     content: [{ type: "paragraph", content: [{ type: "text", text }] }],
   })
   const posts: Array<[PostStatus, string, string | null]> = [
-    [PostStatus.PUBLISHED, "Notes from the floor", null],
+    [PostStatus.PUBLISHED, "What your first committee is actually like", null],
     [PostStatus.PENDING, "A draft awaiting review", null],
     [PostStatus.CHANGES_REQUESTED, "Needs a tighter intro", "Tighten the opening two paragraphs."],
     [PostStatus.REJECTED, "Not running this one", "Off-topic for the dispatch."],
@@ -1191,11 +1193,13 @@ async function main() {
         authorId: dispatchAuthor.id,
         title,
         slug: title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-$/, ""),
-        contentJson: body(`Staging fixture for the ${status} state.`),
+        contentJson: body(status === PostStatus.PUBLISHED
+          ? "Most first-time delegates expect speeches. What fills the two days is quieter: reading the agenda until the clauses make sense, finding three delegations who want roughly what you want, and rewriting an operative clause until all of them will sign it."
+          : `Staging fixture for the ${status} state.`),
         status,
         reviewNote,
         readMin: 3,
-        tags: ["staging"],
+        tags: status === PostStatus.PUBLISHED ? ["guides"] : ["staging"],
         submittedAt: status === PostStatus.DRAFT ? null : new Date(),
         publishedAt: status === PostStatus.PUBLISHED ? new Date() : null,
       },

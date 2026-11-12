@@ -1,10 +1,9 @@
 import Link from "next/link"
 import { redirect } from "next/navigation"
-import { auth } from "@/lib/auth"
-import { safeLanding } from "@/lib/nav"
+import { landingFor } from "@/lib/landing"
 import { t } from "@/content/strings"
+import { AuthStage } from "@/components/auth-stage"
 import { SignInForm } from "./_components/sign-in-form"
-import { AuthStage } from "./_components/auth-stage"
 import { AuthErrorBanner } from "./_components/auth-error-banner"
 
 export default async function SignInPage(props: {
@@ -17,24 +16,21 @@ export default async function SignInPage(props: {
   // and the only way forward is to authenticate a second time. Dispatch the
   // same way /go does, so an intended callbackUrl is still honoured and a role
   // that cannot reach it is downgraded to its own home rather than bounced.
-  const session = await auth()
-  if (session) {
-    redirect(safeLanding(callbackUrl, (session.user as { role?: string } | undefined)?.role))
-  }
+  const target = await landingFor(callbackUrl)
+  if (target) redirect(target)
 
   return (
-    <AuthStage kind="delegate">
-      <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-teal-700">Identity / 01</p>
-      <h2 className="mt-5 max-w-[11ch] font-heading text-4xl leading-tight sm:text-5xl">{t("auth.signInTitle")}</h2>
-      <p className="mt-3 max-w-md text-base leading-relaxed text-black/55">Use a one-time email link or your password. Both enter the same delegate portal.</p>
-      {created && <div className="mt-5 border-l-4 border-teal-700 bg-teal-50 px-4 py-3 text-sm font-semibold text-teal-900">Account created. Your door is ready.</div>}
+    <AuthStage marker="Delegate and staff access">
+      <h1 className="font-display text-4xl font-normal leading-tight">{t("auth.signInTitle")}</h1>
+      {created && <p role="status" className="mt-5 rounded-lg border border-primary/30 bg-primary/10 px-4 py-3 text-sm font-medium">{t("auth.accountCreated")}</p>}
       <AuthErrorBanner error={error} />
-      <div className="my-7 h-px bg-black/15" />
-      <SignInForm callbackUrl={callbackUrl} />
-      <div className="mt-7 flex flex-col gap-3 border-t border-black/15 pt-5 text-sm sm:flex-row sm:justify-between">
-        <span>New delegate? <Link href="/signup" className="font-bold text-teal-800 underline">Create your identity</Link></span>
-        <Link href="/signin/staff" className="text-black/55 underline hover:text-black">Secretariat door →</Link>
+      <div className="mt-6">
+        <SignInForm callbackUrl={callbackUrl} />
       </div>
+      <p className="mt-8 border-t border-border pt-5 text-sm text-muted-foreground">
+        {t("auth.newDelegate")}{" "}
+        <Link href="/signup" className="font-semibold text-foreground underline underline-offset-4">{t("auth.signUpLinkText")}</Link>
+      </p>
     </AuthStage>
   )
 }

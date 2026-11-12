@@ -22,9 +22,6 @@ export default async function SitePage() {
       <SiteSections sections={content.publicSections} />
       <section className="editorial-card p-7">
         <h2 className="font-heading text-2xl">Society copy and contacts</h2>
-        <p className="mt-2 text-base text-muted-foreground">
-          Who the society is, the awards it gives, and the people who sign delegate emails.
-        </p>
         <div className="rule my-5" />
         <TabContent content={content} />
       </section>

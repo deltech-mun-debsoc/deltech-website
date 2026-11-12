@@ -38,9 +38,10 @@ export function parseContactAudience(raw: unknown): ContactAudience {
 
 // One click for the stages a secretariat actually mails. Each is a set of
 // filters, so the composer shows exactly what it chose and it can be refined.
-export const STAGE_SHORTCUTS: { key: string; label: string; filters: Partial<DelegateAudience> }[] = [
+// needsPayments marks a stage that only exists when the event charges.
+export const STAGE_SHORTCUTS: { key: string; label: string; filters: Partial<DelegateAudience>; needsPayments?: boolean }[] = [
   { key: "unallotted", label: "Not allotted yet", filters: { statuses: ["REGISTERED", "WAITLISTED"], allotted: "no" } },
-  { key: "allotted-unpaid", label: "Allotted, unpaid", filters: { allotted: "yes", paymentStatuses: ["PENDING", "SENT", "FAILED"] } },
+  { key: "allotted-unpaid", label: "Allotted, unpaid", filters: { allotted: "yes", paymentStatuses: ["PENDING", "SENT", "FAILED"] }, needsPayments: true },
   { key: "confirmed", label: "Confirmed", filters: { statuses: ["CONFIRMED"] } },
   { key: "checked-in", label: "Checked in", filters: { checkedIn: "yes" } },
   { key: "not-checked-in", label: "Confirmed, not checked in", filters: { statuses: ["CONFIRMED"], checkedIn: "no" } },
@@ -67,13 +68,14 @@ export function buildDelegateAudienceWhere(
   if (audience.committeeIds.length > 0) {
     and.push({
       OR: [
-        { allotment: { committeeId: { in: audience.committeeIds } } },
-        { allotment: null, pref1CommitteeId: { in: audience.committeeIds } },
+        { allotment: { is: { emailSentAt: { not: null }, committeeId: { in: audience.committeeIds } } } },
+        { OR: [{ allotment: null }, { allotment: { is: { emailSentAt: null } } }], pref1CommitteeId: { in: audience.committeeIds } },
       ],
     })
   }
-  if (audience.allotted === "yes") and.push({ allotment: { isNot: null } })
-  if (audience.allotted === "no") and.push({ allotment: null })
+  // "Allotted" means told: a draft allotment still counts as not allotted.
+  if (audience.allotted === "yes") and.push({ allotment: { is: { emailSentAt: { not: null } } } })
+  if (audience.allotted === "no") and.push({ OR: [{ allotment: null }, { allotment: { is: { emailSentAt: null } } }] })
   if (audience.paymentStatuses.length > 0) and.push({ payment: { status: { in: [...audience.paymentStatuses] } } })
   if (audience.isDtu !== "any") and.push({ isDtu: audience.isDtu === "yes" })
   if (audience.needsAccommodation !== "any") and.push({ needsAccommodation: audience.needsAccommodation === "yes" })

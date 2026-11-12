@@ -1,40 +1,16 @@
-import Link from "next/link"
 import { redirect } from "next/navigation"
-import { auth } from "@/lib/auth"
-import { safeLanding } from "@/lib/nav"
-import { STRINGS } from "@/content/strings"
-import { SignInForm } from "../_components/sign-in-form"
-import { AuthStage } from "../_components/auth-stage"
-import { AuthErrorBanner } from "../_components/auth-error-banner"
 
-export const metadata = { title: "Secretariat · " + STRINGS.brand.name }
-
-export default async function StaffSignInPage(props: {
+// There is one sign-in door. Staff and delegates share the account table and the
+// same two methods, and where you land is decided by your role afterwards, so a
+// second door only offered a wrong one to pick. This path stays for old invite
+// emails and bookmarks.
+export default async function StaffSignInRedirect(props: {
   searchParams: Promise<{ callbackUrl?: string; error?: string }>
 }) {
   const { callbackUrl, error } = await props.searchParams
-
-  // Same reasoning as the delegate door: see the comment in ../page.tsx.
-  const session = await auth()
-  if (session) {
-    redirect(safeLanding(callbackUrl, (session.user as { role?: string } | undefined)?.role))
-  }
-
-  return (
-    <AuthStage kind="staff">
-      <p className="font-mono text-xs font-bold uppercase tracking-[0.2em] text-amber-700">Clearance / Staff</p>
-      <h2 className="mt-5 max-w-[12ch] font-heading text-4xl leading-tight sm:text-5xl">Secretariat access.</h2>
-      <p className="mt-3 max-w-md text-base leading-relaxed text-black/55">Use the email an admin approved. First time in, take the magic link, then set a password from your account page.</p>
-      <AuthErrorBanner error={error} />
-      <div className="my-7 h-px bg-black/15" />
-      {/* Magic link first: an invited staffer has no passwordHash yet, since
-          that column is only ever written at /signup. Defaulting to the
-          password tab sent every new maintainer straight into "Invalid email
-          or password" on their first visit. */}
-      <SignInForm defaultTab="magic" callbackUrl={callbackUrl} />
-      <p className="mt-7 border-t border-black/15 pt-5 text-sm text-black/55">
-        Not staff? <Link href="/signin" className="font-bold text-amber-800 underline">Return to delegate access</Link>
-      </p>
-    </AuthStage>
-  )
+  const query = new URLSearchParams()
+  if (callbackUrl) query.set("callbackUrl", callbackUrl)
+  if (error) query.set("error", error)
+  const qs = query.toString()
+  redirect(qs ? `/signin?${qs}` : "/signin")
 }

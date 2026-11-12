@@ -9,7 +9,6 @@ import { STRINGS } from "@/content/strings"
 import { APP_URL } from "@/lib/app-url"
 import { RegistrationReceivedEmail } from "@/emails/registration-received"
 import { AllotmentEmail } from "@/emails/allotment"
-import { CoDelegateNoticeEmail } from "@/emails/co-delegate-notice"
 import { CoDelegateRegisteredEmail } from "@/emails/co-delegate-registered"
 import { PaymentConfirmedEmail } from "@/emails/payment-confirmed"
 import { PaymentReminderEmail } from "@/emails/payment-reminder"
@@ -60,7 +59,7 @@ function getSes(): SESv2Client {
 async function sentRecently(template: string, toEmail: string): Promise<boolean> {
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000)
   const hit = await prisma.emailLog.findFirst({
-    where: { template, toEmail, status: "SENT", sentAt: { gte: since } },
+    where: { template, toEmail, status: { in: ["SENT", "DELIVERED"] }, sentAt: { gte: since } },
     select: { id: true },
   })
   return !!hit
@@ -72,9 +71,9 @@ async function deliver(
   reactElement: React.ReactElement,
   idempotencyKey?: string,
   headers?: Record<string, string>,
-): Promise<string | undefined> {
+): Promise<{ error?: string; messageId?: string }> {
   if (TRANSPORT === "resend") {
-    const { error } = await getResend().emails.send(
+    const { data, error } = await getResend().emails.send(
       {
         from: FROM,
         to,
@@ -85,10 +84,10 @@ async function deliver(
       },
       idempotencyKey ? { idempotencyKey } : undefined,
     )
-    return error?.message
+    return error ? { error: error.message } : { messageId: data?.id }
   }
   const [html, text] = await Promise.all([render(reactElement), render(reactElement, { plainText: true })])
-  await getSes().send(
+  const sent = await getSes().send(
     new SendEmailCommand({
       FromEmailAddress: FROM,
       Destination: { ToAddresses: [to] },
@@ -102,7 +101,7 @@ async function deliver(
       },
     }),
   )
-  return undefined
+  return { messageId: sent.MessageId }
 }
 
 
@@ -126,32 +125,42 @@ async function loggedSend({
   reactElement: React.ReactElement
   idempotencyKey?: string
   headers?: Record<string, string>
-}): Promise<void> {
-  if (idempotencyKey && TRANSPORT === "ses" && (await sentRecently(template, toEmail))) return
+}): Promise<string | undefined> {
+  if (idempotencyKey && TRANSPORT === "ses" && (await sentRecently(template, toEmail))) return undefined
 
   let status = "SENT"
   let error: string | undefined
+  let messageId: string | undefined
 
   try {
     const recipient = REDIRECT_TO || toEmail
     const deliveredSubject = REDIRECT_TO ? `[STAGING → ${toEmail}] ${subject}` : subject
-    const apiError = await deliver(recipient, deliveredSubject, reactElement, idempotencyKey, headers)
-    if (apiError) {
+    const result = await deliver(recipient, deliveredSubject, reactElement, idempotencyKey, headers)
+    if (result.error) {
       status = "FAILED"
-      error = apiError
+      error = result.error
     }
+    messageId = result.messageId
   } catch (err) {
     status = "FAILED"
     error = err instanceof Error ? err.message : String(err)
   }
 
-  await prisma.emailLog.create({
-    data: { delegateId, template, toEmail, status, error },
-  })
+  // The provider's id lets later events (delivered, bounced, spam) land on this
+  // row. A failure to write the log after a successful send is only a missing
+  // log: the email went, so it must not be reported as failed and sent again.
+  try {
+    await prisma.emailLog.create({
+      data: { delegateId, template, toEmail, status, error, providerMessageId: messageId },
+    })
+  } catch (logErr) {
+    console.error("[email] sent but not logged", template, toEmail, logErr instanceof Error ? logErr.message : logErr)
+  }
 
   if (status === "FAILED") {
     throw new Error(`Email send failed [${template}→${toEmail}]: ${error}`)
   }
+  return messageId
 }
 
 // ---------------------------------------------------------------------------
@@ -253,9 +262,42 @@ export async function sendRegistrationEmails(delegateId: string): Promise<void> 
 // constraint, and this template passes no idempotency key, so nothing stopped the
 // same delegate being told twice. Allotment is the one email people act on, so a
 // duplicate reads as a changed allotment.
+// A double delegation is two people on one seat, and both need the allotment,
+// the payment mails and the group link. The main delegate's send decides the
+// outcome; the partner's is logged like any other, so a failure shows up under
+// Failed emails and Resend there goes to them alone.
+interface Recipient {
+  name: string
+  email: string
+  partner?: string
+  primary: boolean
+}
+
+export function seatHolders(d: { fullName: string; email: string; coDelegate: { fullName: string; email: string } | null }): Recipient[] {
+  const out: Recipient[] = [{ name: d.fullName, email: d.email, partner: d.coDelegate?.fullName, primary: true }]
+  const co = d.coDelegate
+  if (co && co.email.trim().toLowerCase() !== d.email.trim().toLowerCase()) {
+    out.push({ name: co.fullName, email: co.email, partner: d.fullName, primary: false })
+  }
+  return out
+}
+
+export async function sendToSeatHolders(
+  recipients: Recipient[],
+  onlyTo: string | undefined,
+  send: (r: Recipient) => Promise<unknown>,
+): Promise<void> {
+  const only = onlyTo?.trim().toLowerCase()
+  for (const r of recipients) {
+    if (only && r.email.trim().toLowerCase() !== only) continue
+    if (r.primary || only) await send(r)
+    else await send(r).catch(() => {})
+  }
+}
+
 export async function sendAllotmentEmail(
   delegateId: string,
-  { force = false }: { force?: boolean } = {},
+  { force = false, onlyTo }: { force?: boolean; onlyTo?: string } = {},
 ): Promise<void> {
   const delegate = await prisma.delegate.findUniqueOrThrow({
     where: { id: delegateId },
@@ -264,6 +306,7 @@ export async function sendAllotmentEmail(
       email: true,
       publicToken: true,
       needsAccommodation: true,
+      coDelegate: { select: { fullName: true, email: true } },
       allotment: {
         include: {
           portfolio: { include: { committee: true } },
@@ -278,6 +321,12 @@ export async function sendAllotmentEmail(
   }
 
   if (delegate.allotment.emailSentAt && !force) return
+  // A forced send is a deliberate resend of an allotment already released. A
+  // draft must go through emailAllotments, which makes the pay link first;
+  // resending a stale log row for a re-allotted draft would skip that.
+  if (force && !delegate.allotment.emailSentAt) {
+    throw new Error("This allotment is still a draft. Email it from the Allotment page.")
+  }
 
   const committee = delegate.allotment.portfolio.committee
   const portfolio = delegate.allotment.portfolio
@@ -290,37 +339,44 @@ export async function sendAllotmentEmail(
   const paymentsEnabled = deriveEventState(content).paymentsRequired
   const payLink = publicPaymentLink(delegate.payment?.paymentLink, delegate.publicToken)
 
-  await loggedSend({
-    delegateId,
-    template: "allotment",
-    toEmail: delegate.email,
-    subject,
-    reactElement: AllotmentEmail({
-      eventName: content.activeEventName || content.landingHero.title,
-      fullName: delegate.fullName,
-      committeeName: committee.name,
-      portfolioName: portfolio.name,
-      agenda: committee.agenda ?? null,
-      amountInr: delegate.payment?.amountInr,
-      payLink: paymentsEnabled ? payLink : undefined,
-      paymentsEnabled,
-      needsAccommodation: delegate.needsAccommodation,
-      accommodationNote: content.accommodationNote,
-      conferenceDates: content.conferenceDates,
-      venue: content.venue,
-      paymentDeadline: content.paymentDeadline,
-      paymentProofUrl: content.paymentProofUrl,
-      refundPolicy: content.refundPolicy,
-      contactEmail: content.secretariatEmail,
-      contacts: content.queryContacts,
-      // Their own page: allotment, payment state, and the check-in QR the desk
-      // scans on the day. The QR lives there rather than in the email because
-      // mail clients strip inline SVG, and a broken QR at the door is worse than
-      // a link to a working one.
-      statusUrl: `${APP_URL}/status/${delegate.publicToken}`,
-      whatsappCommunityUrl: content.whatsappCommunityUrl,
+  await sendToSeatHolders(seatHolders(delegate), onlyTo, (r) =>
+    loggedSend({
+      delegateId,
+      template: "allotment",
+      toEmail: r.email,
+      subject,
+      reactElement: AllotmentEmail({
+        eventName: content.activeEventName || content.landingHero.title,
+        fullName: r.name,
+        partnerName: r.partner,
+        committeeName: committee.name,
+        portfolioName: portfolio.name,
+        agenda: committee.agenda ?? null,
+        amountInr: delegate.payment?.amountInr,
+        payLink: paymentsEnabled ? payLink : undefined,
+        paymentsEnabled,
+        needsAccommodation: delegate.needsAccommodation,
+        accommodationNote: content.accommodationNote,
+        conferenceDates: content.conferenceDates,
+        venue: content.venue,
+        paymentDeadline: content.paymentDeadline,
+        paymentProofUrl: content.paymentProofUrl,
+        refundPolicy: content.refundPolicy,
+        contactEmail: content.secretariatEmail,
+        contacts: content.queryContacts,
+        // Their own page: allotment, payment state, and the check-in QR the desk
+        // scans on the day. The QR lives there rather than in the email because
+        // mail clients strip inline SVG, and a broken QR at the door is worse than
+        // a link to a working one. The page and its QR are the main delegate's,
+        // so the partner is not sent it.
+        statusUrl: r.primary ? `${APP_URL}/status/${delegate.publicToken}` : undefined,
+        // Groups are for delegates who have a confirmed seat. On a paid event that
+        // is after payment, so the links go in the payment-confirmed mail instead.
+        whatsappCommunityUrl: paymentsEnabled ? undefined : content.whatsappCommunityUrl,
+        groupUrl: paymentsEnabled ? undefined : committee.groupLink ?? undefined,
+      }),
     }),
-  })
+  )
 
   await prisma.allotment.update({
     where: { delegateId },
@@ -328,47 +384,13 @@ export async function sendAllotmentEmail(
   })
 }
 
-export async function sendCoDelegateNotice(delegateId: string): Promise<void> {
-  const delegate = await prisma.delegate.findUniqueOrThrow({
-    where: { id: delegateId },
-    select: {
-      fullName: true,
-      coDelegate: true,
-      allotment: {
-        include: { portfolio: { include: { committee: true } } },
-      },
-    },
-  })
-
-  if (!delegate.coDelegate || !delegate.allotment) return
-
-  const committee = delegate.allotment.portfolio.committee
-  const portfolio = delegate.allotment.portfolio
-  const content = await getContent()
-  const paymentsEnabled = deriveEventState(content).paymentsRequired
-  const subject = STRINGS.email.subjects.coDelegateNotice.replace("{committee}", committee.name)
-
-  await loggedSend({
-    delegateId,
-    template: "co-delegate-notice",
-    toEmail: delegate.coDelegate.email,
-    subject,
-    reactElement: CoDelegateNoticeEmail({
-      coDelegateName: delegate.coDelegate.fullName,
-      primaryDelegateName: delegate.fullName,
-      committeeName: committee.name,
-      portfolioName: portfolio.name,
-      paymentsEnabled,
-    }),
-  })
-}
-
-export async function sendPaymentConfirmed(delegateId: string): Promise<void> {
+export async function sendPaymentConfirmed(delegateId: string, onlyTo?: string): Promise<void> {
   const delegate = await prisma.delegate.findUniqueOrThrow({
     where: { id: delegateId },
     select: {
       fullName: true,
       email: true,
+      coDelegate: { select: { fullName: true, email: true } },
       allotment: {
         include: { portfolio: { include: { committee: true } } },
       },
@@ -380,28 +402,33 @@ export async function sendPaymentConfirmed(delegateId: string): Promise<void> {
 
   const committee = delegate.allotment.portfolio.committee
   const portfolio = delegate.allotment.portfolio
+  const payment = delegate.payment
   const content = await getContent()
 
-  await loggedSend({
-    delegateId,
-    template: "payment-confirmed",
-    toEmail: delegate.email,
-    subject: STRINGS.email.subjects.paymentConfirmed,
-    reactElement: PaymentConfirmedEmail({
-      eventName: content.activeEventName || content.landingHero.title,
-      fullName: delegate.fullName,
-      committeeName: committee.name,
-      portfolioName: portfolio.name,
-      amountInr: delegate.payment.amountInr,
-      confirmedAt: delegate.payment.confirmedAt ?? new Date(),
-      whatsappCommunityUrl: content.whatsappCommunityUrl,
-      contactEmail: content.secretariatEmail,
-      contacts: content.queryContacts,
+  await sendToSeatHolders(seatHolders(delegate), onlyTo, (r) =>
+    loggedSend({
+      delegateId,
+      template: "payment-confirmed",
+      toEmail: r.email,
+      subject: STRINGS.email.subjects.paymentConfirmed,
+      reactElement: PaymentConfirmedEmail({
+        eventName: content.activeEventName || content.landingHero.title,
+        fullName: r.name,
+        partnerName: r.partner,
+        committeeName: committee.name,
+        portfolioName: portfolio.name,
+        amountInr: payment.amountInr,
+        confirmedAt: payment.confirmedAt ?? new Date(),
+        whatsappCommunityUrl: content.whatsappCommunityUrl,
+        groupUrl: committee.groupLink ?? undefined,
+        contactEmail: content.secretariatEmail,
+        contacts: content.queryContacts,
+      }),
     }),
-  })
+  )
 }
 
-export async function sendPaymentReminder(delegateId: string): Promise<void> {
+export async function sendPaymentReminder(delegateId: string, onlyTo?: string): Promise<void> {
   const content = await getContent()
   if (!deriveEventState(content).paymentsRequired) return
 
@@ -411,6 +438,7 @@ export async function sendPaymentReminder(delegateId: string): Promise<void> {
       fullName: true,
       email: true,
       publicToken: true,
+      coDelegate: { select: { fullName: true, email: true } },
       allotment: {
         include: { portfolio: { include: { committee: true } } },
       },
@@ -422,21 +450,24 @@ export async function sendPaymentReminder(delegateId: string): Promise<void> {
 
   const committee = delegate.allotment.portfolio.committee
   const portfolio = delegate.allotment.portfolio
+  const amountInr = delegate.payment.amountInr
   const payLink = publicPaymentLink(delegate.payment.paymentLink, delegate.publicToken)
 
-  await loggedSend({
-    delegateId,
-    template: "payment-reminder",
-    toEmail: delegate.email,
-    subject: STRINGS.email.subjects.paymentReminder,
-    reactElement: PaymentReminderEmail({
-      fullName: delegate.fullName,
-      committeeName: committee.name,
-      portfolioName: portfolio.name,
-      amountInr: delegate.payment.amountInr,
-      payLink,
+  await sendToSeatHolders(seatHolders(delegate), onlyTo, (r) =>
+    loggedSend({
+      delegateId,
+      template: "payment-reminder",
+      toEmail: r.email,
+      subject: STRINGS.email.subjects.paymentReminder,
+      reactElement: PaymentReminderEmail({
+        fullName: r.name,
+        committeeName: committee.name,
+        portfolioName: portfolio.name,
+        amountInr,
+        payLink,
+      }),
     }),
-  })
+  )
 }
 
 export async function sendBlogApproved(postId: string): Promise<void> {
@@ -574,7 +605,7 @@ export async function sendStaffInvite(email: string, role: string): Promise<void
     template: "staff-invite",
     toEmail: email,
     subject: "You've been added to the DelTech MUN secretariat",
-    reactElement: StaffInviteEmail({ role, signInUrl: `${APP_URL}/signin/staff` }),
+    reactElement: StaffInviteEmail({ role, signInUrl: `${APP_URL}/signin` }),
   })
 }
 
@@ -583,7 +614,7 @@ export async function sendChairInvite(email: string, committeeName: string): Pro
     template: "chair-invite",
     toEmail: email,
     subject: `You are chairing ${committeeName} at DelTech MUN`,
-    reactElement: ChairInviteEmail({ committeeName, signInUrl: `${APP_URL}/signin/staff` }),
+    reactElement: ChairInviteEmail({ committeeName, signInUrl: `${APP_URL}/signin` }),
   })
 }
 
@@ -600,26 +631,70 @@ export async function sendMagicLink(email: string, url: string): Promise<void> {
 }
 
 // ---------------------------------------------------------------------------
-// Resend by log ID (admin drawer)
+// Sending a delegate's notice now (admin)
 // ---------------------------------------------------------------------------
+//
+// Not a replay of an old email: each builds the notice from the delegate's
+// CURRENT seat, link and address. Named for what it sends, so staff are not told
+// "send again" for something that is not the same email.
 
-const RESENDABLE_TEMPLATES: Record<string, (id: string) => Promise<void>> = {
-  "registration-received": sendRegistrationReceived,
-  "co-delegate-registered": sendCoDelegateRegistered,
-  // Explicitly forced: pressing Resend is a person deciding to send it again, so
-  // it must override the once-only guard rather than silently doing nothing.
-  allotment: (id: string) => sendAllotmentEmail(id, { force: true }),
-  "co-delegate-notice": sendCoDelegateNotice,
-  "payment-confirmed": sendPaymentConfirmed,
-  "payment-reminder": sendPaymentReminder,
+export type DelegateNotice = "registration" | "allotment" | "payment"
+
+// The latest outcome for an address: a bounce or spam complaint means sending
+// there again is pointless (and harmful to the sending reputation) until the
+// address changes.
+export async function addressBlocked(toEmail: string): Promise<"BOUNCED" | "COMPLAINED" | null> {
+  const last = await prisma.emailLog.findFirst({
+    where: { toEmail: { equals: toEmail.trim(), mode: "insensitive" }, status: { in: ["SENT", "DELIVERED", "BOUNCED", "COMPLAINED", "FAILED"] } },
+    orderBy: { sentAt: "desc" },
+    select: { status: true },
+  })
+  return last?.status === "BOUNCED" || last?.status === "COMPLAINED" ? last.status : null
 }
 
-export async function resendByLogId(logId: string): Promise<void> {
-  const log = await prisma.emailLog.findUniqueOrThrow({ where: { id: logId } })
-  const fn = RESENDABLE_TEMPLATES[log.template]
-  if (!fn) throw new Error(`Template "${log.template}" cannot be resent via logId`)
-  if (!log.delegateId) throw new Error(`Log ${logId} has no delegateId`)
-  await fn(log.delegateId)
+export async function sendDelegateNotice(delegateId: string, notice: DelegateNotice, toEmail?: string): Promise<void> {
+  const d = await prisma.delegate.findUniqueOrThrow({
+    where: { id: delegateId },
+    select: {
+      email: true,
+      coDelegate: { select: { email: true } },
+      allotment: { select: { emailSentAt: true } },
+      payment: { select: { status: true, paymentLink: true } },
+    },
+  })
+  // The current address of the person meant: the delegate, or their co-delegate.
+  const target = toEmail && d.coDelegate?.email.toLowerCase() === toEmail.toLowerCase() ? d.coDelegate.email : d.email
+  const blocked = await addressBlocked(target)
+  if (blocked) {
+    throw new Error(
+      blocked === "BOUNCED"
+        ? `${target} bounced. Fix the address first.`
+        : `${target} marked our email as spam. Reach them another way.`,
+    )
+  }
+  if (notice === "registration") {
+    if (target === d.email) await sendRegistrationReceived(delegateId)
+    else await sendCoDelegateRegistered(delegateId)
+    return
+  }
+  if (notice === "allotment") {
+    if (!d.allotment?.emailSentAt) throw new Error("Their seat is still a draft. Email it from Allotment.")
+    await sendAllotmentEmail(delegateId, { force: true, onlyTo: target })
+    return
+  }
+  if (!d.payment || !["PENDING", "SENT"].includes(d.payment.status) || !d.payment.paymentLink) {
+    throw new Error("They have no payment link waiting.")
+  }
+  await sendPaymentReminder(delegateId, target)
+}
+
+// Which notice a logged template belongs to, for retrying a failure from the
+// dashboard. Campaign mail and sign-in links are not retried from here.
+export function noticeForTemplate(template: string): DelegateNotice | null {
+  if (template === "registration-received" || template === "co-delegate-registered") return "registration"
+  if (template === "allotment" || template === "co-delegate-notice") return "allotment"
+  if (template === "payment-reminder") return "payment"
+  return null
 }
 
 // ---------------------------------------------------------------------------
@@ -647,8 +722,8 @@ export async function sendMailerEmail(input: {
   ctaUrl?: string
   unsubscribeUrl?: string
   unsubscribePostUrl?: string
-}): Promise<void> {
-  await loggedSend({
+}): Promise<string | undefined> {
+  return loggedSend({
     delegateId: input.delegateId,
     template: `mailer:${input.campaignId}`,
     toEmail: input.toEmail,

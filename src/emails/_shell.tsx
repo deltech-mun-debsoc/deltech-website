@@ -221,28 +221,20 @@ export function Panel({
 }
 
 // Contact block shared by the allotment and payment-confirmed emails.
+// The query contacts (name, role, phone) stay in settings but are left out of
+// mail for now: the secretariat wants questions by email, not calls.
 export function Contacts({
   contactEmail,
-  contacts,
 }: {
   contactEmail: string
-  contacts: Array<{ name: string; role: string; phone: string }>
+  contacts?: Array<{ name: string; role: string; phone: string }>
 }) {
   return (
     <>
       <Hr style={{ borderColor: "#e4e4e7", margin: "28px 0 20px" }} />
-      <Text style={{ color: bodyInk, fontSize: 13, lineHeight: "1.6", margin: "0 0 12px" }}>
+      <Text style={{ color: bodyInk, fontSize: 13, lineHeight: "1.6", margin: 0 }}>
         Questions? Write to <B>{contactEmail}</B>.
       </Text>
-      {contacts.map((c) => (
-        <Text
-          key={c.name + c.phone}
-          style={{ color: ink, fontSize: 13, lineHeight: "1.5", margin: "4px 0" }}
-        >
-          <B>{c.name}</B> · {c.role}
-          {c.phone ? ` · ${c.phone}` : ""}
-        </Text>
-      ))}
     </>
   )
 }

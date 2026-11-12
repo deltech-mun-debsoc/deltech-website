@@ -94,7 +94,7 @@ function Stat({
 }) {
   return (
     <div>
-      <p className="font-mono text-xs uppercase tracking-[0.16em] opacity-55">{label}</p>
+      <p className="font-mono text-xs opacity-55">{label}</p>
       <p className="text-4xl font-bold tabular-nums" style={{ color: theme.accentColor }}>
         {value === null ? "-" : Math.round(value * 100) / 100}
         {unit && <span className="ml-1 text-2xl opacity-70">{unit}</span>}

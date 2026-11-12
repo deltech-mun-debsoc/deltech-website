@@ -1,5 +1,5 @@
-# Production box. HTTPS certificates are issued and renewed automatically once
-# DNS points here. caddy.env supplies ACME_EMAIL.
+# The one box: production and staging. HTTPS certificates are issued and renewed
+# automatically once DNS points here. caddy.env supplies ACME_EMAIL.
 {
 	email {$ACME_EMAIL}
 }
@@ -25,6 +25,18 @@ www.deltechmun.in {
 docs.deltechmun.in {
 	encode zstd gzip
 	reverse_proxy app:3000 {
+		header_up X-Forwarded-For {remote_host}
+	}
+}
+
+# Staging, a separate compose project on this box (compose.staging.yml), reached
+# over the mun-edge network as `staging`. Never `app`: that name is production.
+test.deltechmun.in {
+	encode zstd gzip
+	# No password gate: interns need to roam freely, and the app's own sign-in
+	# guards everything that matters. X-Robots-Tag keeps it out of search.
+	header X-Robots-Tag "noindex, nofollow"
+	reverse_proxy staging:3000 {
 		header_up X-Forwarded-For {remote_host}
 	}
 }

@@ -1,4 +1,3 @@
-import { RadioTower } from "lucide-react"
 import { prisma } from "@/lib/prisma"
 import { currentEventScope } from "@/lib/event"
 import { getContent } from "@/lib/settings"
@@ -12,29 +11,21 @@ import { MatrixBoard, type MatrixCommittee } from "./_components/matrix-board"
 
 export const revalidate = 0
 
-function MatrixHero({ totalAvailable, exact }: { totalAvailable: number; exact: boolean }) {
+function Heading({ totalAvailable }: { totalAvailable: number }) {
   return (
-    <section className="relative overflow-hidden border-b border-border/70 bg-ink py-20 text-paper sm:py-28">
-      <div className="paper-grid absolute inset-0 opacity-[0.08]" aria-hidden />
-      <div className="section-shell relative grid gap-12 lg:grid-cols-[1fr_0.42fr] lg:items-end">
+    <header className="relative overflow-hidden border-b border-white/15 bg-ink py-16 text-paper sm:py-24">
+      <div className="paper-grid absolute inset-0 opacity-[0.07]" aria-hidden />
+      <div className="section-shell relative grid gap-8 sm:grid-cols-[1fr_auto] sm:items-end">
         <div>
-          <p className="data-label flex items-center gap-3 text-gold-300">
-            <RadioTower className="size-4" />
-            {t("marketing.availabilityEyebrow")}
-          </p>
-          <h1 className="display-section mt-6 max-w-[9ch]">{t("marketing.availabilityTitle")}</h1>
-          <p className="body-large mt-8 max-w-2xl text-paper/65">
-            {exact ? t("marketing.availabilityBody") : t("marketing.availabilityCountsBody")}
-          </p>
+          <p className="text-sm font-medium text-gold-300">DelTech MUN</p>
+          <h1 className="mt-4 font-display text-[clamp(3.25rem,7vw,6.5rem)] font-normal leading-none tracking-[-0.02em]">Committee availability</h1>
         </div>
-        <div className="border-l border-paper/20 pl-7">
-          <p className="font-mono text-[5rem] font-semibold leading-none tabular-nums text-gold-300 sm:text-[7rem]">
-            {String(totalAvailable).padStart(2, "0")}
-          </p>
-          <p className="data-label mt-4 text-paper/55">{t("marketing.portfoliosStillOpen")}</p>
-        </div>
+        <p className="border-l border-paper/25 pl-5 text-lg text-paper/75">
+          <span className="block font-mono text-4xl font-semibold text-paper tabular-nums">{totalAvailable}</span>
+          {t("marketing.openPortfolios")}
+        </p>
       </div>
-    </section>
+    </header>
   )
 }
 
@@ -69,22 +60,14 @@ export default async function AvailabilityPage() {
 
     return (
       <div>
-        <MatrixHero totalAvailable={totalAvailable} exact={false} />
-        <section className="py-20 sm:py-28">
-          <div className="section-shell">
-            <div className="mb-12 grid gap-6 border-b border-foreground/20 pb-8 md:grid-cols-[1fr_0.7fr]">
-              <h2 className="font-heading text-4xl md:text-5xl">{t("marketing.committeeSignal")}</h2>
-              <p className="self-end text-base leading-relaxed text-muted-foreground">
-                {t("marketing.countsDisclosure")}
-              </p>
-            </div>
-            {initial.length === 0 ? (
-              <p className="border-y border-border py-16 text-lg text-muted-foreground">{t("empty.noCommittees")}</p>
-            ) : (
-              <AvailabilityBoard initial={initial} />
-            )}
-          </div>
-        </section>
+        <Heading totalAvailable={totalAvailable} />
+        <div className="section-shell py-12 sm:py-20">
+          {initial.length === 0 ? (
+            <p className="text-lg text-muted-foreground">{t("empty.noCommittees")}</p>
+          ) : (
+            <AvailabilityBoard initial={initial} />
+          )}
+        </div>
       </div>
     )
   }
@@ -111,16 +94,14 @@ export default async function AvailabilityPage() {
 
   return (
     <div>
-      <MatrixHero totalAvailable={totalAvailable} exact />
-      <section className="py-20 sm:py-28">
-        <div className="section-shell">
-          {matrix.length === 0 ? (
-            <p className="border-y border-border py-16 text-lg text-muted-foreground">{t("empty.noCommittees")}</p>
-          ) : (
-            <MatrixBoard paymentsRequired={deriveEventState(content).paymentsRequired} committees={matrix} />
-          )}
-        </div>
-      </section>
+      <Heading totalAvailable={totalAvailable} />
+      <div className="section-shell py-12 sm:py-20">
+        {matrix.length === 0 ? (
+          <p className="text-lg text-muted-foreground">{t("empty.noCommittees")}</p>
+        ) : (
+          <MatrixBoard paymentsRequired={deriveEventState(content).paymentsRequired} committees={matrix} />
+        )}
+      </div>
     </div>
   )
 }

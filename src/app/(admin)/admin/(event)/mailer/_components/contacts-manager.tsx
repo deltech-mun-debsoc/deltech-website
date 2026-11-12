@@ -149,7 +149,7 @@ export function ContactsManager({
         </form>
         <div className="overflow-x-auto rounded-lg border border-border">
           <table className="w-full text-sm">
-            <thead className="bg-muted/40 text-left text-xs uppercase tracking-wider text-muted-foreground">
+            <thead className="bg-muted/40 text-left text-xs text-muted-foreground">
               <tr><th className="px-3 py-2">Contact</th><th className="px-3 py-2">Tags</th><th className="px-3 py-2">Status</th><th className="px-3 py-2" /></tr>
             </thead>
             <tbody>

@@ -197,7 +197,7 @@ export function BuilderClient({ presentation, initialSlides }: Props) {
 
         {/* Center, live preview */}
         <div className="relative flex min-w-0 flex-1 flex-col items-center justify-center overflow-auto bg-[#d8d3c7] p-8">
-          <div className="pointer-events-none absolute left-6 top-5 flex items-center gap-3 font-mono text-xs font-bold uppercase tracking-[0.18em] text-black/35">
+          <div className="pointer-events-none absolute left-6 top-5 flex items-center gap-3 font-mono text-xs font-bold text-black/35">
             <span className="size-2 bg-primary" /> Live canvas
           </div>
           {selectedSlide ? (
@@ -234,7 +234,7 @@ export function BuilderClient({ presentation, initialSlides }: Props) {
         )}
         {mobilePane === "canvas" && (
           <div className="relative flex min-w-0 flex-1 flex-col items-center justify-center overflow-auto overscroll-contain bg-[#d8d3c7] p-5 sm:p-8">
-            <div className="pointer-events-none absolute left-5 top-4 flex items-center gap-2 font-mono text-xs font-bold uppercase tracking-[0.12em] text-black/45">
+            <div className="pointer-events-none absolute left-5 top-4 flex items-center gap-2 font-mono text-xs font-bold text-black/45">
               <span className="size-2 bg-primary" /> Live canvas
             </div>
             {selectedSlide ? (

@@ -5,6 +5,7 @@ import { getContent } from "@/lib/settings"
 import { automaticIntakeAllowed } from "@/lib/event-state"
 import { createDelegateFromRow } from "@/lib/intake"
 import { applyMapping, type ColumnMapping } from "@/lib/schemas/import"
+import { SHEET_PULL_HEALTH } from "@/lib/sheet-pull"
 
 // Daily self-heal for Google Form intake (GitHub Actions cron). Pulls each
 // published-CSV URL from the sheetPullSources setting and re-runs every row
@@ -20,10 +21,11 @@ export async function GET(req: NextRequest) {
   }
 
   const content = await getContent()
-  const results: Record<string, { created: number; dedup: number; quarantined: number; error?: string }> = {}
+  const results: Record<string, { rows: number; created: number; dedup: number; quarantined: number; error?: string }> = {}
 
   for (const src of content.sheetPullSources) {
-    const stats = { created: 0, dedup: 0, quarantined: 0 } as {
+    const stats = { rows: 0, created: 0, dedup: 0, quarantined: 0 } as {
+      rows: number
       created: number
       dedup: number
       quarantined: number
@@ -45,6 +47,7 @@ export async function GET(req: NextRequest) {
       }
 
       const { rows } = await fetchSheetRows(src.csvUrl)
+      stats.rows = rows.length
 
       for (const raw of rows) {
         const stringRow = Object.fromEntries(
@@ -66,6 +69,15 @@ export async function GET(req: NextRequest) {
       stats.error = err instanceof Error ? err.message : String(err)
     }
   }
+
+  // What the partner-sheet cards show: when each sheet was last read and what
+  // came of it, so "imports every day" can be checked rather than believed.
+  const at = new Date().toISOString()
+  await prisma.setting.upsert({
+    where: { key: SHEET_PULL_HEALTH },
+    create: { key: SHEET_PULL_HEALTH, value: Object.fromEntries(Object.entries(results).map(([k, v]) => [k, { at, ...v }])) },
+    update: { value: Object.fromEntries(Object.entries(results).map(([k, v]) => [k, { at, ...v }])) },
+  })
 
   return NextResponse.json({ results })
 }

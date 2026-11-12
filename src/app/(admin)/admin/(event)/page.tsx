@@ -10,7 +10,7 @@ import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import dynamic from "next/dynamic"
 import { Skeleton } from "@/components/ui/skeleton"
-import { STATUS_META } from "./registrations/_lib/status"
+import { NEEDS_SEAT, STATUS_META } from "./registrations/_lib/status"
 import { buildDelegateWhere } from "./registrations/_lib/build-where"
 
 // recharts is ~100kB gzipped and this is the first screen every staff member
@@ -62,11 +62,11 @@ export default async function AdminOverviewPage() {
     feeCount,
     memberCount,
     publishedPostCount,
-    failedEmailCount,
-    recentFailedEmails,
+    recentEmails,
     openQuestions,
     followUpsDue,
     content,
+    needsSeat,
   ] = await Promise.all([
     prisma.delegate.groupBy({ by: ["status"], where: scope, _count: { _all: true } }),
     prisma.delegate.groupBy({ by: ["source"], where: scope, _count: { _all: true } }),
@@ -92,24 +92,36 @@ export default async function AdminOverviewPage() {
     // This event's delegates only: a failure from a closed event is not
     // something anyone running this one can act on. Anything that is not SENT
     // counts, so an SES bounce or spam complaint surfaces here too.
-    prisma.emailLog.count({ where: { status: { not: "SENT" }, delegate: { is: scope } } }),
+    // This event's emails, newest first: a failure counts only while nothing
+    // later of the same kind to the same person went through.
     prisma.emailLog.findMany({
-      where: { status: { not: "SENT" }, delegate: { is: scope } },
+      where: { delegate: { is: scope }, sentAt: { gte: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000) } },
       orderBy: { sentAt: "desc" },
-      take: 8,
-      select: { id: true, template: true, toEmail: true, error: true, sentAt: true, delegateId: true },
+      take: 2000,
+      select: { id: true, template: true, status: true, toEmail: true, error: true, sentAt: true, delegateId: true },
     }),
     prisma.delegate.count({ where: { ...scope, ...buildDelegateWhere({ query: "open" }) } }),
     prisma.delegate.count({ where: { ...scope, ...buildDelegateWhere({ followUp: "due" }) } }),
     getContent(),
+    prisma.delegate.count({ where: { ...scope, ...buildDelegateWhere({ status: NEEDS_SEAT }) } }),
   ])
 
+  const seen = new Set<string>()
+  const outstanding = recentEmails.filter((l) => {
+    const key = `${l.delegateId}:${l.template}`
+    if (seen.has(key)) return false
+    seen.add(key)
+    return ["FAILED", "BOUNCED", "COMPLAINED"].includes(l.status)
+  })
+  const failedEmailCount = outstanding.length
+  const recentFailedEmails = outstanding.slice(0, 8)
   const paymentsActive = deriveEventState(content).paymentsRequired
   const published = event.state !== "DRAFT"
   const count = (status: string) => byStatus.find((s) => s.status === status)?._count._all ?? 0
   const waiting = count("REGISTERED")
   const unpaid = count("ALLOTTED") + count("PAYMENT_SENT")
-  const confirmed = count("CONFIRMED")
+  // Accepted with nothing to pay but holding no seat is not "confirmed" yet.
+  const confirmed = count("CONFIRMED") - needsSeat
   const seatCount = portfolioCounts.reduce((n, g) => n + g._count._all, 0)
 
   const checklist: ChecklistItem[] = [
@@ -133,6 +145,7 @@ export default async function AdminOverviewPage() {
     { key: "REGISTERED", count: waiting, href: "/admin/registrations?status=REGISTERED" },
     { key: "WAITLISTED", count: count("WAITLISTED"), href: "/admin/registrations?status=WAITLISTED" },
     { key: "PAYMENT_SENT", count: unpaid, href: "/admin/registrations?status=PAYMENT_SENT", label: "Seated, unpaid" },
+    { key: NEEDS_SEAT, count: needsSeat, href: `/admin/registrations?status=${NEEDS_SEAT}` },
     { key: "CONFIRMED", count: confirmed, href: "/admin/registrations?status=CONFIRMED" },
     { key: "CANCELLED", count: count("CANCELLED"), href: "/admin/registrations?status=CANCELLED" },
   ].filter((s) => s.count > 0)
@@ -140,6 +153,7 @@ export default async function AdminOverviewPage() {
 
   const todo = [
     waiting > 0 && { label: `${waiting} waiting for a seat`, action: "Give seats", href: "/admin/allotment", tone: "bg-amber-500" },
+    needsSeat > 0 && { label: `${needsSeat} accepted, still without a seat`, action: "Give seats", href: "/admin/allotment", tone: "bg-amber-500" },
     openQuestions > 0 && { label: `${openQuestions} unanswered ${openQuestions === 1 ? "question" : "questions"}`, action: "Answer", href: "/admin/registrations?query=open", tone: "bg-amber-500" },
     paymentsActive && followUpsDue > 0 && { label: `${followUpsDue} follow-ups due`, action: "Call them", href: "/admin/registrations?followUp=due", tone: "bg-sky-500" },
     paymentsActive && unpaid > 0 && { label: `${unpaid} seated but not paid`, action: "Chase", href: "/admin/registrations?status=PAYMENT_SENT", tone: "bg-sky-500" },
@@ -263,7 +277,7 @@ export default async function AdminOverviewPage() {
         )}
       </section>
 
-      {bySource.length > 1 && (
+      {event.kind !== "INTRA_MUN" && bySource.length > 1 && (
         <details className="group editorial-card p-6">
           <summary className="flex cursor-pointer list-none items-center gap-2 font-medium [&::-webkit-details-marker]:hidden">
             Where delegates came from

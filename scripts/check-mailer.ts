@@ -16,6 +16,8 @@ import {
   STAGE_SHORTCUTS,
 } from "../src/lib/mailer/audience"
 import { MAIL_PRESETS, presetFor } from "../src/lib/mailer/presets"
+import { campaignStateLabel, dailyLimitNote, recoveryFor } from "../src/lib/mailer/recovery"
+import { draftFields, draftPrompt, parseDraft } from "../src/lib/mailer/ai-draft"
 
 // ── Merge fields ────────────────────────────────────────────────────────────
 {
@@ -49,7 +51,7 @@ import { MAIL_PRESETS, presetFor } from "../src/lib/mailer/presets"
   assert.deepEqual((chosen.AND as unknown[])[1], { status: { in: ["CANCELLED"] } }, "cancelled delegates only when asked for")
 
   const unpaid = buildDelegateAudienceWhere(parseDelegateAudience({ allotted: "yes", paymentStatuses: ["PENDING", "SENT"] }), scope)
-  assert.deepEqual((unpaid.AND as unknown[]).slice(2), [{ allotment: { isNot: null } }, { payment: { status: { in: ["PENDING", "SENT"] } } }])
+  assert.deepEqual((unpaid.AND as unknown[]).slice(2), [{ allotment: { is: { emailSentAt: { not: null } } } }, { payment: { status: { in: ["PENDING", "SENT"] } } }])
 
   // Untrusted JSON: an unknown status must not reach the query.
   assert.deepEqual(parseDelegateAudience({ statuses: ["DROP TABLE"] }), parseDelegateAudience({}), "invalid filters fall back to the safe default")
@@ -68,7 +70,7 @@ import { MAIL_PRESETS, presetFor } from "../src/lib/mailer/presets"
   const unpaidStage = STAGE_SHORTCUTS.find((s) => s.key === "allotted-unpaid")!
   assert.deepEqual(
     (buildDelegateAudienceWhere(parseDelegateAudience(unpaidStage.filters), scope).AND as unknown[]).slice(2),
-    [{ allotment: { isNot: null } }, { payment: { status: { in: ["PENDING", "SENT", "FAILED"] } } }],
+    [{ allotment: { is: { emailSentAt: { not: null } } } }, { payment: { status: { in: ["PENDING", "SENT", "FAILED"] } } }],
   )
 }
 
@@ -130,7 +132,7 @@ import { MAIL_PRESETS, presetFor } from "../src/lib/mailer/presets"
   )
   assert.match(queue, /updateMany\(\{\s*where: \{ id: campaign\.id, state: "SCHEDULED" \}/, "a campaign must be claimed before its recipients are resolved")
   const stale = queue.slice(queue.indexOf('status: "SENDING", claimedAt: { lt:'))
-  assert.match(stale.slice(0, 300), /data: \{ status: "FAILED"/, "an interrupted send must fail, never go back to PENDING and risk a second copy")
+  assert.match(stale.slice(0, 300), /data: \{ status: "UNCERTAIN"/, "an interrupted send is uncertain, never back to PENDING and a second copy")
 
   // Event mail and PR outreach share a table; neither list may show the other.
   const list = readFileSync("src/app/(admin)/admin/(event)/mailer/_components/campaign-list.tsx", "utf8")
@@ -199,4 +201,72 @@ import { MAIL_PRESETS, presetFor } from "../src/lib/mailer/presets"
   assert.match(queue, /minBatchMs - elapsed/, "batches must wait out the remainder of their rate window")
 }
 
-console.log("mailer checks passed (merge fields, unsubscribe tokens, audiences, frequency cap, presets, PR gate, claims, one-click unsubscribe)")
+// ── A campaign with failures is not called "Sent" ───────────────────────────
+{
+  assert.equal(campaignStateLabel("SENT", { SENT: 20, FAILED: 2 }), "Completed with 2 failures")
+  assert.equal(campaignStateLabel("SENT", { SENT: 20, FAILED: 1, UNCERTAIN: 1 }), "Completed with 1 failure and 1 to check")
+  assert.equal(campaignStateLabel("SENT", { SENT: 22 }), "Completed")
+  assert.equal(campaignStateLabel("CANCELLED", { SENT: 3 }), "Stopped part way")
+}
+
+// ── Each failed recipient gets the one safe action ──────────────────────────
+{
+  const failed = (error: string) => ({ status: "FAILED", email: "a@x.in", error })
+  assert.equal(recoveryFor(failed("Throttling: rate exceeded")).kind, "retry", "a transient failure can be retried")
+  assert.equal(recoveryFor(failed("Bounced: 550 no such user"), "a@x.in").kind, "fix-address", "a bounce is fixed, not retried")
+  const fixed = recoveryFor(failed("Bounced: 550 no such user"), "A.New@x.in")
+  assert.equal(fixed.kind, "retry", "once the delegate's address changes, the retry goes there")
+  assert.equal(fixed.kind === "retry" && fixed.newEmail, "a.new@x.in")
+  assert.equal(recoveryFor(failed("Marked as spam: abuse"), "a@x.in").kind, "fix-address")
+  assert.equal(recoveryFor({ status: "UNCERTAIN", email: "a@x.in", error: "Interrupted" }).kind, "check", "an interrupted send may have arrived")
+  assert.equal(recoveryFor({ status: "SENT", email: "a@x.in", error: null }).kind, "none", "someone who got it is never offered a retry")
+}
+
+// ── The daily limit is said, with when it frees up ──────────────────────────
+{
+  assert.equal(dailyLimitNote({ sentLast24h: 10, cap: 90, pending: 5, oldestInWindow: null }), null, "room left: nothing to say")
+  assert.equal(dailyLimitNote({ sentLast24h: 90, cap: 90, pending: 0, oldestInWindow: null }), null, "nothing waiting: nothing to say")
+  assert.match(dailyLimitNote({ sentLast24h: 90, cap: 90, pending: 40, oldestInWindow: new Date("2026-10-07T04:30:00Z") }) ?? "", /^40 waiting for the daily sending limit \(90 a day\); more can go from about 10:00 am/)
+}
+
+// ── Recovery wiring ──────────────────────────────────────────────────────────
+{
+  const queue = readFileSync("src/lib/mailer/queue.ts", "utf8")
+  assert.match(queue, /status: "UNCERTAIN", error: "Interrupted/, "an interrupted send is uncertain, not failed")
+  const actions = readFileSync("src/app/(admin)/admin/(event)/mailer/actions.ts", "utf8")
+  assert.match(actions, /status: \{ in: \["FAILED", "UNCERTAIN"\] \}/, "a retry only ever moves recipients who were not reached")
+  assert.match(actions, /action\.kind === "check" && confirmed\.has\(r\.id\)/, "an uncertain send is retried only when a person says they checked")
+  assert.match(actions, /processMailQueue\(new Date\(\), campaignId\)/, "the batch button sends this campaign only")
+}
+
+// ── AI drafts ────────────────────────────────────────────────────────────────
+{
+  // A reply is only text for the composer: markup is stripped, a bad button is
+  // dropped, and anything unusable is refused, not half-applied.
+  assert.deepEqual(
+    parseDraft({ subject: " New  **links** ", body: "Hi {firstName},\r\n\r\n## Groups\n* **Join** here \u2014 today", ctaLabel: "Open group", ctaUrl: "https://chat.example.com/x" }),
+    { subject: "New links", body: "Hi {firstName},\n\nGroups\n- Join here, today", ctaLabel: "Open group", ctaUrl: "https://chat.example.com/x" },
+  )
+  assert.deepEqual(parseDraft({ subject: "S", body: "B", ctaLabel: "Go", ctaUrl: "javascript:alert(1)" }), { subject: "S", body: "B" }, "a button the composer would refuse is dropped")
+  assert.deepEqual(parseDraft({ subject: "S", body: "B", ctaLabel: "", ctaUrl: "{statusLink}" }), { subject: "S", body: "B" }, "a button needs a label")
+  assert.deepEqual(parseDraft({ subject: "S", body: "B", ctaLabel: "Your page", ctaUrl: "{statusLink}" }), { subject: "S", body: "B", ctaLabel: "Your page", ctaUrl: "{statusLink}" })
+  assert.equal(parseDraft({ subject: "S", body: "   " }), null, "an empty body is not a draft")
+  assert.equal(parseDraft({ subject: "S" }), null)
+  assert.equal(parseDraft("Hi there"), null)
+
+  // Outreach contacts have no seat or delegate page, so the model is never
+  // offered a field that would reach them unfilled.
+  assert.deepEqual(draftFields("CONTACTS").map((f) => f.key), ["name", "firstName", "event", "dates", "venue", "registerLink"])
+  const contacts = draftPrompt({ notes: "Registrations open Friday", audience: "CONTACTS", eventName: "Test MUN" })
+  assert.doesNotMatch(contacts, /\{statusLink\}|\{committee\}|\{whatsapp\}/)
+  const delegates = draftPrompt({ notes: "Registrations open Friday", audience: "DELEGATES", eventName: "Test MUN" })
+  assert.match(delegates, /\{statusLink\} or \{registerLink\} or \{whatsapp\}/)
+  assert.match(delegates, /Registrations open Friday/)
+
+  const actions = readFileSync("src/app/(admin)/admin/(event)/mailer/actions.ts", "utf8")
+  const draft = actions.slice(actions.indexOf("export async function draftMailWithAI"), actions.indexOf("export async function previewMail"))
+  assert.match(draft, /await requireStaff\(\)/, "drafting is staff only")
+  assert.doesNotMatch(draft, /prisma\.|sendMailerEmail|processMailQueue/, "a draft must not save or send anything")
+}
+
+console.log("mailer checks passed (merge fields, AI drafts, unsubscribe tokens, audiences, frequency cap, presets, PR gate, claims, one-click unsubscribe)")

@@ -50,14 +50,11 @@ export function EventLifecycle({
     })
 
   return (
-    <section className={cn("space-y-8", current ? "border-t border-border pt-10" : "editorial-card p-6 sm:p-8")}>
+    <section className={cn("space-y-8", current ? "border-t border-border pt-8" : "editorial-card p-6 sm:p-8")}>
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
-          <p className="eyebrow">{current ? "Events" : "No event is running"}</p>
-          <h2 className="mt-2 font-heading text-2xl">{current ? "Start, close or reopen" : "Start or reopen an event"}</h2>
-          <p className="mt-2 max-w-xl text-sm text-muted-foreground">
-            Nothing is ever deleted. A closed event keeps its delegates and seats, and can be reopened.
-          </p>
+          <h2 className="text-sm font-semibold">{current ? "Events" : "No event is running"}</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">Closing keeps delegates and seats; a closed event can be reopened.</p>
         </div>
         {canManage && current && (
           <Button variant="outline" onClick={() => setClosing(true)} disabled={pending}>

@@ -41,6 +41,7 @@ function TimerField({
       <Timer className="size-3.5 shrink-0 text-muted-foreground" />
       <Label className="text-xs text-muted-foreground flex-1">{t("quiz.builder.timer")}</Label>
       <Select
+        items={[{ value: "none", label: t("quiz.builder.noTimer") }, ...TIMER_OPTIONS.filter((o) => o !== null).map((s) => ({ value: String(s), label: `${s}s` }))]}
         value={value === null ? "none" : String(value)}
         onValueChange={(v) => {
           if (v !== null) onChange(v === "none" ? null : Number(v))
@@ -63,7 +64,7 @@ function TimerField({
 function FieldRow({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-1.5">
-      <Label className="text-sm font-bold uppercase tracking-[0.12em] text-muted-foreground">{label}</Label>
+      <Label className="text-sm font-bold text-muted-foreground">{label}</Label>
       {children}
     </div>
   )
@@ -177,6 +178,7 @@ function MCQConfigPanel({
       {/* Result layout */}
       <FieldRow label={t("quiz.builder.resultLayout")}>
         <Select
+          items={(["BARS", "DONUT", "PIE", "DOTS"] as MCQLayout[]).map((l) => ({ value: l, label: t(`quiz.builder.layouts.${l}` as Parameters<typeof t>[0]) }))}
           value={cfg.layout}
           onValueChange={(v) => { if (v !== null) onChange({ config: { ...cfg, layout: v as MCQLayout } }) }}
         >
@@ -640,6 +642,7 @@ function OpenTextConfigPanel({
 
       <FieldRow label={t("quiz.builder.responseLayout")}>
         <Select
+          items={(["SPEECH_BUBBLES", "FLOWING_GRID"] as OpenTextLayout[]).map((l) => ({ value: l, label: t(`quiz.builder.layouts.${l}` as Parameters<typeof t>[0]) }))}
           value={cfg.layout}
           onValueChange={(v) => { if (v !== null) onChange({ config: { ...cfg, layout: v as OpenTextLayout } }) }}
         >
@@ -716,7 +719,7 @@ export function ConfigPanel({ slide, mode, onChange, className }: Props) {
   return (
     <aside className={cn("admin-rail flex shrink-0 flex-col overflow-hidden border-l border-black/15 bg-background", className)}>
       <div className="flex items-center gap-2 border-b px-5 py-5">
-        <span className="font-mono text-xs font-bold uppercase tracking-[0.18em] text-primary">
+        <span className="font-mono text-xs font-bold text-primary">
           {t(`quiz.slideType.${slide.type}` as Parameters<typeof t>[0])}
         </span>
       </div>

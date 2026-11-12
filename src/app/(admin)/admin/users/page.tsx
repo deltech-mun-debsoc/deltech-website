@@ -21,7 +21,7 @@ export default async function UsersPage() {
       <PageHeader
         eyebrow="System"
         title="Staff & roles"
-        description="Only admins can invite, change roles, disable or delete. Changes take effect on live sessions within a minute. Disabling revokes access but keeps the account and anything it wrote; deleting is only possible for accounts that own nothing."
+        description="Disabling keeps the account and what it wrote. Deleting only works for accounts that own nothing."
       >
         <InviteDialog />
       </PageHeader>

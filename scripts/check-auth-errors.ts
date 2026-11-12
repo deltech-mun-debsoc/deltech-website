@@ -67,7 +67,10 @@ const read = (p: string) => readFileSync(p, "utf8")
 
   // An unknown address lands on the same page a real send does. Naming the
   // reason would confirm which addresses are registered.
-  assert.match(magic, /redirect\("\/signin\/sent"\)/, "a refused magic link must land on the check-your-inbox page")
+  // With the same query Auth.js appends after a real send: the sent page only
+  // claims an email went out when it sees type=email, and a refusal must be
+  // indistinguishable from a send.
+  assert.match(magic, /redirect\("\/signin\/sent\?provider=resend&type=email"\)/, "a refused magic link must land on the check-your-inbox page, with the real send's query")
   assert.doesNotMatch(
     magic,
     /if \(err instanceof AuthError\) return \{ error: "errorDefault" \}/,
@@ -85,11 +88,8 @@ const read = (p: string) => readFileSync(p, "utf8")
   // whichever error type Auth.js adds next.
   assert.match(banner, /\?\?\s*"auth\.errorConfiguration"/, "an unknown error type still needs a message")
 
-  // Both doors: an invited maintainer hits the identical wall at /signin/staff.
-  for (const page of [
-    "src/app/(public)/signin/page.tsx",
-    "src/app/(public)/signin/staff/page.tsx",
-  ]) {
+  // The one door. /signin/staff forwards ?error= to it (check-auth-page-guards).
+  for (const page of ["src/app/(public)/signin/page.tsx"]) {
     const src = read(page)
     assert.match(src, /error\?: string/, `${page} must accept ?error= in searchParams`)
     assert.match(src, /<AuthErrorBanner error=\{error\}/, `${page} must render the error, not swallow it`)

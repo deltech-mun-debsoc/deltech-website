@@ -4,6 +4,7 @@ import type { ReactNode } from "react"
 
 import { ThemeToggle } from "@/app/(marketing)/_components/theme-toggle"
 import { t } from "@/content/strings"
+import { BrandMark } from "@/components/brand-logo"
 import { APP_URL } from "@/lib/app-url"
 import { DocsMobileNav } from "./_components/docs-mobile-nav"
 import { DocsPageHeader, DocsPager } from "./_components/docs-page-frame"
@@ -43,12 +44,10 @@ export default function DocsLayout({ children }: { children: ReactNode }) {
         <div className="mx-auto flex h-16 w-full max-w-[100rem] items-center gap-3 px-4 sm:px-6">
           <DocsMobileNav />
           <Link href="/docs" className="flex items-center gap-2.5">
-            <span className="display flex size-9 items-center justify-center rounded-full border border-foreground/25 text-[0.9375rem]">
-              {"D"}
-            </span>
+            <BrandMark className="h-6" />
             <span className="leading-tight">
               <span className="block font-semibold">{t("brand.name")}</span>
-              <span className="block text-[0.6875rem] tracking-[0.15em] text-muted-foreground uppercase">
+              <span className="block text-[0.6875rem] text-muted-foreground">
                 {t("docs.breadcrumbRoot")}
               </span>
             </span>

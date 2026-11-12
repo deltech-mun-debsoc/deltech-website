@@ -38,11 +38,11 @@ export type PublicTeamMember = {
   socials: { instagram?: string; linkedin?: string }
 }
 
-function MemberCard({ member, index }: { member: PublicTeamMember; index: number }) {
+function MemberCard({ member, index, compact = false }: { member: PublicTeamMember; index: number; compact?: boolean }) {
   const initials = member.name.split(" ").slice(0, 2).map((word) => word[0]).join("")
 
   return (
-    <article className="group relative w-[min(78vw,19rem)] shrink-0 snap-start overflow-hidden border border-foreground/20 bg-ink text-paper shadow-[0_12px_36px_-28px_rgba(56,40,17,0.65)] transition-[transform,border-color,box-shadow] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] transform-gpu will-change-transform hover:-translate-y-1 hover:border-gold-500/70 hover:shadow-[0_24px_52px_-22px_rgba(151,108,35,0.52)] motion-reduce:transform-none sm:w-72 lg:w-80">
+    <article className={`group relative shrink-0 snap-start overflow-hidden border border-foreground/20 bg-ink text-paper shadow-[0_12px_36px_-28px_rgba(56,40,17,0.65)] transition-[transform,border-color,box-shadow] duration-500 ease-[cubic-bezier(0.22,1,0.36,1)] transform-gpu will-change-transform hover:-translate-y-1 hover:border-gold-500/70 hover:shadow-[0_24px_52px_-22px_rgba(151,108,35,0.52)] motion-reduce:transform-none ${compact ? "w-full" : "w-[min(78vw,19rem)] sm:w-72 lg:w-80"}`}>
       {member.photoUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img
@@ -52,8 +52,11 @@ function MemberCard({ member, index }: { member: PublicTeamMember; index: number
           loading="lazy"
         />
       ) : (
-        <div className="noise-wash flex aspect-[4/5] items-center justify-center bg-gradient-to-br from-gold-300/25 via-background to-gold-500/20 text-foreground transition-colors duration-500 group-hover:from-gold-300/35 group-hover:to-gold-500/30 dark:from-stone-900 dark:via-stone-950 dark:to-amber-950">
-          <span className="display text-7xl text-gold-700 dark:text-gold-300">{initials}</span>
+        // No photo on file: a monogram on the same ink as the card in both
+        // themes, sitting above the name block rather than behind it.
+        <div aria-hidden className="relative flex aspect-[4/5] items-start bg-ink px-6 pt-10">
+          <div className="paper-grid absolute inset-0 opacity-[0.07]" />
+          <span className="relative font-display text-[7rem] leading-none text-gold-300/90">{initials}</span>
         </div>
       )}
 
@@ -91,15 +94,15 @@ function MemberCard({ member, index }: { member: PublicTeamMember; index: number
       )}
 
       <div className="absolute inset-x-0 bottom-0 p-5 text-white sm:p-6">
-        <p className="text-[0.65rem] font-bold uppercase tracking-[0.18em] text-white/70 transition-colors duration-500 group-hover:text-gold-300">{member.designation}</p>
-        <h3 className="mt-2 font-heading text-3xl leading-[0.9] sm:text-4xl">{member.name}</h3>
+        <p className="text-[0.65rem] font-bold text-white/70 transition-colors duration-500 group-hover:text-gold-300">{member.designation}</p>
+        <h3 className={`mt-2 font-display font-normal leading-[0.95] ${compact ? "text-xl sm:text-2xl" : "text-3xl sm:text-4xl"}`}>{member.name}</h3>
         <span className="mt-4 block h-px w-10 bg-gold-300 transition-[width] duration-700 ease-out group-hover:w-full motion-reduce:transition-none" />
       </div>
     </article>
   )
 }
 
-function CouncilRail({ level, members }: { level: (typeof TEAM_LEVELS)[number]; members: PublicTeamMember[] }) {
+function CouncilRail({ level, members, dense }: { level: (typeof TEAM_LEVELS)[number]; members: PublicTeamMember[]; dense: boolean }) {
   const railRef = useRef<HTMLDivElement>(null)
 
   function move(direction: -1 | 1) {
@@ -114,7 +117,7 @@ function CouncilRail({ level, members }: { level: (typeof TEAM_LEVELS)[number]; 
         <div className="flex min-w-0 items-end gap-4 sm:gap-6">
           <span className="font-mono text-3xl font-bold text-primary sm:text-5xl">{level.value}</span>
           <div className="min-w-0">
-            <h2 id={`team-${level.value.toLowerCase()}`} className="font-heading text-3xl leading-none sm:text-5xl">
+            <h2 id={`team-${level.value.toLowerCase()}`} className="font-display text-3xl font-normal leading-none sm:text-5xl">
               {level.label}
             </h2>
             <p className="mt-2 hidden text-sm text-muted-foreground sm:block">{level.note}</p>
@@ -124,7 +127,7 @@ function CouncilRail({ level, members }: { level: (typeof TEAM_LEVELS)[number]; 
           </span>
         </div>
 
-        {members.length > 4 && (
+        {!dense && members.length > 4 && (
           <div className="hidden shrink-0 gap-2 sm:flex">
             <button
               type="button"
@@ -148,14 +151,16 @@ function CouncilRail({ level, members }: { level: (typeof TEAM_LEVELS)[number]; 
 
       <div
         ref={railRef}
-        className="-mx-5 flex snap-x snap-mandatory gap-4 overflow-x-auto px-5 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:-mx-8 sm:gap-5 sm:px-8 lg:mx-0 lg:px-0"
+        className={dense
+          ? "grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-5 lg:grid-cols-4"
+          : "-mx-5 flex snap-x snap-mandatory gap-4 overflow-x-auto px-5 pb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:-mx-8 sm:gap-5 sm:px-8 lg:mx-0 lg:px-0"}
       >
         {members.map((member, index) => (
-          <MemberCard key={member.id} member={member} index={index} />
+          <MemberCard key={member.id} member={member} index={index} compact={dense} />
         ))}
       </div>
-      {members.length > 2 && (
-        <p className="mt-3 font-mono text-[0.65rem] uppercase tracking-[0.14em] text-muted-foreground sm:hidden">
+      {!dense && members.length > 2 && (
+        <p className="mt-3 font-mono text-[0.65rem] text-muted-foreground sm:hidden">
           Swipe to meet the council →
         </p>
       )}
@@ -166,13 +171,10 @@ function CouncilRail({ level, members }: { level: (typeof TEAM_LEVELS)[number]; 
 export function TeamDirectory({ members }: { members: PublicTeamMember[] }) {
   return (
     <div className="space-y-16 sm:space-y-24">
-      {TEAM_LEVELS.map((level) => (
-        <CouncilRail
-          key={level.value}
-          level={level}
-          members={members.filter((member) => member.level === level.value)}
-        />
-      ))}
+      {TEAM_LEVELS.map((level) => {
+        const people = members.filter((member) => member.level === level.value)
+        return <CouncilRail key={level.value} level={level} members={people} dense={people.length > 8} />
+      })}
     </div>
   )
 }

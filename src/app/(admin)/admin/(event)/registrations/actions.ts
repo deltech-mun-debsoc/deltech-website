@@ -5,12 +5,12 @@ import { requireStaff, requireAdmin } from "@/lib/authz"
 import { audit } from "@/lib/audit"
 import { getActiveProvider } from "@/lib/payments"
 import { delegateInclude, serializeDelegate, type SerializedDelegate, type EmailLogEntry } from "./_lib/types"
-import { sendAllotmentEmail, sendPaymentConfirmed, resendByLogId, sendRegistrationEmails } from "@/lib/resend"
+import { sendAllotmentEmail, sendPaymentConfirmed, sendDelegateNotice, noticeForTemplate, sendRegistrationEmails, type DelegateNotice } from "@/lib/resend"
 import { syncSheetCell, syncSheetForDelegate } from "@/lib/sheet-sync"
 import { detailedChangeMeta } from "@/lib/audit-change"
 import { revalidatePath } from "next/cache"
 import { z } from "zod"
-import { getActiveEvent } from "@/lib/event"
+import { getActiveEvent, getEventCapabilities } from "@/lib/event"
 import { DTU_INSTITUTION } from "@/lib/schemas/register"
 
 export interface DelegateEditData {
@@ -136,13 +136,14 @@ const AddDelegateSchema = z.object({
   isDtu: z.boolean(),
   pref1CommitteeId: z.string().optional(),
   pref1Portfolio: z.string().trim().max(120).optional(),
+  pref1PortfolioId: z.string().optional(),
 })
 
 // On-the-spot registration at the desk. Staff add the person whatever the public
 // registration switch says, because the switch is about the website.
 export async function addDelegate(
   input: z.input<typeof AddDelegateSchema>,
-): Promise<{ success: true; id: string } | { success: false; error: string }> {
+): Promise<{ success: true; id: string; emailed: boolean } | { success: false; error: string }> {
   const session = await requireStaff()
   const parsed = AddDelegateSchema.safeParse(input)
   if (!parsed.success) return { success: false, error: parsed.error.issues[0]?.message ?? "Check the details." }
@@ -150,16 +151,24 @@ export async function addDelegate(
 
   const event = await getActiveEvent()
   if (!event) return { success: false, error: "Start an event in Setup first." }
-  const intra = event.kind === "INTRA_MUN"
+  const intra = (await getEventCapabilities()).intra
   if (intra && !v.rollNumber) return { success: false, error: "Enter their DTU roll number." }
   const isDtu = intra || v.isDtu
   const institution = isDtu ? DTU_INSTITUTION : v.institution
   if (!institution || institution.length < 2) return { success: false, error: "Enter their college." }
 
   const committeeId = v.pref1CommitteeId || null
+  let seat: { id: string; name: string } | null = null
   if (committeeId) {
     const ok = await prisma.committee.findFirst({ where: { id: committeeId, eventId: event.id }, select: { id: true } })
     if (!ok) return { success: false, error: "That committee is not part of this event." }
+    if (v.pref1PortfolioId) {
+      seat = await prisma.portfolio.findFirst({
+        where: { id: v.pref1PortfolioId, committeeId, status: "AVAILABLE" },
+        select: { id: true, name: true },
+      })
+      if (!seat) return { success: false, error: "That seat was just taken. Pick another." }
+    }
   }
 
   try {
@@ -175,7 +184,8 @@ export async function addDelegate(
         source: "MANUAL",
         sourceNote: `Added by ${session.user?.email ?? "staff"}`,
         pref1CommitteeId: committeeId,
-        pref1Portfolio: committeeId ? v.pref1Portfolio || null : null,
+        pref1Portfolio: seat?.name ?? (committeeId ? v.pref1Portfolio || null : null),
+        pref1PortfolioId: seat?.id ?? null,
         status: "REGISTERED",
       },
       select: { id: true, fullName: true },
@@ -183,14 +193,16 @@ export async function addDelegate(
     await audit(session.user?.email ?? "unknown", "delegate.create", "Delegate", delegate.id, {
       summary: `Added ${delegate.fullName} by hand.`,
     })
+    let emailed = true
     try {
       await sendRegistrationEmails(delegate.id)
     } catch (err) {
+      emailed = false
       console.error(`[addDelegate] registration emails failed for delegate ${delegate.id}:`, err)
     }
     revalidatePath("/admin/registrations")
     revalidatePath("/admin/allotment")
-    return { success: true, id: delegate.id }
+    return { success: true, id: delegate.id, emailed }
   } catch (err) {
     if (typeof err === "object" && err !== null && "code" in err && (err as { code: unknown }).code === "P2002") {
       return { success: false, error: "Someone with this email is already registered for this event." }
@@ -392,6 +404,8 @@ export async function regeneratePaymentLink(
   delegateId: string,
 ): Promise<{ success: boolean; error?: string; warning?: string; delegate?: SerializedDelegate }> {
   const session = await requireStaff()
+  // The button is only shown for a paid event; this is the guard.
+  if (!(await getEventCapabilities()).payments) return { success: false, error: "This event is free, so there is nothing to charge." }
   try {
     const delegate = await prisma.delegate.findUniqueOrThrow({
       where: { id: delegateId },
@@ -448,8 +462,11 @@ export async function regeneratePaymentLink(
     await prisma.delegate.update({ where: { id: delegateId }, data: { status: "PAYMENT_SENT" } })
     await audit(session.user?.email ?? "unknown", "delegate.regeneratePaymentLink", "Delegate", delegateId)
     const updated = await reloadDelegate(delegateId)
+    // A draft keeps the link until it is emailed from Allotment. A released
+    // allotment gets the new link now: pressing this is a deliberate resend.
+    if (!delegate.allotment.emailSentAt) return { success: true, delegate: updated }
     try {
-      await sendAllotmentEmail(delegateId)
+      await sendAllotmentEmail(delegateId, { force: true })
     } catch {
       return {
         success: true,
@@ -463,6 +480,13 @@ export async function regeneratePaymentLink(
   }
 }
 
+// The delegate drawer opened from somewhere other than this list (Allotment).
+export async function getDelegateForDrawer(delegateId: string): Promise<SerializedDelegate | null> {
+  await requireStaff()
+  const d = await prisma.delegate.findUnique({ where: { id: delegateId }, include: delegateInclude })
+  return d ? serializeDelegate(d) : null
+}
+
 // Fetched when the drawer opens rather than joined onto every table row.
 export async function getDelegateEmailLogs(delegateId: string): Promise<EmailLogEntry[]> {
   await requireStaff()
@@ -470,21 +494,42 @@ export async function getDelegateEmailLogs(delegateId: string): Promise<EmailLog
     where: { delegateId },
     orderBy: { sentAt: "desc" },
     take: 50,
-    select: { id: true, template: true, status: true, error: true, sentAt: true },
+    select: { id: true, template: true, toEmail: true, status: true, error: true, sentAt: true },
   })
   return logs.map((l) => ({ ...l, sentAt: l.sentAt.toISOString() }))
 }
 
+// Retry a failed notice from the dashboard. Builds it from the delegate's
+// current seat and address (the old log's address may since have been fixed,
+// which used to make this send nothing and still report success).
 export async function resendEmail(
   logId: string,
 ): Promise<{ success: boolean; error?: string }> {
   const session = await requireStaff()
   try {
-    await resendByLogId(logId)
-    await audit(session.user?.email ?? "unknown", "email.resend", "EmailLog", logId)
+    const log = await prisma.emailLog.findUniqueOrThrow({ where: { id: logId } })
+    const notice = noticeForTemplate(log.template)
+    if (!notice || !log.delegateId) throw new Error("This one can't be sent again from here.")
+    await sendDelegateNotice(log.delegateId, notice, log.toEmail)
+    await audit(session.user?.email ?? "unknown", "email.resend", "EmailLog", logId, { notice })
     return { success: true }
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : "Resend failed." }
+    return { success: false, error: err instanceof Error ? err.message : "It did not send." }
+  }
+}
+
+// From the delegate's record: send them the current version of one notice now.
+export async function sendNoticeNow(
+  delegateId: string,
+  notice: DelegateNotice,
+): Promise<{ success: boolean; error?: string }> {
+  const session = await requireStaff()
+  try {
+    await sendDelegateNotice(delegateId, notice)
+    await audit(session.user?.email ?? "unknown", "email.notice", "Delegate", delegateId, { notice })
+    return { success: true }
+  } catch (err) {
+    return { success: false, error: err instanceof Error ? err.message : "It did not send." }
   }
 }
 

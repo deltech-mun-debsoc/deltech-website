@@ -1,12 +1,17 @@
 "use client";
 
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useState } from "react";
 import { t } from "@/content/strings";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { requestMagicLink, signInWithPassword } from "../actions";
+
+// The selected method is a filled primary chip in both themes, not a faint lift
+// off the track, so which form is showing is never in doubt.
+const TRIGGER = "h-full rounded-md text-sm font-semibold data-active:bg-primary data-active:text-primary-foreground data-active:shadow-sm dark:data-active:border-transparent dark:data-active:bg-primary dark:data-active:text-primary-foreground"
 
 export function SignInForm({
   defaultTab = "magic",
@@ -17,6 +22,10 @@ export function SignInForm({
 }) {
   const [mlState, mlAction, mlPending] = useActionState(requestMagicLink, null);
   const [pwState, pwAction, pwPending] = useActionState(signInWithPassword, null);
+  const pwRedirect = pwState?.redirectTo;
+  useEffect(() => {
+    if (pwRedirect) window.location.assign(pwRedirect);
+  }, [pwRedirect]);
   // Controlled so "Forgot password?" can hand the user to the magic-link tab.
   // That link is the whole password-recovery flow: the magic link is already a
   // single-use expiring token, so there is no separate reset token to mint.
@@ -28,20 +37,16 @@ export function SignInForm({
   const magicCallbackUrl = recovering ? "/account" : callbackUrl;
 
   return (
-    <Tabs value={tab} onValueChange={(v) => setTab(String(v))}>
-      {/* No data-[state=active] overrides here. This Tabs primitive sets
-          data-active, never data-state, so those utilities never matched --
-          verified on the rendered element, which carries data-active and has no
-          data-state attribute at all. They had been dead since before the token
-          rename, and their presence made the tabs look deliberately styled when
-          in fact the component's own data-active: styles were doing all the
-          work. Those styles use theme tokens, which is correct now that the
-          card carries .theme-light. */}
-      <TabsList className="mb-7 grid h-13 w-full grid-cols-2 rounded-none bg-black/5 p-1">
-        <TabsTrigger value="magic" className="h-11 rounded-none text-sm font-bold">
+    <Tabs value={tab} onValueChange={(v) => setTab(String(v))} className="gap-6">
+      {/* The base TabsList pins its height with group-data-horizontal/tabs:h-8,
+          which a plain h-* cannot override, so the track stayed 32px while the
+          triggers were 44px. Override the same variant so track and triggers
+          share one height. */}
+      <TabsList className="grid w-full grid-cols-2 rounded-lg border border-border bg-muted p-1 group-data-horizontal/tabs:h-11">
+        <TabsTrigger value="magic" className={TRIGGER}>
           {t("auth.magicLinkTab")}
         </TabsTrigger>
-        <TabsTrigger value="password" className="h-11 rounded-none text-sm font-bold">
+        <TabsTrigger value="password" className={TRIGGER}>
           {t("auth.passwordTab")}
         </TabsTrigger>
       </TabsList>
@@ -54,16 +59,17 @@ export function SignInForm({
             <Input
               id="ml-email"
               name="email"
+              defaultValue={mlState?.email}
               type="email"
               autoComplete="email"
               required
               placeholder={t("auth.emailPlaceholder")}
               disabled={mlPending}
-              className="h-14 rounded-none border-0 border-b-2 border-black/30 bg-transparent px-0 text-base shadow-none focus-visible:border-teal-700 focus-visible:ring-0"
+             
             />
           </div>
           {mlState?.error && (
-            <p className="text-sm text-destructive">
+            <p role="alert" className="text-sm text-destructive">
               {mlState.error === "tooManyRequests"
                 ? t("auth.tooManyRequests")
                 : mlState.error === "errorRetry"
@@ -72,11 +78,11 @@ export function SignInForm({
             </p>
           )}
           {recovering && (
-            <p className="text-xs leading-relaxed text-foreground/60">
+            <p className="text-sm leading-relaxed text-muted-foreground">
               {t("auth.recoveryHint")}
             </p>
           )}
-          <Button type="submit" disabled={mlPending} className="h-14 w-full rounded-none text-base">
+          <Button type="submit" disabled={mlPending} className="h-11 w-full text-base">
             {mlPending ? t("common.sending") : t("auth.sendLinkButton")}
           </Button>
         </form>
@@ -90,29 +96,29 @@ export function SignInForm({
             <Input
               id="pw-email"
               name="email"
+              defaultValue={pwState?.email}
               type="email"
               autoComplete="email"
               required
               placeholder={t("auth.emailPlaceholder")}
-              disabled={pwPending}
-              className="h-14 rounded-none border-0 border-b-2 border-black/30 bg-transparent px-0 text-base shadow-none focus-visible:border-teal-700 focus-visible:ring-0"
+              disabled={pwPending || !!pwRedirect}
+             
             />
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor="pw-password">{t("auth.passwordLabel")}</Label>
-            <Input
+            <PasswordInput
               id="pw-password"
               name="password"
-              type="password"
               autoComplete="current-password"
               required
               placeholder={t("auth.passwordPlaceholder")}
-              disabled={pwPending}
-              className="h-14 rounded-none border-0 border-b-2 border-black/30 bg-transparent px-0 text-base shadow-none focus-visible:border-teal-700 focus-visible:ring-0"
+              disabled={pwPending || !!pwRedirect}
+             
             />
           </div>
           {pwState?.error && (
-            <p className="text-sm text-destructive">
+            <p role="alert" className="text-sm text-destructive">
               {pwState.error === "invalidCredentials"
                 ? t("auth.invalidCredentials")
                 : pwState.error === "tooManyRequests"
@@ -122,8 +128,8 @@ export function SignInForm({
                     : t("auth.errorDefault")}
             </p>
           )}
-          <Button type="submit" disabled={pwPending} className="h-14 w-full rounded-none text-base">
-            {pwPending ? t("common.loading") : t("auth.signInWithPasswordButton")}
+          <Button type="submit" disabled={pwPending || !!pwRedirect} className="h-11 w-full text-base">
+            {pwPending || pwRedirect ? t("common.loading") : t("auth.signInWithPasswordButton")}
           </Button>
 
           <button
@@ -132,16 +138,11 @@ export function SignInForm({
               setRecovering(true);
               setTab("magic");
             }}
-            className="-mt-1 self-start text-sm font-bold text-teal-800 underline underline-offset-2"
+            className="self-start rounded-sm text-sm font-semibold text-primary underline underline-offset-4 outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
           >
             {t("auth.forgotPassword")}
           </button>
 
-          {/* Invited staff have no passwordHash at all, so the generic
-              "invalid email or password" is actively misleading for them.
-              Stated up front rather than as an error, which would leak
-              whether a given address has an account. */}
-          <p className="text-xs leading-relaxed text-black/50">{t("auth.noPasswordYetHint")}</p>
         </form>
       </TabsContent>
     </Tabs>

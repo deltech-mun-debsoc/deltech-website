@@ -63,8 +63,8 @@ async function loadTarget(userId: string) {
   })
 }
 
-// Creates the User row with the right role, then emails a pointer to the
-// staff door. No hand-minted tokens; the normal magic-link flow signs them in.
+// Creates the User row with the right role, then emails a pointer to
+// /signin. No hand-minted tokens; the normal magic-link flow signs them in.
 export async function inviteStaff(email: string, role: Role): Promise<Result> {
   const session = await requireAdmin()
   const normalized = email.trim().toLowerCase()
@@ -97,7 +97,7 @@ export async function inviteStaff(email: string, role: Role): Promise<Result> {
   } catch {
     return {
       success: true,
-      warning: `${normalized} was added, but the invite email failed to send. Ask them to sign in at /signin/staff with this address.`,
+      warning: `${normalized} was added, but the invite email failed to send. Ask them to sign in at /signin with this address.`,
     }
   }
 

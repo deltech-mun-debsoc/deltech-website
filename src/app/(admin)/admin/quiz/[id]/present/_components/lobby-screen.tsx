@@ -24,7 +24,7 @@ export function LobbyScreen({ roomCode, joinUrl, participants, theme, onStart }:
       <div className="paper-grid absolute inset-0 opacity-[0.06]" aria-hidden />
       {/* Top: join instructions */}
       <div className="relative flex items-center justify-between border-b border-current/15 pb-5">
-        <p className="flex items-center gap-3 font-mono text-sm font-bold uppercase tracking-[0.2em]">
+        <p className="flex items-center gap-3 font-mono text-sm font-bold">
           <span className="size-3 animate-pulse" style={{ background: theme.accentColor }} /> {t("quiz.audienceLobbyLive")}
         </p>
         <p className="text-base opacity-60">{t("quiz.joinInstructions", { url: new URL(joinUrl).host })}</p>
@@ -41,7 +41,7 @@ export function LobbyScreen({ roomCode, joinUrl, participants, theme, onStart }:
 
         {/* Room code */}
         <div className="flex flex-col items-start gap-2">
-          <p className="font-mono text-sm font-bold uppercase tracking-[0.25em] opacity-50">{t("quiz.roomCode")}</p>
+          <p className="font-mono text-sm font-bold opacity-50">{t("quiz.roomCode")}</p>
           <motion.p
             initial={reduce ? false : { scale: 0.8, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
@@ -56,7 +56,7 @@ export function LobbyScreen({ roomCode, joinUrl, participants, theme, onStart }:
 
       {/* Participants count + avatar grid */}
       <div className="relative border-t border-current/15 py-5">
-        <p className="mb-4 font-mono text-sm font-bold uppercase tracking-[0.16em] opacity-60">
+        <p className="mb-4 font-mono text-sm font-bold opacity-60">
           {t("quiz.connected", { count: participants.length })}
         </p>
         <div className="flex min-h-16 flex-wrap items-center gap-4">
@@ -104,7 +104,7 @@ export function LobbyScreen({ roomCode, joinUrl, participants, theme, onStart }:
         )}
         <button
           onClick={onStart}
-          className="px-10 py-4 font-mono text-sm font-black uppercase tracking-[0.12em] transition-transform hover:-translate-y-1"
+          className="px-10 py-4 font-mono text-sm font-black transition-transform hover:-translate-y-1"
           style={{ background: theme.accentColor, color: readableOn(theme.accentColor) }}
         >
           {t("quiz.startBroadcast")}

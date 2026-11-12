@@ -8,6 +8,7 @@ import { Ban, RotateCcw } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { statusMeta } from "../../registrations/_lib/status"
 import { setUserDisabled } from "@/app/(admin)/admin/users/actions"
 
 export interface ParticipantRow {
@@ -23,15 +24,6 @@ export interface ParticipantRow {
     status: string
     checkedIn: boolean
   } | null
-}
-
-const STATUS_TONE: Record<string, string> = {
-  REGISTERED: "bg-muted text-muted-foreground",
-  ALLOTTED: "bg-secondary text-secondary-foreground",
-  PAYMENT_SENT: "bg-accent text-accent-foreground",
-  CONFIRMED: "bg-[var(--teal-100)] text-[var(--teal-700)]",
-  CANCELLED: "bg-[var(--signal-soft)] text-[var(--ink-soft)]",
-  WAITLISTED: "bg-accent text-accent-foreground",
 }
 
 // Deliberately narrower than UsersTable: no role select and no delete. A
@@ -110,13 +102,8 @@ export function ParticipantsTable({
               <td className="px-3 py-2">
                 <div className="flex flex-wrap items-center gap-1.5">
                   {row.delegate && (
-                    <Badge
-                      className={cn(
-                        "font-normal",
-                        STATUS_TONE[row.delegate.status] ?? "bg-muted text-muted-foreground",
-                      )}
-                    >
-                      {row.delegate.status.replace("_", " ")}
+                    <Badge className={cn("font-normal", statusMeta(row.delegate.status).pill)}>
+                      {statusMeta(row.delegate.status).label}
                     </Badge>
                   )}
                   {row.delegate?.checkedIn && (

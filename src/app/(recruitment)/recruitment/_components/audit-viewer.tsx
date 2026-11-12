@@ -219,7 +219,6 @@ export async function AuditViewer({
       <RecruitmentPageHeader
         eyebrow={cycleName}
         title={t("recruitment.audit.title")}
-        description={t("recruitment.audit.description")}
       />
 
       <form className="flex flex-wrap items-end gap-3">

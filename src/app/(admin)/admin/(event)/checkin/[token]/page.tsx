@@ -35,7 +35,7 @@ const PAY_STATUS_LABEL: Record<string, string> = {
 function Field({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div>
-      <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">{label}</p>
+      <p className="text-xs font-medium text-muted-foreground">{label}</p>
       <p className="mt-0.5 text-sm">{value ?? "-"}</p>
     </div>
   )
@@ -67,7 +67,7 @@ export default async function CheckinTokenPage(props: {
       <div className="space-y-6 rounded-2xl border border-border bg-card p-6 shadow-sm">
         <div className="flex items-start justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <p className="text-xs font-semibold text-muted-foreground">
               {t("checkin.deskEyebrow")}
             </p>
             <h1 className="mt-1 text-xl font-bold">{delegate.fullName}</h1>

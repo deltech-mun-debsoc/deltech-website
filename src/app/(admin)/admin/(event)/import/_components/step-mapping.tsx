@@ -14,6 +14,7 @@ import {
   applyMapping,
   type ColumnMapping,
   type ValidatedRow,
+  validatedFromCleaned,
 } from "@/lib/schemas/import"
 
 import type { ImportPresetRecord } from "../actions"
@@ -98,11 +99,7 @@ export function StepMapping({
           return { index: i, raw: r, mapped, errors }
         })
       } else {
-        validated = cleanResult.cleaned.map(({ _note, _skip, ...mapped }, i) => {
-          const parse  = mappedRowSchema.safeParse(mapped)
-          const errors = parse.success ? [] : parse.error.issues.map((e) => e.message)
-          return { index: i, raw: rawRows[i], mapped, errors, aiNote: _note }
-        })
+        validated = validatedFromCleaned(cleanResult.cleaned, rawRows)
         const noteCount = cleanResult.cleaned.filter((c) => c._note).length
         if (noteCount > 0) toast.info(`AI normalised ${noteCount} row${noteCount !== 1 ? "s" : ""}.`)
       }
@@ -148,7 +145,7 @@ export function StepMapping({
       {/* Presets */}
       {presets.length > 0 && (
         <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          <p className="text-xs font-semibold text-muted-foreground">
             Saved presets
           </p>
           <div className="flex flex-wrap gap-2">
@@ -185,7 +182,7 @@ export function StepMapping({
       <div>
         <div className="mb-3 flex items-center justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+            <p className="text-xs font-semibold text-muted-foreground">
               Column mapping
             </p>
             <p className="mt-0.5 text-xs text-muted-foreground">
@@ -239,15 +236,16 @@ export function StepMapping({
                     </td>
                     <td className="px-2 py-2">
                       <Select
+                        items={[{ value: NONE_SENTINEL, label: "Skip" }, ...headers.map((h) => ({ value: h, label: h }))]}
                         value={selected ?? NONE_SENTINEL}
                         onValueChange={(v) => { if (v !== null) setField(field.key, v) }}
                       >
                         <SelectTrigger className="h-8 w-48 text-xs">
-                          <SelectValue placeholder=",  skip , " />
+                          <SelectValue placeholder="Skip" />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value={NONE_SENTINEL} className="text-xs text-muted-foreground">
-                           , skip.
+                            Skip
                           </SelectItem>
                           {headers.map((h) => (
                             <SelectItem key={h} value={h} className="text-xs">{h}</SelectItem>
@@ -274,7 +272,7 @@ export function StepMapping({
 
       {/* Save as preset */}
       <div className="space-y-2 rounded-lg border border-dashed border-border p-4">
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <p className="text-xs font-semibold text-muted-foreground">
           Save as preset
         </p>
         <div className="flex gap-2">

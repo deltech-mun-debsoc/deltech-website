@@ -43,7 +43,7 @@ export function StepUpload({ onParsed }: Props) {
     <div className="rounded-xl border border-border bg-card p-8 space-y-6">
       {/* Institution pre-fill */}
       <div className="space-y-1.5">
-        <Label htmlFor="institution" className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <Label htmlFor="institution" className="text-xs font-semibold text-muted-foreground">
           Institution (applies to all rows with no institution column)
         </Label>
         <Input

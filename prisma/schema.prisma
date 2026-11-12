@@ -123,9 +123,13 @@ model Event {
   registrationOpen Boolean @default(false)
   paymentsEnabled  Boolean @default(false)
   matrixPublic     Boolean @default(false)
+  // Colleges sending delegates in bulk (file upload or a linked partner sheet).
+  // Never offered for an Intra MUN; see eventCapabilities.
+  crossDelegationsEnabled Boolean @default(false)
 
   committees Committee[]
   delegates  Delegate[]
+  formSources DelegateSheetSource[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -158,6 +162,9 @@ model Committee {
   sortOrder         Int           @default(0)
   portfolioTagLabel String?
   matrixBrief       String?
+  // The committee's WhatsApp group for this event. Sent with the allotment when
+  // the event is free, and only after payment when it is not.
+  groupLink         String?
 
   // How the committee meets. `type` above is the committee's character; this is
   // its delivery format. Nothing in the schema carried an online/offline
@@ -308,7 +315,9 @@ model Delegate {
   sourceRowHash      String?
   manualEditedFields String[] @default([])
 
-  @@unique([sourceSheetKey, sourceRowKey])
+  // Per event: the same Form tab reused for next year's event starts clean
+  // instead of colliding with last year's rows.
+  @@unique([eventId, sourceSheetKey, sourceRowKey])
   @@unique([eventId, email])
   @@index([eventId, nextFollowUpAt])
   @@index([eventId])
@@ -430,12 +439,17 @@ model EmailLog {
   delegateId String?
   template   String
   toEmail    String
+  // SENT means the provider accepted it. DELIVERED, DEFERRED, BOUNCED and
+  // COMPLAINED come later from SES events, matched by providerMessageId and
+  // written onto this same row.
   status     String    @default("SENT")
   error      String?
   sentAt     DateTime  @default(now())
+  providerMessageId String?
   delegate   Delegate? @relation(fields: [delegateId], references: [id])
 
   @@index([delegateId])
+  @@index([providerMessageId])
   @@index([status, sentAt])
 }
 
@@ -951,26 +965,43 @@ model RecruitmentImport {
 }
 
 // A Google Form response sheet that delegate registrations are pulled from --
-// the Intra MUN registration form. The same shape as RecruitmentSheetSource, but
-// not scoped to a recruitment cycle.
+// the Intra MUN registration form. The same shape as RecruitmentSheetSource, and
+// scoped to its event the way that one is scoped to a cycle.
 model DelegateSheetSource {
   id       String  @id @default(cuid())
+  eventId  String
+  event    Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
   label    String
   sheetUrl String
   csvUrl   String
   // "<spreadsheetId>:<gid>", stored on every delegate the tab produced.
-  sheetKey String  @unique
+  sheetKey String
   // { delegateField: sheetColumnHeader }
   mapping  Json    @default("{}")
   isActive Boolean @default(true)
 
   lastImportedAt DateTime?
+  // Source health, from the last time someone checked it: when, what was found,
+  // how many rows need a person, and whether the sheet was read privately
+  // ("private": shared with the service account) or through a public link.
+  lastCheckedAt        DateTime?
+  lastCheckRows        Int?
+  lastCheckNeedsAction Int?
+  lastCheckError       String?
+  lastAccess           String?
+  // Decisions an organiser made in the import review, so a routine check does
+  // not ask them again: { committees: {answer: committeeId|null},
+  // rows: {rowHash: "skip"|"import"|"safe-fields"|{email}}, keep: {email: rowHash} }.
+  // Part of the plan token, so changing one invalidates an earlier preview.
+  resolutions          Json      @default("{}")
 
   createdById String
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   imports DelegateImport[]
+
+  @@unique([eventId, sheetKey])
 }
 
 model DelegateImport {
@@ -1284,8 +1315,10 @@ model MailRecipient {
   error      String?
   claimedAt  DateTime?
   sentAt     DateTime?
+  providerMessageId String?
 
   @@unique([campaignId, email])
+  @@index([providerMessageId])
   @@index([campaignId, status])
   @@index([status, sentAt])
 }
@@ -1328,6 +1361,9 @@ enum RecipientStatus {
   SENT
   FAILED
   SKIPPED
+  // Claimed, then interrupted before we heard back: the provider may or may not
+  // have accepted it. Never retried without a person checking first.
+  UNCERTAIN
 }
 
 // ---- Online committees (session floor) ----

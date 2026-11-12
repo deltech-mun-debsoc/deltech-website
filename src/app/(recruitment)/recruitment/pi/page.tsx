@@ -108,7 +108,6 @@ export default async function PiQueuePage() {
       <RecruitmentPageHeader
         eyebrow={cycle.name}
         title={t("recruitment.groups.titlePi")}
-        description={t("recruitment.groups.descriptionPi")}
       />
 
       <PiQueue
