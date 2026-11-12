@@ -120,6 +120,39 @@ const read = (p: string) => readFileSync(join(root, p), "utf8")
   assert.doesNotMatch(workflow, /pull_request:/)
 }
 
+// ── 4b. Staging shares production's box, never its containers ──────────────
+//
+// To halve the bill, staging runs on the production box as its own compose
+// project. Each property here is a wall between the two that a tidy-up could
+// quietly remove: a shared project name, a staging service called `app` (which
+// production's Caddy would then route www traffic to), staging deploys writing
+// production's files, or a staging tunnel landing on production's Postgres.
+{
+  const stagingCompose = read("deploy/compose.staging.yml")
+  const prodCompose = read("deploy/compose.yml")
+  const caddy = read("deploy/Caddyfile.prod")
+  const workflow = read(".github/workflows/deploy.yml")
+  const deploySh = read("deploy/deploy.sh")
+
+  assert.match(stagingCompose, /^name: mun-staging$/m, "staging must be its own compose project")
+  assert.match(prodCompose, /^name: mun$/m, "production keeps its own compose project")
+  assert.doesNotMatch(stagingCompose, /^\s{2}app:/m, "a staging service named app would answer for production on mun-edge")
+  assert.match(stagingCompose, /oom_score_adj: 500/, "staging must be what the kernel kills first")
+  assert.match(stagingCompose, /127\.0\.0\.1:5433:5432/, "staging Postgres stays on loopback, off production's port")
+  assert.doesNotMatch(prodCompose.split("\n  app:")[1]?.split("\n  db:")[0] ?? "", /edge/, "production's app must not join mun-edge")
+
+  assert.match(caddy, /test\.deltechmun\.in \{[\s\S]*?reverse_proxy staging:3000/, "test.deltechmun.in must route to staging")
+  assert.equal((caddy.match(/reverse_proxy app:3000/g) ?? []).length, 2, "app:3000 serves www and docs only")
+
+  assert.match(workflow, /DIR: \$\{\{ github\.ref_name == 'main' && '\/srv\/mun' \|\| '\/home\/deploy\/mun-staging' \}\}/, "each branch deploys into its own directory")
+  assert.match(workflow, /if \[ "\$SVC" = prod \]; then[\s\S]*?Caddyfile\.prod[\s\S]*?else[\s\S]*?compose\.staging\.yml/, "only production deploys write the Caddyfile")
+  assert.match(deploySh, /staging\) dir=\/home\/deploy\/mun-staging; svc=staging/, "deploy.sh staging must switch the staging service in its own directory")
+
+  for (const wf of [".github/workflows/staging-seed.yml", ".github/workflows/staging-migrate.yml"]) {
+    assert.match(read(wf), /-L 55432:127\.0\.0\.1:5433 /, `${wf} must tunnel to staging's Postgres, not production's`)
+  }
+}
+
 // ── 5. Every page says it is not production ─────────────────────────────────
 //
 // This lived in three area headers, which silently exempted the route groups
@@ -159,4 +192,4 @@ const read = (p: string) => readFileSync(join(root, p), "utf8")
   )
 }
 
-console.log("staging isolation checks passed (seed guards, no personal addresses, sheet overrides, deploy refs, preview ribbon)")
+console.log("staging isolation checks passed (seed guards, no personal addresses, sheet overrides, deploy refs, shared-box walls, preview ribbon)")

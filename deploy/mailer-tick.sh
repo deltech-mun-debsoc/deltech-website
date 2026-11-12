@@ -7,9 +7,12 @@
 # CRON_SECRET in its environment, so the secret never appears on a command line
 # or in this file. The route claims every row before acting, so an overlapping
 # tick, or one that lands while somebody presses Send, cannot mail anyone twice.
+#
+# Staging runs on the same box as its own project:
+#   */2 * * * * MUN_DIR=/home/deploy/mun-staging MUN_APP=staging /srv/mun/mailer-tick.sh
 set -eu
-cd /srv/mun
-docker compose exec -T app node -e '
+cd "${MUN_DIR:-/srv/mun}"
+docker compose exec -T "${MUN_APP:-app}" node -e '
 fetch("http://127.0.0.1:3000/api/cron/mailer", { headers: { authorization: "Bearer " + process.env.CRON_SECRET } })
   .then(async (r) => {
     const body = await r.text()
