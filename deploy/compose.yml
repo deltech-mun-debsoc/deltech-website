@@ -1,6 +1,8 @@
-# Lives at /srv/mun on each Lightsail box, next to Caddyfile, deploy.sh and the
-# env files (app.env, caddy.env: never in git). APP_ENV and APP_TAG are written
-# into /srv/mun/.env by deploy.sh. See docs/AWS.md.
+# Production. Lives at /srv/mun on the one Lightsail box, next to Caddyfile,
+# deploy.sh and the env files (app.env, caddy.env: never in git). APP_ENV and
+# APP_TAG are written into /srv/mun/.env by deploy.sh. Staging runs on the same
+# box as a separate project, /srv/mun-staging (compose.staging.yml). See
+# docs/AWS.md.
 name: mun
 
 # Docker's json-file driver keeps every log line forever by default. On a 40 GB
@@ -31,9 +33,10 @@ services:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
+    # mun-edge carries test.deltechmun.in to the staging project. Caddy is the
+    # only production container on it; production's app and database are not.
+    networks: [default, edge]
 
-  # One app service per box: production and staging have a box each, so a
-  # staging runaway cannot starve production and each keeps its own Caddy.
   app:
     image: mun:${APP_ENV:-staging}-${APP_TAG:-none}
     pull_policy: never
@@ -77,6 +80,13 @@ services:
       timeout: 5s
       retries: 5
     mem_limit: 400m
+
+# Created once by deploy.sh (or the deploy workflow) and shared with the staging
+# project. External, so neither project owns it and neither can delete it.
+networks:
+  edge:
+    name: mun-edge
+    external: true
 
 volumes:
   caddy_data:
