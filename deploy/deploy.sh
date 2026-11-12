@@ -2,17 +2,23 @@
 # Switch one service to an image already loaded on this box, and switch back if
 # it does not come up healthy. Run by .github/workflows/deploy.yml, or by hand to
 # roll back:  /srv/mun/deploy.sh prod <older-sha>
+#              /srv/mun-staging/deploy.sh staging <older-sha>
 set -eu
 env=$1
 sha=$2
+# Both environments share one box. Each is its own compose project in its own
+# directory, so switching one can never recreate the other's containers.
 case "$env" in
-  prod|staging) ;;
+  prod) dir=/srv/mun; svc=app ;;
+  staging) dir=/srv/mun-staging; svc=staging ;;
   *) echo "usage: deploy.sh prod|staging <sha>" >&2; exit 2 ;;
 esac
-svc=app
 var=APP_TAG
-cd /srv/mun
+cd "$dir"
 touch .env
+# The network production's Caddy uses to reach staging. Both compose files name
+# it external, so it has to exist before either project starts.
+docker network inspect mun-edge >/dev/null 2>&1 || docker network create mun-edge >/dev/null
 
 docker image inspect "mun:$env-$sha" >/dev/null
 prev=$(sed -n "s/^$var=//p" .env)
