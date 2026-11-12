@@ -1,7 +1,7 @@
 # Production. Lives at /srv/mun on the one Lightsail box, next to Caddyfile,
 # deploy.sh and the env files (app.env, caddy.env: never in git). APP_ENV and
 # APP_TAG are written into /srv/mun/.env by deploy.sh. Staging runs on the same
-# box as a separate project, /srv/mun-staging (compose.staging.yml). See
+# box as a separate project, /home/deploy/mun-staging (compose.staging.yml). See
 # docs/AWS.md.
 name: mun
 

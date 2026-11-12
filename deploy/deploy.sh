@@ -2,7 +2,7 @@
 # Switch one service to an image already loaded on this box, and switch back if
 # it does not come up healthy. Run by .github/workflows/deploy.yml, or by hand to
 # roll back:  /srv/mun/deploy.sh prod <older-sha>
-#              /srv/mun-staging/deploy.sh staging <older-sha>
+#              /home/deploy/mun-staging/deploy.sh staging <older-sha>
 set -eu
 env=$1
 sha=$2
@@ -10,7 +10,7 @@ sha=$2
 # directory, so switching one can never recreate the other's containers.
 case "$env" in
   prod) dir=/srv/mun; svc=app ;;
-  staging) dir=/srv/mun-staging; svc=staging ;;
+  staging) dir=/home/deploy/mun-staging; svc=staging ;;
   *) echo "usage: deploy.sh prod|staging <sha>" >&2; exit 2 ;;
 esac
 var=APP_TAG

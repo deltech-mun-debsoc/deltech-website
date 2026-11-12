@@ -9,7 +9,7 @@ installed as a one-variable fallback.
 ```text
 Registrar DNS ──► mun-prod box (Sydney, 1 GB, $7/mo)  Caddy
                      www, docs, deltechmun.in → 301 www   → app      (/srv/mun)
-                     test.deltechmun.in (noindex)         → staging  (/srv/mun-staging)
+                     test.deltechmun.in (noindex)         → staging  (/home/deploy/mun-staging)
                   Postgres 17 twice, one per project, loopback only
                     mun_prod on :5432, mun_staging on :5433
                   S3  deltechmun-media-prod / -staging (ap-south-1)
@@ -27,7 +27,7 @@ on 8 October, production's containers used ~255 MB and staging's ~150 MB, both
 idle-loaded. What it costs is isolation. Staging and production now share RAM,
 disk and reboots, and a staging deploy reaches the production box. The walls
 that remain, pinned by `scripts/check-staging-isolation.ts`: separate compose
-projects and Postgres servers, staging writes only under `/srv/mun-staging`,
+projects and Postgres servers, staging writes only under `/home/deploy/mun-staging`,
 staging is capped at 450 MB and is what the kernel kills first when memory runs
 out (`oom_score_adj`), and production's Caddy reaches it over the `mun-edge`
 network as `staging`, a name production never uses.
@@ -40,7 +40,7 @@ snapshot.
 
 | Push to | Builds | Lands on |
 | --- | --- | --- |
-| `staging` | `mun:staging-<sha>` with the `staging` GitHub Environment | `/srv/mun-staging` on `mun-prod` → test.deltechmun.in |
+| `staging` | `mun:staging-<sha>` with the `staging` GitHub Environment | `/home/deploy/mun-staging` on `mun-prod` → test.deltechmun.in |
 | `main` | `mun:prod-<sha>` with the `production` GitHub Environment | `/srv/mun` on `mun-prod` → www.deltechmun.in |
 
 `DEPLOY_HOST` and `DEPLOY_KNOWN_HOSTS` are **Environment** secrets. Both now name
@@ -50,7 +50,7 @@ the same box; the deploy workflow keeps each branch inside its own directory.
 and runs `deploy/deploy.sh`, which switches the container and switches back if
 it is not healthy within 90 s. A push to `main` also syncs `/srv/mun` (`Caddyfile.prod`, which routes
 `test.deltechmun.in` too, `compose.yml`, `deploy.sh`); a push to `staging` syncs
-only `/srv/mun-staging` (`compose.staging.yml`, `deploy.sh`). The workflow is inert until the repo variable `AWS_DEPLOY=true`.
+only `/home/deploy/mun-staging` (`compose.staging.yml`, `deploy.sh`). The workflow is inert until the repo variable `AWS_DEPLOY=true`.
 
 Migrations still apply automatically to staging (`staging-migrate.yml`) and by
 hand to production, but both reach Postgres through an **SSH tunnel to that
@@ -339,7 +339,7 @@ About 15 minutes; nothing else lives there.
 
 Scheduled mail, and any campaign held back by the daily cap, is sent by a tick
 every two minutes, once per project. Production's entry is below; staging's
-runs the same script with `MUN_DIR=/srv/mun-staging MUN_APP=staging`:
+runs the same script with `MUN_DIR=/home/deploy/mun-staging MUN_APP=staging`:
 
 ```bash
 scp deploy/mailer-tick.sh deploy@<box>:/srv/mun/ && ssh deploy@<box> 'chmod +x /srv/mun/mailer-tick.sh && (crontab -l; echo "*/2 * * * * /srv/mun/mailer-tick.sh >> /srv/mun/mailer.log 2>&1") | crontab -'
