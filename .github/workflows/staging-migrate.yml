@@ -31,7 +31,7 @@ jobs:
     name: Apply migrations to staging
     runs-on: ubuntu-latest
     # DEPLOY_HOST / DEPLOY_KNOWN_HOSTS live on the environment, so this job can
-    # only ever tunnel to the staging box.
+    # only ever tunnel to the box staging runs on.
     environment: staging
     env:
       # The Prisma CLI reads DIRECT_URL (see prisma.config.ts). It points at the
@@ -47,7 +47,9 @@ jobs:
           printf '%s\n' "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
           printf '%s\n' "${{ secrets.DEPLOY_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
-          ssh -f -N -L 55432:127.0.0.1:5432 deploy@${{ secrets.DEPLOY_HOST }}
+          # 5433: staging's own Postgres on the shared box. Production's is on
+          # 5432 there; the database-name check below refuses it regardless.
+          ssh -f -N -L 55432:127.0.0.1:5433 deploy@${{ secrets.DEPLOY_HOST }}
           for i in $(seq 1 10); do (echo > /dev/tcp/127.0.0.1/55432) 2>/dev/null && break; sleep 1; done
 
       - uses: actions/setup-node@v7
