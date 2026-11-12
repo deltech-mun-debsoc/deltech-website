@@ -27,6 +27,7 @@ import { BlogApprovedEmail } from "../src/emails/blog-approved";
 import { BlogChangesRequestedEmail } from "../src/emails/blog-changes-requested";
 import { BlogRejectedEmail } from "../src/emails/blog-rejected";
 import { StaffInviteEmail } from "../src/emails/staff-invite";
+import { ChairInviteEmail } from "../src/emails/chair-invite";
 import { RecruitmentSelectedEmail } from "../src/emails/recruitment-selected";
 import { recruitmentRecipientEmails } from "../src/lib/recruitment/recipient-emails";
 
@@ -285,6 +286,14 @@ const cases: Array<[string, ReactElement, string[]]> = [
       signInUrl: "https://x.test/signin",
     }),
     ["a maintainer", "https://x.test/signin"],
+  ],
+  [
+    "chair-invite",
+    ChairInviteEmail({
+      committeeName: "UN Security Council",
+      signInUrl: "https://x.test/signin/staff",
+    }),
+    ["UN Security Council", "https://x.test/signin/staff"],
   ],
   [
     "recruitment-selected",

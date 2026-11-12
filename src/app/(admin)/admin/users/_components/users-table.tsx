@@ -51,6 +51,7 @@ const ROLE_LABEL: Record<string, string> = {
   SUB_MAINTAINER: "Junior Council",
   MEMBER: "Member",
   REGISTERER: "Delegate",
+  CHAIR: "Committee chair",
 }
 const ROLE_ITEMS = Object.entries(ROLE_LABEL).map(([value, label]) => ({ value, label }))
 
@@ -134,6 +135,7 @@ export function UsersTable({ users, selfEmail }: { users: UserRow[]; selfEmail: 
                           <SelectItem value="MAINTAINER">Maintainer</SelectItem>
                           <SelectItem value="AUTHOR">Author</SelectItem>
                           <SelectItem value="SUB_MAINTAINER">Junior Council</SelectItem>
+                          <SelectItem value="CHAIR">Committee chair</SelectItem>
                         </SelectContent>
                       </Select>
                     </div>

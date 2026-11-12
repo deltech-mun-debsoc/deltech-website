@@ -34,22 +34,22 @@ for (const junk of ["", "seat:p", "seat::u", "dais:", "admin:u1", "seat:p:u:extr
 assert.equal(floorRoomName("cs_1"), "floor_cs_1")
 
 // ── Who publishes ───────────────────────────────────────────────────────────
-const idle = publishersFor({ gsl: null, caucus: null })
-const gsl = publishersFor({ gsl: "p_fr", caucus: null })
+const idle = publishersFor(null)
+const gsl = publishersFor("p_fr")
 assert.equal(mayPublish("dais:u9", idle), true, "the dais always publishes")
-assert.equal(mayPublish(participantIdentity(alice), idle), false, "nobody else while nobody holds the floor")
-assert.equal(mayPublish(participantIdentity(alice), gsl), true, "the speaker publishes")
+assert.equal(mayPublish(participantIdentity(alice), idle), false, "nobody else while nobody holds the mic")
+assert.equal(mayPublish(participantIdentity(alice), gsl), true, "the mic holder publishes")
 assert.equal(mayPublish(participantIdentity(bob), gsl), true, "and so does their co-delegate: rights are per seat")
 assert.equal(mayPublish("seat:p_in:u3", gsl), false, "another seat does not")
 assert.equal(mayPublish("someone-else", gsl), false, "an identity this app did not mint never publishes")
-assert.deepEqual([...publishersFor({ gsl: "p_fr", caucus: "p_in" })].sort(), ["p_fr", "p_in"])
+assert.deepEqual([...publishersFor("p_fr")], ["p_fr"], "one mic, one seat")
 
 const g = grantsFor(alice, "floor_cs_1", idle)
 assert.equal(g.canPublish, false)
 assert.equal(g.canSubscribe, true)
 assert.equal(g.canPublishData, false, "no data channel beside moderated chat")
 assert.equal(g.canUpdateOwnMetadata, false, "no renaming oneself on the dais's screen")
-assert.equal(grantsFor(alice, "r", gsl).canPublish, true, "a speaker joining late gets the grant in the token")
+assert.equal(grantsFor(alice, "r", gsl).canPublish, true, "a mic holder joining late gets the grant in the token")
 assert.equal(grantsFor({ kind: "dais", userId: "u9" }, "r", idle).canPublish, true)
 
 // ── Syncing a live room ─────────────────────────────────────────────────────
