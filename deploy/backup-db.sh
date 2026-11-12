@@ -13,7 +13,7 @@
 # Production and staging share one box: MUN_DIR picks the project, and its own
 # app.env supplies the database name, bucket and keys.
 #   17 * * * *  /srv/mun/backup-db.sh
-#   47 * * * *  MUN_DIR=/srv/mun-staging /srv/mun/backup-db.sh
+#   47 * * * *  MUN_DIR=/home/deploy/mun-staging /srv/mun/backup-db.sh
 set -eu
 cd "${MUN_DIR:-/srv/mun}"
 

@@ -36,7 +36,7 @@ jobs:
     environment: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
     env:
       SVC: ${{ github.ref_name == 'main' && 'prod' || 'staging' }}
-      DIR: ${{ github.ref_name == 'main' && '/srv/mun' || '/srv/mun-staging' }}
+      DIR: ${{ github.ref_name == 'main' && '/srv/mun' || '/home/deploy/mun-staging' }}
       APP_ENV: ${{ github.ref_name == 'main' && 'production' || 'staging' }}
     steps:
       - uses: actions/checkout@v7

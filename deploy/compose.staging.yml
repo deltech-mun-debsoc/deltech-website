@@ -1,4 +1,4 @@
-# Staging, on the production box. Lives at /srv/mun-staging, a separate compose
+# Staging, on the production box. Lives at /home/deploy/mun-staging, a separate compose
 # project from production (/srv/mun), so `docker compose` in one directory can
 # never stop, recreate or read the other's containers or volumes.
 #

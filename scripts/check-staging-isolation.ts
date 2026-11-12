@@ -144,9 +144,9 @@ const read = (p: string) => readFileSync(join(root, p), "utf8")
   assert.match(caddy, /test\.deltechmun\.in \{[\s\S]*?reverse_proxy staging:3000/, "test.deltechmun.in must route to staging")
   assert.equal((caddy.match(/reverse_proxy app:3000/g) ?? []).length, 2, "app:3000 serves www and docs only")
 
-  assert.match(workflow, /DIR: \$\{\{ github\.ref_name == 'main' && '\/srv\/mun' \|\| '\/srv\/mun-staging' \}\}/, "each branch deploys into its own directory")
+  assert.match(workflow, /DIR: \$\{\{ github\.ref_name == 'main' && '\/srv\/mun' \|\| '\/home\/deploy\/mun-staging' \}\}/, "each branch deploys into its own directory")
   assert.match(workflow, /if \[ "\$SVC" = prod \]; then[\s\S]*?Caddyfile\.prod[\s\S]*?else[\s\S]*?compose\.staging\.yml/, "only production deploys write the Caddyfile")
-  assert.match(deploySh, /staging\) dir=\/srv\/mun-staging; svc=staging/, "deploy.sh staging must switch the staging service in its own directory")
+  assert.match(deploySh, /staging\) dir=\/home\/deploy\/mun-staging; svc=staging/, "deploy.sh staging must switch the staging service in its own directory")
 
   for (const wf of [".github/workflows/staging-seed.yml", ".github/workflows/staging-migrate.yml"]) {
     assert.match(read(wf), /-L 55432:127\.0\.0\.1:5433 /, `${wf} must tunnel to staging's Postgres, not production's`)

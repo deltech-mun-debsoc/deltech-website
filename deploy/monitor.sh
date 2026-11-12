@@ -8,7 +8,7 @@
 # Cron:  30 2 * * *  /srv/mun/monitor.sh
 #
 # Staging shares the box as its own project, with no Caddy of its own:
-#   40 2 * * *  MUN_DIR=/srv/mun-staging MUN_SERVICES="staging db" /srv/mun/monitor.sh
+#   40 2 * * *  MUN_DIR=/home/deploy/mun-staging MUN_SERVICES="staging db" /srv/mun/monitor.sh
 set -eu
 cd "${MUN_DIR:-/srv/mun}"
 

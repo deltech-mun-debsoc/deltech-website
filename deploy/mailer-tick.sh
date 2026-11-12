@@ -9,7 +9,7 @@
 # tick, or one that lands while somebody presses Send, cannot mail anyone twice.
 #
 # Staging runs on the same box as its own project:
-#   */2 * * * * MUN_DIR=/srv/mun-staging MUN_APP=staging /srv/mun/mailer-tick.sh
+#   */2 * * * * MUN_DIR=/home/deploy/mun-staging MUN_APP=staging /srv/mun/mailer-tick.sh
 set -eu
 cd "${MUN_DIR:-/srv/mun}"
 docker compose exec -T "${MUN_APP:-app}" node -e '
