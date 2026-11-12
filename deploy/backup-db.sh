@@ -9,8 +9,13 @@
 #   aws s3 cp s3://<bucket>/backups/<db>/<file> .
 #   gunzip -c <file> | docker exec -i $(docker compose ps -q db) \
 #     pg_restore --clean --if-exists -U postgres -d <db>
+#
+# Production and staging share one box: MUN_DIR picks the project, and its own
+# app.env supplies the database name, bucket and keys.
+#   17 * * * *  /srv/mun/backup-db.sh
+#   47 * * * *  MUN_DIR=/srv/mun-staging /srv/mun/backup-db.sh
 set -eu
-cd /srv/mun
+cd "${MUN_DIR:-/srv/mun}"
 
 db=$(sed -n 's/^APP_DB_NAME=//p' app.env)
 bucket=$(sed -n 's/^S3_BUCKET=//p' app.env)
