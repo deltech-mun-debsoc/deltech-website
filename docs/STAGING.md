@@ -4,7 +4,7 @@ A second, complete copy of the site that shares nothing with production. Break
 whatever you like here.
 
 ```text
-test.deltechmun.in   staging branch   mun-staging box   mun_staging database   test keys
+test.deltechmun.in   staging branch   /srv/mun-staging on mun-prod   mun_staging database   test keys
 www.deltechmun.in    main branch      mun-prod box      mun_prod database      live keys
 ```
 

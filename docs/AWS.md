@@ -1,18 +1,17 @@
 # Hosting on AWS
 
-Production and staging each run on their own Lightsail box behind Caddy. Each
-box also runs its own private Postgres container. Media is S3, email is SES
+Production and staging share one Lightsail box behind one Caddy, as two
+separate compose projects, each with its own private Postgres container. Media is S3, email is SES
 (production access granted 15 September 2026: 50,000 messages a day, 14 a
 second, Mumbai), and realtime is our own in-process SSE bus. Resend stays
 installed as a one-variable fallback.
 
 ```text
-Registrar DNS ──┬─► mun-prod    box (Sydney, 1 GB, $7/mo)  Caddy → app
-                │      deltechmun.in → 301 www.deltechmun.in
-                └─► mun-staging box (Sydney, 1 GB, $7/mo)  Caddy → app
-                       test.deltechmun.in (noindex)
-                  Postgres 17 on each box, bound to loopback only
-                    mun_prod / mun_staging, physically separate
+Registrar DNS ──► mun-prod box (Sydney, 1 GB, $7/mo)  Caddy
+                     www, docs, deltechmun.in → 301 www   → app      (/srv/mun)
+                     test.deltechmun.in (noindex)         → staging  (/srv/mun-staging)
+                  Postgres 17 twice, one per project, loopback only
+                    mun_prod on :5432, mun_staging on :5433
                   S3  deltechmun-media-prod / -staging (ap-south-1)
                   SES deltechmun.in (ap-south-1)
 ```
@@ -23,9 +22,15 @@ quiz cache (`unstable_cache` + `updateTag`, `src/lib/quiz-cache.ts`) and the
 realtime bus (`src/lib/realtime/bus.ts`) correct; a second instance of either
 environment would need a shared cache and an external bus first.
 
-A box each rather than two containers on one box: a new AWS account is capped at
-the 1 GB plan, and 1 GB cannot hold both. It is also better isolation, for $2 more
-than the single 2 GB box would have cost.
+One box since November 2026, to halve the bill until the conference: measured
+on 8 October, production's containers used ~255 MB and staging's ~150 MB, both
+idle-loaded. What it costs is isolation. Staging and production now share RAM,
+disk and reboots, and a staging deploy reaches the production box. The walls
+that remain, pinned by `scripts/check-staging-isolation.ts`: separate compose
+projects and Postgres servers, staging writes only under `/srv/mun-staging`,
+staging is capped at 450 MB and is what the kernel kills first when memory runs
+out (`oom_score_adj`), and production's Caddy reaches it over the `mun-edge`
+network as `staging`, a name production never uses.
 
 The Postgres volume lives on its box. Losing a box means rebuilding it and
 restoring the newest hourly S3 backup; production also has a daily Lightsail
@@ -35,16 +40,17 @@ snapshot.
 
 | Push to | Builds | Lands on |
 | --- | --- | --- |
-| `staging` | `mun:staging-<sha>` with the `staging` GitHub Environment | `mun-staging` box → test.deltechmun.in |
-| `main` | `mun:prod-<sha>` with the `production` GitHub Environment | `mun-prod` box → www.deltechmun.in |
+| `staging` | `mun:staging-<sha>` with the `staging` GitHub Environment | `/srv/mun-staging` on `mun-prod` → test.deltechmun.in |
+| `main` | `mun:prod-<sha>` with the `production` GitHub Environment | `/srv/mun` on `mun-prod` → www.deltechmun.in |
 
-`DEPLOY_HOST` and `DEPLOY_KNOWN_HOSTS` are **Environment** secrets, so a branch
-can only ever reach its own box.
+`DEPLOY_HOST` and `DEPLOY_KNOWN_HOSTS` are **Environment** secrets. Both now name
+the same box; the deploy workflow keeps each branch inside its own directory.
 
 `.github/workflows/deploy.yml` builds on the runner, streams the image over SSH,
 and runs `deploy/deploy.sh`, which switches the container and switches back if
-it is not healthy within 90 s. Each push also syncs its own box's `deploy/` files (`Caddyfile.<env>`, compose,
-deploy.sh). The workflow is inert until the repo variable `AWS_DEPLOY=true`.
+it is not healthy within 90 s. A push to `main` also syncs `/srv/mun` (`Caddyfile.prod`, which routes
+`test.deltechmun.in` too, `compose.yml`, `deploy.sh`); a push to `staging` syncs
+only `/srv/mun-staging` (`compose.staging.yml`, `deploy.sh`). The workflow is inert until the repo variable `AWS_DEPLOY=true`.
 
 Migrations still apply automatically to staging (`staging-migrate.yml`) and by
 hand to production, but both reach Postgres through an **SSH tunnel to that
@@ -293,9 +299,8 @@ Two manual steps afterwards, which the script prints:
 disaster-recovery copy and a ready-made starting point for the upgrade. It bills
 by used disk (~5.7 GB today), so roughly $0.30/month.
 
-Consolidating both environments back onto one 2 GB box later is possible (each
-uses ~210 MB), but two boxes cost $14/mo against $12 and keep staging from ever
-starving production.
+Both environments now share this one 1 GB box (see the top of this file). When
+the conference needs more, grow this box rather than splitting them again.
 
 ## Growing a box (the 2 GB upgrade, when AWS grants it)
 
@@ -321,9 +326,8 @@ Two manual steps afterwards, which the script prints:
 disaster-recovery copy and a ready-made starting point for the upgrade. It bills
 by used disk (~5.7 GB today), so roughly $0.30/month.
 
-Consolidating both environments back onto one 2 GB box later is possible (each
-uses ~210 MB), but two boxes cost $14/mo against $12 and keep staging from ever
-starving production.
+Both environments now share this one 1 GB box (see the top of this file). When
+the conference needs more, grow this box rather than splitting them again.
 
 ## Rebuilding the box
 
@@ -334,7 +338,8 @@ About 15 minutes; nothing else lives there.
 ## Mailer tick
 
 Scheduled mail, and any campaign held back by the daily cap, is sent by a tick
-every two minutes on each box. Install it once per box, next to the backup job:
+every two minutes, once per project. Production's entry is below; staging's
+runs the same script with `MUN_DIR=/srv/mun-staging MUN_APP=staging`:
 
 ```bash
 scp deploy/mailer-tick.sh deploy@<box>:/srv/mun/ && ssh deploy@<box> 'chmod +x /srv/mun/mailer-tick.sh && (crontab -l; echo "*/2 * * * * /srv/mun/mailer-tick.sh >> /srv/mun/mailer.log 2>&1") | crontab -'
