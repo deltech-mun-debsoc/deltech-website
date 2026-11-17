@@ -26,7 +26,7 @@
     "@aws-sdk/client-sesv2": "^3.1136.0",
     "@aws-sdk/s3-request-presigner": "^3.1136.0",
     "@base-ui/react": "^1.8.0",
-    "@hookform/resolvers": "^5.9.1",
+    "@hookform/resolvers": "^7.0.6",
     "@mdx-js/loader": "^3.1.1",
     "@mdx-js/react": "^3.1.1",
     "@next/mdx": "^16.3.4",
