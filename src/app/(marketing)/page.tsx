@@ -1,3 +1,4 @@
+import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight, RadioTower } from "lucide-react";
 import { getContent } from "@/lib/settings";
@@ -11,6 +12,7 @@ import { SocietyHero } from "./_components/society-hero";
 import { ActiveEvent } from "./_components/active-event";
 import { ConferenceCarousel } from "./_components/conference-carousel";
 import { deriveEventState } from "@/lib/event-state";
+import { ARTICLES, ISSUE } from "@/content/newsletter/issue-01";
 
 const TYPE_LABEL: Record<string, string> = {
   STANDARD: t("marketing.committeeTypes.standard"),
@@ -91,6 +93,40 @@ export default async function LandingPage() {
                 </li>
               ))}
             </ol>
+          </div>
+        </div>
+      </section>
+
+      <section id="newsletter" className="border-b border-border/70 py-24 sm:py-32">
+        <div className="section-shell grid items-center gap-12 lg:grid-cols-[0.8fr_1.2fr] lg:gap-20">
+          <Link href="/newsletter" className="group block">
+            <Image
+              src={ISSUE.cover.thumb}
+              width={600}
+              height={849}
+              alt={t("newsletter.coverAlt")}
+              sizes="(min-width: 1024px) 420px, 90vw"
+              className="mx-auto h-auto w-full max-w-sm shadow-xl ring-1 ring-foreground/10 transition-transform duration-300 group-hover:-rotate-1"
+            />
+          </Link>
+          <div>
+            <p className="eyebrow">{t("newsletter.homeEyebrow")}</p>
+            <h2 className="display-section mt-5 max-w-[14ch]">{t("newsletter.homeTitle")}</h2>
+            <p className="body-large mt-7 max-w-xl text-muted-foreground">{t("newsletter.homeBody")}</p>
+            <ol className="mt-8 border-t border-foreground/20">
+              {ARTICLES.map((article) => (
+                <li key={article.slug} className="border-b border-foreground/20">
+                  <Link href={`/newsletter/${article.slug}`} className="group flex items-baseline gap-4 py-4">
+                    <span className="font-mono text-xs font-semibold text-primary">0{article.page}</span>
+                    <span className="font-heading text-lg leading-snug group-hover:underline">{article.headline}</span>
+                  </Link>
+                </li>
+              ))}
+            </ol>
+            <Link href="/newsletter" className={cn(buttonVariants({ size: "lg" }), "mt-9")}>
+              {t("newsletter.homeCta")}
+              <ArrowRight />
+            </Link>
           </div>
         </div>
       </section>

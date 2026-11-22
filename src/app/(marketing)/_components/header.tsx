@@ -20,6 +20,7 @@ export function Header({ sections, registrationOpen }: { sections: Content["publ
     { href: "/availability", label: t("nav.availability"), visible: sections.matrix },
     { href: "/team", label: t("marketing.teamLabel"), visible: sections.team },
     { href: "/blog", label: t("nav.blog"), visible: sections.dispatch },
+    { href: "/newsletter", label: t("nav.newsletter"), visible: true },
     { href: "/quiz/join", label: t("nav.quizJoin"), visible: sections.quiz },
   ].filter((item) => item.visible);
 
