@@ -11,7 +11,7 @@ export function roleHome(role: string | null | undefined): string {
     case "MAINTAINER":
       return "/admin"
     case "AUTHOR":
-      return "/write"
+      return "/blog/write"
     case "MEMBER":
       return "/account"
     case "REGISTERER":
@@ -29,7 +29,7 @@ export function roleHome(role: string | null | undefined): string {
 // never be one the proxy then refuses.
 export function roleCanAccess(pathname: string, role: string | null | undefined): boolean {
   if (pathname.startsWith("/admin")) return role === "ADMIN" || role === "MAINTAINER"
-  if (pathname.startsWith("/write")) return role === "AUTHOR" || role === "ADMIN" || role === "MAINTAINER"
+  if (pathname.startsWith("/write")) return !!role
   if (pathname.startsWith("/dashboard")) return role === "REGISTERER"
   if (pathname.startsWith("/account")) return !!role // any signed-in role
   // /recruitment is coarse-gated here (any signed-in role may be assigned to a

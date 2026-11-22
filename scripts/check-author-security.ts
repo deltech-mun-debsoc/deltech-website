@@ -40,21 +40,19 @@ async function main() {
     } } },
   })
   const draft = { title: "Story", subtitle: "", contentJson: {}, tags: [], readMin: 1 }
-  for (const role of [null, "MEMBER", "REGISTERER", "SUB_MAINTAINER"]) {
-    session = role ? { user: { id: "writer", role } } : null
-    reads = writes = 0
-    assert.equal((await actions.saveDraft("post", draft)).success, false)
-    assert.equal((await actions.submitPost("post")).success, false)
-    assert.equal(reads, 0, `${role}: denied before reading owned content`)
-    assert.equal(writes, 0, `${role}: a former author must not mutate their retained draft`)
-  }
-  for (const role of ["AUTHOR", "ADMIN", "MAINTAINER"]) {
+  session = null
+  reads = writes = 0
+  assert.equal((await actions.saveDraft("post", draft)).success, false)
+  assert.equal((await actions.submitPost("post")).success, false)
+  assert.equal(reads, 0, "signed out: denied before reading owned content")
+  assert.equal(writes, 0, "signed out: no mutation")
+  for (const role of ["AUTHOR", "ADMIN", "MAINTAINER", "MEMBER", "REGISTERER", "SUB_MAINTAINER"]) {
     session = { user: { id: "writer", role } }
     owner = "someone-else"
     writes = 0
     assert.equal((await actions.saveDraft("post", draft)).success, false)
     assert.equal((await actions.submitPost("post")).success, false)
-    assert.equal(writes, 0, `${role}: authoring does not bypass ownership`)
+    assert.equal(writes, 0, `${role}: writing does not bypass ownership`)
     owner = "writer"
     status = "PUBLISHED"
     assert.equal((await actions.saveDraft("post", draft)).success, false)
@@ -63,8 +61,8 @@ async function main() {
     status = "DRAFT"
     assert.equal((await actions.saveDraft("post", draft)).success, true)
     assert.equal((await actions.submitPost("post")).success, true)
-    assert.equal(writes, 2, `${role}: legitimate author workflow remains available`)
+    assert.equal(writes, 2, `${role}: any signed-in user can write their own draft`)
   }
-  console.log("author security checks passed (role revocation, ownership, publication, allowed roles)")
+  console.log("author security checks passed (signed-out denial, ownership, publication, every signed-in role)")
 }
 main().catch((error) => { console.error(error); process.exit(1) })

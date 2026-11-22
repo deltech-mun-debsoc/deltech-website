@@ -6,7 +6,7 @@ import { roleCanAccess, roleHome, safeLanding } from "../src/lib/nav"
 assert.equal(roleHome("ADMIN"), "/admin")
 assert.equal(roleHome("MAINTAINER"), "/admin")
 assert.equal(roleHome("MEMBER"), "/account")
-assert.equal(roleHome("AUTHOR"), "/write")
+assert.equal(roleHome("AUTHOR"), "/blog/write")
 assert.equal(roleHome("REGISTERER"), "/dashboard")
 // The one home that is inside a route group whose own layout can reject the
 // caller. src/lib/recruitment/authz.ts must therefore never redirect a
@@ -29,7 +29,7 @@ assert.equal(safeLanding("https://evil.com", "ADMIN"), "/admin")
 assert.equal(safeLanding("http://evil.com", "REGISTERER"), "/dashboard")
 assert.equal(safeLanding("/\\evil.com", "ADMIN"), "/admin")
 assert.equal(safeLanding("evil.com", "ADMIN"), "/admin") // no leading slash
-assert.equal(safeLanding(null, "AUTHOR"), "/write")
+assert.equal(safeLanding(null, "AUTHOR"), "/blog/write")
 assert.equal(safeLanding("", "REGISTERER"), "/dashboard")
 
 // ── safeLanding: honor same-origin path when the role may access it ──────────
@@ -41,7 +41,7 @@ assert.equal(safeLanding("/dashboard", "REGISTERER"), "/dashboard")
 
 // ── safeLanding: downgrade when the role can't access the target (no loop) ───
 assert.equal(safeLanding("/admin", "REGISTERER"), "/dashboard")
-assert.equal(safeLanding("/write", "REGISTERER"), "/dashboard")
+assert.equal(safeLanding("/write", "REGISTERER"), "/write")
 assert.equal(safeLanding("/dashboard", "ADMIN"), "/admin") // staff never land on /dashboard
 assert.equal(safeLanding("/write", "MAINTAINER"), "/write") // staff may author
 
@@ -92,7 +92,7 @@ assert.equal(safeLanding("/admin/users", "SUB_MAINTAINER"), "/recruitment")
 assert.equal(safeLanding("/admin/config/money", "SUB_MAINTAINER"), "/recruitment")
 assert.equal(safeLanding("https://app.example.com/admin", "SUB_MAINTAINER", ORIGIN), "/recruitment")
 // ...nor on the other privileged surfaces.
-assert.equal(safeLanding("/write", "SUB_MAINTAINER"), "/recruitment")
+assert.equal(safeLanding("/write", "SUB_MAINTAINER"), "/write")
 assert.equal(safeLanding("/dashboard", "SUB_MAINTAINER"), "/recruitment")
 // Open-redirect protection still applies to the new role.
 assert.equal(safeLanding("//evil.com", "SUB_MAINTAINER"), "/recruitment")
