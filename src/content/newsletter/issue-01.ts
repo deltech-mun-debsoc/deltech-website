@@ -63,9 +63,9 @@ export const ISSUE = {
       "In a world that never stops making headlines, taking a moment to understand the stories behind them matters more than ever.",
       "With Beyond the Headlines, we set out to create something beyond a collection of news updates. Our aim was to bring together perspectives, unpack developments and explore the larger narratives shaping the world around us.",
       "Every page has been an attempt to look a little closer, ask a little more and go beyond what first meets the eye. From understanding complex global developments to recognising the stories that often go unnoticed, this edition has been a journey of curiosity, research and storytelling.\nWe hope these pages have encouraged you to question what you read, look at familiar issues from new perspectives and remain curious about a world that is constantly evolving.",
-      "Thank you for taking the time to read, reflect and explore these stories with us. After all, a newspaper is not just about the stories it tells, but also the conversations it leaves behind.\nAs we bring the next edition , we leave you with a simple thought: Stay curious. Stay informed. Never stop looking beyond the headlines.",
+      "Thank you for taking the time to read, reflect and explore these stories with us. After all, a newspaper is not just about the stories it tells, but also the conversations it leaves behind.\nUntil the next edition, we leave you with a simple thought: Stay curious. Stay informed. Never stop looking beyond the headlines.",
     ],
-    signoff: ["With gratitude,", "The Content Team", "DelTech MUN 2026"],
+    signoff: ["With gratitude,", "The Content Team", "DelTech MUN and Debsoc"],
   },
 };
 
@@ -73,8 +73,8 @@ export const ARTICLES: Article[] = [
   {
     slug: "trilateral-summit",
     page: 2,
-    desk: "GLOBAL AFFAIRS · SPECIAL REPORT",
-    date: "Wednesday, November 19, 2026",
+    desk: "GLOBAL AFFAIRS",
+    date: "Thursday, November 19, 2026",
     kicker: "TRILATERAL SUMMIT 2026 – KYLIN VILLA, SHENZHEN",
     headline: "Three Superpowers, One Table: Trump, Putin and Xi Hold Historic Summit",
     dek: "An analysis of the first-ever trilateral meeting between the leaders of Russia, the United States and China, and its implications for global peace, nuclear security and international relations.",
@@ -147,7 +147,7 @@ export const ARTICLES: Article[] = [
               text: "On 19 November, Xi hosted Trump and Putin at Kylin Villa for talks the Chinese state media said lasted about 90 minutes. Beforehand, Trump had separate meetings with Xi (about an hour) and Putin (about 40 minutes).",
             },
             { type: "p", text: "**Donald Trump:** “*We are really making history.*”" },
-            { type: "p", text: "Said the three since “joint responsibility” for international peace." },
+            { type: "p", text: "Said the three share 'joint responsibility'\" for international peace." },
             { type: "p", text: "**Xi Jinping:** Called the meeting a “*groundbreaking event.*”" },
             { type: "label", text: "KEY DEVELOPMENTS" },
             {
@@ -264,7 +264,7 @@ export const ARTICLES: Article[] = [
             },
           ],
           [
-            { type: "h", text: "Why it matters", rule: "under" },
+            { type: "h", text: "Why it Matters", rule: "under" },
             {
               type: "numbered",
               style: "small",
@@ -299,7 +299,7 @@ export const ARTICLES: Article[] = [
     slug: "faa-ground-stop",
     page: 4,
     desk: "TECHNOLOGY",
-    date: "Friday, 13 November 2026",
+    date: "Friday, November 13, 2026",
     headline: "FAA ground stop was a network fault, not AI",
     dek: "A nationwide ground stop halted US departures for over four hours on 13 November, days after the FAA took its AI-based SMART tool national. The FAA blames an unstable legacy network, not AI.",
     blocks: [
@@ -374,7 +374,7 @@ export const ARTICLES: Article[] = [
           { value: "338", label: "Target set by Pakistan" },
           { value: "252/8", label: "India’s score in the 42nd over" },
           { value: "57 runs", label: "Ninth-wicket stand by Manal Chauhan and Mohit Ulva" },
-          { value: "Nov 24", label: "India’s winning total" },
+          { value: "Nov 24", label: "339/9 – India's winning total" },
         ],
       },
       {
@@ -427,9 +427,9 @@ export const ARTICLES: Article[] = [
     page: 6,
     desk: "CLIMATE & GLOBAL AFFAIRS",
     date: "Saturday, November 21, 2026",
-    kicker: "CLIMATE SUMMIT 2026 • SHARM EL-SHEIKH",
+    kicker: "CLIMATE SUMMIT 2026 • ANTALYA",
     headline: "COP31 Goes to the Wire: Climate Talks Under the Shadow of War",
-    dek: "With one day left in Antalya, delegates must turn old promises into real action, while the US stays away and the Iran war pushes up fuel and fertiliser prices.",
+    dek: "As talks run into overtime in Antalya, delegates must turn old promises into real action, while the US stays away and the Iran war pushes up fuel and fertiliser prices.",
     blocks: [
       {
         type: "facts",
