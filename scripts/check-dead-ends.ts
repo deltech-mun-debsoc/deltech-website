@@ -56,7 +56,7 @@ for (const route of [
   // Fire-and-forget hid every delivery failure behind a redirect.
   assert.doesNotMatch(actions, /void import\("@\/lib\/resend"\)/, "review emails must be awaited")
 
-  const writePage = read("src/app/(author)/write/page.tsx")
+  const writePage = read("src/app/(marketing)/blog/write/page.tsx")
   assert.match(
     writePage,
     /post\.status === "CHANGES_REQUESTED" \|\| post\.status === "REJECTED"/,

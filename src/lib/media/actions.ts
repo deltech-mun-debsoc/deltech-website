@@ -52,17 +52,14 @@ async function authorize(kind: MediaKindName, ownerId?: string) {
   const role = user.role ?? "AUTHOR"
 
   if (kind === "POST_IMAGE" || kind === "POST_COVER") {
-    if (!["AUTHOR", "ADMIN", "MAINTAINER"].includes(role)) return null
-    // Ownership, not just role: an author may only attach media to their own post.
-    if (ownerId) {
-      const post = await prisma.post.findUnique({
-        where: { id: ownerId },
-        select: { authorId: true },
-      })
-      if (!post) return null
-      const isStaff = role === "ADMIN" || role === "MAINTAINER"
-      if (post.authorId !== user.id && !isStaff) return null
-    }
+    if (!ownerId) return null
+    const post = await prisma.post.findUnique({
+      where: { id: ownerId },
+      select: { authorId: true },
+    })
+    if (!post) return null
+    const isStaff = role === "ADMIN" || role === "MAINTAINER"
+    if (post.authorId !== user.id && !isStaff) return null
     return { userId: user.id, email: user.email, role }
   }
 
@@ -331,5 +328,3 @@ export async function getSignedMediaUrl(assetId: string): Promise<{ url?: string
     return { error: "Could not sign that URL." }
   }
 }
-
-export { MEDIA_POLICY }

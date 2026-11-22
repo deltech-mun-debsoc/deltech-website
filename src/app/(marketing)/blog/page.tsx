@@ -1,7 +1,8 @@
 import { formatDate } from "@/lib/datetime"
 import type { Metadata } from "next"
 import Link from "next/link"
-import { ArrowRight } from "lucide-react"
+import { ArrowRight, PenLine } from "lucide-react"
+import { buttonVariants } from "@/components/ui/button"
 import { prisma } from "@/lib/prisma"
 import { STRINGS, t } from "@/content/strings"
 
@@ -57,7 +58,13 @@ export default async function BlogIndexPage() {
             <p className="eyebrow">{t("marketing.dispatchEyebrow")}</p>
             <h1 className="display-section mt-6">{t("marketing.dispatchTitle")}</h1>
           </div>
-          <p className="body-large text-muted-foreground">{t("marketing.dispatchBody")}</p>
+          <div>
+            <p className="body-large text-muted-foreground">{t("marketing.dispatchBody")}</p>
+            <Link href="/blog/write" className={`${buttonVariants({ size: "lg" })} mt-7 gap-2`}>
+              <PenLine className="size-4" aria-hidden />
+              {t("blog.write.cta")}
+            </Link>
+          </div>
         </div>
       </section>
 
@@ -106,6 +113,22 @@ export default async function BlogIndexPage() {
               </div>
             </div>
           )}
+        </div>
+      </section>
+
+      <section className="noise-wash border-t border-border/70 py-20 sm:py-28">
+        <div className="section-shell grid gap-8 lg:grid-cols-[1fr_0.8fr] lg:items-end">
+          <div>
+            <p className="eyebrow">{t("blog.write.bandEyebrow")}</p>
+            <h2 className="display-section mt-5 max-w-[14ch]">{t("blog.write.bandTitle")}</h2>
+          </div>
+          <div>
+            <p className="body-large text-muted-foreground">{t("blog.write.bandBody")}</p>
+            <Link href="/blog/write" className={`${buttonVariants({ size: "lg" })} mt-7 gap-2`}>
+              {t("blog.write.cta")}
+              <ArrowRight className="size-4" aria-hidden />
+            </Link>
+          </div>
         </div>
       </section>
     </div>

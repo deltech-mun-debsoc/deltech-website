@@ -100,7 +100,7 @@ export function WriteEditor({ post }: { post: PostProps }) {
     const result = await submitPost(post.id)
     if (result.success) {
       toast.success("Submitted for review!")
-      router.push("/write")
+      router.push("/blog/write")
     } else {
       toast.error(result.error ?? "Submission failed.")
     }

@@ -20,11 +20,9 @@ export async function requireAdmin(): Promise<Session> {
   return session
 }
 
-// AUTHOR or staff, the guard for blog-authoring actions.
-const AUTHOR_ROLES = new Set(["AUTHOR", "ADMIN", "MAINTAINER"])
 export async function requireAuthor(): Promise<Session> {
   const session = await auth()
   const role = (session?.user as { role?: string } | undefined)?.role
-  if (!session || !role || !AUTHOR_ROLES.has(role)) redirect("/signin")
+  if (!session?.user?.id || !role) redirect("/blog/write")
   return session
 }
