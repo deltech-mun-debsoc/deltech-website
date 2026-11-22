@@ -24,6 +24,6 @@ export async function createDraft(): Promise<never> {
     select: { id: true },
   })
 
-  revalidatePath("/write")
+  revalidatePath("/blog/write")
   redirect(`/write/${post.id}`)
 }

@@ -4,6 +4,7 @@ import Link from "next/link"
 import { ChevronLeft, Check, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { t } from "@/content/strings"
 
 interface Props {
   postId:    string
@@ -27,11 +28,11 @@ export function EditorHeader({
     <header className="sticky top-0 z-20 flex h-14 items-center justify-between border-b border-gray-100 bg-white/90 px-6 backdrop-blur-sm">
       <div className="flex items-center gap-4">
         <Link
-          href="/write"
+          href="/blog/write"
           className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-900 transition-colors"
         >
           <ChevronLeft className="size-4" />
-          My stories
+          {t("blog.write.backToDesk")}
         </Link>
 
         <div className="h-4 w-px bg-gray-200" />
