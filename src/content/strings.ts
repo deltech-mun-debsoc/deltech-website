@@ -208,6 +208,7 @@ export const STRINGS = {
     blog: "Blog",
     register: "Register",
     quizJoin: "Join Quiz",
+    newsletter: "Newsletter",
     docs: "Docs",
     adminDashboard: "Dashboard",
     signIn: "Sign in",
@@ -215,6 +216,24 @@ export const STRINGS = {
     myApplication: "My Application",
     openMenu: "Open navigation",
     closeMenu: "Close navigation",
+  },
+
+  newsletter: {
+    metaTitle: "The DelTech Times · Beyond the Headlines",
+    metaDescription: "Issue 01 of The DelTech Times, a joint publication of DelTech MUN and DebSoc: the world this week, explained.",
+    contents: "In this issue",
+    readArticle: "Read the story",
+    page: "Page {n}",
+    originalPage: "View original page",
+    downloadPdf: "Download the PDF",
+    backToIssue: "Back to the issue",
+    previous: "Previous",
+    next: "Next",
+    homeEyebrow: "The DelTech Times",
+    homeTitle: "Beyond the Headlines, Issue 01.",
+    homeBody: "A joint publication of DelTech MUN and DebSoc. Five stories from the week, explained: the trilateral summit, Jio's IPO, the FAA ground stop, the U-19 Asia Cup final and COP31.",
+    homeCta: "Read the newsletter",
+    coverAlt: "Cover of The DelTech Times, Issue 01: Beyond the Headlines",
   },
 
   register: {

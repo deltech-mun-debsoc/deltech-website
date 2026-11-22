@@ -11,3 +11,5 @@ The main shared layout and type utilities are:
 - `body-large` for prominent readable supporting copy;
 - `data-label` and `eyebrow` for operational labels;
 - `diplomatic-surface`, `paper-grid`, and `noise-wash` for the visual system.
+
+The newsletter (`src/app/(marketing)/newsletter/`) is a deliberate exception. It reproduces a printed issue, so its typefaces (Tinos, Lora, Anton, DM Serif Display, UnifrakturMaguntia), uppercase labels, red accent and paper background are scoped to the `.newsletter` wrapper in `newsletter.css` and stay light in dark mode to match print. Do not reuse them outside that route.

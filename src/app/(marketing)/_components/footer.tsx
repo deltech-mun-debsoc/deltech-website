@@ -57,6 +57,11 @@ export function Footer({ contacts, conferenceDates, venue, societyLocation, soci
                 </Link>
               </li>}
               <li>
+                <Link href="/newsletter" className="text-paper/68 transition-colors hover:text-paper">
+                  {t("nav.newsletter")}
+                </Link>
+              </li>
+              <li>
                 <a href={DOCS_URL} className="text-paper/68 transition-colors hover:text-paper">
                   {t("nav.docs")}
                 </a>
