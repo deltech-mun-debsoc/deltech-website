@@ -1,0 +1,106 @@
+EXPLAINED | TECHNOLOGY
+
+Friday, 13 November 2026
+
+FAA ground stop was a
+network fault, not AI
+
+A nationwide ground stop halted US departures for over four hours on 13 November, days after the
+FAA took its AI-based SMART tool national. The FAA blames an unstable legacy network, not AI.
+KEY FACTS
+
+4h 21m
+
+Ground stop, 3:54 to 8:15
+pm ET
+
+17 of 22
+
+Route control centres
+hit by instability
+
+The FAA says data flooded its network at roughly
+1,000 connection attempts every four to five seconds.
+Early findings point to a radar set in Amarillo, Texas
+and a radio site in El Dorado, Arkansas, where
+provider L3Harris had been fitting a new router. Both
+sites were blocked and the network settled.
+SMART, built by Air Space Intelligence, went
+nationwide three days earlier. The FAA calls it a data
+aggregator that feeds nothing into air traffic control,
+and the company says it played no part. The FAA and
+L3Harris are still probing the root cause.
+
+Timing is not causation: the
+AI tool launched days
+earlier, but the fault sat in
+old network gear.
+
+By Satwik Shrikant• Tech Desk
+
+Value of the 12-year
+SMART contract
+
+Why it Matters
+
+At about 3:30 pm ET on 13 November, the FAA's
+legacy network was unstable, disrupting radar feeds
+and aircraft communications. A nationwide ground
+stop followed. About 3,500 aircraft in the air landed
+safely, and controllers kept some frequencies and
+radar feeds throughout.
+
+What we
+learned
+
+$875M
+
+Flights cancelled on
+the day, per the FAA
+
+How it unfolded
+
+01
+
+12,462
+
+02
+
+01
+
+AI was not in the data path
+The FAA says SMART shows
+data and does not feed
+controllers' systems.
+
+02
+
+Old equipment failed first
+Legacy TDM gear became
+unstable once the network
+was flooded with data.
+
+03
+
+Scrutiny of SMART
+continues
+Lawmakers had already
+sought a pause and clearer
+safety testing.
+
+03
+
+Routine work at remote sites
+can cascade. The FAA will
+review when such work is
+done.
+
+The root cause is unconfirmed
+by outside review. Questions
+about SMART's testing and
+oversight predate the outage
+and remain separate.
+
+Sources: FAA | Al Jazeera | Federal News Network
+
+
